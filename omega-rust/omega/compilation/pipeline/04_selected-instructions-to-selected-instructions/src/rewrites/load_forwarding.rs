@@ -128,10 +128,4 @@ pub enum StoredLoadForwardingError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for StoredLoadForwardingError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid stored-load forwarding: {self:?}")
-    }
-}
-
-impl std::error::Error for StoredLoadForwardingError {}
+failed_display!(StoredLoadForwardingError, "invalid stored-load forwarding");

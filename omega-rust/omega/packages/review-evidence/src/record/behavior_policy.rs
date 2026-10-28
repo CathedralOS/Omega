@@ -6,6 +6,7 @@ use super::{
     PackageReviewNominalIdentity, PackageReviewProgressSubject,
     PackageReviewWriteFrameCompleteness,
 };
+use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCapabilityFlow {
@@ -14,12 +15,8 @@ pub struct PackagePolicyCapabilityFlow {
 }
 
 impl PackagePolicyCapabilityFlow {
-    pub fn capability(&self) -> &PackageReviewNominalIdentity {
-        &self.capability
-    }
-    pub const fn kind(&self) -> flow_effects::CapabilityFlowKind {
-        self.kind
-    }
+    field_projection_accessors!(borrowed capability: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied kind: flow_effects::CapabilityFlowKind);
     pub(crate) fn compare_canonical(&self, other: &Self) -> std::cmp::Ordering {
         self.capability
             .cmp(&other.capability)
@@ -42,12 +39,8 @@ pub struct PackagePolicyMutation {
     pub(crate) paths: Vec<String>,
 }
 impl PackagePolicyMutation {
-    pub const fn completeness(&self) -> PackageReviewWriteFrameCompleteness {
-        self.completeness
-    }
-    pub fn paths(&self) -> &[String] {
-        &self.paths
-    }
+    field_projection_accessors!(copied completeness: PackageReviewWriteFrameCompleteness);
+    field_projection_accessors!(sliced paths: &[String]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -62,12 +55,8 @@ pub struct PackagePolicyCrashRoute {
     pub(crate) alternative_guards: Vec<PackagePolicyCrashGuard>,
 }
 impl PackagePolicyCrashRoute {
-    pub const fn cause(&self) -> PackageReviewCrashCause {
-        self.cause
-    }
-    pub fn alternative_guards(&self) -> &[PackagePolicyCrashGuard] {
-        &self.alternative_guards
-    }
+    field_projection_accessors!(copied cause: PackageReviewCrashCause);
+    field_projection_accessors!(sliced alternative_guards: &[PackagePolicyCrashGuard]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,18 +77,12 @@ pub struct PackagePolicyCrash {
     pub(crate) inferred: PackagePolicyInferredCrash,
 }
 impl PackagePolicyCrash {
-    pub const fn interface(&self) -> PackageReviewCrashInterface {
-        self.interface
-    }
-    pub fn published(&self) -> &[PackagePolicyCrashRoute] {
-        &self.published
-    }
+    field_projection_accessors!(copied interface: PackageReviewCrashInterface);
+    field_projection_accessors!(sliced published: &[PackagePolicyCrashRoute]);
     pub fn structural_runtime_requirements(&self) -> Option<&[PackageReviewBooleanExpression]> {
         self.structural_runtime_requirements.as_deref()
     }
-    pub fn inferred(&self) -> &PackagePolicyInferredCrash {
-        &self.inferred
-    }
+    field_projection_accessors!(borrowed inferred: &PackagePolicyInferredCrash);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

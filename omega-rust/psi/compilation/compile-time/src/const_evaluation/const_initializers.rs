@@ -341,7 +341,7 @@ pub(crate) fn evaluate(
         let leaf_count = declarations[ordinal].leaves.len();
         for leaf_ordinal in 0..leaf_count {
             let expression = declarations[ordinal].leaves[leaf_ordinal].expression;
-            let selected = preparation.initializer_expression_dependencies(
+            let selected = preparation.pending_leaf_dependencies(
                 &syntax,
                 &declarations[ordinal].definition,
                 expression,

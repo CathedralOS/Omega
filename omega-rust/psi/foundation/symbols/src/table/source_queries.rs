@@ -114,6 +114,59 @@ impl SymbolTable {
         self.find_declaration_from_source(path, occurrence, candidates, true, token_bound_machines)
     }
 
+    /// Exact completed-Build scope, authenticated by package output custody.
+    /// Candidates are Product declarations only; this grants no ordinary host
+    /// visibility and does not make a dependency's private members public.
+    pub fn find_captured_product_declaration(
+        &self,
+        path: &str,
+        package: PackageKeyIdentity,
+        stratum: source::SourceResolutionStratum,
+        candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+    ) -> Option<SymbolHandle> {
+        let sources = self.sources.as_deref()?;
+        let qualified = path.split_once("::");
+        let dependency =
+            qualified.and_then(|(alias, _)| sources.product_dependency_target(package, alias));
+        let target = dependency.unwrap_or(package);
+        let path = match (qualified, dependency) {
+            (Some((_, remaining)), Some(_)) => remaining,
+            _ => path,
+        };
+        let mut selected = None;
+        let mut selected_exact = false;
+        let mut ambiguous = false;
+        for (symbol, public) in candidates {
+            if !self.symbol_source_is_selected(symbol)
+                || self.symbol_product_package_identity(symbol) != Some(target)
+                || dependency.is_some() && !public
+            {
+                continue;
+            }
+            let file = self
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| self.source_file(span))?;
+            // The same temporal law as a source-issued Product description:
+            // current outputs cannot justify a prior Build formation, and a
+            // package cannot select its own newly generated declarations.
+            if !source::SourceMap::captured_reference_can_see_stratum(package, stratum, file) {
+                continue;
+            }
+            let exact = self.display_path(symbol, "::") == path;
+            if !exact && (dependency.is_some() || self.name(symbol) != path) {
+                continue;
+            }
+            if selected.is_none() || exact && !selected_exact {
+                selected = Some(symbol);
+                selected_exact = exact;
+                ambiguous = false;
+            } else if exact == selected_exact && selected != Some(symbol) {
+                ambiguous = true;
+            }
+        }
+        if ambiguous { None } else { selected }
+    }
+
     fn find_declaration_from_source(
         &self,
         path: &str,

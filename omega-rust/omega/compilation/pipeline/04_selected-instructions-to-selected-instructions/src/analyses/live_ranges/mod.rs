@@ -152,5 +152,3 @@ pub enum LiveRangeError {
 }
 
 failed_display!(LiveRangeError, "Terminal live-range derivation failed");
-
-impl std::error::Error for LiveRangeError {}

@@ -153,25 +153,41 @@ impl<'model> DirectTraversal<'model> {
             };
             self.scan_units(&view.write_units, witness, units)?;
         }
-        self.scan_units(
+        self.scan_implicit(
+            block,
+            instruction.id,
             &instruction.implicit_defs,
-            CalleeSavedModificationWitness::ImplicitDefinition {
-                block,
-                instruction: instruction.id,
-            },
-            units,
-        )?;
-        self.scan_units(
             &instruction.clobbers,
-            CalleeSavedModificationWitness::ImplicitClobber {
-                block,
-                instruction: instruction.id,
-            },
             units,
         )
     }
 
-    fn scan_units(
+    /// Charge one instruction's implicit definitions and clobbers: the unit rows
+    /// that follow from the instruction itself, whichever route found the
+    /// operand homes.
+    pub(in crate::preservation) fn scan_implicit(
+        &mut self,
+        block: SelectedBlockId,
+        instruction: selected_instructions::SelectedInstructionId,
+        definitions: &[RegisterUnitId],
+        clobbers: &[RegisterUnitId],
+        units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
+    ) -> Result<(), AllocatedCalleeSavedRequirementError> {
+        self.scan_units(
+            definitions,
+            CalleeSavedModificationWitness::ImplicitDefinition { block, instruction },
+            units,
+        )?;
+        self.scan_units(
+            clobbers,
+            CalleeSavedModificationWitness::ImplicitClobber { block, instruction },
+            units,
+        )
+    }
+
+    /// Charge one write and, when it meets the ABI-preserved roster, record the
+    /// witness that made it a requirement.
+    pub(in crate::preservation) fn scan_units(
         &mut self,
         writes: &[RegisterUnitId],
         witness: CalleeSavedModificationWitness,

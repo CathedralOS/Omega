@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_composed_nominal_output_hook_exit");
-    Build::select_provider<Console, NativeConsole>(builder);
+    Build::select_provider<Console, NativeConsole>(builder, linux_arm64);
+    Build::select_provider<Console, NativeConsole>(builder, linux_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, macos_arm64);
+    Build::select_provider<Console, NativeConsole>(builder, macos_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, windows_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, uefi_x86_64);
+    Build::select_provider<Console, NativeConsole>(builder, cross_platform_cli);
+    Build::select_provider<Console, NativeConsole>(builder, local_unchecked);
+    Build::select_provider<Console, NativeConsole>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

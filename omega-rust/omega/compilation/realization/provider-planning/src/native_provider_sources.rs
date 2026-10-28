@@ -65,11 +65,13 @@ fn selected_family_realizations(
             )]);
         }
         for (row_index, row) in plan.rows.iter().enumerate() {
-            let realization = provider.row_target_machine_origins[row_index]
+            let Some(realization) = provider.row_target_machine_origins[row_index]
                 .as_ref()
-                .map_or(provider.row_realizations[row_index], |origin| {
-                    origin.machine
-                });
+                .map(|origin| origin.machine)
+                .or_else(|| provider.row_realizations[row_index].authored())
+            else {
+                continue;
+            };
             for family in &typed.target_machine_families {
                 if !family.members.iter().any(|member| {
                     member.machine == realization && member.target.as_str() == plan.target

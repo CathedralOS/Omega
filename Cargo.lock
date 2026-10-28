@@ -165,6 +165,7 @@ dependencies = [
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
+ "language-semantics",
  "optimization-core",
  "psi-compiler",
  "syntax-trees",
@@ -981,6 +982,7 @@ dependencies = [
 name = "language-semantics"
 version = "0.1.0"
 dependencies = [
+ "build-time-values",
  "language-core",
  "numerics",
  "optimization",
@@ -1672,6 +1674,7 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "evaluation-accounting",
  "flow-effects",
  "language-core",
  "language-semantics",
@@ -1741,6 +1744,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "typed-trees",
+ "validation",
 ]
 
 [[package]]
@@ -2535,6 +2539,7 @@ dependencies = [
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "sha2",
  "source",
  "symbols",
 ]

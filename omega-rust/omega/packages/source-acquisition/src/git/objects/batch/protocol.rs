@@ -27,7 +27,7 @@ pub(crate) fn git_batch_output_limit(
     limits: LocalSourceLimits,
 ) -> Result<usize, SourceResolveError> {
     for entry in entries {
-        entry.validate_source_entry()?;
+        entry.validate_blob_entry()?;
     }
     let mut payload_bytes = 0_u64;
     let mut output_bytes = 0_usize;
@@ -82,7 +82,7 @@ pub(crate) fn assign_git_batch_output(
     output: Vec<u8>,
 ) -> Result<(), SourceResolveError> {
     for entry in entries.iter() {
-        entry.validate_source_entry()?;
+        entry.validate_blob_entry()?;
     }
     let mut remaining = output.as_slice();
     let mut offset = 0_usize;

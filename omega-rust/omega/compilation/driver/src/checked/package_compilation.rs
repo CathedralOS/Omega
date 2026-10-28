@@ -234,6 +234,10 @@ impl PackageBuild {
         self.source.package_inputs()
     }
 
+    pub fn native_binding_bundle(&self) -> &package_compilation::PackageNativeBindingBundle {
+        self.source.native_binding_bundle()
+    }
+
     pub fn generated_source_bundle(&self) -> &package_compilation::PackageGeneratedSourceBundle {
         self.source.generated_source_bundle()
     }

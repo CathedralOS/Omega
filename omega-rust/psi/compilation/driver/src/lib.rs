@@ -43,10 +43,11 @@ pub use psi_terminal_production::{
     ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
     TerminalApplicationCustody, TerminalArtifactProductionError, TerminalBuildBindingCall,
     TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildFilesystem,
-    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
     TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
-    TerminalBuildSelectionRequest, TerminalCompositionAdmission, TerminalMachineSelection,
+    TerminalBuildSelectionRequest, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape, TerminalCompositionAdmission, TerminalMachineSelection,
     TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
     UnmeasuredProduction, lower_task_activation_demands,
 };

@@ -129,7 +129,7 @@ pub fn bind_selected_provider_plan_facts(
 /// its derivation provenance and the authority that selected it.
 pub fn select_derived_provider_plans(
     derived: &[DerivedProviderPlan],
-    selected_target: target::NativeTarget,
+    selected_target: target::TargetProfile,
     defaults: &[crate::ProviderSelection],
     requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanWithProvenance>, Vec<diagnostics::Diagnostic>> {
@@ -142,8 +142,19 @@ pub fn select_derived_provider_plans(
             .into_iter()
             .map(|selected| SelectedProviderPlanWithProvenance {
                 derived: derived[selected.candidate].clone(),
-                selected_by: selected.selected_by,
+                selected_by: if derived[selected.candidate]
+                    .provenance
+                    .row_realizations
+                    .iter()
+                    .all(|row| row.native().is_some())
+                {
+                    ProviderSelectionProvenance::NativeBuild
+                } else {
+                    selected.selected_by
+                },
             })
             .collect()
     })
 }
+
+pub use provenance_replay::ProviderRowRealization;

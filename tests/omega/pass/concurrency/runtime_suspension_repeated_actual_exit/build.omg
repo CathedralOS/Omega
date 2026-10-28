@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_suspension_repeated_actual_exit");
-    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, linux_arm64);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, linux_x86_64);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, macos_arm64);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, macos_x86_64);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, windows_x86_64);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, local_unchecked);
+    Build::select_provider<Scheduler, InlineSchedulerImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

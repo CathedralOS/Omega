@@ -6,6 +6,7 @@
 mod boundary_correspondence;
 
 use super::{Emission, LoweringError, StructuralArgument, unsupported};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace};
 use terminal_psi::{
     ContentClaimProjection, ContentTransformationDerivation, StructuralPathQualification,
@@ -91,10 +92,8 @@ impl Emission<'_, '_, '_> {
         source: StructuralArgument,
         transaction: checked_trees::facts::ContentBodyTransformation,
     ) -> Result<StructuralArgument, LoweringError> {
-        use semantic_vocabulary::StructuralPlaceKind;
         use terminal_psi::{
             Operation, OperationKind, OperationResult, StructuralAccess, StructuralOperationResult,
-            StructuralPlaceDeclaration,
         };
         let content = &self.checked.facts.qualifications.content;
         let ownership = &self.checked.facts.flow.ownership;
@@ -301,11 +300,9 @@ impl Emission<'_, '_, '_> {
             parents.iter().chain(std::iter::once(&source)),
             self.operations,
         )?;
-        self.operations.push(Operation {
-            id: operation,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Structural(StructuralOperationResult {
+        self.operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Structural(StructuralOperationResult {
                 place,
                 structural_type: self.structural_type,
                 multiplicity: self.multiplicity,
@@ -314,21 +311,17 @@ impl Emission<'_, '_, '_> {
                 qualification_establishments: Vec::new(),
                 claims,
             }),
-            kind: OperationKind::TransformContent {
+            OperationKind::TransformContent {
                 source,
                 parents,
                 derivations,
             },
-        });
-        self.environment
-            .private_places
-            .push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: operation,
-                    structural_type: self.structural_type,
-                },
-            });
+        ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         Ok(StructuralArgument::whole(place, StructuralAccess::Owned))

@@ -11,10 +11,10 @@ pub(super) fn project_evaluated_binding(
     row: &provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     match row.evaluated() {
-        provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Import(evaluated) => {
+        provider_planning::evaluated_via_bindings::EvaluatedNativeBinding::Import(evaluated) => {
             project_evaluated_import(compilation, row, evaluated)
         }
-        provider_planning::evaluated_via_bindings::EvaluatedViaBinding::Syscall(evaluated) => {
+        provider_planning::evaluated_via_bindings::EvaluatedNativeBinding::Syscall(evaluated) => {
             project_evaluated_syscall(compilation, row, evaluated)
         }
     }

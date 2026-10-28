@@ -89,5 +89,3 @@ failed_display!(
     AllocatorAvailabilityError,
     "terminal allocator-availability derivation failed"
 );
-
-impl std::error::Error for AllocatorAvailabilityError {}

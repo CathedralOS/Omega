@@ -964,12 +964,7 @@ pub(super) fn fold_scalar_binary(
         return None;
     }
     match operator {
-        BinaryOperator::Equal
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual => {
+        operator if operator.is_comparison() => {
             let verdict = operator
                 .evaluate_comparison(&left, &right)
                 .expect("comparison operator");

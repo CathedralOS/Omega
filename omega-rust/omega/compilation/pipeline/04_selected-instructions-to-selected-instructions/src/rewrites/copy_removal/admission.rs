@@ -131,26 +131,14 @@ pub(super) fn admit<'source>(
     // The removed instruction must be the target's plain register copy: a
     // single read rebinding a single definition, with no implicit unit
     // traffic or operand constraints the removal would silently drop.
-    if copy_instruction.kind != SelectedInstructionKind::CopyI64
-        || copy_instruction.operands.len() != 2
-        || !copy_instruction.implicit_uses.is_empty()
-        || !copy_instruction.implicit_defs.is_empty()
-        || !copy_instruction.clobbers.is_empty()
-    {
+    if copy_instruction.kind != SelectedInstructionKind::CopyI64 {
         return Err(CopyRemovalError::UnsupportedInstruction);
     }
-    let input_operand = &copy_instruction.operands[0];
-    let output_operand = &copy_instruction.operands[1];
-    if input_operand.operand != 0
-        || input_operand.access != RegisterOperandAccess::Use
-        || output_operand.operand != 1
-        || output_operand.access != RegisterOperandAccess::Def
-        || copy_instruction.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
+    let Some((input_operand, output_operand)) =
+        crate::rewrites::carrier_pair(copy_instruction, RegisterOperandAccess::Def)
+    else {
         return Err(CopyRemovalError::UnsupportedInstruction);
-    }
+    };
     let input = input_operand.virtual_register;
     let output = output_operand.virtual_register;
     if input == output {

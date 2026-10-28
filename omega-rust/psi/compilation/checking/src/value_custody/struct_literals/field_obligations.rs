@@ -667,7 +667,7 @@ pub(crate) fn construction_application(
     TypeReferenceHandle::invalid()
 }
 
-pub(super) fn selected_construction_definition<'a>(
+pub fn selected_construction_definition<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,

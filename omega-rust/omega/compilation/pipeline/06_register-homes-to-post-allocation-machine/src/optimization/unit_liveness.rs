@@ -39,7 +39,8 @@ impl UnitLivenessTable {
         let mut effects = Vec::with_capacity(function.blocks.len());
         let mut suffix_effects = Vec::with_capacity(function.blocks.len());
         for block in &function.blocks {
-            let (block_eff, suffixes) = compute_block_and_suffix_effects(&block.instructions, units);
+            let (block_eff, suffixes) =
+                compute_block_and_suffix_effects(&block.instructions, units);
             effects.push(block_eff);
             suffix_effects.push(suffixes);
         }

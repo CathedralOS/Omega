@@ -422,6 +422,18 @@ fn produce_target_provider_proposals(
         .iter()
         .filter_map(|row| row.target.clone())
         .collect::<Vec<_>>();
+    targets.extend(
+        source
+            .build
+            .config
+            .provider_selections
+            .iter()
+            .filter_map(|selection| {
+                selection
+                    .target
+                    .map(|target| target.canonical_name().to_owned())
+            }),
+    );
     for binding in &source.build.config.root_bindings {
         if let Some((owner, _)) = binding.slot.rsplit_once("::")
             && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)

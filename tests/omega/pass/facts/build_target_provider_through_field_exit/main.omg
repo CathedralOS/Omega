@@ -1,0 +1,20 @@
+// A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
+// Expected exit: 0
+boundary trait Reading {
+    machine total() -> u64 reaches ensures result >= 1000u64;
+}
+FirstReading satisfies Reading {
+    machine total() -> u64 ensures result >= 1000u64 { 1100u64 }
+}
+SecondReading satisfies Reading {
+    machine total() -> u64 ensures result >= 1000u64 { 2100u64 }
+}
+data Carrier [copy] { before: u64; total: u64; after: u64; }
+machine journey(expected: u64) reaches Reading crashes Trap {
+    let carrier: Carrier = Carrier { before: 17u64, total: Reading::total(), after: 29u64 };
+    let difference: u64 = carrier.total - 1000u64;
+    transition carrier.before == 17u64 && carrier.after == 29u64 && difference == expected { true -> done() false -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
+machine first_entry() reaches Reading crashes Trap { journey(100u64); }
+machine second_entry() reaches Reading crashes Trap { journey(1100u64); }

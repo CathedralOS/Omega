@@ -1,0 +1,12 @@
+// Expected exit: 0
+machine main() crashes Trap {
+ let mut result: u64;
+ located(&mut result, 5);
+ transition result == 5u64 { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}
+machine located(result: &mut u64, start: i32) {
+ transition start >= 0 { true -> runs(result, start as u64) _ -> done() }
+ machine runs(result: &mut u64, value: u64) { result = value; }
+ machine done() {}
+}

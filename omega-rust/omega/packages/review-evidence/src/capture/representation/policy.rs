@@ -7,6 +7,7 @@ pub(crate) use selections::rederive_selections;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::project_checked_calling_policy;
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
@@ -107,8 +108,4 @@ pub(crate) fn project_checked_representation_policy<'a>(
     Ok(policy)
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "representation policy cannot retain {reason}"
-    ))]
-}
+refusal!(reason, "representation policy cannot retain {reason}");

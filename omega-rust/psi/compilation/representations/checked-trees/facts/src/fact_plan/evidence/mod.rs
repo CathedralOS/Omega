@@ -467,16 +467,17 @@ impl QualificationPayloadIdentity {
                 semantic_domain,
             });
         }
-        match payload {
-            FactPayload::CarryPermission { permission, .. }
-            | FactPayload::ContractCarryPermission { permission, .. } => {
-                Some(Self::CarryPermission { permission })
-            }
-            FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            // Every other payload records something else about the fact; the
-            // Some arms above are what carry qualification identity.
-            _ => None,
+        // The pair accessor owns which payloads carry a permission; this reader
+        // only decides what the permission means for correspondence identity.
+        if let Some(permission) = payload.carry_permission() {
+            return Some(Self::CarryPermission { permission });
         }
+        if matches!(payload, FactPayload::CarryOrigin { .. }) {
+            return Some(Self::CarryOrigin);
+        }
+        // Every other payload records something else about the fact; the
+        // Some arms above are what carry qualification identity.
+        None
     }
 }
 
@@ -525,48 +526,15 @@ pub struct Fact {
     pub payload: FactPayload,
 }
 
-/// The domain-membership pair binding only the domain symbol: most fact
-/// consumers discriminate the plain and contract spellings only by which
-/// declaration's contract the membership came through.
+/// The plain and contract spellings of one domain-membership payload, binding
+/// exactly the fields the caller names. Every reader that discriminates the two
+/// spellings only by which declaration's contract the membership came through
+/// takes this one alternation instead of restating it per bound-field subset.
 #[macro_export]
-macro_rules! domain_membership_symbol_pattern {
-    ($domain_symbol:ident) => {
-        $crate::FactPayload::DomainMembership { $domain_symbol, .. }
-            | $crate::FactPayload::ContractDomainMembership { $domain_symbol, .. }
-    };
-}
-
-/// The domain-membership pair binding the symbol and the semantic domain.
-#[macro_export]
-macro_rules! domain_membership_symbol_and_instance_pattern {
-    ($domain_symbol:ident, $semantic_domain:ident) => {
-        $crate::FactPayload::DomainMembership {
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        } | $crate::FactPayload::ContractDomainMembership {
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        }
-    };
-}
-
-/// The domain-membership pair binding the full membership triple.
-#[macro_export]
-macro_rules! domain_membership_fields_pattern {
-    ($domain:ident, $domain_symbol:ident, $semantic_domain:ident) => {
-        $crate::FactPayload::DomainMembership {
-            $domain,
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        } | $crate::FactPayload::ContractDomainMembership {
-            $domain,
-            $domain_symbol,
-            $semantic_domain,
-            ..
-        }
+macro_rules! domain_membership_pattern {
+    ($($field:ident),+ $(,)?) => {
+        $crate::FactPayload::DomainMembership { $($field,)+ .. }
+            | $crate::FactPayload::ContractDomainMembership { $($field,)+ .. }
     };
 }
 

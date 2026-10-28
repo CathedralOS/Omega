@@ -146,7 +146,7 @@ pub(crate) fn target_signature(
         .traits()
         .iter()
         .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| program.trait_machine_instances(definition))
+        .flat_map(|definition| program.executable_trait_machine_instances(definition))
         .filter(|signature| signature.symbol == requirement);
     let signature = signatures.next().ok_or(LoweringError::Unsupported(
         "call source custody has no authored boundary requirement",

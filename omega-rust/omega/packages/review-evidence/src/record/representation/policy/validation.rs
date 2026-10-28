@@ -1,15 +1,13 @@
 //! Offline association checks; no compiler replay or source access.
 
 use super::PackagePolicyRepresentation;
+use crate::record::validation::{ordered, ordered_by};
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-use std::cmp::Ordering;
 
 impl PackagePolicyRepresentation {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         self.target.validate_canonical_structure()?;
-        if self.declarations.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err("representation declarations are unordered or repeated");
-        }
+        ordered(&self.declarations)?;
         for declaration in &self.declarations {
             declaration.validate_resolved()?;
             if declaration.owner != PackageReviewNominalOwner::Package(self.package) {
@@ -35,13 +33,9 @@ impl PackagePolicyRepresentation {
     }
 
     fn validate_availability(&self) -> Result<(), &'static str> {
-        if self
-            .producer_availability
-            .windows(2)
-            .any(|pair| pair[0].conformance.identity >= pair[1].conformance.identity)
-        {
-            return Err("representation producer declarations are unordered or repeated");
-        }
+        ordered_by(&self.producer_availability, |a, b| {
+            a.conformance.identity.cmp(&b.conformance.identity)
+        })?;
         for candidate in &self.producer_availability {
             self.validate_owned_opaque(&candidate.opaque)?;
             candidate.carrier.validate_resolved()?;
@@ -65,13 +59,7 @@ impl PackagePolicyRepresentation {
     }
 
     fn validate_selections(&self) -> Result<(), &'static str> {
-        if self
-            .selected_availability
-            .windows(2)
-            .any(|pair| pair[0].opaque >= pair[1].opaque)
-        {
-            return Err("representation selections repeat or reorder an opaque declaration");
-        }
+        ordered_by(&self.selected_availability, |a, b| a.opaque.cmp(&b.opaque))?;
         for selection in &self.selected_availability {
             self.validate_owned_opaque(&selection.opaque)?;
             selection.carrier.validate_resolved()?;
@@ -107,13 +95,7 @@ impl PackagePolicyRepresentation {
     }
 
     fn validate_demands(&self) -> Result<(), &'static str> {
-        if self
-            .demands
-            .windows(2)
-            .any(|pair| pair[0].compare_application(&pair[1]) != Ordering::Less)
-        {
-            return Err("representation demand applications are unordered or repeated");
-        }
+        ordered_by(&self.demands, |a, b| a.compare_application(b))?;
         let mut remaining = self.demands.as_slice();
         while let Some(first) = remaining.first() {
             let count = remaining

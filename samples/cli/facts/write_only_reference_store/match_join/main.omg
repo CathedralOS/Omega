@@ -1,0 +1,23 @@
+// Fact: a `&write` store into a record's reference leaf installs the incoming
+// descriptor — the stored target reads the new referent's 85 while the
+// displaced referent's 11 and the sibling stamp's 17 stay untouched.
+// Place: match join. Either arm returns the same write-only slot.
+// Expected exit: 0
+data Cell { value: i64; }
+data Held { target: &Cell; stamp: i64; }
+
+machine lend(slot: &write Held) -> &write Held { &write slot }
+machine main() crashes Trap {
+    let left: Cell = Cell { value: 11 };
+    let right: Cell = Cell { value: 85 };
+    let mut held: Held = Held { target: &left, stamp: 17 };
+    let choice: bool = true;
+    let slot: &write Held = match choice { true -> lend(&write held), false -> lend(&write held) };
+    slot.target = &right;
+    transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -129,10 +129,8 @@ fn edge<'a>(
     request: &DependencySourceRequest,
     mutable_root: bool,
 ) -> Result<&'a CanonicalDependencySourceSelection, AcceptedSourceError> {
-    let package_index = subject
-        .packages()
-        .binary_search_by(|source| source.key().cmp(requester.key()))
-        .map_err(|_| {
+    let package_index = ResolvedSourceIdentity::index_in(subject.packages(), requester.key())
+        .ok_or_else(|| {
             AcceptedSourceError::mismatch(requester.key(), "requester is absent from locked graph")
         })?;
     checked_custody(

@@ -1,7 +1,23 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "sibling_module_service_exclusion_exit");
-    Build::select_provider<left::Sink, left::QuietSink>(builder);
-    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, linux_arm64);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, linux_x86_64);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, macos_arm64);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, macos_x86_64);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, windows_x86_64);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, uefi_x86_64);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, cross_platform_cli);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, local_unchecked);
+    Build::select_provider<left::Sink, left::QuietSink>(builder, alpha_bootstrap);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, linux_arm64);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, linux_x86_64);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, macos_arm64);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, macos_x86_64);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, windows_x86_64);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, uefi_x86_64);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, cross_platform_cli);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, local_unchecked);
+    Build::select_provider<right::Sink, right::QuietSinkSinkImplementation>(builder, alpha_bootstrap);
     configure(builder);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

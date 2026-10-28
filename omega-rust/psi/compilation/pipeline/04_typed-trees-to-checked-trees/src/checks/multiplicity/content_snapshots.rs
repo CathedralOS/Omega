@@ -89,15 +89,11 @@ pub(super) fn preserve_replacement(
                     .control
                     .operands
                     .get(conservation.completed_value),
-                place: CanonicalPlace {
-                    root: available.root,
-                    segments: facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(available.segments)
-                        .to_vec(),
-                },
+                place: crate::checks::places::place_or_root_in(
+                    &facts.flow.ownership.segments,
+                    available.root,
+                    available.segments,
+                ),
             }
         }
         ContentClaimTransformationSource::Unknown => {

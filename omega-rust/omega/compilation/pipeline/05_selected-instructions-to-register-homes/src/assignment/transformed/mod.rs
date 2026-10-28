@@ -4,7 +4,6 @@
 //! distinct source custody; each constructs its homes and manifest once.
 
 mod construction;
-mod custody;
 mod projection;
 
 use crate::{
@@ -130,20 +129,13 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
         self.folds.source_legality_stage().budget_per_pass()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.folds
+    assignment_context_accessors!(
+        folds
             .source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterLiteralFolds {
         custody: &StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     });
@@ -213,20 +205,12 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
     pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
         self.run.source_legality_stage().budget_per_pass()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.run
-            .source_legality_stage()
+    assignment_context_accessors!(
+        run.source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterSelectedLowering {
         custody: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     });
@@ -302,20 +286,12 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
         self.run.source_legality_stage().budget_per_pass()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.run
-            .source_legality_stage()
+    assignment_context_accessors!(
+        run.source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterPreAllocation {
         custody: &StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     });

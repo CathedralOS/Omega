@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderSelectionAuthority,
@@ -15,29 +16,13 @@ pub struct PackagePolicyProviderFamily {
 }
 
 impl PackagePolicyProviderFamily {
-    pub fn family_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.family_identity
-    }
+    field_projection_accessors!(borrowed family_identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed provider_type_declaration: &PackageReviewNominalIdentity);
 
-    pub fn provider_type_declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.provider_type_declaration
-    }
-
-    pub fn target(&self) -> TargetProfile {
-        self.target
-    }
-
-    pub fn authority(&self) -> PackageReviewProviderSelectionAuthority {
-        self.authority
-    }
-
-    pub fn coverage(&self) -> PackageReviewProviderFamilyCoverage {
-        self.coverage
-    }
-
-    pub fn coordinates(&self) -> &[PackagePolicyProviderFamilyCoordinate] {
-        &self.coordinates
-    }
+    field_projection_accessors!(copied target: TargetProfile);
+    field_projection_accessors!(copied authority: PackageReviewProviderSelectionAuthority);
+    field_projection_accessors!(copied coverage: PackageReviewProviderFamilyCoverage);
+    field_projection_accessors!(sliced coordinates: &[PackagePolicyProviderFamilyCoordinate]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,11 +37,7 @@ impl PackagePolicyProviderFamilyCoordinate {
         &self.requirement_identity
     }
 
-    pub fn operator_declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.operator_declaration
-    }
+    field_projection_accessors!(borrowed operator_declaration: &PackageReviewNominalIdentity);
 
-    pub fn plan_index(&self) -> u32 {
-        self.plan_index
-    }
+    field_projection_accessors!(copied plan_index: u32);
 }

@@ -38,6 +38,16 @@ impl PackagePolicyBaseline {
             &self.selected_providers,
         )?;
         self.symbolic_demands()?;
+        for row in &self.native_bindings {
+            row.validate(self.package, self.target)?;
+        }
+        if self
+            .native_bindings
+            .windows(2)
+            .any(|pair| pair[0].key() >= pair[1].key())
+        {
+            return Err("native inventory repeats or reorders its exact producer/requirement");
+        }
         ordered(&self.external_supplies)?;
         self.validate_external_associations()?;
         ordered(&self.dangerous_capabilities)?;

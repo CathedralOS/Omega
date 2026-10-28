@@ -27,10 +27,33 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v1\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v3\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
+        for bundle in self.inputs.dependency_native_binding_bundles() {
+            identity.package(Some(bundle.source().package()));
+            identity.digest.len(bundle.declarations().len());
+            for declaration in bundle.declarations() {
+                identity
+                    .digest
+                    .string(&declaration.producer.declaration_path);
+                identity
+                    .digest
+                    .string(&declaration.producer.callable_identity);
+                identity.digest.string(&declaration.requirement_path);
+                identity.digest.raw(&declaration.source_occurrence_digest);
+            }
+            identity.digest.len(bundle.intents().len());
+            for intent in bundle.intents() {
+                identity.digest.u64(intent.declaration as u64);
+                identity.product_target(Some(intent.target));
+                identity.native_locator(&intent.locator);
+            }
+            if let Some(evaluation) = bundle.evaluation() {
+                identity.digest.raw(&evaluation.identity_digest());
+            }
+        }
         identity.admission(&self.prepared.built.admission);
         Ok(identity.digest.finish())
     }
@@ -46,12 +69,52 @@ struct BuildOutputIdentity<'program> {
 }
 
 impl BuildOutputIdentity<'_> {
+    fn native_locator(&mut self, locator: &semantic_vocabulary::NativeBindingLocator) {
+        use semantic_vocabulary::{ForeignLocatorCandidate as Locator, NativeBindingLocator};
+        match locator {
+            NativeBindingLocator::Syscall { number } => {
+                self.digest.byte(0);
+                self.digest.u64(*number);
+            }
+            NativeBindingLocator::Import(Locator::PeByName { library, export }) => {
+                self.digest.byte(1);
+                self.digest.bytes(library);
+                self.digest.bytes(export);
+            }
+            NativeBindingLocator::Import(Locator::PeByOrdinal { library, ordinal }) => {
+                self.digest.byte(2);
+                self.digest.bytes(library);
+                self.digest.u64(u64::from(*ordinal));
+            }
+            NativeBindingLocator::Import(Locator::ElfVersioned {
+                object,
+                symbol,
+                version,
+            }) => {
+                self.digest.byte(3);
+                self.digest.bytes(object);
+                self.digest.bytes(symbol);
+                self.digest.bytes(version);
+            }
+            NativeBindingLocator::Import(Locator::MachODylibSymbol {
+                install_name,
+                symbol,
+            }) => {
+                self.digest.byte(4);
+                self.digest.bytes(install_name);
+                self.digest.bytes(symbol);
+            }
+        }
+    }
+
     fn computed(&mut self, value: &ComputedBuildConfig) -> Result<(), String> {
         let ComputedBuildConfig {
             config,
             root_binding_requests,
             declared_product_selections,
             product_selection_requests,
+            native_binding_requests,
+            native_formations: _,
             behavior_exclusion_requests,
             project_declaration,
             optimization_report_request,
@@ -111,13 +174,22 @@ impl BuildOutputIdentity<'_> {
                 request,
                 selecting_machine,
                 composition,
+                target,
             } = selection;
             self.product_request(request)?;
+            self.product_target(*target);
             self.optional_occurrence(*selecting_machine)?;
             self.digest.bool(composition.is_some());
             if let Some(mode) = composition {
                 self.composition(*mode);
             }
+        }
+        self.digest.len(native_binding_requests.len());
+        for selection in native_binding_requests {
+            self.product_request(&selection.request)?;
+            self.product_target(Some(selection.target));
+            self.occurrence(selection.selecting_machine)?;
+            self.native_locator(&selection.locator);
         }
         self.digest.len(behavior_exclusion_requests.len());
         for request in behavior_exclusion_requests {
@@ -162,6 +234,8 @@ impl BuildOutputIdentity<'_> {
             settings,
             grants,
             provider_selections,
+            native_bindings,
+            native_binding_evaluation,
             assumed_bindings,
             opaque_representation_selections,
             wire_compatibility_demands,
@@ -188,6 +262,7 @@ impl BuildOutputIdentity<'_> {
                 subject,
                 provider_type,
                 composition_mode,
+                target,
                 selecting_machine,
                 source_span,
             } = selection;
@@ -214,9 +289,31 @@ impl BuildOutputIdentity<'_> {
                 }
             }
             self.provider_identity(provider_type)?;
+            self.product_target(*target);
             self.composition(*composition_mode);
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
+        }
+        self.digest.len(native_bindings.len());
+        match native_binding_evaluation {
+            Some(evaluation) => {
+                self.digest.byte(1);
+                self.digest.raw(&evaluation.identity_digest());
+            }
+            None => self.digest.byte(0),
+        }
+        for supply in native_bindings {
+            self.digest.raw(&supply.evaluation.identity_digest());
+            let selection = &supply.selection;
+            self.symbol(selection.subject)?;
+            self.symbol(selection.requirement)?;
+            self.product_target(Some(selection.target));
+            self.native_locator(&selection.locator);
+            self.digest.string(&selection.producer.declaration_path);
+            self.digest.string(&selection.producer.callable_identity);
+            self.digest.raw(&selection.source_occurrence_digest);
+            self.package(Some(selection.supplier_package));
+            self.occurrence(selection.source_span)?;
         }
         self.digest.len(assumed_bindings.len());
         for binding in assumed_bindings {
@@ -476,6 +573,7 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::WireCompatibilityRequest => 9,
             BuildOperation::IncludedSourceHandoff => 10,
             BuildOperation::LogWriteLine => 11,
+            BuildOperation::NativeBinding => 12,
         });
         self.digest.len(operands.len());
         for operand in operands {
@@ -501,6 +599,16 @@ impl BuildOutputIdentity<'_> {
         self.digest.string(canonical_path);
         self.digest.string(authored_path);
         Ok(())
+    }
+
+    fn product_target(
+        &mut self,
+        target: Option<language_semantics::declaration_selection::ProductTarget>,
+    ) {
+        self.digest.bool(target.is_some());
+        if let Some(target) = target {
+            self.digest.string(target.canonical_name());
+        }
     }
 
     fn composition(&mut self, mode: CompositionMode) {

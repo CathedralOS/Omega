@@ -123,11 +123,53 @@ impl EvaluatedBindingUsage {
     }
 }
 
+/// Exact source/evaluation identity of a native binding authored by Build.
+/// The source companion's semantic occurrence is bound separately from the
+/// portable code fingerprint because designated Product operands are private
+/// Build metadata, not executable runtime arguments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildNativeBindingOrigin {
+    pub requirement_identity: String,
+    pub source_occurrence_digest: [u8; 32],
+    pub terminal_code: terminal_psi::TerminalPsiIdentity,
+    pub fuel_schedule: u32,
+    pub storage_schedule: u32,
+    pub observation_digest: [u8; 32],
+}
+
+impl BuildNativeBindingOrigin {
+    fn validate(&self) -> Result<(), String> {
+        if self.requirement_identity.is_empty()
+            || self.source_occurrence_digest == [0; 32]
+            || self.terminal_code.program_fingerprint.as_bytes() == &[0; 32]
+            || self.fuel_schedule == 0
+            || self.storage_schedule == 0
+            || self.observation_digest == [0; 32]
+        {
+            return Err("native Build binding origin is incomplete".into());
+        }
+        Ok(())
+    }
+    fn feed(&self, digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder) {
+        digest.bytes(self.requirement_identity.as_bytes());
+        digest.raw(&self.source_occurrence_digest);
+        digest.raw(&self.terminal_code.vocabulary_marker.get().to_le_bytes());
+        digest.raw(self.terminal_code.program_fingerprint.as_bytes());
+        digest.raw(&self.fuel_schedule.to_le_bytes());
+        digest.raw(&self.storage_schedule.to_le_bytes());
+        digest.raw(&self.observation_digest);
+    }
+}
+
 /// Durable receipt for one exact source evaluation and binding
 /// materialization. Arena handles, source spans, and raw traces deliberately
 /// remain outside this identity carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedBindingReceipt {
+    /// Ordinary `via` evaluation has no Build origin. A reached Build bind
+    /// retains its own exact requirement and Terminal activation instead of
+    /// inventing a realization declaration.
+    build_origin: Option<BuildNativeBindingOrigin>,
     producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// Index into the evaluated via-binding table's `identities` table.
     producer_callable_identity: terminal_psi::TerminalIdentityIndex,
@@ -177,6 +219,7 @@ impl EvaluatedBindingReceipt {
             locator_identity_digest,
         );
         Ok(Self {
+            build_origin: None,
             producer_package,
             producer_callable_identity: identities.intern(producer_callable_identity),
             producer_closure_digest,
@@ -188,6 +231,46 @@ impl EvaluatedBindingReceipt {
             locator_identity_digest,
             identity,
         })
+    }
+
+    /// Rejoin one completed source-issued Build evaluation. This does not
+    /// admit the foreign promise: provider and executable admission still own it.
+    pub fn with_build_origin(mut self, origin: BuildNativeBindingOrigin) -> Result<Self, String> {
+        origin.validate()?;
+        if self.build_origin.is_some() || self.producer_package.is_none() {
+            return Err(
+                "native Build receipt has duplicate origin or no immutable supplier".into(),
+            );
+        }
+        let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+            b"omega.build-native-binding-receipt.sha256.v1\0",
+        );
+        digest.raw(&self.identity);
+        origin.feed(&mut digest);
+        self.identity = digest.finish();
+        self.build_origin = Some(origin);
+        Ok(self)
+    }
+
+    /// Move an inert receipt between retained identity tables without changing
+    /// its meaning. Canonical producer text participates in the commitment;
+    /// invocation-local table ordinals do not.
+    pub fn reintern_producer(
+        &self,
+        source: &terminal_psi::TerminalIdentityTable,
+        destination: &mut terminal_psi::TerminalIdentityTableBuilder,
+    ) -> Result<Self, String> {
+        let producer = source
+            .text(self.producer_callable_identity)
+            .filter(|name| !name.is_empty())
+            .ok_or("native binding receipt lost its source producer identity")?;
+        let mut receipt = self.clone();
+        receipt.producer_callable_identity = destination.intern(producer);
+        Ok(receipt)
+    }
+
+    pub const fn build_origin(&self) -> Option<&BuildNativeBindingOrigin> {
+        self.build_origin.as_ref()
     }
 
     pub const fn producer_package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
@@ -380,4 +463,82 @@ pub fn evaluated_syscall_identity_digest(
     number: u32,
 ) -> ForeignLocatorIdentityDigest {
     target::evaluated_syscall_identity_digest(target, number)
+}
+
+/// One exact normalized result of evaluating the compiler-owned `Binding`
+/// sum. The variant remains explicit so ordinary syscall evidence cannot be
+/// reinterpreted as a legacy syscall carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvaluatedNativeBinding {
+    Import(EvaluatedForeignImport),
+    Syscall(EvaluatedForeignSyscall),
+}
+
+impl EvaluatedNativeBinding {
+    pub fn reintern_producer(
+        &self,
+        source: &terminal_psi::TerminalIdentityTable,
+        destination: &mut terminal_psi::TerminalIdentityTableBuilder,
+    ) -> Result<Self, String> {
+        let receipt = self.receipt().reintern_producer(source, destination)?;
+        match self {
+            Self::Import(import) => Ok(Self::Import(
+                EvaluatedForeignImport::from_retained_evidence(import.locator().clone(), receipt)?,
+            )),
+            Self::Syscall(syscall) => Ok(Self::Syscall(
+                EvaluatedForeignSyscall::from_retained_evidence(
+                    syscall.target(),
+                    u64::try_from(syscall.number())
+                        .map_err(|_| "native syscall number is negative")?,
+                    receipt,
+                )?,
+            )),
+        }
+    }
+
+    pub const fn target(&self) -> target::TargetProfile {
+        match self {
+            Self::Import(evaluated) => evaluated.locator().target(),
+            Self::Syscall(evaluated) => evaluated.target(),
+        }
+    }
+
+    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
+        match self {
+            Self::Import(evaluated) => evaluated.receipt(),
+            Self::Syscall(evaluated) => evaluated.receipt(),
+        }
+    }
+
+    pub const fn identity_digest(&self) -> target::ForeignLocatorIdentityDigest {
+        match self {
+            Self::Import(evaluated) => evaluated.locator().identity_digest(),
+            Self::Syscall(evaluated) => evaluated.identity_digest(),
+        }
+    }
+
+    pub fn provider_binding(&self) -> super::ProviderBinding {
+        match self {
+            Self::Import(evaluated) => super::ProviderBinding::Import {
+                evaluated: evaluated.clone(),
+            },
+            Self::Syscall(evaluated) => super::ProviderBinding::Syscall {
+                number: evaluated.number(),
+            },
+        }
+    }
+
+    pub const fn as_import(&self) -> Option<&EvaluatedForeignImport> {
+        match self {
+            Self::Import(evaluated) => Some(evaluated),
+            Self::Syscall(_) => None,
+        }
+    }
+
+    pub const fn as_syscall(&self) -> Option<&EvaluatedForeignSyscall> {
+        match self {
+            Self::Import(_) => None,
+            Self::Syscall(evaluated) => Some(evaluated),
+        }
+    }
 }

@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 /// One projection's aggregate limits; callers subtract usage across packages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePolicyRowLimits {
@@ -53,13 +54,6 @@ pub struct PackagePolicyRowUsage {
 }
 
 impl PackagePolicyRowUsage {
-    pub const fn rows(self) -> usize {
-        self.rows
-    }
-    pub const fn owned_bytes(self) -> usize {
-        self.owned_bytes
-    }
-    pub const fn sequence_elements(self) -> usize {
-        self.sequence_elements
-    }
+    field_projection_accessors!(valued rows: usize, owned_bytes: usize);
+    field_projection_accessors!(valued sequence_elements: usize);
 }

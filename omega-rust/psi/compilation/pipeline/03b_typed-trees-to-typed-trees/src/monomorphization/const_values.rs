@@ -68,14 +68,18 @@ pub(super) fn substitute(
             }
             continue;
         }
-        let occurrences = program
-            .expression_table
-            .iter_expressions()
-            .filter(|(handle, _)| {
-                expression_start.is_none_or(|start| handle.arena_index() as usize >= start)
-            })
-            .filter_map(|(handle, _)| exact_binder_name(program, handle, *binder).then_some(handle))
-            .collect::<Vec<_>>();
+        let occurrences = match expression_start {
+            Some(start) => program
+                .expression_table
+                .iter_expressions_from(start)
+                .filter_map(|(handle, _)| exact_binder_name(program, handle, *binder).then_some(handle))
+                .collect::<Vec<_>>(),
+            None => program
+                .expression_table
+                .iter_expressions()
+                .filter_map(|(handle, _)| exact_binder_name(program, handle, *binder).then_some(handle))
+                .collect::<Vec<_>>(),
+        };
         let projections = nominal_record_projections(program, *binder, expression_start);
         if occurrences.is_empty() && projections.is_empty() {
             continue;
@@ -148,17 +152,20 @@ fn nominal_record_projections(
     binder: symbols::SymbolHandle,
     expression_start: Option<usize>,
 ) -> Vec<NominalProjection> {
-    let in_clone = |handle: ExpressionHandle| {
-        expression_start.is_none_or(|start| handle.arena_index() as usize >= start)
+    let members = match expression_start {
+        Some(start) => program
+            .expression_table
+            .iter_expressions_from(start)
+            .filter(|(_, expression)| matches!(expression, ExpressionNode::Member(_)))
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>(),
+        None => program
+            .expression_table
+            .iter_expressions()
+            .filter(|(_, expression)| matches!(expression, ExpressionNode::Member(_)))
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>(),
     };
-    let members = program
-        .expression_table
-        .iter_expressions()
-        .filter(|(handle, expression)| {
-            in_clone(*handle) && matches!(expression, ExpressionNode::Member(_))
-        })
-        .map(|(handle, _)| handle)
-        .collect::<Vec<_>>();
     let mut receivers = Vec::new();
     for handle in &members {
         if let ExpressionNode::Member(member) = program.expression_table.expression(*handle) {

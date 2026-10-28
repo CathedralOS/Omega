@@ -72,3 +72,8 @@ pub(crate) use source_snapshot::capture_scoped_source_input;
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
+
+pub use package_compilation::{
+    NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,
+    PackageNativeBindingBundle, PackageNativeBindingOrigin,
+};

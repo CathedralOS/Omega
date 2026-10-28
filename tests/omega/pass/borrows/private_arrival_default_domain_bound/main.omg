@@ -1,0 +1,28 @@
+// Expected exit: 0
+// The entry type's default domain and the caller's guard compose before
+// transfer. Private bodies do not need a duplicate handwritten precondition.
+data Table where self.count <= 4 {
+    count: u64;
+    rows: [u64; 4];
+}
+machine read_table(table: &Table, handle: u64 in Trapping) -> u64 {
+    transition handle < table.count {
+        true -> read(table, handle)
+        _ -> (0)
+    }
+    machine read(table: &Table, handle: u64 in Trapping) -> u64 {
+        table.rows[handle]
+    }
+}
+machine main() crashes Trap {
+    let table: Table = Table { count: 3, rows: [3, 7, 9, 12] };
+    let first: u64 = read_table(&table, 1);
+    let second: u64 = read_table(&table, 2);
+    let outside: u64 = read_table(&table, 3);
+    transition first == 7 && second == 9 && outside == 0 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

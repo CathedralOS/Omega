@@ -71,6 +71,33 @@ crate::tagged_vocabulary! {
     }
 }
 
+impl OptimizationExecutionPhase {
+    /// Sealed Terminal Psi divides the phases a sealed artifact still admits
+    /// from the ones that already ran: `CheckedTrees` and `Psi` execute before
+    /// publication and are execution history afterwards. Every post-Terminal
+    /// projection reads this split rather than restating its own phase list.
+    pub const fn is_post_terminal(self) -> bool {
+        !matches!(self, Self::CheckedTrees | Self::Psi)
+    }
+}
+
+/// One row's value in the unified-to-Psi projection: a row that executes in
+/// the `Psi` phase is source-visible to Psi under the same name, and every
+/// other row stays Omega-owned.
+///
+/// The declared phase is the whole predicate — there is no second visibility
+/// column to keep in step with the rows, and a `Psi`-phase row whose Psi
+/// spelling diverged fails to compile at the projection instead of silently
+/// mapping to nothing.
+macro_rules! psi_projection_value {
+    ($variant:ident, Psi) => {
+        Some(optimization::PsiOptimization::$variant)
+    };
+    ($variant:ident, $phase:ident) => {
+        None
+    };
+}
+
 macro_rules! optimization_vocabulary {
     (
         $count:literal;
@@ -115,6 +142,16 @@ macro_rules! optimization_vocabulary {
             pub const fn execution_phase(self) -> OptimizationExecutionPhase {
                 match self {
                     $(Self::$variant => OptimizationExecutionPhase::$phase),+
+                }
+            }
+
+            /// Project one unified build-visible selection into Psi's
+            /// independently owned pre-Terminal vocabulary. Physical
+            /// optimizations have no Psi identity and remain in their
+            /// Omega-owned phases.
+            pub const fn optimization(self) -> Option<optimization::PsiOptimization> {
+                match self {
+                    $( Self::$variant => psi_projection_value!($variant, $phase) ),+
                 }
             }
 
@@ -410,77 +447,10 @@ optimization_vocabulary! {
     },
 }
 
-impl Optimization {
-    /// Project one unified build-visible selection into Psi's independently
-    /// owned pre-Terminal vocabulary. Physical optimizations have no Psi
-    /// identity and remain in their Omega-owned phases.
-    pub const fn optimization(self) -> Option<optimization::PsiOptimization> {
-        use optimization::PsiOptimization;
-
-        match self {
-            Self::ControlFlowCleanup => Some(PsiOptimization::ControlFlowCleanup),
-            Self::SparseConditionalConstantPropagation => {
-                Some(PsiOptimization::SparseConditionalConstantPropagation)
-            }
-            Self::CopyPropagation => Some(PsiOptimization::CopyPropagation),
-            Self::GlobalValueNumbering => Some(PsiOptimization::GlobalValueNumbering),
-            Self::DeadPureScalarElimination => Some(PsiOptimization::DeadPureScalarElimination),
-            Self::ProofCheckElision => Some(PsiOptimization::ProofCheckElision),
-            Self::StateSpecialization => Some(PsiOptimization::StateSpecialization),
-            Self::RepresentationSpecialization => {
-                Some(PsiOptimization::RepresentationSpecialization)
-            }
-            Self::LoopInvariantScalarMotion => Some(PsiOptimization::LoopInvariantScalarMotion),
-            Self::SelectedIncomingU12ExactAddImmediate
-            | Self::X86RelaxConditionalBranchesToRel8V1
-            | Self::SelectedIncomingU12ExactSubtractImmediate
-            | Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-            | Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1
-            | Self::ActiveResidentImmediateU64MultiUseRematerializationV1
-            | Self::Aarch64SelectShortestMovnSeededI64MaterializationV1
-            | Self::X86SelectXorZeroI64MaterializationV1
-            | Self::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-            | Self::X86SelectMovR64Imm32SignExtendedI64MaterializationV1
-            | Self::Aarch64ElideSameViewCopyI64BeforeReturnV1
-            | Self::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1
-            | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1
-            | Self::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1
-            | Self::SelectedIncomingU12CompareImmediate
-            | Self::CheckedTreeProductPruning
-            | Self::SelectedIncomingLiteralExtensionElimination
-            | Self::SelectedIncomingU12Load8IndexedOffset
-            | Self::SelectedIncomingLiteralCopyMaterialization
-            | Self::SelectedIncomingU12ByteViewAddressOffset
-            | Self::SelectedIncomingExactDivideIdentityCopy
-            | Self::SelectedIncomingWrappingRemainderOneZeroMaterialization
-            | Self::SelectedIncomingBitwiseAndZeroMaterialization
-            | Self::SelectedIncomingBitwiseXorZeroIdentityCopy
-            | Self::SelectedIncomingWrappingAddZeroIdentityCopy
-            | Self::SelectedIncomingBitwiseAndOnesIdentityCopy
-            | Self::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization
-            | Self::SelectedIncomingExactDivideZeroDividendZeroMaterialization
-            | Self::SelectedIncomingSaturatingAddZeroIdentityCopy
-            | Self::SelectedIncomingSaturatingSubtractZeroIdentityCopy
-            | Self::SelectedIncomingSaturatingDivideOneIdentityCopy
-            | Self::SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization
-            | Self::SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization
-            | Self::SelectedIncomingSaturatingAddUpperBoundMaterialization
-            | Self::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization
-            | Self::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization
-            | Self::SelectedSameBlockCopyI64RemovalV1
-            | Self::SelectedRedundantExtensionRemovalV1
-            | Self::SelectedAddressOffsetFoldV1
-            | Self::SelectedConstantBooleanFoldV1
-            | Self::SelectedConstantBranchFoldV1
-            | Self::SelectedDeadCompareRemovalV1
-            | Self::SelectedRedundantCompareRemovalV1
-            | Self::SelectedEquivalentCompareRemovalV1
-            | Self::SelectedCopiedCallOperandFoldV1
-            | Self::SelectedStoredLoadForwardingV1 => None,
-        }
-    }
-}
-
+/// The Psi-side half of the projection. It stays a stated match rather than
+/// row expansion: the rows generate the unified-to-Psi direction, while this
+/// direction names a foreign closed vocabulary and is checked exhaustive by
+/// the compiler, so a new Psi optimization cannot be forgotten here.
 impl From<optimization::PsiOptimization> for Optimization {
     fn from(optimization: optimization::PsiOptimization) -> Self {
         use optimization::PsiOptimization;
@@ -681,17 +651,7 @@ impl OptimizationSelections {
                         .selected
                         .iter()
                         .copied()
-                        .filter(|optimization| match optimization.execution_phase() {
-                            OptimizationExecutionPhase::CheckedTrees
-                            | OptimizationExecutionPhase::Psi => false,
-                            OptimizationExecutionPhase::AbstractOperations
-                            | OptimizationExecutionPhase::TargetOperations
-                            | OptimizationExecutionPhase::SelectedLowering
-                            | OptimizationExecutionPhase::PreAllocation
-                            | OptimizationExecutionPhase::AllocationRecovery
-                            | OptimizationExecutionPhase::PostAllocationMachine
-                            | OptimizationExecutionPhase::FunctionRelativeLayout => true,
-                        })
+                        .filter(|optimization| optimization.execution_phase().is_post_terminal())
                         .collect(),
                 },
             },

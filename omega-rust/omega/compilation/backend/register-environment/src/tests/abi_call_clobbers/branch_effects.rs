@@ -1,14 +1,13 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, named_view, produced_effects, scalar_abi_cases,
-    validate_effects,
+    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
+    scalar_abi_cases, validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 /// Every selected branch rule key with the semantic family the effect
@@ -89,20 +88,6 @@ fn expected_size(
             other => panic!("{other:?} is not a selected branch rule"),
         },
     }
-}
-
-/// Conditional-branch declarations share one constraint key, so branch
-/// declarations are found by (key, semantic) rather than by key alone.
-fn branch_declaration_mut(
-    catalog: &mut MachineEffectCatalog,
-    key: RegisterConstraintKey,
-    semantic: MachineSemanticKind,
-) -> &mut MachineEffectDeclaration {
-    catalog
-        .declarations
-        .iter_mut()
-        .find(|declaration| declaration.constraint == key && declaration.semantic == semantic)
-        .unwrap_or_else(|| panic!("effect catalog missing branch declaration {key:?}/{semantic:?}"))
 }
 
 /// Every selected branch rule on every declared target/ABI pair is bound to
@@ -331,7 +316,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // control-flow barrier class: the conditional forms reject the
             // unconditional encoding, and Jump rejects the conditional one.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .control = if contract.conditional {
                 MachineEncodedControlEffect::UnconditionalRelativeBranchV1
@@ -349,7 +334,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // A return encoding is inside the barrier class but outside the
             // branch shape.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .control = MachineEncodedControlEffect::ReturnFromActivationStackV1;
             assert_eq!(
@@ -368,7 +353,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 MachineEncodedControlEffect::HostedExitOrTrapV1,
             ] {
                 let mut corrupted = catalog.clone();
-                branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .control = control;
                 assert_eq!(
@@ -383,7 +368,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // Understating the architectural fault stays inside the admitted
             // fallthrough trap surface, so only canonical ISA replay rejects it.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .trap = MachineEncodedTrapBehavior::NeverV1;
             assert_eq!(
@@ -394,7 +379,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
 
             // A hosted trap shape is outside the admitted branch surface.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
             assert_eq!(
@@ -407,7 +392,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
 
             // A branch cannot grow a memory footprint or a stack lifecycle.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .memory = MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
@@ -421,7 +406,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} forged memory footprint must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .stack = MachineEncodedStackEffect::PopBytesV1 {
                 stack_pointer: stack_pointer.id,
@@ -437,7 +422,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
 
             // The operand-free row admits no encoded operand custody.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .external_operand_reads
                 .push(0);
@@ -449,7 +434,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} forged operand read must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .external_operand_writes
                 .push(0);
@@ -467,7 +452,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // definition on either row.
             if contract.conditional {
                 let mut corrupted = catalog.clone();
-                branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .implicit_unit_uses
                     .retain(|unit| !flags.units.contains(unit));
@@ -480,7 +465,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 );
             }
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_uses
                 .retain(|unit| !program_counter.units.contains(unit));
@@ -492,7 +477,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} lost program-counter use must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_defs
                 .retain(|unit| !program_counter.units.contains(unit));
@@ -508,7 +493,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // a foreign implicit unit, or any clobber on a row that declares
             // none.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_uses
                 .push(stack_pointer.units[0]);
@@ -520,7 +505,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} forged stack-pointer use must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_defs
                 .push(stack_pointer.units[0]);
@@ -532,7 +517,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} forged stack-pointer definition must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_clobbers
                 .push(flags.units[0]);
@@ -548,7 +533,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             // operand-shaped applicability, or empty out; drifting its
             // variant or size needs canonical replay.
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .key
                 .family = if contract.conditional {
                 MachineSemanticKind::Jump.into()
@@ -563,7 +548,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} borrowed alternative family must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0].applicability =
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0].applicability =
                 MachineAlternativeApplicability::ResultAliasesOperand {
                     result: 0,
                     operand: 0,
@@ -576,7 +561,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} operand-shaped applicability must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic)
+            declaration_mut(&mut corrupted, key, semantic)
                 .alternatives
                 .clear();
             assert_eq!(
@@ -587,7 +572,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} empty alternatives must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .key
                 .variant = 1;
             assert_eq!(
@@ -596,7 +581,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 "{key:?} variant drift must reject"
             );
             let mut corrupted = catalog.clone();
-            branch_declaration_mut(&mut corrupted, key, semantic).alternatives[0].size =
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0].size =
                 MachineSizeKnowledge::ExactBytes(997);
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),

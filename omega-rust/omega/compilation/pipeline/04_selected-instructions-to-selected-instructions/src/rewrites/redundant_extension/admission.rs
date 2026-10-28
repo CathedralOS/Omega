@@ -159,25 +159,11 @@ pub(super) fn admit<'source>(
     // zero reads the value, operand one defines the result, and nothing else
     // (no fixed views, ties, early clobbers, or implicit unit effects) rides
     // along that a plain copy would silently drop.
-    if extension_instruction.operands.len() != 2
-        || !extension_instruction.implicit_uses.is_empty()
-        || !extension_instruction.implicit_defs.is_empty()
-        || !extension_instruction.clobbers.is_empty()
-    {
+    let Some((use_operand, def_operand)) =
+        crate::rewrites::carrier_pair(extension_instruction, RegisterOperandAccess::Def)
+    else {
         return Err(RedundantExtensionError::UnsupportedInstruction);
-    }
-    let use_operand = &extension_instruction.operands[0];
-    let def_operand = &extension_instruction.operands[1];
-    if use_operand.operand != 0
-        || use_operand.access != RegisterOperandAccess::Use
-        || def_operand.operand != 1
-        || def_operand.access != RegisterOperandAccess::Def
-        || extension_instruction.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
-        return Err(RedundantExtensionError::UnsupportedInstruction);
-    }
+    };
     let value = use_operand.virtual_register;
     let output = def_operand.virtual_register;
     if value == output {

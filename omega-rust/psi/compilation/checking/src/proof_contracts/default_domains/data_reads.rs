@@ -180,63 +180,69 @@ fn scan_expression_use(
         consumes_value,
         diagnostics,
     );
-    if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
-        // Dynamic selectors overlap every possible element. A nominal value
-        // also consumes a covering window; a raw scalar projection does not.
-        let mut cached_definition = None;
-        let mut lookup_definition = || {
-            *cached_definition.get_or_insert_with(|| {
-                data_definition_for_expression(program, machine, Some(state), expression)
-            })
-        };
-        if matches!(
+    if consumes_value {
+        let is_name = matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Name(_)
-        ) && let Some(definition) = lookup_definition()
-            && crate::value_custody::data::data_requires_establishment(program, definition)
-        {
-            // Passing or borrowing the whole nominal value cannot bypass the
-            // same establishment gate a projected observation must satisfy.
-            validate_data_read(
-                program,
-                state,
-                definition,
-                &spelling,
-                "<whole value>",
-                expression_root_symbol(program, expression),
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
-        }
+        );
         let has_open_window =
             !inherited_windows.is_empty() || tracked.iter().any(TrackedPlace::any_window_open);
-        if has_open_window {
-            let consumes_record = lookup_definition().is_some();
-            let overlaps_consumed_value = |place: &str| {
-                place_spelling_covers(&spelling, place)
-                    || (consumes_record && place_spelling_covers(place, &spelling))
+        if (is_name || has_open_window)
+            && let Some(spelling) = write_place_spelling(program, expression)
+        {
+            // Dynamic selectors overlap every possible element. A nominal value
+            // also consumes a covering window; a raw scalar projection does not.
+            let mut cached_definition = None;
+            let mut lookup_definition = || {
+                *cached_definition.get_or_insert_with(|| {
+                    data_definition_for_expression(program, machine, Some(state), expression)
+                })
             };
-            if let Some(place) = tracked
-                .iter()
-                .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
+            if is_name
+                && let Some(definition) = lookup_definition()
+                && crate::value_custody::data::data_requires_establishment(program, definition)
             {
-                diagnostics.push(Diagnostic::error(format!(
-                    "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
-                     window: a prior write left data `{}`'s default domain FALSE -- \
-                     restore the facts before copying or exposing the value (ch11)",
-                    place.definition.name.as_str()
-                )));
-            } else if let Some((_, data_name, _)) = inherited_windows
-                .iter()
-                .find(|(place, _, _)| overlaps_consumed_value(place))
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
-                     window carried from a predecessor state for data `{data_name}`"
-                )));
+                // Passing or borrowing the whole nominal value cannot bypass the
+                // same establishment gate a projected observation must satisfy.
+                validate_data_read(
+                    program,
+                    state,
+                    definition,
+                    &spelling,
+                    "<whole value>",
+                    expression_root_symbol(program, expression),
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+            if has_open_window {
+                let consumes_record = lookup_definition().is_some();
+                let overlaps_consumed_value = |place: &str| {
+                    place_spelling_covers(&spelling, place)
+                        || (consumes_record && place_spelling_covers(place, &spelling))
+                };
+                if let Some(place) = tracked
+                    .iter()
+                    .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                         window: a prior write left data `{}`'s default domain FALSE -- \
+                         restore the facts before copying or exposing the value (ch11)",
+                        place.definition.name.as_str()
+                    )));
+                } else if let Some((_, data_name, _)) = inherited_windows
+                    .iter()
+                    .find(|(place, _, _)| overlaps_consumed_value(place))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                         window carried from a predecessor state for data `{data_name}`"
+                    )));
+                }
             }
         }
     }

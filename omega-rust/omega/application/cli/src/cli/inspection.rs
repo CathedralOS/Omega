@@ -218,9 +218,10 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             attachment_identity(module, boundary.attachment),
             service_ceiling(module, &boundary.published_service_ceiling),
             format_ids(boundary.requires.iter().map(|requirement| format!(
-                "argument:{}:domain:{}",
+                "argument:{}:domain:{}:path:{:?}",
                 requirement.argument_index,
-                requirement.domain.get()
+                requirement.domain.get(),
+                requirement.path
             )))
         )
         .expect("writing to a String cannot fail");

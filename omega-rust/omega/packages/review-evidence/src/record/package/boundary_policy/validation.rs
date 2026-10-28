@@ -5,6 +5,8 @@ use crate::record::PackageReviewBoundaryApplication;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewOperatorCoordinate;
 use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
+use crate::record::package::callable_policy::validation::signature::owned_pair;
+use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
     PackagePolicyProviderBinding, PackagePolicySelectedProviders,
     PackageReviewBoundaryApplicationArgument, PackageReviewNominalOwner,
@@ -38,16 +40,10 @@ impl PackagePolicyBoundaryApplications {
         if providers.package() != package || providers.target() != target {
             return Err("D29 provider policy has a different package or target");
         }
-        if providers.plans().iter().any(|plan| {
-            plan.rows()
-                .windows(2)
-                .any(|pair| pair[0].requirement() >= pair[1].requirement())
-        }) {
-            return Err("D29 selected rows are not uniquely ordered");
+        for plan in providers.plans() {
+            ordered_by(plan.rows(), |a, b| a.requirement().cmp(b.requirement()))?;
         }
-        if self.demands.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err("symbolic demands repeat or are out of canonical order");
-        }
+        ordered(&self.demands)?;
         for demand in &self.demands {
             demand.operator_coordinate.identity().validate_resolved()?;
             demand.producer_callable.validate_resolved()?;
@@ -66,13 +62,9 @@ impl PackagePolicyBoundaryApplications {
                 }
             }
         }
-        if self
-            .realizations
-            .windows(2)
-            .any(|pair| pair[0].application_key() >= pair[1].application_key())
-        {
-            return Err("closed applications repeat or are out of canonical order");
-        }
+        ordered_by(&self.realizations, |a, b| {
+            a.application_key().cmp(&b.application_key())
+        })?;
         for realization in &self.realizations {
             realization
                 .operator_coordinate
@@ -161,10 +153,8 @@ fn checked_body(
     declaration: &PackageReviewNominalIdentity,
     callable: &PackageReviewNominalIdentity,
 ) -> Result<(), &'static str> {
-    declaration.validate_resolved()?;
-    callable.validate_resolved()?;
+    owned_pair(declaration, callable)?;
     if row.realization() != Some(declaration)
-        || declaration.owner != callable.owner
         || !matches!(
             row.binding(),
             PackagePolicyProviderBinding::CheckedAdapter { .. }
