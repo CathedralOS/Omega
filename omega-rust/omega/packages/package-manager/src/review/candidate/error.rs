@@ -128,6 +128,15 @@ impl CompileResolvedPackageReviewsError {
         request_path: Option<DependencyRequestPath>,
         failure: CompileFailure,
     ) -> Self {
+        // Temporary diagnostic observer: preserve the complete retained vector
+        // before bounded presentation. It never changes admission or recovery.
+        if std::env::var_os("OMEGA_TRACE_PACKAGE_DIAGNOSTICS").is_some()
+            && let CompileFailure::Diagnostics(diagnostics) = &failure
+        {
+            for (ordinal, diagnostic) in diagnostics.iter().enumerate() {
+                eprintln!("PACKAGE_DIAGNOSTIC {ordinal}: {diagnostic:?}");
+            }
+        }
         match failure {
             CompileFailure::Diagnostics(diagnostics) => Self::Compilation {
                 package,
