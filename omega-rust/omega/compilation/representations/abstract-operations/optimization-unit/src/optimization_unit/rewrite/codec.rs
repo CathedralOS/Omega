@@ -14,6 +14,22 @@ use crate::optimization_unit::rewrite::{
     PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution, TotalScalarIdentityKind,
 };
 
+/// Encode the leader and redundant definitions of a scalar-common-subexpression
+/// patch. The local and dominating payloads are distinct types with the same
+/// fields, so the shared step is spelled once here: both node locations, then
+/// both operations, then both result values, then the scalar type.
+macro_rules! encode_scalar_common_subexpression {
+    ($bytes:expr, $patch:expr) => {{
+        encode_location($bytes, $patch.leader);
+        encode_location($bytes, $patch.redundant);
+        crate::codec_bytes::push_encoded($bytes, $patch.leader_operation.get().to_le_bytes());
+        crate::codec_bytes::push_encoded($bytes, $patch.redundant_operation.get().to_le_bytes());
+        crate::codec_bytes::push_encoded($bytes, $patch.leader_result.get().to_le_bytes());
+        crate::codec_bytes::push_encoded($bytes, $patch.redundant_result.get().to_le_bytes());
+        encode_scalar_type($bytes, $patch.scalar_type);
+    }};
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_candidate(
     input: OptimizationUnitIdentity,
@@ -257,41 +273,11 @@ pub(super) fn encode_candidate(
         }
         PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) => {
             bytes.push(11);
-            encode_location(&mut bytes, patch.leader);
-            encode_location(&mut bytes, patch.redundant);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.leader_operation.get().to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_operation.get().to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(&mut bytes, patch.leader_result.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_result.get().to_le_bytes(),
-            );
-            encode_scalar_type(&mut bytes, patch.scalar_type);
+            encode_scalar_common_subexpression!(&mut bytes, patch);
         }
         PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
             bytes.push(12);
-            encode_location(&mut bytes, patch.leader);
-            encode_location(&mut bytes, patch.redundant);
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.leader_operation.get().to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_operation.get().to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(&mut bytes, patch.leader_result.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(
-                &mut bytes,
-                patch.redundant_result.get().to_le_bytes(),
-            );
-            encode_scalar_type(&mut bytes, patch.scalar_type);
+            encode_scalar_common_subexpression!(&mut bytes, patch);
         }
         PsiRewritePatch::MergeNonAdjacentBlock(patch) => {
             bytes.push(13);
