@@ -2081,6 +2081,24 @@ fail/build/program_entry_receiver_not_zii rejected 825ms expected @a92f16431042
 	entry machine `Application::launch` requests a provisioned `Application` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/program_entry_returns_value rejected 3930ms expected @a92f16431042
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/provider_package_default_contract_rejected rejected 440ms expected @5dd6fab9e76b
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/build/provider_package_default_duplicate_rejected rejected 247ms expected @5dd6fab9e76b
+	build selects two provider types for slot `main::Reading`: `main::SecondReading` and `main::FirstReading`
+fail/build/provider_package_default_fabricated_activation_rejected rejected 104ms expected @5dd6fab9e76b
+	the compiler-owned Build activation cannot be copied into local `other`
+fail/build/provider_package_default_missing_rejected rejected 1015ms expected @5dd6fab9e76b
+	slot `main::Reading` has two covering provider plans for the selected target: `<selected target>::main::FirstReading::satisfies::main::Reading` [<fingerprint>], `<selected target>::main::SecondReading::satisfies::main::Reading` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<main::Reading, ProviderType>(b);`
+fail/build/provider_package_default_private_rejected rejected 288ms expected @5dd6fab9e76b
+	Product provider operand `reading_provider::main::FirstReading` does not resolve to one visible declaration of role Provider
+fail/build/provider_package_default_unselected_body_rejected rejected 839ms expected @5dd6fab9e76b
+	cannot prove ensures contract for exit from FirstReading::total at statement 0: result >= 1000
+fail/build/provider_package_generated_owner_contract_rejected rejected 799ms expected @5dd6fab9e76b
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/build/provider_package_helper_contract_rejected rejected 645ms expected @5dd6fab9e76b
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/build/provider_selection_cross_file_author_contract_rejected rejected 319ms expected @5dd6fab9e76b
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/build/provider_selection_missing_target rejected 25ms expected @13c576a20f04
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 fail/build/representation_selection_fabricated_activation rejected 8ms expected @7530b1177ef5
@@ -2983,6 +3001,10 @@ fail/contracts/scalar_field_copy_guard_after_destination_write rejected 7596ms e
 fail/contracts/scalar_index_copy_guard_after_destination_selector_write rejected 9329ms expected @a92f16431042
 	cannot prove requires contract for call bounded from Main::main: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
 	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/contracts/scalar_reference_unit_completion_missing_store rejected 255ms expected @1273f57db0df
+	machine `zero_implicit` cannot prove ensures contract proof fact `output == 0` from the requires contract
+fail/contracts/scalar_reference_unit_completion_overwritten rejected 607ms expected @1273f57db0df
+	cannot prove ensures contract for exit from zero at statement 0: output == 0
 fail/contracts/shared_field_current_arithmetic_out_of_bounds rejected 2159ms expected @a92f16431042
 	cannot prove requires contract for call checked from last: offset < backing.len (needs fact `index < backing.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/shared_field_current_arithmetic_unrelated_root rejected 1993ms expected @a92f16431042
@@ -5448,8 +5470,9 @@ fail/facts/build_target_provider_through_other_state_rejected rejected 1033ms ex
 	cannot prove requires contract for call consume from journey: Reading.total() >= 1000 (needs fact `total >= 1000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/build_target_provider_through_parameter_rejected rejected 1255ms expected @13c576a20f04
 	cannot prove requires contract for call consume from journey: Reading.total() >= 1000 (needs fact `total >= 1000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/build_target_provider_through_target_body_rejected rejected 565ms expected @13c576a20f04
-	exact arithmetic in machine `CalculationBody::consume` state `consume` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `total(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/build_target_provider_through_target_body_rejected rejected 476ms expected @5dd6fab9e76b
+	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `total(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `total(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/call_result_bound_discharge_through_call_result_rejected rejected 544ms expected @a92f16431042
 	machine `Main::main` state `main` value call to `echo` violates required fact `scale <= 5`: the instantiated fact is structurally false (`9 <= 5`)
 fail/facts/call_result_bound_discharge_through_const_name_rejected rejected 785ms expected @a92f16431042
@@ -5682,6 +5705,51 @@ fail/facts/case_tag_discriminant_layout_through_target_body_rejected rejected 59
 	exact arithmetic in machine `eval` state `inspect` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `eval` state `inspect` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `eval` state `inspect` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_arithmetic_before_restore_rejected rejected 1008ms expected @6d4edb1c9d50
+	exact arithmetic in machine `main` state `entry` local `unsafe_delta` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_nested_payload_carriage_rejected rejected 799ms expected @6d4edb1c9d50
+	exact arithmetic in machine `pair_width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 280ms expected @6d4edb1c9d50
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form named-domain membership: the logical data subject's own default domain is still pending admission", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 342, end: 346 } }), resolved_location: None })
+fail/facts/case_where_equality_data_predicate_partial_call_rejected rejected 807ms expected @6d4edb1c9d50
+	cannot prove requires contract for specification call `needs_equal` in data `Interval` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_payload_stale_rejected rejected 779ms expected @6d4edb1c9d50
+	machine `main` state `entry` statement 2: reading `point.<whole value>` inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before this consumption point (ch11)
+	machine `main` state `entry` statement 2: the next whole-value read of `point` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `point` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/case_where_equality_data_predicate_through_call_result_rejected rejected 739ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_const_name_rejected rejected 978ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_field_rejected rejected 1042ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_local_rejected rejected 842ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_match_join_rejected rejected 789ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_other_machine_rejected rejected 737ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_other_state_rejected rejected 759ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_parameter_rejected rejected 757ms expected @6d4edb1c9d50
+	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_through_target_body_rejected rejected 731ms expected @6d4edb1c9d50
+	exact arithmetic in machine `WindowsWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_unguarded_payload_rejected rejected 660ms expected @6d4edb1c9d50
+	cannot form specification payload projection `lo` in data `Interval` default-domain predicate: establish its exact active case before projecting the payload
+	cannot form specification payload projection `hi` in data `Interval` default-domain predicate: establish its exact active case before projecting the payload
+	data `Interval` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/case_where_equality_data_predicate_whole_replacement_arithmetic_before_restore_rejected rejected 820ms expected @6d4edb1c9d50
+	exact arithmetic in machine `main` state `entry` local `unsafe_delta` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_whole_subject_domain_rejected rejected 745ms expected @6d4edb1c9d50
+	cannot form named-domain membership in data `Interval` default-domain predicate: the logical subject's own default domain is still pending admission
+	data `Interval` literal cannot prove default-domain fact: field `<unknown>` is not known to satisfy domain `Interval::Always` at construction
+fail/facts/case_where_equality_data_predicate_whole_subject_formation_rejected rejected 644ms expected @6d4edb1c9d50
+	cannot form specification argument in data `Interval` default-domain predicate: the logical subject's pending default domain cannot admit the nominal value required by parameter `value`
 fail/facts/case_where_equality_through_call_result_rejected rejected 598ms expected @a92f16431042
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_where_equality_through_const_name_rejected rejected 575ms expected @a92f16431042
@@ -6021,150 +6089,69 @@ fail/facts/checked_asm_compare_preserves_through_target_body_rejected rejected 2
 	cannot prove requires contract for call compare$assembly$windows_x86_64$5$entry from compare: !asm#scratch#48#zf$version$2 || asm#scratch#48#eax$version$0 == 0 (needs fact `!asm#scratch#48#zf || asm#scratch#48#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$linux_arm64$5$entry from compare: !asm#scratch#89#zf$version$2 || asm#scratch#89#w0$version$0 == 0 (needs fact `!asm#scratch#89#zf || asm#scratch#89#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compare$assembly$macos_arm64$5$entry from compare: !asm#scratch#130#zf$version$2 || asm#scratch#130#w0$version$0 == 0 (needs fact `!asm#scratch#130#zf || asm#scratch#130#w0 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/checked_asm_countdown_through_call_result_rejected rejected 1000ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_const_name_rejected rejected 992ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_field_rejected rejected 1056ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_local_rejected rejected 999ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_match_join_rejected rejected 994ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 991ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_other_state_rejected rejected 879ms expected @02dd96eebdad
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_parameter_rejected rejected 902ms expected @02dd96eebdad
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
-fail/facts/checked_asm_countdown_through_target_body_rejected rejected 969ms expected @69168130b1c6
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$windows_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_x86_64$4$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$linux_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove asm `ensures` fact at block exit in countdown$assembly$macos_arm64$5$entry state `done` (statement 1): output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: ((asm#scratch#7#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: ((asm#scratch#42#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#42#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$windows_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#77#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#77#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_x86_64$4$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$linux_arm64$5$entry: asm#scratch#112#w1$version$1 == 1 (needs fact `asm#scratch#112#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$linux_arm64$5$entry at statement 2: output == 0
-	cannot prove requires contract for call done from countdown$assembly$macos_arm64$5$entry: asm#scratch#152#w1$version$1 == 1 (needs fact `asm#scratch#152#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
-	cannot prove ensures contract for exit from countdown$assembly$macos_arm64$5$entry at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_call_result_rejected rejected 627ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_const_name_rejected rejected 609ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_field_rejected rejected 601ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_local_rejected rejected 610ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_match_join_rejected rejected 620ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_other_machine_rejected rejected 608ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_other_state_rejected rejected 604ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_parameter_rejected rejected 604ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
+fail/facts/checked_asm_countdown_through_target_body_rejected rejected 612ms expected @1273f57db0df
+	cannot prove asm `ensures` fact at block exit in X86Countdown::run$assembly$portable$4$run state `done` (statement 1): output == 0
+	cannot prove asm `ensures` fact at block exit in ArmCountdown::run$assembly$portable$5$run state `done` (statement 1): output == 0
+	cannot prove requires contract for call done from X86Countdown::run$assembly$portable$4$run: ((asm#scratch#13#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
+	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
 fail/facts/checked_asm_fence_contracts_through_call_result_rejected rejected 513ms expected @56fe2cadbf91
 	tests/omega/fail/facts/checked_asm_fence_contracts_through_call_result_rejected/main.omg:11:5: asm where `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
 fail/facts/checked_asm_fence_contracts_through_const_name_rejected rejected 536ms expected @56fe2cadbf91
@@ -17803,6 +17790,8 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/packages/rootless_numeric_provider_missing_satisfaction rejected 3781ms expected @2b9f8a09c701
+	build selects provider `UnusedNumericProvider` for slot `operator::F32::negate(named(name(f32)))->named(name(f32))`, but no candidate exists in the loaded dependency closure
 fail/slices/nested_machine_field_window_out_of_bounds rejected 673ms expected @bc368540ef79
 	cannot prove subslice range end bound `0..wide.length` is within slice length 2
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -17810,11 +17799,30 @@ pass/borrows/nested_machine_unit_output_completed_operand_exit checked 5718ms ch
 pass/borrows/nested_machine_unit_output_local_destination_exit checked 5669ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit checked 4135ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 4085ms check-target:macos_arm64 @1e18830ea024+wt
+pass/build/provider_package_default_exit checked 2309ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/build/provider_package_default_override_exit checked 2177ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/build/provider_package_generated_owner_exit checked 2411ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/build/provider_package_helper_exit checked 2199ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/build/provider_selection_cross_file_author_exit checked 1958ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
 pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
 pass/calls/runtime_fused_child_computed_borrow_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
 pass/calls/runtime_guarded_terminal_record_field_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
 pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 942ms check-target:macos_arm64 @bc368540ef79
+pass/facts/case_where_equality_data_predicate_direct_exit checked 1911ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_formed_call_exit checked 1946ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit checked 1782ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_restored_exit checked 1694ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_call_result_exit checked 1605ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_const_name_exit checked 3197ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_field_exit checked 1881ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_local_exit checked 2016ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_match_join_exit checked 1970ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_other_machine_exit checked 1841ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 1778ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 2013ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 2120ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 2279ms check-target:macos_arm64 @6d4edb1c9d50
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -23989,7 +23997,7 @@ pass/build/described_runner_entry_right_exit checked 6369ms check-target:macos_a
 pass/build/discarded_provider_selection_exit rejected 5857ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
 pass/build/entry_schema_same_leaf_exit checked 1937ms check-target:macos_arm64 @a92f16431042
-pass/build/executed_exclusion_values_exit checked 3300ms check-target:macos_arm64 @030cc694c7b9+wt
+pass/build/executed_exclusion_values_exit checked 1864ms check-target:macos_arm64 @5dd6fab9e76b
 pass/build/explicit_lifetime_entry_context_exit checked 1898ms check-target:macos_arm64 @a92f16431042
 pass/build/explicit_provider_readiness_exit checked 2301ms check-target:macos_arm64 interpreter-exit:0 @f229bab668eb
 pass/build/freestanding_unselected_completion checked 5583ms @a92f16431042
@@ -24681,6 +24689,7 @@ pass/contracts/runtime_projected_element_requirements_exit checked 3282ms check-
 pass/contracts/runtime_recursive_result_bound_exit checked 1894ms check-target:macos_arm64 @683f7a2f2406
 pass/contracts/saved_call_case_guarantee_requires_exit checked 3495ms check-target:macos_arm64 @a92f16431042
 pass/contracts/saved_case_guarantee checked 2819ms @a92f16431042
+pass/contracts/scalar_reference_unit_completion_exit checked 946ms check-target:macos_arm64 @1273f57db0df
 pass/contracts/selected_storage_contract_exit checked 2920ms check-target:macos_arm64 @a92f16431042
 pass/contracts/shared_field_current_arithmetic checked 2584ms @a92f16431042
 pass/contracts/strict_clause_terminated_headers checked 2428ms @a92f16431042
@@ -25803,15 +25812,15 @@ pass/facts/bounded_scalar_sums_through_other_machine_exit checked 2780ms check-t
 pass/facts/bounded_scalar_sums_through_other_state_exit checked 2789ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_scalar_sums_through_parameter_exit checked 2772ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_scalar_sums_through_target_body_exit checked 2778ms check-target:macos_arm64 @a92f16431042
-pass/facts/build_target_provider_through_call_result_exit checked 2286ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_const_name_exit checked 2473ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_field_exit checked 2805ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_local_exit checked 2186ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_match_join_exit checked 2223ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_other_machine_exit checked 2487ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_other_state_exit checked 2661ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_parameter_exit checked 2279ms check-target:macos_arm64 @13c576a20f04
-pass/facts/build_target_provider_through_target_body_exit checked 2246ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_call_result_exit checked 2214ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_const_name_exit checked 2218ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_field_exit checked 2169ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_local_exit checked 2187ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_match_join_exit checked 2201ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_other_machine_exit checked 2194ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_other_state_exit checked 2166ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_parameter_exit checked 2174ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/facts/build_target_provider_through_target_body_exit checked 2239ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
 pass/facts/call_result_bound_discharge_through_call_result_exit checked 2761ms check-target:macos_arm64 @a92f16431042
 pass/facts/call_result_bound_discharge_through_const_name_exit checked 5873ms check-target:macos_arm64 @a92f16431042
 pass/facts/call_result_bound_discharge_through_field_exit checked 2767ms check-target:macos_arm64 @a92f16431042
@@ -25961,15 +25970,15 @@ pass/facts/checked_asm_compare_preserves_through_other_machine_exit checked 3298
 pass/facts/checked_asm_compare_preserves_through_other_state_exit checked 6687ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_parameter_exit checked 5561ms check-target:macos_arm64 @e06334c63dc4+wt
 pass/facts/checked_asm_compare_preserves_through_target_body_exit checked 6041ms check-target:macos_arm64 @e06334c63dc4+wt
-pass/facts/checked_asm_countdown_through_call_result_exit checked 1351ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
-pass/facts/checked_asm_countdown_through_const_name_exit checked 1337ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
-pass/facts/checked_asm_countdown_through_field_exit checked 1319ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
-pass/facts/checked_asm_countdown_through_local_exit checked 1305ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
-pass/facts/checked_asm_countdown_through_match_join_exit checked 1372ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
-pass/facts/checked_asm_countdown_through_other_machine_exit checked 1371ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
-pass/facts/checked_asm_countdown_through_other_state_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_parameter_exit checked 1239ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @02dd96eebdad
-pass/facts/checked_asm_countdown_through_target_body_exit checked 1350ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @69168130b1c6
+pass/facts/checked_asm_countdown_through_call_result_exit checked 867ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_const_name_exit checked 846ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_field_exit checked 823ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_local_exit checked 831ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_match_join_exit checked 829ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_other_machine_exit checked 823ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_other_state_exit checked 838ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_parameter_exit checked 992ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
+pass/facts/checked_asm_countdown_through_target_body_exit checked 1115ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @1273f57db0df
 pass/facts/checked_asm_fence_contracts_through_call_result_exit checked 4657ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
 pass/facts/checked_asm_fence_contracts_through_const_name_exit checked 4321ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
 pass/facts/checked_asm_fence_contracts_through_field_exit checked 4316ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @56fe2cadbf91
@@ -28767,7 +28776,7 @@ pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 
 pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 1875ms check-target:macos_arm64 @fb3442d9e130
 pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write checked 1019ms check-target:macos_arm64 @fb3442d9e130
 pass/facts/provider_contract_endpoint_control_forwarded_provider_selection checked 978ms check-target:macos_arm64 @fb3442d9e130
-pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 1075ms check-target:macos_arm64 @fb3442d9e130
+pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 2320ms check-target:macos_arm64 @5dd6fab9e76b
 pass/facts/provider_contract_endpoint_control_indirect_helper checked 979ms check-target:macos_arm64 @fb3442d9e130
 pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3823ms check-target:macos_arm64 @fb3442d9e130
 pass/facts/provider_contract_endpoint_through_call_result_exit checked 1264ms check-target:macos_arm64 @fb3442d9e130
@@ -32190,6 +32199,8 @@ pass/ownership/zero_case_generic_inventory checked 1457ms @a92f16431042
 pass/ownership/zero_case_qualified_inventory checked 1999ms @a92f16431042
 pass/packages/implementation_parent_review checked 2153ms @a92f16431042
 pass/packages/indexed_contract_field_review checked 2069ms check-target:macos_arm64 @a92f16431042
+pass/packages/rootless_numeric_provider_consumer checked 3407ms check-target:macos_arm64 @2b9f8a09c701
+pass/packages/rootless_numeric_provider_review checked 3954ms @2b9f8a09c701
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 6467ms check-target:macos_arm64 @a92f16431042
 pass/parameters/shared_and_mut_borrow_params_compile checked 1424ms @a92f16431042
 pass/parser/deep_nesting_within_limit checked 1364ms @a92f16431042
