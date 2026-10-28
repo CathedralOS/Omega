@@ -49,7 +49,9 @@ slots plus macOS x86-64 and expects exit 0.
 
 The smaller [package-owned witness](package_owned/main.omg) isolates private
 default transport. [Cross-file configuration](cross_file/main.omg) moves the
-selection into a dependency helper. The [root helper](root_cross_file/main.omg)
+selection into a dependency helper with two closed ordinary Boolean applications.
+Only the selected branch executes; its generated instance retains the original
+helper declaration as author. The [root helper](root_cross_file/main.omg)
 pins the distinction between an activation and a helper authored in another
 file. Each has a bound-only reject twin under its `invalid/` folder.
 
