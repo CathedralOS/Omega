@@ -8,8 +8,9 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_psi::{
-    BindingRelevance, BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
-    BoundaryParameterKind, BoundaryRequirementKind, NominalDeclarationIdentity, StructuralAccess,
+    BindingRelevance, BoundaryCompletion, BoundaryLifetimeDependency, BoundaryMachineDeclaration,
+    BoundaryMachineResult, BoundaryParameterKind, BoundaryReferenceDestination,
+    BoundaryReferenceOutput, BoundaryRequirementKind, NominalDeclarationIdentity, StructuralAccess,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
@@ -136,7 +137,19 @@ fn module() -> TerminalModule {
         scalar_domain_requirements: Vec::new(),
         scalar_requires: Vec::new(),
         scalar_ensures: Vec::new(),
-        reference_outputs: Vec::new(),
+        // Parameter two exposes a writable reference descriptor. Its complete
+        // opaque completion contract retains the original stored loan as a
+        // lifetime anchor; it does not promise the old pointer's identity.
+        reference_outputs: vec![BoundaryReferenceOutput {
+            destination: BoundaryReferenceDestination::Parameter(2),
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+            dependencies: vec![BoundaryLifetimeDependency::Stored {
+                argument_index: 2,
+                path: Vec::new(),
+                access: StructuralAccess::MutableBorrow,
+            }],
+        }],
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         fixed_service_reach: Vec::new(),
