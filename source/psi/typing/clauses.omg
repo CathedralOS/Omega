@@ -128,7 +128,7 @@ crashes Trap
     ) {
         let required: MachineItem = SyntaxTrees::machine_item(syntax, handle);
         let owner: MachineOwner = NameResolution::machine_owner(resolution, handle);
-        transition required.generic_parameter_count == 0 && owner.container == MachineContainer::Trait {
+        transition !required.has_lexical_parent && required.generic_parameter_count == 0 && owner.container == MachineContainer::Trait {
             true -> owned(typer, sources, syntax, resolution, satisfier, clause, required, owner)
             _ -> reject(typer, TypeDiagnosticCode::UnsupportedTypeForm, clause.source_span)
         }

@@ -24,13 +24,13 @@ public data MachineHead [copy] {
 // Machine-declaration grammar attached to the parser owner:
 // `[public] [target] [boundary] machine [token] [Owner::]name [<generic
 // parameters>] [(parameters)] [-> Type] contracts clauses ({ statements
-// state* } | ;)`, entered at the `machine` keyword with its head. A fixed
+// machine* } | ;)`, entered at the `machine` keyword with its head. A fixed
 // operator token (`+`, `==`, `[]`, `[..]`, ...) binds operator syntax to the
 // declaration; a conformance member supplies an implementation and binds no
 // token. The `where machine` contracts of its static machine binders precede
 // its other clauses. generics.omg owns the generic parameters, shared with
 // data declarations; clause.omg owns the clauses and statement.omg the
-// statements; the entry's statements precede the `state` members. A bodyless
+// statements; each declaration's own executable portion precedes its helpers. A bodyless
 // declaration ends at `;`: whether its signature has a supply (a compiler
 // primitive, a requirement, a boundary provider) is checking's question, not
 // the grammar's. A trait or conformance member names no owner, and only a
@@ -38,16 +38,20 @@ public data MachineHead [copy] {
 public machine Parser::parse_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead)
 crashes Trap
 {
-    parser.machine_start = head.start;
-    parser.machine_is_public = head.is_public;
-    parser.machine_has_target = head.has_target;
-    parser.machine_target_start = head.target_start;
-    parser.machine_target_end = head.target_end;
-    parser.machine_is_boundary = head.is_boundary;
-    parser.machine_container = head.container;
-    transition parser.output.machine_count < 2048 {
-        true -> keyword(parser, input)
-        _ -> machine_full(parser, input)
+    transition { _ -> begin(parser, input, head) }
+
+    machine begin(parser: &mut Parser, input: &TokenStream, head: MachineHead) {
+        parser.machine_start = head.start;
+        parser.machine_is_public = head.is_public;
+        parser.machine_has_target = head.has_target;
+        parser.machine_target_start = head.target_start;
+        parser.machine_target_end = head.target_end;
+        parser.machine_is_boundary = head.is_boundary;
+        parser.machine_container = head.container;
+        transition parser.output.machine_count < 10240 && parser.machine_depth < 10240 {
+            true -> keyword(parser, input)
+            _ -> machine_full(parser, input)
+        }
     }
 
     machine machine_full(parser: &mut Parser, input: &TokenStream) {
@@ -66,7 +70,8 @@ crashes Trap
         parser.machine_component_count = 0;
         Parser::parse_operator_token(parser, input);
         let tokened: bool = parser.machine_operator != OperatorToken::None;
-        let member: bool = parser.machine_container == MachineContainer::Conformance;
+        let member: bool = parser.machine_depth == 0
+            && parser.machine_container == MachineContainer::Conformance;
         transition parser.output.accepted {
             true -> token_admitted(parser, input, tokened && member)
             _ -> done()
@@ -101,7 +106,7 @@ crashes Trap
         parser.machine_name_start = parser.name_start;
         parser.machine_name_end = parser.name_end;
         let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
-        let at_root: bool = Parser::machine_at_root(parser.machine_container);
+        let at_root: bool = parser.machine_depth == 0 && Parser::machine_at_root(parser.machine_container);
         transition separator && at_root {
             true -> owned_name(parser, input)
             _ -> generic_list(parser, input)
@@ -200,7 +205,7 @@ crashes Trap
         parser.machine_statement_count = 0;
         parser.machine_first_state = parser.output.state_count as u64 in Trapping;
         parser.machine_first_contract = parser.output.contract_count as u64 in Trapping;
-        transition parser.output.accepted && parser.output.machine_count < 2048 {
+        transition parser.output.accepted {
             true -> retain(parser, input, false)
             _ -> components_rejected(parser, input)
         }
@@ -240,7 +245,7 @@ crashes Trap
         parser.machine_parameter_count = parser.signature_parameter_count;
         parser.machine_has_return_type = parser.signature_has_return_type;
         parser.machine_return_type = parser.signature_return_type;
-        let owner: ClauseOwner = Parser::machine_clause_owner(parser.machine_container);
+        let owner: ClauseOwner = Parser::machine_declaration_clause_owner(parser);
         Parser::parse_machine_contracts(parser, input, owner);
         transition parser.output.accepted {
             true -> own_clauses(parser, input, owner)
@@ -315,7 +320,7 @@ crashes Trap
         parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
         parser.machine_statement_count = 0;
         parser.machine_first_state = parser.output.state_count as u64 in Trapping;
-        transition parser.output.machine_count < 2048 {
+        transition parser.output.machine_count < 10240 {
             true -> retain(parser, input, false)
             _ -> machine_full(parser, input)
         }
@@ -334,7 +339,7 @@ crashes Trap
         parser.machine_statement_count =
             (parser.output.statement_count as u64 in Trapping) - parser.body_first_statement;
         parser.machine_first_state = parser.output.state_count as u64 in Trapping;
-        transition { _ -> member(parser, input) }
+        transition { _ -> retain(parser, input, true) }
     }
 
     machine member(parser: &mut Parser, input: &TokenStream) {
@@ -346,19 +351,26 @@ crashes Trap
     }
 
     machine state_member(parser: &mut Parser, input: &TokenStream) {
-        let member: bool = Parser::at_keyword(parser, input, KeywordKind::State);
-        transition member {
-            true -> parse_state(parser, input)
+        let nested: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        transition nested {
+            true -> nested_machine(parser, input)
             _ -> body_end_rejected(parser, input)
         }
     }
 
-    machine parse_state(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_state_member(parser, input);
-        transition parser.output.accepted {
-            true -> member(parser, input)
-            _ -> done()
-        }
+    machine nested_machine(parser: &mut Parser, input: &TokenStream) {
+        let parent: MachineItem = SyntaxTrees::machine_item(&parser.output, parser.machine_index);
+        let token: Token = input.tokens[parser.current_index];
+        let head: MachineHead = MachineHead {
+            start: token.start,
+            is_public: false,
+            has_target: false,
+            target_start: 0,
+            target_end: 0,
+            is_boundary: false,
+            container: parent.container
+        };
+        transition { _ -> begin(parser, input, head) }
     }
 
     machine body_end_rejected(parser: &mut Parser, input: &TokenStream) {
@@ -367,15 +379,28 @@ crashes Trap
 
     machine close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
-        transition parser.output.machine_count < 2048 {
-            true -> retain(parser, input, true)
+        transition { _ -> finish(parser, input) }
+    }
+
+    // Reserve preorder identity only after the own header/body has parsed.
+    // Invalid headers leave no placeholder semantic declaration behind.
+    machine retain(parser: &mut Parser, input: &TokenStream, has_body: bool) {
+        transition parser.output.machine_count < 10240 && parser.machine_depth < 10240 {
+            true -> retain_bounded(parser, input, has_body)
             _ -> machine_full(parser, input)
         }
     }
 
-    machine retain(parser: &mut Parser, input: &TokenStream, has_body: bool) {
-        let machine_index: u64 in Trapping = parser.output.machine_count as u64 in Trapping;
-        parser.output.machines[parser.output.machine_count] = MachineItem {
+    machine retain_bounded(parser: &mut Parser, input: &TokenStream, has_body: bool) {
+        parser.machine_index = parser.output.machine_count as u64 in Trapping;
+        parser.machine_frames[parser.machine_depth] = parser.machine_index;
+        parser.machine_depth = parser.machine_depth + 1;
+        parser.output.machine_count = parser.output.machine_count + 1;
+        let machine_index: u64 in Trapping = parser.machine_index;
+        let parent: u64 in Trapping = Parser::open_machine_parent(parser);
+        parser.output.machines[machine_index] = MachineItem {
+            has_lexical_parent: parser.machine_depth > 1,
+            lexical_parent: parent,
             has_owner: parser.machine_has_owner,
             owner: Parser::identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
             name: Parser::identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
@@ -408,28 +433,60 @@ crashes Trap
             component_count: parser.machine_component_count,
             source_span: Parser::source_span(parser, parser.machine_start, parser.token_end)
         };
-        parser.output.machine_count = parser.output.machine_count + 1;
-        let at_root: bool = Parser::machine_at_root(parser.machine_container);
+        transition has_body {
+            true -> member(parser, input)
+            _ -> finish(parser, input)
+        }
+    }
+
+    machine finish(parser: &mut Parser, input: &TokenStream) {
+        let index: u64 in Trapping = parser.machine_index;
+        let item: MachineItem = SyntaxTrees::machine_item(&parser.output, index);
+        parser.output.machines[index].source_span =
+            Parser::source_span(parser, item.source_span.span.start, parser.token_end);
+        parser.completed_machine = index;
+        let at_root: bool = !item.has_lexical_parent && Parser::machine_at_root(item.container);
         transition at_root {
-            true -> root(parser, input, machine_index)
+            true -> root(parser, input, index)
+            _ -> resume_parent(parser, input)
+        }
+    }
+
+    machine resume_parent(parser: &mut Parser, input: &TokenStream) {
+        transition parser.machine_depth > 0 {
+            true -> pop(parser, input)
             _ -> done()
         }
     }
 
+    machine pop(parser: &mut Parser, input: &TokenStream) {
+        parser.machine_depth = parser.machine_depth - 1;
+        transition parser.machine_depth > 0 {
+            true -> parent(parser, input)
+            _ -> done()
+        }
+    }
+
+    machine parent(parser: &mut Parser, input: &TokenStream) {
+        parser.machine_index = parser.machine_frames[parser.machine_depth - 1];
+        transition { _ -> member(parser, input) }
+    }
+
     machine root(parser: &mut Parser, input: &TokenStream, machine_index: u64 in Trapping) {
         transition parser.output.root_count < 4096 {
-            true -> root_bounded(parser, machine_index)
+            true -> root_bounded(parser, input, machine_index)
             _ -> root_full(parser, input)
         }
     }
 
-    machine root_bounded(parser: &mut Parser, machine_index: u64 in Trapping) {
+    machine root_bounded(parser: &mut Parser, input: &TokenStream, machine_index: u64 in Trapping) {
         parser.output.roots[parser.output.root_count] = RootItem {
             kind: RootItemKind::Machine,
             item_index: machine_index,
-            source_span: Parser::source_span(parser, parser.machine_start, parser.token_end)
+            source_span: SyntaxTrees::machine_item(&parser.output, machine_index).source_span
         };
         parser.output.root_count = parser.output.root_count + 1;
+        transition { _ -> resume_parent(parser, input) }
     }
 
     machine root_full(parser: &mut Parser, input: &TokenStream) {
@@ -439,102 +496,36 @@ crashes Trap
     machine done() {}
 }
 
-// `state name [(parameters)] [-> Type] [requires fact]* { statements }`,
-// entered at the `state` keyword.
-machine Parser::parse_state_member(parser: &mut Parser, input: &TokenStream)
+// Only the explicit declaration stack owns lexical ancestry. Runtime values
+// and facts are never copied from this parent coordinate.
+machine Parser::open_machine_parent(parser: &Parser) -> u64 in Trapping
 crashes Trap
 {
-    transition parser.output.state_count < 8192 {
-        true -> keyword(parser, input)
-        _ -> state_full(parser, input)
+    transition parser.machine_depth > 1 {
+        true -> parent(parser)
+        _ -> root()
     }
 
-    machine state_full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::StateCapacityExceeded);
+    machine parent(parser: &Parser) -> u64 in Trapping {
+        parser.machine_frames[parser.machine_depth - 2]
     }
 
-    machine keyword(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
-        parser.state_start = parser.token_start;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedStateName);
-        transition parser.output.accepted {
-            true -> signature(parser, input)
-            _ -> done()
-        }
+    machine root() -> u64 in Trapping { 0 }
+}
+
+// Nested declarations retain container context but own the ordinary contract
+// grammar, never the enclosing trait's requirement shorthand.
+machine Parser::machine_declaration_clause_owner(parser: &Parser) -> ClauseOwner {
+    transition parser.machine_depth > 0 {
+        true -> nested()
+        _ -> direct(parser)
     }
 
-    machine signature(parser: &mut Parser, input: &TokenStream) {
-        parser.state_name_start = parser.name_start;
-        parser.state_name_end = parser.name_end;
-        Parser::parse_signature(parser, input);
-        transition parser.output.accepted {
-            true -> clauses(parser, input)
-            _ -> done()
-        }
-    }
+    machine nested() -> ClauseOwner { ClauseOwner::Machine }
 
-    machine clauses(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_clauses(parser, input, ClauseOwner::State);
-        transition parser.output.accepted {
-            true -> body(parser, input)
-            _ -> done()
-        }
+    machine direct(parser: &Parser) -> ClauseOwner {
+        Parser::machine_clause_owner(parser.machine_container)
     }
-
-    machine body(parser: &mut Parser, input: &TokenStream) {
-        parser.state_first_clause = parser.clause_first;
-        parser.state_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
-        Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace,
-            ParseDiagnosticCode::ExpectedStateBody
-        );
-        transition parser.output.accepted {
-            true -> body_end(parser, input)
-            _ -> done()
-        }
-    }
-
-    machine body_end(parser: &mut Parser, input: &TokenStream) {
-        Parser::parse_statements(parser, input, ParseDiagnosticCode::ExpectedStateBodyEnd);
-        transition parser.output.accepted {
-            true -> body_close(parser, input)
-            _ -> done()
-        }
-    }
-
-    machine body_close(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::RightBrace,
-            ParseDiagnosticCode::ExpectedStateBodyEnd
-        );
-        transition parser.output.accepted {
-            true -> retain_capacity(parser)
-            _ -> done()
-        }
-    }
-
-    machine retain_capacity(parser: &mut Parser) {
-        transition parser.output.state_count < 8192 {
-            true -> retain(parser)
-            _ -> done()
-        }
-    }
-
-    machine retain(parser: &mut Parser) {
-        parser.output.states[parser.output.state_count] = StateItem {
-            name: Parser::identifier_span(parser, parser.state_name_start, parser.state_name_end),
-            first_parameter: parser.signature_first_parameter,
-            parameter_count: parser.signature_parameter_count,
-            has_return_type: parser.signature_has_return_type,
-            return_type: parser.signature_return_type,
-            first_clause: parser.state_first_clause,
-            clause_count: parser.state_clause_count,
-            first_statement: parser.body_first_statement,
-            statement_count: (parser.output.statement_count as u64 in Trapping) - parser.body_first_statement,
-            source_span: Parser::source_span(parser, parser.state_start, parser.token_end)
-        };
-        parser.output.state_count = parser.output.state_count + 1;
-    }
-
-    machine done() {}
 }
 
 // A trait member reads its clauses as a trait member: `requires` after its
@@ -795,7 +786,7 @@ machine Parser::machine_at_root(container: MachineContainer) -> bool {
     }
 }
 
-// `[(parameters)] [-> Type]`, shared by machine and state heads. The result
+// `[(parameters)] [-> Type]`, shared by ordinary machine headers. The result
 // lands in the `signature_*` scratch fields.
 machine Parser::parse_signature(parser: &mut Parser, input: &TokenStream)
 crashes Trap

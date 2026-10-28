@@ -64,10 +64,6 @@ def binder(field: int) -> tuple[int, int, int]:
     return (4, field, 0)
 
 
-def state(handle: int) -> tuple[int, int, int]:
-    return (5, handle, 0)
-
-
 def machine(handle: int) -> tuple[int, int, int]:
     return (6, handle, 0)
 
@@ -435,6 +431,102 @@ def main() -> None:
     program = sys.argv[1]
 
     accepted(program, "empty", b"", ())
+    accepted(
+        program,
+        "nested-machine-two-level-sibling-and-ancestor-identity",
+        b"machine outer() { inner(); machine inner() { deep(); machine deep() { inner(); } } "
+        b"machine sibling() { inner(); } } machine other() { machine inner() {} }",
+        (),
+        (machine(1), NOT_A_NAME, machine(2), NOT_A_NAME,
+         machine(1), NOT_A_NAME, machine(1), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "nested-repeated-leaf-names-have-distinct-parents",
+        b"machine outer() { a(); b(); machine a() { leaf(); machine leaf() {} } "
+        b"machine b() { leaf(); machine leaf() {} } }",
+        (),
+        (machine(1), NOT_A_NAME, machine(3), NOT_A_NAME,
+         machine(2), NOT_A_NAME, machine(4), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "nearest-lexical-overload-family-shadows-root",
+        b"machine pick(x: u8) {} machine outer() { pick(); machine pick() {} }",
+        (builtin("u8"),),
+        (machine(2), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "qualified-visible-lexical-helper",
+        b"machine outer() { outer::inner(); machine inner() { outer::inner(); } }",
+        (),
+        (machine(1), NOT_A_NAME, machine(1), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "nested-static-type-and-const-context-use-exact-ancestor-binders",
+        b"machine outer<T, const N: u64>() { machine child(x: T) -> u64 { N } }",
+        (builtin("u64"), generic(0), builtin("u64")),
+        (binder_name(1),),
+    )
+    accepted(
+        program,
+        "nested-lifetime-context-constrains-explicit-reference",
+        b"machine outer<'a>() { machine child(value: &'a u8) {} }",
+        (builtin("u8"), REFERENCE_ROW),
+    )
+    accepted(program, "nested-static-machine-context-uses-exact-ancestor-binder",
+             b"machine outer<machine F>() { machine child() { F(); } }",
+             (), (binder_name(0), NOT_A_NAME))
+    accepted(program, "nested-own-type-binder-shadows-ancestor",
+             b"machine outer<T>() { machine child<T>(value: T) {} }",
+             (generic(1),))
+    rejected(program, "nested-helper-not-visible-outside-parent",
+             b"machine outer() { machine hidden() {} } machine other() { hidden(); }",
+             UNKNOWN_NAME, b"hidden", 2)
+    rejected(program, "sibling-cannot-enter-private-descendants",
+             b"machine outer() { machine left() { machine hidden() {} } "
+             b"machine right() { left::hidden(); } }",
+             UNKNOWN_NAME, b"left::hidden")
+    rejected(program, "nested-qualification-cannot-bypass-export",
+             b"public machine outer() { machine hidden() {} } machine other() { outer::hidden(); }",
+             UNKNOWN_NAME, b"outer::hidden")
+    rejected(program, "qualified-owner-shadow-does-not-donate-ancestor-members",
+             b"machine outer() { machine hidden() {} "
+             b"machine outer() { outer::hidden(); } }",
+             UNKNOWN_NAME, b"outer::hidden")
+    rejected(program, "nested-machine-does-not-capture-outer-runtime-parameter",
+             b"machine outer(value: u8) { machine child() -> u8 { value } }",
+             UNKNOWN_NAME, b"value", 2)
+    rejected(program, "nested-machine-does-not-capture-outer-local",
+             b"machine outer() { let value: u8 = 1; machine child() -> u8 { value } }",
+             UNKNOWN_NAME, b"value", 2)
+    rejected(program, "nested-machine-does-not-capture-runtime-generic",
+             b"machine outer<Value: u64>() { machine child() -> u64 { Value } }",
+             UNKNOWN_NAME, b"Value", 2)
+    rejected(program, "nested-contract-does-not-capture-outer-parameter-or-facts",
+             b"machine outer(value: u8) requires value == 7 { "
+             b"machine child() requires value == 7 {} }",
+             UNKNOWN_NAME, b"value", 3)
+    rejected(program, "nested-same-parent-duplicate-signature",
+             b"machine outer() { machine child() {} machine child() {} }",
+             DUPLICATE_MACHINE, b"child", 2)
+    accepted(
+        program,
+        "trait-direct-member-after-nested-default-body",
+        b"trait T { machine first() { machine helper() {} } machine required(); } "
+        b"machine f() satisfies T::required {}",
+        (),
+    )
+    rejected(program, "trait-nested-helper-is-not-a-requirement",
+             b"trait T { machine first() { machine helper() {} } } "
+             b"machine f() satisfies T::helper {}",
+             NOT_A_REQUIREMENT, b"helper", 2)
+    rejected(program, "conformance-nested-helper-is-not-an-exported-member",
+             b"trait T { machine required(); } conformance C satisfies T { "
+             b"machine required() { machine helper() {} } } machine f() { C::helper(); }",
+             UNKNOWN_NAME, b"C::helper")
     every_builtin = b"data A {" + b"".join(
         f" f{index}: {spelling};".encode() for index, spelling in enumerate(BUILTIN_SPELLINGS)
     ) + b" }"
@@ -653,7 +745,7 @@ def main() -> None:
     accepted(
         program,
         "machine-signature-types",
-        b"machine f(a: u8, b: &mut D) -> u64 { state s(x: D) {} }\ndata D { y: u8; }",
+        b"machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) {} }\ndata D { y: u8; }",
         (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u8")),
     )
     accepted(
@@ -682,13 +774,13 @@ def main() -> None:
     )
     accepted(
         program,
-        "state-repeats-machine-and-parameter-names",
-        b"machine f(a: u8) { state f(a: u8) {} }",
+        "nested-repeats-outer-machine-and-parameter-names",
+        b"machine f(a: u8) { machine f(a: u8) {} }",
         (builtin("u8"), builtin("u8")),
     )
     rejected(program, "unknown-parameter-type", b"machine f(a: Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-return-type", b"machine f() -> Q {}", UNKNOWN_DATA_TYPE, b"Q")
-    rejected(program, "unknown-state-parameter-type", b"machine f() { state s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-nested-machine-parameter-type", b"machine f() { machine s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-referee", b"machine f(a: &Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(
         program,
@@ -701,17 +793,17 @@ def main() -> None:
     )
     rejected(
         program,
-        "duplicate-state-parameter",
-        b"machine f() { state s(x: u8, x: u8) {} }",
+        "duplicate-nested-machine-parameter",
+        b"machine f() { machine s(x: u8, x: u8) {} }",
         DUPLICATE_PARAMETER,
         b"x",
         2,
     )
     rejected(
         program,
-        "duplicate-state",
-        b"machine f() { state s {} state s {} }",
-        DUPLICATE_STATE,
+        "duplicate-nested-machine",
+        b"machine f() { machine s {} machine s {} }",
+        DUPLICATE_MACHINE,
         b"s {}",
         2,
         length=1,
@@ -837,12 +929,12 @@ def main() -> None:
         b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
         b"machine f(x: u64) -> u64\nrequires x > 0\n{\n"
         b"    transition { _ -> g(x) }\n\n"
-        b"    state g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
+        b"    machine g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (
             field_name(0), field_name(1), NOT_A_NAME,
             parameter(0), NOT_A_NAME, NOT_A_NAME,
-            state(0), parameter(0), NOT_A_NAME,
+            machine(1), parameter(0), NOT_A_NAME,
             parameter(1), NOT_A_NAME, NOT_A_NAME,
             parameter(1),
         ),
@@ -904,7 +996,7 @@ def main() -> None:
     )
 
     # Expression names: locals, then pattern binders, then the body's own
-    # parameters; callees name machines, targets a state before a machine,
+    # parameters; callees name machines, targets a machine before a machine,
     # constructions and paths a data declaration's case.
     accepted(
         program,
@@ -915,15 +1007,15 @@ def main() -> None:
     )
     accepted(
         program,
-        "state-scope",
-        b"machine f(a: u8) { transition { _ -> s(a) } state s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
+        "nested-machine-scope",
+        b"machine f(a: u8) { transition { _ -> s(a) } machine s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
         (builtin("u8"), builtin("u8"), builtin("u8")),
-        (state(0), parameter(0), NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME),
+        (machine(1), parameter(0), NOT_A_NAME, machine(2), parameter(1), NOT_A_NAME),
     )
     rejected(
         program,
-        "state-cannot-see-entry-parameter",
-        b"machine f(a: u8) { transition { _ -> s() } state s() { g(a); } }\nmachine g(x: u8) {}",
+        "nested-cannot-see-outer-parameter",
+        b"machine f(a: u8) { transition { _ -> s() } machine s() { g(a); } }\nmachine g(x: u8) {}",
         UNKNOWN_NAME,
         b"a)",
         length=1,
@@ -933,11 +1025,11 @@ def main() -> None:
         "cases-constructions-and-patterns",
         b"data T { case A; case B(v: u8); }\n"
         b"machine f(t: T) { transition t { T::B { v } -> s(v) _ -> s(1) } "
-        b"state s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
+        b"machine s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
         (builtin("u8"), data(0), builtin("u8"), data(0), data(0)),
         (
-            parameter(0), data_case(0, 1), state(0), binder(0), NOT_A_NAME,
-            state(0), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
+            parameter(0), data_case(0, 1), machine(1), binder(0), NOT_A_NAME,
+            machine(1), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
         ),
     )
     # An arm's `if` guard sees the pattern's binders
@@ -947,19 +1039,19 @@ def main() -> None:
         "arm-guards-see-pattern-binders",
         b"data T { case A; case B(v: u8); }\n"
         b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } "
-        b"state s(v: u8) {} }",
+        b"machine s(v: u8) {} }",
         (builtin("u8"), data(0), builtin("u8"), builtin("u8")),
         (
-            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, state(0), binder(0), NOT_A_NAME,
-            parameter(1), NOT_A_NAME, NOT_A_NAME, state(0), parameter(1), NOT_A_NAME,
-            state(0), NOT_A_NAME, NOT_A_NAME,
+            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, machine(1), binder(0), NOT_A_NAME,
+            parameter(1), NOT_A_NAME, NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME,
+            machine(1), NOT_A_NAME, NOT_A_NAME,
         ),
     )
     rejected(
         program,
         "arm-guard-cannot-see-another-arm's-binder",
         b"data T { case A; case B(v: u8); }\n"
-        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } state s(v: u8) {} }",
+        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } machine s(v: u8) {} }",
         UNKNOWN_NAME,
         b"v == 1",
         length=1,
@@ -1075,12 +1167,12 @@ def main() -> None:
              UNSUPPORTED_DECLARATION, b"retired #7;")
 
     # Machine generic parameters bind in the machine's own scope: its
-    # signature, its states' signatures, `let` types, cast targets and static
+    # signature, its nested signatures through static context, `let` types, cast targets and static
     # arguments. Value and machine binders also bind as names.
     accepted(
         program,
         "generic-machine-signature",
-        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { state s(x: T) {} }\ndata Vec<T> { v: T; }",
+        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) {} }\ndata Vec<T> { v: T; }",
         (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(1)),
     )
     accepted(
@@ -1444,14 +1536,14 @@ def main() -> None:
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
     rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
-    # A state formal carries the entry subject its arrivals pass it, read
-    # from the body bindings while resolution runs (clauses.omg).
+    # Each nested declaration binds its own formals; source ancestry does not
+    # identify a runtime subject with its callers' entry subjects.
     accepted(
         program,
-        "ranked-state-arrivals-bind-carriers",
+        "ranked-outer-and-nested-callees-bind-independently",
         b"machine count(n: u64) -> u64\nterminates by n;\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n"
-        b"    state step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
-        b"    state done() -> u64 { 0 }\n}",
+        b"    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
+        b"    machine done() -> u64 { 0 }\n}",
         (builtin("u64"),) * 5,
     )
     # A view names the compiler's ranking vocabulary by spelling, not a

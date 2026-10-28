@@ -4,6 +4,151 @@ use psi::resolve::resolver;
 use psi::source::source;
 use psi::syntax::syntax;
 
+// Source ancestry is declaration context, not a namespace or an activation.
+// Search one direct-child tier at a time and stop at its first named family;
+// typing must not retry an outer family when an inner signature fails.
+public machine Resolver::lexical_machine(sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    transition { _ -> scope(sources, syntax, machine, qualified, owner, name) }
+
+    machine scope(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, parent);
+        let named: bool = SourceSet::spans_equal(sources, item.name.source_span, owner);
+        transition !qualified || named {
+            true -> child(sources, syntax, parent, qualified, owner, name, parent + 1)
+            _ -> outer(sources, syntax, parent, qualified, owner, name)
+        }
+    }
+
+    machine child(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+        transition index < syntax.machine_count {
+            true -> candidate(sources, syntax, parent, qualified, owner, name, index)
+            _ -> exhausted(sources, syntax, parent, qualified, owner, name)
+        }
+    }
+
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        // Reserved preorder identities make the next root or lower parent
+        // the end of this subtree. Do not scan unrelated source units.
+        transition !item.has_lexical_parent || item.lexical_parent < parent {
+            true -> exhausted(sources, syntax, parent, qualified, owner, name)
+            _ -> named_child(sources, syntax, parent, qualified, owner, name, index, item)
+        }
+    }
+
+    machine named_child(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping, item: MachineItem) -> ValueBinding {
+        let direct: bool = item.has_lexical_parent && item.lexical_parent == parent;
+        let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
+        transition direct && named {
+            true -> found(ValueBinding::Machine { handle: index })
+            _ -> child(sources, syntax, parent, qualified, owner, name, index + 1)
+        }
+    }
+
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, parent);
+        transition item.has_lexical_parent {
+            true -> scope(sources, syntax, item.lexical_parent, qualified, owner, name)
+            _ -> found(ValueBinding::Unresolved)
+        }
+    }
+
+    machine exhausted(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, qualified: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        // A qualifier already selected this exact owner declaration. A
+        // missing member cannot borrow a same-spelled ancestor's members.
+        transition qualified {
+            true -> found(ValueBinding::Unresolved)
+            _ -> outer(sources, syntax, parent, qualified, owner, name)
+        }
+    }
+
+    machine found(binding: ValueBinding) -> ValueBinding { binding }
+}
+
+public machine Resolver::lexical_owner_visible(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, parent);
+    let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
+    transition named {
+        true -> yes()
+        _ -> outer(sources, syntax, item, name)
+    }
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan) -> bool {
+        transition item.has_lexical_parent {
+            true -> Resolver::lexical_owner_visible(sources, syntax, item.lexical_parent, name)
+            _ -> no()
+        }
+    }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
+}
+
+public machine Resolver::same_lexical_scope(left: MachineItem, right: MachineItem) -> bool {
+    left.has_lexical_parent == right.has_lexical_parent
+        && (!left.has_lexical_parent || left.lexical_parent == right.lexical_parent)
+}
+
+public machine Resolver::direct_generic(scope: TypeScope, parameter: u64 in Trapping) -> bool {
+    (parameter >= scope.first_generic_parameter && parameter < scope.first_generic_parameter + scope.generic_parameter_count)
+        || (parameter >= scope.first_outer_parameter && parameter < scope.first_outer_parameter + scope.outer_parameter_count)
+}
+
+public machine Resolver::lookup_found(lookup: Lookup) -> bool {
+    transition lookup {
+        Lookup::Found { handle } -> yes()
+        _ -> no()
+    }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
+}
+
+// Return the exact nearest static ancestor binder. Runtime-value generic
+// subjects are not part of that context. Lifetime context
+// constrains explicit references; it supplies no enclosing borrowed storage.
+public machine Resolver::lexical_generic(sources: &SourceSet, syntax: &SyntaxTrees, present: bool, parent: u64 in Trapping, name: SourceSpan, lifetime: bool) -> Lookup
+crashes Trap
+{
+    transition present {
+        true -> scope(sources, syntax, parent, name, lifetime)
+        _ -> absent()
+    }
+
+    machine scope(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, lifetime: bool) -> Lookup {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, parent);
+        transition { _ -> parameter(sources, syntax, item, name, lifetime, 0) }
+    }
+
+    machine parameter(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, lifetime: bool, offset: u64 in Trapping) -> Lookup {
+        transition offset < item.generic_parameter_count {
+            true -> candidate(sources, syntax, item, name, lifetime, offset)
+            _ -> outer(sources, syntax, item, name, lifetime)
+        }
+    }
+
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, lifetime: bool, offset: u64 in Trapping) -> Lookup {
+        let handle: u64 in Trapping = item.first_generic_parameter + offset;
+        let binder: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        let named: bool = SourceSet::spans_equal(sources, binder.name.source_span, name);
+        transition named && binder.kind != GenericParameterKind::Value
+            && (binder.kind == GenericParameterKind::Lifetime) == lifetime {
+            true -> found(handle)
+            _ -> parameter(sources, syntax, item, name, lifetime, offset + 1)
+        }
+    }
+
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, lifetime: bool) -> Lookup {
+        transition item.has_lexical_parent {
+            true -> scope(sources, syntax, item.lexical_parent, name, lifetime)
+            _ -> absent()
+        }
+    }
+    machine found(handle: u64 in Trapping) -> Lookup { Lookup::Found { handle: handle } }
+    machine absent() -> Lookup { Lookup::Absent }
+}
+
 // Trait and conformance members (wiki/spec/language/conformances.md). Inside
 // a trait `machine` declares a requirement (bodyless) or its default; inside
 // a named conformance it declares the satisfier of the block's corresponding
@@ -16,7 +161,8 @@ use psi::syntax::syntax;
 
 // Every machine's `MachineOwner`, in machine order: a root machine keeps its
 // authored owner; a member takes its container's name. Containers cover
-// contiguous machine ranges, so one pass per container table places them.
+// contiguous preorder machine ranges. Descendants inherit only the container
+// static context; their exact lexical parents still govern callable visibility.
 public machine Resolver::place_machines(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -120,7 +266,7 @@ crashes Trap
 machine Resolver::set_machine_owner(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
-    transition handle < 2048 {
+    transition handle < 10240 {
         true -> store(resolver, handle, owner)
         _ -> invalid()
     }
@@ -145,7 +291,11 @@ crashes Trap
         first_generic_parameter: item.first_generic_parameter,
         generic_parameter_count: item.generic_parameter_count,
         first_outer_parameter: outer.first_generic_parameter,
-        outer_parameter_count: outer.generic_parameter_count
+        outer_parameter_count: outer.generic_parameter_count,
+        has_lexical_parent: item.has_lexical_parent,
+        lexical_parent: item.lexical_parent,
+        has_machine: true,
+        machine: handle
     }
 }
 
@@ -219,7 +369,8 @@ crashes Trap
         requirement: u64 in Trapping
     ) {
         let owner: MachineOwner = NameResolution::machine_owner(&resolver.output, requirement);
-        transition owner.container == MachineContainer::Trait {
+        let member: MachineItem = SyntaxTrees::machine_item(syntax, requirement);
+        transition !member.has_lexical_parent && owner.container == MachineContainer::Trait {
             true -> requirement_bound(resolver, sources, syntax, index, offset, conformance_row, requirement)
             _ -> not_requirement(resolver, syntax, conformance_row.requirement)
         }
@@ -391,7 +542,8 @@ crashes Trap
     machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         let member: MachineItem = SyntaxTrees::machine_item(syntax, item.first_machine + offset);
         let named: bool = SourceSet::spans_equal(sources, member.name.source_span, name);
-        transition named {
+        let container: MachineContainer = Resolver::trait_container(item.is_refinement);
+        transition named && !member.has_lexical_parent && member.container == container {
             true -> found(item.first_machine + offset)
             _ -> next(sources, syntax, item, name, offset + 1)
         }

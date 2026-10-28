@@ -184,14 +184,14 @@ crashes Trap
     }
 
     machine mark(checker: &mut Checker, machine: u64 in Trapping, cyclic: bool) {
-        transition machine < 2048 {
+        transition machine < 10240 {
             true -> marked(checker, machine, cyclic)
             _ -> done()
         }
     }
 
     machine marked(checker: &mut Checker, machine: u64 in Trapping, cyclic: bool)
-    requires machine < 2048
+    requires machine < 10240
     {
         checker.cyclic[machine] = cyclic;
     }
@@ -250,13 +250,13 @@ crashes Trap
 // Whether machine `machine`'s body has a local cycle; a machine beyond the
 // table is taken to have one.
 public machine Checker::has_local_cycle(checker: &Checker, machine: u64 in Trapping) -> bool {
-    transition machine < 2048 {
+    transition machine < 10240 {
         true -> read(checker, machine)
         _ -> unknown()
     }
 
     machine read(checker: &Checker, machine: u64 in Trapping) -> bool
-    requires machine < 2048
+    requires machine < 10240
     {
         checker.cyclic[machine]
     }
@@ -365,13 +365,13 @@ crashes Trap
 
 // Forget a machine's local graph summary before checking starts.
 public machine Checker::reset_termination(checker: &mut Checker, machine: u64 in Trapping) {
-    transition machine < 2048 {
+    transition machine < 10240 {
         true -> write(checker, machine)
         _ -> done()
     }
 
     machine write(checker: &mut Checker, machine: u64 in Trapping)
-    requires machine < 2048
+    requires machine < 10240
     {
         checker.cyclic[machine] = false;
         checker.binder_calls[machine] = false;
@@ -386,13 +386,13 @@ public machine Checker::record_binder_call(checker: &mut Checker)
 crashes Trap
 {
     let machine: u64 in Trapping = checker.machine;
-    transition machine < 2048 {
+    transition machine < 10240 {
         true -> write(checker, machine)
         _ -> done()
     }
 
     machine write(checker: &mut Checker, machine: u64 in Trapping)
-    requires machine < 2048
+    requires machine < 10240
     {
         checker.binder_calls[machine] = true;
     }
@@ -407,14 +407,14 @@ crashes Trap
     transition { _ -> seed(checker, syntax, resolution, 0) }
 
     machine seed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
-        transition index < syntax.machine_count && index < 2048 {
+        transition index < syntax.machine_count && index < 10240 {
             true -> seeded(checker, syntax, resolution, index)
             _ -> round(checker, syntax)
         }
     }
 
     machine seeded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
-    requires index < 2048
+    requires index < 10240
     {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
@@ -441,14 +441,14 @@ crashes Trap
     {
         let caller: u64 = checker.callers[index];
         let callee: u64 = checker.callees[index];
-        transition caller != callee && caller < 2048 && callee < 2048 {
+        transition caller != callee && caller < 10240 && callee < 10240 {
             true -> callee_known(checker, syntax, index, caller, callee)
             _ -> calls(checker, syntax, index + 1)
         }
     }
 
     machine callee_known(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64, callee: u64)
-    requires caller < 2048 && callee < 2048
+    requires caller < 10240 && callee < 10240
     {
         transition checker.terminating[callee] {
             true -> calls(checker, syntax, index + 1)
@@ -457,21 +457,21 @@ crashes Trap
     }
 
     machine stalled(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64)
-    requires caller < 2048
+    requires caller < 10240
     {
         checker.blocked[caller] = true;
         transition { _ -> calls(checker, syntax, index + 1) }
     }
 
     machine raise(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
-        transition index < syntax.machine_count && index < 2048 {
+        transition index < syntax.machine_count && index < 10240 {
             true -> raised(checker, syntax, index, changed)
             _ -> settled(checker, syntax, changed)
         }
     }
 
     machine raised(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool)
-    requires index < 2048
+    requires index < 10240
     {
         let rises: bool = checker.locally_ranked[index] && !checker.binder_calls[index] && !checker.blocked[index] && !checker.terminating[index];
         checker.blocked[index] = false;
@@ -482,7 +482,7 @@ crashes Trap
     }
 
     machine rise(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
-    requires index < 2048
+    requires index < 10240
     {
         checker.terminating[index] = true;
         transition { _ -> raise(checker, syntax, index + 1, true) }
@@ -501,13 +501,13 @@ crashes Trap
 // Whether machine `machine` settled as terminating, and whether its own
 // graph is acyclic or ranked.
 public machine Checker::settled_termination(checker: &Checker, machine: u64 in Trapping) -> bool {
-    transition machine < 2048 {
+    transition machine < 10240 {
         true -> read(checker, machine)
         _ -> no()
     }
 
     machine read(checker: &Checker, machine: u64 in Trapping) -> bool
-    requires machine < 2048
+    requires machine < 10240
     {
         checker.terminating[machine]
     }
@@ -518,13 +518,13 @@ public machine Checker::settled_termination(checker: &Checker, machine: u64 in T
 }
 
 public machine Checker::ranked_locally(checker: &Checker, machine: u64 in Trapping) -> bool {
-    transition machine < 2048 {
+    transition machine < 10240 {
         true -> read(checker, machine)
         _ -> no()
     }
 
     machine read(checker: &Checker, machine: u64 in Trapping) -> bool
-    requires machine < 2048
+    requires machine < 10240
     {
         checker.locally_ranked[machine]
     }

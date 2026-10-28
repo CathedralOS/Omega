@@ -109,7 +109,7 @@ crashes Trap
     // A member supplies its requirement's implementation, so it has a
     // checked body; a bodyless one rejects at the `;` that ended it.
     machine checked_body(parser: &mut Parser, input: &TokenStream) {
-        let handle: u64 in Trapping = (parser.output.machine_count as u64 in Trapping) - 1;
+        let handle: u64 in Trapping = parser.completed_machine;
         let checked: MachineItem = SyntaxTrees::machine_item(&parser.output, handle);
         transition checked.has_body {
             true -> member(parser, input)

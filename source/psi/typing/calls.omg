@@ -296,7 +296,8 @@ crashes Trap
     let spelled: bool = Resolver::machine_spells(resolution, sources, item, candidate, path.has_owner, path.owner.source_span,
         representative.name.source_span);
     let unsupplied: bool = Typer::unsupplied_callee(syntax, resolution, candidate);
-    transition spelled && !unsupplied && item.parameter_count == expression.count {
+    let same_scope: bool = Resolver::same_lexical_scope(representative, item);
+    transition same_scope && spelled && !unsupplied && item.parameter_count == expression.count {
         true -> visible(typer, sources, syntax, resolution, expression, statics, item, candidate)
         _ -> no()
     }
@@ -399,8 +400,8 @@ crashes Trap
     let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
     let owner: MachineOwner = NameResolution::machine_owner(resolution, handle);
     let container: TypeScope = Resolver::container_scope(syntax, owner);
-    container.generic_parameter_count > 0 || owner.container == MachineContainer::Trait
-        || owner.container == MachineContainer::Refinement || item.has_target
+    container.generic_parameter_count > 0 || (!item.has_lexical_parent
+        && (owner.container == MachineContainer::Trait || owner.container == MachineContainer::Refinement)) || item.has_target
 }
 
 // Bind a signature's generic parameters `first..first + count`, lifetimes

@@ -174,8 +174,10 @@ public data Checker {
     // writes are unknown, and the data fields it may write, a row of 1,024
     // per machine.
     whole_writes: [bool; 32768];
-    unknown_writes: [bool; 2048];
-    field_writes: [bool; 2097152];
+    unknown_writes: [bool; 10240];
+    // Exact 1,024-field sets in sixteen words per machine. Packing keeps the
+    // unified machine capacity below the old 2 MiB byte-per-field table.
+    field_writes: [u64; 163840];
     // The body's local control graph (termination.omg): node 0 its entry
     // and node `k + 1` its state `k`, edge `from -> to` at
     // `from * 129 + to`, closed into reachability before the checking walk.
@@ -184,11 +186,11 @@ public data Checker {
     // whether it calls a machine binder, whether it terminates as its
     // callers may rely on, and the settlement's scratch: whether its own
     // graph is acyclic or ranked, and whether a callee does not terminate.
-    cyclic: [bool; 2048];
-    binder_calls: [bool; 2048];
-    terminating: [bool; 2048];
-    locally_ranked: [bool; 2048];
-    blocked: [bool; 2048];
+    cyclic: [bool; 10240];
+    binder_calls: [bool; 10240];
+    terminating: [bool; 10240];
+    locally_ranked: [bool; 10240];
+    blocked: [bool; 10240];
     // The ownership walk of the body being checked (ownership.omg).
     ownership: Ownership;
     // Boolean aliases (aliases.omg): each aliased place, the condition it

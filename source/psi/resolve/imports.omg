@@ -748,7 +748,7 @@ crashes Trap
 
     machine candidate(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
-        let named: bool = Resolver::machine_spells(resolution, sources, item, index, owned, owner, name);
+        let named: bool = !item.has_lexical_parent && Resolver::machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = Resolver::machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
         transition visible {
             true -> rival(resolution, sources, syntax, owned, owner, name, index, item.name.source_span.source, index + 1)
@@ -785,7 +785,7 @@ crashes Trap
         index: u64 in Trapping
     ) -> Lookup {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
-        let named: bool = Resolver::machine_spells(resolution, sources, item, index, owned, owner, name);
+        let named: bool = !item.has_lexical_parent && Resolver::machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = Resolver::machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
         let overload: bool = Resolver::same_module(sources, family.value as u64 in Trapping,
             item.name.source_span.source.value as u64 in Trapping);

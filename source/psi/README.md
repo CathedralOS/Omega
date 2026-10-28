@@ -132,6 +132,17 @@ retired bracketed scalar range suffix (`u32 [0..=9]`; ranges are
 and the `if`, `loop`, `while` and `return` statements reject instead of
 becoming a private bridge tree.
 
+Canonical nested `machine` declarations share the ordinary machine syntax
+rows, including their own generic signature, complete clauses, static contracts
+and executable body. Preorder identities retain an explicit optional lexical
+parent, independently from a code/data namespace owner. Own statement,
+expression and contract ranges end before child declarations; child rows are
+not root exports or extra trait/conformance requirements. Parsing uses a bounded
+stack of declaration indices, with no recursive invocation stack or implicit
+runtime capture. The version 16 parser observation appends parent presence and
+identity to each machine row. The retired authored `state` spelling rejects rather than entering the old
+subset representation; its observation table remains empty.
+
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): up to 64 packages, 256
 requester-local dependency edges and 128 units, each unit belonging to a
@@ -140,7 +151,7 @@ shared syntax tables, with its position as its source id. Those tables are
 whole-program, sized above what the psi package fills: 4,096 roots, 1,024
 uses, 2,048 machines, 1,024 fields, 1,536 cases and 2,048 data members,
 2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
-statements, 8,192 states and transition arms, 65,536 type references and
+statements, 10,240 ordinary/nested machine identities, 8,192 legacy states and transition arms, 65,536 type references and
 call arguments, and 131,072 expressions; resolution's and
 typing's rows indexed by machine, type-reference and expression handles share
 those bounds. A `use` path's first member selects a package

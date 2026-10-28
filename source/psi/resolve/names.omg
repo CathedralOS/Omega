@@ -646,15 +646,31 @@ crashes Trap
     // unit cannot bind.
     machine path(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, expression: Expression, role: NameRole) -> ValueBinding {
         transition expression.count == 2 {
-            true -> owned_members(resolution, sources, syntax, expression, role)
+            true -> owned_members(resolution, sources, syntax, scope, expression, role)
             _ -> unresolved()
         }
     }
 
-    machine owned_members(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, role: NameRole) -> ValueBinding {
+    machine owned_members(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, expression: Expression, role: NameRole) -> ValueBinding {
         let owner: IdentifierSpan = SyntaxTrees::member(syntax, expression.first);
         let member: IdentifierSpan = SyntaxTrees::member(syntax, expression.first + 1);
-        transition { _ -> owned(resolution, sources, syntax, role, owner.source_span, member.source_span) }
+        transition scope.has_machine && (role == NameRole::Callee || role == NameRole::Target) {
+            true -> qualified_lexical(resolution, sources, syntax, scope, role, owner.source_span, member.source_span)
+            _ -> owned(resolution, sources, syntax, role, owner.source_span, member.source_span)
+        }
+    }
+
+    machine qualified_lexical(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, role: NameRole, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        let declared: bool = Resolver::lexical_owner_visible(sources, syntax, scope.machine, owner);
+        transition declared {
+            true -> lexical_member(sources, syntax, scope, owner, name)
+            _ -> owned(resolution, sources, syntax, role, owner, name)
+        }
+    }
+
+    machine lexical_member(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        let local: ValueBinding = Resolver::lexical_machine(sources, syntax, scope.machine, true, owner, name);
+        local
     }
 
     machine owned(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, role: NameRole, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
@@ -1030,8 +1046,16 @@ crashes Trap
 
     machine enclosing(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
         transition scope.has_machine {
-            true -> container(resolution, sources, syntax, scope, name)
+            true -> lexical(resolution, sources, syntax, scope, name)
             _ -> free_machine(resolution, sources, syntax, name)
+        }
+    }
+
+    machine lexical(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        let local: ValueBinding = Resolver::lexical_machine(sources, syntax, scope.machine, false, name, name);
+        transition local {
+            ValueBinding::Unresolved -> container(resolution, sources, syntax, scope, name)
+            _ -> found(local)
         }
     }
 
@@ -1244,7 +1268,25 @@ crashes Trap
         let own: ValueBinding = Resolver::binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
         transition own {
             ValueBinding::GenericParameter { parameter } -> found(own)
+            _ -> lexical(resolution, sources, syntax, scope, name, machine_binder)
+        }
+    }
+
+    machine lexical(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, scope.machine);
+        let inherited: Lookup = Resolver::lexical_generic(sources, syntax, item.has_lexical_parent, item.lexical_parent, name, false);
+        transition inherited {
+            Lookup::Found { handle } -> static_parameter(syntax, handle, machine_binder)
             _ -> outer(resolution, sources, syntax, scope, name, machine_binder)
+        }
+    }
+
+    machine static_parameter(syntax: &SyntaxTrees, handle: u64 in Trapping, machine_binder: bool) -> ValueBinding {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        let names: bool = Resolver::binder_names(parameter.kind, machine_binder);
+        transition names && parameter.kind != GenericParameterKind::Value {
+            true -> found(ValueBinding::GenericParameter { parameter: handle })
+            _ -> found(ValueBinding::Unresolved)
         }
     }
 

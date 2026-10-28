@@ -79,8 +79,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR15"
-    assert reader.u64() == 15
+    assert reader.bytes(8) == b"OMGPAR16"
+    assert reader.u64() == 16
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -274,6 +274,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.byte(),
             reader.u64(),
+            reader.u64(),
+            reader.byte() == 1,
             reader.u64(),
         )
         for _ in range(reader.u64())
@@ -640,7 +642,8 @@ def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     spelled before lexicographic measures have no components."""
     rows = tuple(row if len(row) >= 32 else row + (0, 1, 0, 0, 0, 0) for row in rows)
     rows = tuple(row if len(row) >= 39 else row + NO_TOKEN for row in rows)
-    return tuple(row if len(row) == 41 else row + (0, 0) for row in rows)
+    rows = tuple(row if len(row) >= 41 else row + (0, 0) for row in rows)
+    return tuple(row if len(row) == 43 else row + (False, 0) for row in rows)
 
 
 # The clause kinds whose rows hold a fact expression: requires, ensures and
@@ -1693,7 +1696,7 @@ def machine_form_cases(program: str) -> None:
          {"member_count": 1, "type_reference_count": 1}),
         ("satisfies-label", b"machine f() satisfies A::b as {}", 158, b"{", 1, {"member_count": 2}),
         ("satisfies-binding", b"machine f() satisfies A::b via ;", 159, b";", 1, {"member_count": 2}),
-        ("state-satisfies-not-admitted", b"machine f() { state s() satisfies A::b {} }", 105, b"satisfies", 1, {}),
+        ("state-satisfies-not-admitted", b"machine f() { state s() satisfies A::b {} }", 48, b"state", 1, {"machine_count": 1}),
         ("termination-subject", b"machine f() terminates by ; {}", 160, b";", 1, {}),
         ("termination-subject-end", b"machine f() terminates by (a b) {}", 161, b"b", 2,
          {"expression_count": 1}),
@@ -2758,30 +2761,6 @@ def main() -> None:
         name_span = at(source, name)
         return (*name_span, type_reference, 1, name_span[1], at(source, end_fragment)[2])
 
-    def state_row(
-        source: bytes,
-        name: bytes,
-        first_parameter: int,
-        parameter_count: int,
-        span: tuple[int, int],
-        return_type: int = -1,
-        first_statement: int = 0,
-        statement_count: int = 0,
-        clause_range: tuple[int, int] = (0, 0),
-    ) -> tuple[int, ...]:
-        return (
-            *at(source, name),
-            first_parameter,
-            parameter_count,
-            0 if return_type < 0 else 1,
-            max(return_type, 0),
-            *clause_range,
-            first_statement,
-            statement_count,
-            1,
-            *span,
-        )
-
     source = b"machine main() {}"
     accepted(
         program, "machine-empty", source,
@@ -2821,17 +2800,98 @@ def main() -> None:
         ((3, 0, 1, 0, len(source)),), (), (),
         machines=(machine_row(source, b"tick", 0, 0, 0, 0, (0, len(source))),),
     )
-    source = b"machine run(n: u64) { state step(a: u8) -> u8 {} state halt {} }"
+    source = (
+        b"machine outer<T>(x: u64) -> u64 requires x > 0 ensures result > 0 "
+        b"reaches blocks; suspends; crashes Trap { x "
+        b"machine left(y: u64) -> u64 requires y > 1 ensures result > 1 "
+        b"reaches blocks; suspends; crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
+        b"machine right(y: u64) -> u64 { y machine leaf(z: u64) -> u64 { z } } }"
+    )
+    status, payload = run(program, source)
+    assert status == 0, f"nested-full-machines: status {status}"
+    nested = decode(payload)
+    assert len(nested.machines) == 5 and len(nested.roots) == 1
+    assert [row[-2:] for row in nested.machines] == [
+        (False, 0), (True, 0), (True, 1), (True, 0), (True, 3)
+    ]
+    assert [source[row[5]:row[6]] for row in nested.machines] == [
+        b"outer", b"left", b"leaf", b"right", b"leaf"
+    ]
+    assert [row[10] for row in nested.machines] == [1] * 5
+    assert [row[11] for row in nested.machines] == [1] * 5
+    assert [row[16] for row in nested.machines] == [1] * 5
+    assert [row[18] for row in nested.machines] == [0] * 5
+    assert [row[14] for row in nested.machines] == [6, 6, 0, 0, 0]
+    # Own expression and statement runs are disjoint, including full child
+    # clauses; repeated leaves retain distinct identities and exact parents.
+    assert all(
+        left[20] + left[21] <= right[20]
+        for left, right in zip(nested.machines, nested.machines[1:])
+    )
+    assert all(
+        left[15] + left[16] <= right[15]
+        for left, right in zip(nested.machines, nested.machines[1:])
+    )
+    contracted = (
+        b"machine outer<machine F>(x: u8) -> u8 "
+        b"where machine F(value: u8) -> u8; { x "
+        b"machine inner<machine G>(y: u8) -> u8 "
+        b"where machine G(value: u8) -> u8; "
+        b"requires y > 0 ensures result > 0 { y } }"
+    )
+    status, payload = run(program, contracted)
+    assert status == 0, f"nested-static-contracts: status {status}"
+    own = decode(payload)
+    assert [row[36:38] for row in own.machines] == [(0, 1), (1, 1)]
+    assert [row[7:9] for row in own.machines] == [(0, 1), (1, 1)]
+    assert [row[14] for row in own.machines] == [0, 2]
+    assert own.machines[1][-2:] == (True, 0)
+    # Container spans physically include descendants; the explicit parent
+    # distinguishes helpers from actual direct requirements/implementations.
+    for source, container in (
+        (b"trait T { machine direct { machine helper(); } machine other(); }", 1),
+        (b"C satisfies T { machine direct { machine helper(); } machine other {} }", 2),
+    ):
+        status, payload = run(program, source)
+        assert status == 0, f"nested-container-{container}: status {status}"
+        own = decode(payload)
+        assert len(own.machines) == 3 and len(own.roots) == 1
+        assert [row[31] for row in own.machines] == [container] * 3
+        assert [row[-2:] for row in own.machines] == [(False, 0), (True, 0), (False, 0)]
+        assert [row[19] for row in own.machines] == [True, False, container == 2]
+
+    # Empty/Unit executable portions and arbitrary-depth lexical frames.
+    depth = 96
+    deep = b"machine a{" * depth + b"}" * depth
+    status, payload = run(program, deep)
+    assert status == 0, f"nested-machine-depth: status {status}"
+    rows = decode(payload).machines
+    assert len(rows) == depth
+    assert [row[-2:] for row in rows] == [(False, 0)] + [
+        (True, index - 1) for index in range(1, depth)
+    ]
+    resumed = b"machine outer { machine helper {} 7; }"
+    rejected(program, "nested-executable-after-declaration", resumed, 48,
+             (resumed.index(b"7"), resumed.index(b"7") + 1), machine_count=2)
+
+    source = b"machine run(n: u64) { machine step(a: u8) -> u8 {} machine halt {} }"
+    step_start = source.index(b"machine step")
+    step_end = source.index(b"{}", step_start) + 2
+    halt_start = source.index(b"machine halt")
+    halt_end = source.index(b"{}", halt_start) + 2
+    step = machine_rows((machine_row(source, b"step", 1, 1, 0, 0,
+                                    (step_start, step_end), return_type=2),))[0][:-2] + (True, 0)
+    halt = machine_rows((machine_row(source, b"halt", 2, 0, 0, 0,
+                                    (halt_start, halt_end)),))[0][:-2] + (True, 0)
+    n = source.index(b"n:")
+    a = source.index(b"a:")
     accepted(
-        program, "machine-states", source,
-        ((3, 0, 1, 0, 64),), (), (),
+        program, "machine-nested-declarations", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
         type_references=(named(source, b"u64"), named(source, b"u8", 1), named(source, b"u8", 2)),
-        machines=((0, 1, 0, 0, 1, 8, 11, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 1, 0, 64),),
-        parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
-        states=(
-            (1, 28, 32, 1, 1, 1, 2, 0, 0, 0, 0, 1, 22, 48),
-            (1, 55, 59, 2, 0, 0, 0, 0, 0, 0, 0, 1, 49, 62),
-        ),
+        machines=(machine_row(source, b"run", 0, 1, 0, 0, (0, len(source))), step, halt),
+        parameters=((1, n, n + 1, 0, 1, n, source.index(b"u64") + 3),
+                    (1, a, a + 1, 1, 1, a, source.index(b"u8") + 2)),
     )
     source = b"machine wrap(x: u64 in Wrapping) {}"
     accepted(
@@ -2880,40 +2940,35 @@ def main() -> None:
     rejected(program, "machine-unknown-clause", b"machine f() decreases n {}", 47, (12, 21))
     rejected(program, "machine-unsupported-statement", b"machine f() { if x {} }", 48, (14, 16))
     rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
-    rejected(program, "state-name", b"machine f() { state }", 49, (20, 21))
-    rejected(program, "state-body", b"machine f() { state s() }", 50, (24, 25))
-    rejected(program, "state-unsupported-statement", b"machine f() { state s() { if } }", 51, (26, 28))
+    rejected(program, "retired-state-name", b"machine f() { state }", 48, (14, 19), machine_count=1)
+    rejected(program, "retired-state-body", b"machine f() { state s() }", 48, (14, 19), machine_count=1)
+    rejected(program, "retired-state-statement", b"machine f() { state s() { if } }", 48, (14, 19), machine_count=1)
 
-    exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(2048))
+    # The combined ordinary/nested identity budget is independent from the
+    # root table. Repeated names are syntactically legal; resolution owns
+    # duplicate declarations. Compact spelling reaches the budget within
+    # one source unit and token stream.
+    exact_machines = b"machine f{" + b"machine a{}" * 10239 + b"}"
     exact_machine_status, exact_machine_payload = run(program, exact_machines)
     assert exact_machine_status == 0
-    assert len(decode(exact_machine_payload).machines) == 2048
+    exact_machine_observation = decode(exact_machine_payload)
+    assert len(exact_machine_observation.machines) == 10240
+    assert len(exact_machine_observation.roots) == 1
+    assert all(row[-2:] == (True, 0) for row in exact_machine_observation.machines[1:])
     rejected(
         program,
         "machine-capacity-plus-one",
-        exact_machines + b"machine overflow() {}",
+        exact_machines[:-1] + b"machine overflow{} }",
         52,
-        (len(exact_machines), len(exact_machines) + 7),
-        root_count=2048,
-        machine_count=2048,
+        (len(exact_machines) - 1, len(exact_machines) + 6),
+        machine_count=10240,
     )
     # The parameter table's 32,768 rows take at least 131,075 tokens, more
     # than one unit holds; the resolver gate's source sets reach that edge.
-    exact_states = b"machine f() { " + b"".join(
-        f"state s{index} {{}} ".encode() for index in range(8192)
-    ) + b"}"
-    exact_state_status, exact_state_payload = run(program, exact_states)
-    assert exact_state_status == 0
-    assert len(decode(exact_state_payload).states) == 8192
-    overflow_state_start = len(exact_states) - 1
-    rejected(
-        program,
-        "state-capacity-plus-one",
-        exact_states[:-1] + b"state overflow {} }",
-        54,
-        (overflow_state_start, overflow_state_start + 5),
-        state_count=8192,
-    )
+    # Legacy state rows have no producer; canonical nested identities use
+    # the exact combined capacity tested above, never the old state table.
+    rejected(program, "retired-state-declaration", b"machine f { state helper {} }",
+             48, (12, 17), machine_count=1)
 
     # Body tables: 16,384 statements and 8,192 transition arms. A statement
     # or arm past its table rejects once it completes, at the token after it.
@@ -3113,17 +3168,17 @@ def main() -> None:
         ),
     )
     body(
-        "string-argument-and-state-tail",
-        b'machine f() { log("hi"); state s(a: u8) -> u8 { a } }',
+        "string-argument-and-nested-machine-tail",
+        b'machine f() { log("hi"); machine s(a: u8) -> u8 { a } }',
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 14, 17, 0, 1, 14, 17),
             (5, 0, 0, 0, 0, 0, 0, 1, 18, 22, 0, 1, 18, 22),
             (11, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 14, 23),
-            (1, 0, 0, 0, 0, 0, 0, 1, 48, 49, 0, 1, 48, 49),
+            (1, 0, 0, 0, 0, 0, 0, 1, 50, 51, 0, 1, 50, 51),
         ),
         (
             (3, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 0, 1, 14, 24),
-            (4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 0, 0, 1, 48, 49),
+            (4, 1, 0, 0, 0, 0, 1, 3, 0, 1, 0, 0, 1, 50, 51),
         ),
         arguments=(1,),
     )
@@ -3145,7 +3200,7 @@ def main() -> None:
     # or a value.
     body(
         "wildcard-transition",
-        b"machine f() { transition { _ -> g() } state g() {} }",
+        b"machine f() { transition { _ -> g() } machine g() {} }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 32, 33, 0, 1, 32, 33),
             (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 35),
@@ -3155,7 +3210,7 @@ def main() -> None:
     )
     body(
         "guarded-arms",
-        b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> {} _ -> s(0) } state s(v: u8) {} }",
+        b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> {} _ -> s(0) } machine s(v: u8) {} }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 36, 37, 0, 1, 36, 37),
             (2, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 40, 44),
@@ -3185,7 +3240,7 @@ def main() -> None:
     )
     body(
         "subject-literal-and-terminal-arms",
-        b"machine f(x: u8) { transition x < 2 { true -> a(x) _ -> {} } state a(v: u8) {} }",
+        b"machine f(x: u8) { transition x < 2 { true -> a(x) _ -> {} } machine a(v: u8) {} }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 30, 31, 0, 1, 30, 31),
             (3, 0, 0, 0, 0, 0, 0, 1, 34, 35, 0, 1, 34, 35),
@@ -3338,9 +3393,9 @@ def main() -> None:
     for name, source, diagnostic, span, counts in clause_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
-    # A state's arrival `requires` facts share the clause table; a state
-    # admits no other clause and a machine admits no `where`.
-    source = b"machine f(n: u64) { state s(n: u64) requires n < 9 requires n > 0 {} }"
+    # A nested declaration's own requires facts share the clause table,
+    # without becoming promises or entry facts of the lexical parent.
+    source = b"machine f(n: u64) { machine s(n: u64) requires n < 9 requires n > 0 {} }"
     status, payload = run(program, source)
     assert status == 0, f"state-requires: status {status}"
     actual = decode(payload)
@@ -3350,12 +3405,12 @@ def main() -> None:
         (6, 0, 0, 1, 2, 1, first_requires, source.index(b"9") + 1),
         (6, 0, 0, 1, 5, 1, second_requires, source.index(b"0 {") + 1),
     )), f"state-requires:\n{actual.clauses}"
-    assert actual.states[0][7:9] == (0, 2), f"state-requires:\n{actual.states}"
+    assert actual.machines[1][13:15] == (0, 2), f"nested-requires:\n{actual.machines}"
     assert actual.machines[0][13:15] == (0, 0), f"state-requires:\n{actual.machines}"
 
     # `requires` and `ensures` facts continue after `,` like `where` facts:
     # each fact is its own clause row, spanning from its first token.
-    source = b"machine f(n: u64) ensures n > 0, n < 9 { state s(n: u64) requires n < 9, n > 0, {} }"
+    source = b"machine f(n: u64) ensures n > 0, n < 9 { machine s(n: u64) requires n < 9, n > 0, {} }"
     status, payload = run(program, source)
     assert status == 0, f"fact-lists: status {status}"
     actual = decode(payload)
@@ -3370,10 +3425,10 @@ def main() -> None:
         (6, 0, 0, 1, 11, 1, second_requires, second_requires + len(b"n > 0")),
     )), f"fact-lists:\n{actual.clauses}"
     assert actual.machines[0][13:15] == (0, 2), f"fact-lists:\n{actual.machines}"
-    assert actual.states[0][7:9] == (2, 2), f"fact-lists:\n{actual.states}"
+    assert actual.machines[1][13:15] == (2, 2), f"fact-lists:\n{actual.machines}"
     admission_rejections = (
-        ("state-ensures", b"machine f() { state s ensures 1 {} }", 105, (22, 29), {}),
-        ("state-reaches", b"machine f() { state s reaches A {} }", 105, (22, 29), {}),
+        ("state-ensures", b"machine f() { state s ensures 1 {} }", 48, (14, 19), {"machine_count": 1}),
+        ("state-reaches", b"machine f() { state s reaches A {} }", 48, (14, 19), {"machine_count": 1}),
         ("machine-where", b"machine f() where 1 {}", 105, (12, 17), {}),
     )
     for name, source, diagnostic, span, counts in admission_rejections:
@@ -3458,7 +3513,7 @@ def main() -> None:
     # Every keyword but `self` is a name in an expression, as in every other
     # name position. A Name holds its identifier in its own row and stores
     # no path member.
-    source = b"machine f() { g(target, data); transition { _ -> data(target) } state data(target: u8) {} }"
+    source = b"machine f() { g(target, data); transition { _ -> data(target) } machine data(target: u8) {} }"
     status, payload = run(program, source)
     assert status == 0, f"keyword-names: status {status}"
     actual = decode(payload)
@@ -3880,7 +3935,7 @@ def main() -> None:
     contract("cast-fact-after-semicolon", b"machine f() requires a; b as u8 == 4; {}", [6, 6], [True])
     bodyless_rejections = (
         ("machine-body-or-end", b"machine f() -> u8 x", 47, (18, 19), {"type_reference_count": 1}),
-        ("bodyless-state", b"machine f() { state s(); }", 50, (23, 24), {}),
+        ("bodyless-state", b"machine f() { state s(); }", 48, (14, 19), {"machine_count": 1}),
         ("fact-semicolon-then-close", b"machine f() requires a; }", 2, (24, 25),
          {"root_count": 1, "machine_count": 1, "expression_count": 1}),
     )

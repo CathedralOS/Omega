@@ -36,6 +36,7 @@ crashes Trap
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> done()
             Token::Keyword { keyword: KeywordKind::State, .. } -> done()
+            Token::Keyword { keyword: KeywordKind::Machine, .. } -> done()
             Token::Keyword { keyword: KeywordKind::Let, .. } -> let_statement(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::Transition, .. } -> transition_statement(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::If, .. } -> reject(parser, input, unsupported)
@@ -292,6 +293,7 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::Equal, .. } -> assignment(parser, input, unsupported, value)
             Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> terminated(parser, input, unsupported, value)
             Token::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> tail(parser, input, unsupported, value)
+            Token::Keyword { keyword: KeywordKind::Machine, .. } -> tail(parser, input, unsupported, value)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStatementEnd)
         }
     }

@@ -388,7 +388,7 @@ crashes Trap
             declared.owner.source_span, declared.name.source_span);
         let same_module: bool = Resolver::same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
             item.name.source_span.source.value as u64 in Trapping);
-        transition spelled && same_module {
+        transition spelled && same_module && !item.has_lexical_parent {
             true -> taken()
             _ -> machine_at(resolution, sources, syntax, declared, index + 1)
         }
@@ -722,7 +722,11 @@ public machine Resolver::scope(first: u64 in Trapping, count: u64 in Trapping) -
         first_generic_parameter: first,
         generic_parameter_count: count,
         first_outer_parameter: 0,
-        outer_parameter_count: 0
+        outer_parameter_count: 0,
+        has_lexical_parent: false,
+        lexical_parent: 0,
+        has_machine: false,
+        machine: 0
     }
 }
 
@@ -1080,6 +1084,21 @@ crashes Trap
     }
 
     machine machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
+        transition scope.has_machine {
+            true -> lexical_argument(resolver, sources, syntax, scope, row, type_reference)
+            _ -> global_argument(resolver, sources, syntax, scope, row, type_reference)
+        }
+    }
+
+    machine lexical_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
+        let local: ValueBinding = Resolver::lexical_machine(sources, syntax, scope.machine, false, type_reference.name.source_span, type_reference.name.source_span);
+        transition local {
+            ValueBinding::Machine { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
+            _ -> global_argument(resolver, sources, syntax, scope, row, type_reference)
+        }
+    }
+
+    machine global_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
         let lookup: Lookup = Resolver::machine_named(&resolver.output, sources, syntax, false, type_reference.name.source_span, type_reference.name.source_span);
         transition lookup {
             Lookup::Found { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
@@ -1219,7 +1238,23 @@ crashes Trap
     let own: Lookup = Resolver::generic_named(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
     transition own {
         Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle })
-        _ -> outer(sources, syntax, scope, name)
+        _ -> lexical(sources, syntax, scope, name)
+    }
+
+    machine lexical(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
+        let inherited: Lookup = Resolver::lexical_generic(sources, syntax, scope.has_lexical_parent, scope.lexical_parent, name, false);
+        transition inherited {
+            Lookup::Found { handle } -> static_parameter(syntax, handle)
+            _ -> outer(sources, syntax, scope, name)
+        }
+    }
+
+    machine static_parameter(syntax: &SyntaxTrees, handle: u64 in Trapping) -> TypeBinding {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        transition parameter.kind == GenericParameterKind::Value {
+            true -> found(TypeBinding::Unresolved)
+            _ -> found(TypeBinding::GenericParameter { parameter: handle })
+        }
     }
 
     machine outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
@@ -2012,7 +2047,8 @@ crashes Trap
     let same_owner: bool = SourceSet::spans_equal(sources, left_owner.owner.source_span,
         right_owner.owner.source_span
     );
-    transition same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
+    let same_scope: bool = Resolver::same_lexical_scope(left, right);
+    transition same_scope && same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
         true -> parameters(resolver, sources, syntax, left_handle, right_handle, left, right)
         _ -> different()
     }
@@ -2357,6 +2393,15 @@ crashes Trap
     }
 
     machine same_position(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right_parameter: u64 in Trapping) -> bool {
+        let left_direct: bool = Resolver::direct_generic(left_scope, left_parameter);
+        let right_direct: bool = Resolver::direct_generic(right_scope, right_parameter);
+        transition left_direct && right_direct {
+            true -> direct_position(left_scope, left_parameter, right_scope, right_parameter)
+            _ -> same_handle(left_parameter, right_parameter)
+        }
+    }
+
+    machine direct_position(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right_parameter: u64 in Trapping) -> bool {
         let left_position: u64 in Trapping = Resolver::scope_position(left_scope, left_parameter);
         let right_position: u64 in Trapping = Resolver::scope_position(right_scope, right_parameter);
         left_position == right_position
@@ -2755,7 +2800,8 @@ crashes Trap
 {
     let own: bool = Resolver::lifetime_among(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
     let outer: bool = Resolver::lifetime_among(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name);
-    own || outer
+    let inherited: Lookup = Resolver::lexical_generic(sources, syntax, scope.has_lexical_parent, scope.lexical_parent, name, true);
+    own || outer || Resolver::lookup_found(inherited)
 }
 
 // Whether a lifetime binder spelled `name` lies in the generic parameters
