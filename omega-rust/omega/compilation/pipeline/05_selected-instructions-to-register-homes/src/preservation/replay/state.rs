@@ -3,12 +3,10 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::MachineId;
 
 /// The replay walk collects its counts and findings in the same traversal
-/// owner the compute route uses: the routes differ in how each home is found —
-/// this one keys the replayed roster and reads it by register — never in what a
+/// owner the compute route uses: the routes differ in the function roster each
+/// one reads — this one keys the retained homes by machine — never in what a
 /// function, block, instruction, operand or write costs.
-pub(in crate::preservation) use super::super::compute::state::{
-    DirectTraversal as ReplayTraversal, add,
-};
+pub(in crate::preservation) use super::super::compute::state::DirectTraversal as ReplayTraversal;
 
 #[allow(clippy::needless_lifetimes)] // The explicit replay lifetime makes independent custody visible to architecture review.
 pub(super) fn keyed_homes<'home>(

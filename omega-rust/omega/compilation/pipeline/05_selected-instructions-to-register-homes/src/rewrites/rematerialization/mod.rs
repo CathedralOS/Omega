@@ -28,46 +28,10 @@ use selected_instructions_to_selected_instructions::{
     ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
 };
 
-/// Stage the proven rematerialization sweep without attempting terminal
-/// homes assignment: the result is custody for the route's own decision —
-/// complete the sweep when assignment succeeds, or hand the same proven
-/// prefix to runtime-spill recovery when residual `NoCompatibleHome`
-/// pressure remains.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn stage_optimized_active_resident_rematerialization_pressure(
-    source: StagedOptimizedAllocationLegality,
-    choice_policy: SpillChoicePolicy,
-    classification_policy: RecoveryClassificationPolicy,
-    rematerialization_policy: PressureRematerializationPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<
-    StagedOptimizedActiveResidentRematerializationPressure,
-    OptimizedActiveResidentRematerializationError,
-> {
-    let staged = compute::compute_active_resident_rematerialization_pressure(
-        source,
-        choice_policy,
-        classification_policy,
-        rematerialization_policy,
-        budget,
-    )?;
-    Ok(staged)
-}
-
-/// Terminal completion of a proven sweep: the caller supplies the homes a
-/// successful assignment over the rebuilt facts produced. Custody is granted
-/// only after independent replay reconstructs the complete chain, exactly as
-/// the one-shot entrance requires.
-pub(crate) fn complete_optimized_active_resident_rematerialization(
-    pressure: StagedOptimizedActiveResidentRematerializationPressure,
-    homes: crate::ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedActiveResidentRematerialization,
-    OptimizedActiveResidentRematerializationError,
-> {
-    let staged = compute::complete_active_resident_rematerialization(pressure, homes)?;
-    Ok(staged)
-}
+pub(crate) use compute::{
+    complete_optimized_active_resident_rematerialization,
+    stage_optimized_active_resident_rematerialization_pressure,
+};
 
 /// One bounded active-resident rematerialization sweep followed by analyses,
 /// homes, and a typed post-allocation manifest rebuilt from the transformed

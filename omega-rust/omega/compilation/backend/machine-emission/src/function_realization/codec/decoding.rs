@@ -6,7 +6,6 @@ use super::super::{
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData,
 };
-use super::cursor::Cursor;
 use super::error::FunctionRelativeOptimizationRealizationManifestDecodeError as Error;
 use super::post_allocation::decode_optional_custody;
 use super::target::decode_target;
@@ -14,6 +13,7 @@ use machine_code::{
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
     WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
 };
+use optimization_core::cursor::Cursor;
 use optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,

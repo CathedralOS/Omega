@@ -1,4 +1,5 @@
-use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin, strictly_sorted};
+use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
+use crate::record::validation::ordered;
 use crate::record::{
     PackageReviewBoundaryShapeClass as Shape, PackageReviewBoundaryShapeGraph,
     PackageReviewOpaqueRepresentationMovementRole as Role,
@@ -92,9 +93,7 @@ pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &
     if policy.opaque_uses.len() > 256 || occurrence_count > 256 {
         return Err("calling opaque catalog exceeds normalized shape capacity");
     }
-    if !strictly_sorted(&policy.opaque_uses) {
-        return Err("calling opaque uses are not canonical");
-    }
+    ordered(&policy.opaque_uses)?;
     for (index, use_) in policy.opaque_uses.iter().enumerate() {
         // Opaque selections belong to the nongeneric authoritative build, not
         // to the boundary requirement's lifetime telescope. Callback slots
@@ -111,8 +110,8 @@ pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &
         if use_.selection_owner == crate::record::PackageReviewNominalOwner::Unresolved {
             return Err("calling opaque selection owner is unresolved");
         }
+        ordered(&use_.occurrences)?;
         if use_.occurrences.is_empty()
-            || !strictly_sorted(&use_.occurrences)
             || policy.opaque_uses[..index]
                 .iter()
                 .any(|prior| prior.opaque == use_.opaque)

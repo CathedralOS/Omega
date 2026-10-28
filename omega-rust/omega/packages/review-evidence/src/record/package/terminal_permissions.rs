@@ -3,6 +3,7 @@
 mod generics;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};
+use crate::record::accessors::field_projection_accessors;
 use crate::record::validation::ordered_by;
 use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
 use effects::TerminalAuthorityDisposition;
@@ -17,10 +18,9 @@ pub struct PackagePolicyTerminalPermissions {
 }
 
 impl PackagePolicyTerminalPermissions {
-    crate::record::accessors::record_accessors!(package, target);
-    pub fn services(&self) -> &[PackagePolicyTerminalService] {
-        &self.services
-    }
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: target::TargetProfile);
+    field_projection_accessors!(sliced services: &[PackagePolicyTerminalService]);
 
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         ordered_by(&self.services, |a, b| a.service.cmp(&b.service))?;
@@ -59,20 +59,12 @@ pub struct PackagePolicyTerminalService {
 }
 
 impl PackagePolicyTerminalService {
-    crate::record::accessors::record_accessors!(static_parameters);
-    pub fn service(&self) -> &PackageReviewNominalIdentity {
-        &self.service
-    }
+    field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(borrowed service: &PackageReviewNominalIdentity);
 
-    pub const fn lifetime_parameter_count(&self) -> u32 {
-        self.lifetime_parameter_count
-    }
-    pub fn methods(&self) -> &[PackagePolicyServiceMethod] {
-        &self.methods
-    }
-    pub fn permissions(&self) -> &[PackagePolicyTerminalPermission] {
-        &self.permissions
-    }
+    field_projection_accessors!(copied lifetime_parameter_count: u32);
+    field_projection_accessors!(sliced methods: &[PackagePolicyServiceMethod]);
+    field_projection_accessors!(sliced permissions: &[PackagePolicyTerminalPermission]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,8 +74,6 @@ pub struct PackagePolicyTerminalPermission {
 }
 
 impl PackagePolicyTerminalPermission {
-    crate::record::accessors::record_accessors!(requirement);
-    pub fn permitted(&self) -> &TerminalAuthorityDisposition {
-        &self.permitted
-    }
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed permitted: &TerminalAuthorityDisposition);
 }

@@ -90,30 +90,11 @@ impl CurrentScalarValues<'_> {
         } else {
             &[]
         };
-        if !admitted(
-            self.program,
-            self.machine,
-            entry,
-            self.statement_index,
-            expression,
-            &bindings,
-            &lengths,
-            fields,
-            0,
-        ) {
+        let occurrence = self.occurrence_at(self.program, self.machine, entry, &lengths);
+        if !admitted(occurrence, expression, &bindings, fields, 0) {
             return None;
         }
-        let mut goal = scoped(
-            self.machine,
-            entry,
-            self.statement_index,
-            expression,
-            &bindings,
-            &lengths,
-            fields,
-            &self.hypotheses,
-            self.program,
-        )?;
+        let mut goal = scoped(occurrence, expression, &bindings, fields)?;
         if let Some(returned) = self.current(returned) {
             goal.bindings.push(ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Result,

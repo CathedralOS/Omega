@@ -115,15 +115,11 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
             referents
                 .iter()
                 .map(|referent| {
-                    Some(CanonicalPlace {
-                        root: referent.root,
-                        segments: facts
-                            .flow
-                            .control
-                            .operand_referent_segments
-                            .span(referent.segments)?
-                            .to_vec(),
-                    })
+                    crate::checks::places::place_in(
+                        &facts.flow.control.operand_referent_segments,
+                        referent.root,
+                        referent.segments,
+                    )
                 })
                 .collect::<Option<Vec<_>>>()
         })

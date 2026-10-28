@@ -925,8 +925,39 @@ pub(super) fn collect(
             }
         }
         CheckedScalarComputationKind::RetainedConstant { .. }
-        | CheckedScalarComputationKind::Value(_)
-        | CheckedScalarComputationKind::StructuralField { .. } => {}
+        | CheckedScalarComputationKind::Value(_) => {}
+        CheckedScalarComputationKind::StructuralField {
+            subject,
+            receiver_value,
+            ..
+        } => {
+            collect_structural_argument_calls(
+                program,
+                facts,
+                state,
+                statement,
+                subject,
+                calls,
+                minimum_call_ordinal,
+                visits,
+                consumed,
+            )?;
+            if receiver_value.is_valid() {
+                let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
+                super::structural_values::collect(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement,
+                    *receiver_value,
+                    calls,
+                    minimum_call_ordinal,
+                    consumed,
+                    &mut Vec::new(),
+                )?;
+            }
+        }
         CheckedScalarComputationKind::ByteSequencePredicate {
             predicate,
             source_expression,
@@ -1069,8 +1100,22 @@ pub(super) fn collect(
                         consumed,
                     )?;
                 }
-                // Structural operands retain their own registered value roots
-                // and prepared invocation schedules, as receiver dependencies do.
+                if let checked_trees::CheckedScalarEvaluationOperand::Structural(value) = dependency
+                {
+                    let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
+                    super::structural_values::collect(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        statement,
+                        *value,
+                        calls,
+                        minimum_call_ordinal,
+                        consumed,
+                        &mut Vec::new(),
+                    )?;
+                }
             }
             collect(
                 program,

@@ -1,5 +1,6 @@
 //! Target-independent source signature of a selected service application.
 
+use crate::record::accessors::field_projection_accessors;
 use crate::record::package::callable_policy::validation::signature::Scope;
 use crate::record::public_policy::validation::scope;
 use crate::record::public_policy::validation::signatures::parameters;
@@ -22,7 +23,8 @@ pub struct PackagePolicyServiceSignature {
 }
 
 impl PackagePolicyServiceSignature {
-    crate::record::accessors::record_accessors!(static_parameters, parameters);
+    field_projection_accessors!(sliced static_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
     pub fn result(&self) -> Option<&PackageReviewTypeIdentity> {
         self.result.as_ref()
     }

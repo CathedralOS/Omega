@@ -2293,8 +2293,13 @@ fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 13367ms 
 	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
 fail/calls/free_machine_named_transition_rejected rejected 268ms expected @9ac99b4eaa48
 	machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
+fail/calls/fused_child_computed_linear_borrow rejected 707ms expected @bc368540ef79
+	linear value `previous` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
+	linear value `current` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
 fail/calls/generic_operator_guard_argument_mismatch rejected 2427ms expected @a92f16431042
 	named operator `identity` static argument for parameter `T` does not equal the type inferred from its operands
+fail/calls/guarded_terminal_linear_record_field rejected 792ms expected @bc368540ef79
+	linear value `named(name(nominal\\(package-owner\\(32:a1fdaa9ac4ce5200e2a5b4a5b631d8c0a5b4d768b1ffd302fb7950f41dafb2a0\\)\\,path\\(Observation\\)\\)))` reaches scope exit without being consumed or transferred in machine `probe` state `entry`
 fail/calls/immutable_arg_for_mut_param_rejected rejected 1057ms expected @a92f16431042
 	argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -3089,7 +3094,7 @@ fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expec
 	machine `Main::main` state `checked` declares result `named(name(i32))`, which differs from the machine's no result
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 3147ms expected @a92f16431042
 	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
-fail/control_flow/terminal_unit_linear_local_cleanup rejected 996ms expected @8bcb7be3db2b
+fail/control_flow/terminal_unit_linear_local_cleanup rejected 880ms expected @bc368540ef79
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 fail/control_flow/termination_countdown_stalled_decrease rejected 4198ms expected @a92f16431042
 	terminating machine Main::countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -17804,11 +17809,28 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/slices/nested_machine_field_window_out_of_bounds rejected 673ms expected @bc368540ef79
+	cannot prove subslice range end bound `0..wide.length` is within slice length 2
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1022ms check-target:macos_arm64 @8bcb7be3db2b
+pass/calls/runtime_fused_child_computed_borrow_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
+pass/calls/runtime_guarded_terminal_record_field_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
+pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 942ms check-target:macos_arm64 @bc368540ef79
+pass/facts/case_where_equality_data_predicate_direct_exit checked 1992ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_formed_call_exit checked 1992ms check-target:macos_arm64 @3ee474962e7a
 pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit checked 2082ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_restored_exit checked 2200ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_call_result_exit checked 2082ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_const_name_exit checked 3980ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_field_exit checked 1981ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_local_exit checked 1928ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_match_join_exit checked 2037ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_other_machine_exit checked 2137ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 1970ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 2161ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 2251ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 2071ms check-target:macos_arm64 @3ee474962e7a
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -25900,19 +25922,6 @@ pass/facts/case_tag_discriminant_layout_through_other_state_exit checked 2751ms 
 pass/facts/case_tag_discriminant_layout_through_parameter_exit checked 2832ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_tag_discriminant_layout_through_target_body_exit checked 4373ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_value_binder_payload_compile checked 2078ms @a92f16431042
-pass/facts/case_where_equality_data_predicate_direct_exit checked 1992ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_formed_call_exit checked 1992ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_restored_exit checked 2200ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_call_result_exit checked 2082ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_const_name_exit checked 3980ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_field_exit checked 1981ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_local_exit checked 1928ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_match_join_exit checked 2037ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_other_machine_exit checked 2137ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 1970ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 2161ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 2251ms check-target:macos_arm64 @3ee474962e7a
-pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 2071ms check-target:macos_arm64 @3ee474962e7a
 pass/facts/case_where_equality_through_call_result_exit checked 3209ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_where_equality_through_const_name_exit checked 2378ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_where_equality_through_field_exit checked 2777ms check-target:macos_arm64 @a92f16431042
@@ -32788,6 +32797,7 @@ pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 1735ms chec
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 2015ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_namespace_range_contract_exit checked 2285ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_nested_descriptor_scalar_store_exit checked 2742ms check-target:macos_arm64 @a92f16431042
+pass/slices/runtime_nested_machine_field_window_exit checked 954ms check-target:macos_arm64 @bc368540ef79
 pass/slices/runtime_nested_stored_view_element_replacement_exit rejected 2258ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "replace", reason: "structural contract observation has no inline canonical path", gap: None })
 pass/slices/runtime_nested_stored_view_return_exit rejected 1944ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042

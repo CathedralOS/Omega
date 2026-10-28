@@ -111,9 +111,8 @@ pub(super) fn check_call_requires(
                         });
                         whole_contract_caches.len() - 1
                     });
-                let captured_judgment = phase_profile::scope(
-                    "05.d.7.3b.1d.captured_boolean",
-                    || {
+                let captured_judgment =
+                    phase_profile::scope("05.d.7.3b.1d.captured_boolean", || {
                         captured_boolean::judgment(
                             program,
                             facts,
@@ -125,8 +124,7 @@ pub(super) fn check_call_requires(
                             call_frames,
                             &mut whole_contract_caches[cache_index].answers,
                         )
-                    },
-                );
+                    });
                 let satisfied = phase_profile::scope("05.d.7.3b.1e.proves_core", || {
                     selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
                         || captured_judgment.unwrap_or_else(|| match fact.payload {

@@ -17,6 +17,7 @@ mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
+use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
@@ -47,9 +48,7 @@ pub struct PackagePolicyBaseline {
 }
 
 impl PackagePolicyBaseline {
-    pub fn service_audits(&self) -> &[crate::record::PackageReviewNominalIdentity] {
-        &self.service_audits
-    }
+    field_projection_accessors!(sliced service_audits: &[crate::record::PackageReviewNominalIdentity]);
 
     pub fn apply_service_audit_policy(
         &mut self,

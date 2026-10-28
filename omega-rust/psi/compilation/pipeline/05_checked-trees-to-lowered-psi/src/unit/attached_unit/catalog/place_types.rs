@@ -33,7 +33,9 @@ pub(super) fn collect<'plans>(
                 collect_scope(
                     checked,
                     plans,
-                    machine.machine,
+                    crate::declarations::state_declaration(checked, state.state)?
+                        .0
+                        .symbol,
                     state.state,
                     &state.structural_parameters,
                     &state.operations,
