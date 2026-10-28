@@ -142,7 +142,7 @@ impl<'program> SpecificationCaller<'program> {
 /// Operator meaning belongs to the declaration's own public entry facts.
 /// Readers of substituted guarantees may reuse those source-selection facts;
 /// post-call caller observations never select a different operator for them.
-pub(in crate::proof_contracts) fn declaration_selection_requirements(
+pub fn declaration_operator_selection_requirements(
     program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
 ) -> Vec<&ProofFact> {

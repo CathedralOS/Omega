@@ -190,7 +190,8 @@ fn checked_operator_target(
             }
         });
 
-    uses.iter()
+    let executable = uses
+        .iter()
         .find_map(|operator_use| {
             (operator_use.status == CheckedOperatorResolutionStatus::Resolved)
                 .then(|| declaration_target(operator_use.selected_operator_symbol))
@@ -210,30 +211,31 @@ fn checked_operator_target(
                 .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 ))
-        })
-        .or_else(|| {
-            contract_resolution::checked_operator_resolution(
-                program,
-                facts,
-                expression,
-                node,
-                owner_index,
-            )
-            .and_then(|resolution| match resolution {
-                contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
-                    declaration_target(symbol)
-                }
-                contract_resolution::CheckedContractOperatorResolution::Builtin => {
-                    Some(AuthoredSelectionResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                    ))
-                }
-            })
-        })
-        .or_else(|| {
-            resolve_authored_operator_without_use_fact(program, expression, node)
-                .and_then(|operator| declaration_target(operator.symbol))
-        })
+        });
+    if executable.is_some() {
+        return executable;
+    }
+    if let Some(resolution) = contract_resolution::checked_operator_resolution(
+        program,
+        facts,
+        expression,
+        node,
+        owner_index,
+    ) {
+        return match resolution {
+            contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
+                declaration_target(symbol)
+            }
+            contract_resolution::CheckedContractOperatorResolution::Builtin => {
+                Some(AuthoredSelectionResolutionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                ))
+            }
+            contract_resolution::CheckedContractOperatorResolution::Unresolved => None,
+        };
+    }
+    resolve_authored_operator_without_use_fact(program, expression, node)
+        .and_then(|operator| declaration_target(operator.symbol))
         .or_else(|| {
             let operand = match node {
                 ExpressionNode::Binary(binary) => binary.left,

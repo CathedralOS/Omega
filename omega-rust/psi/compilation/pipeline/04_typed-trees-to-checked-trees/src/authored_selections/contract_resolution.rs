@@ -13,6 +13,9 @@ use typed_trees::expression::ExpressionNode;
 pub(crate) enum CheckedContractOperatorResolution {
     Declaration(SymbolHandle),
     Builtin,
+    /// A known source scope has no unique public application. Later carrier
+    /// fallbacks cannot replace that failed selection with builtin authority.
+    Unresolved,
 }
 
 /// `owner_index` is the caller's exact-owner index, when it holds one for this
@@ -132,9 +135,9 @@ pub(crate) fn checked_named_operator_call<'program>(
 
 /// Proof/static contract expressions do not always produce an executable
 /// operator-use fact. When the checked owner supplies an operand type, replay
-/// ordinary operand-driven spelled dispatch: one candidate selects that
-/// declaration, no candidate means the already-validated compiler builtin,
-/// and ambiguity remains unresolved.
+/// ordinary scoped dispatch. A resolved public application selects that
+/// declaration; builtin meaning requires its own positive result from the
+/// shared resolver. Missing or ambiguous applications stay unresolved.
 fn checked_spelled_operator_resolution(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -155,18 +158,48 @@ fn checked_spelled_operator_resolution(
     if operand_types.iter().all(Option::is_none) {
         return None;
     }
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+    // Contracts may have no executable use row. Their absence cannot turn
+    // an ordinary trait requirement into a builtin. Rejoin the declaration's
+    // own source scope and use the same application chooser as formation.
+    let local_owners;
+    let owners = match owner_index {
+        Some(owners) => owners,
+        None => {
+            local_owners =
+                validation::expression_owners::OwnerEnvironmentIndex::with_call_signatures(
+                    program,
+                    &facts.proof.contract_facts,
+                    &facts.proof.call_contract_signatures,
+                );
+            &local_owners
+        }
+    };
+    let owner =
+        validation::expression_owners::source_declaration_owner(program, expression, owners)?;
+    let requirements = validation::declaration_operator_selection_requirements(program, owner);
+    let expression_type =
+        |operand| checked_operand_type(program, facts, expression, operand, Some(owners));
+    let scope = validation::OperatorApplicationScope {
+        owner,
+        origin: None,
+        requires: &requirements,
+        expression_type: &expression_type,
+    };
+    let resolution = validation::scoped_operator_application(
         program,
+        &scope,
+        expression,
         spelling,
         &operand_types,
-        program.expression_table.source_span(expression),
     );
-    match candidates.as_slice() {
-        [] => Some(CheckedContractOperatorResolution::Builtin),
-        [candidate] => Some(CheckedContractOperatorResolution::Declaration(
-            candidate.operator.symbol,
-        )),
-        _ => None,
+    match resolution.status {
+        checked_trees::CheckedOperatorResolutionStatus::Resolved => Some(
+            CheckedContractOperatorResolution::Declaration(resolution.selected_symbol),
+        ),
+        checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback => {
+            Some(CheckedContractOperatorResolution::Builtin)
+        }
+        _ => Some(CheckedContractOperatorResolution::Unresolved),
     }
 }
 

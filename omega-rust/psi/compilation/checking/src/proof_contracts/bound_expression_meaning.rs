@@ -453,7 +453,7 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
     // Only original declaration facts participate in operator selection; the
     // caller's later observations discharge predicates, never choose meaning.
     let requirements =
-        super::contract_entailment::specification_calls::declaration_selection_requirements(
+        super::contract_entailment::specification_calls::declaration_operator_selection_requirements(
             program, owner,
         );
     let operands = match program.expression_table.expression(expression) {
