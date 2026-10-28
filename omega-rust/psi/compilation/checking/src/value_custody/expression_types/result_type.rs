@@ -968,6 +968,46 @@ fn binary_result(
             &operands,
         )
     {
+        // A selected trait owns its result as surely as a free declaration.
+        // Reading only free operators loses even a closed Bool carrier and
+        // prevents preserved entry predicates from retaining their truth.
+        // Composite/dependent results still need their applied telescope;
+        // this read exports only an independently closed builtin carrier.
+        let requirements =
+            crate::declaration_operator_selection_requirements(program, owner.symbol());
+        let expression_type = |operand| {
+            [binary.left, binary.right]
+                .iter()
+                .position(|source| *source == operand)
+                .and_then(|index| operands[index])
+        };
+        let scope = crate::OperatorApplicationScope {
+            owner: owner.symbol(),
+            origin: None,
+            requires: &requirements,
+            expression_type: &expression_type,
+        };
+        let resolution =
+            crate::scoped_operator_application(program, &scope, expression, spelling, &operands);
+        let requirement = match resolution.selected() {
+            Some(crate::ScopedOperatorApplication::Trait(meaning)) => Some(meaning.requirement),
+            Some(crate::ScopedOperatorApplication::BoundTrait(meaning)) => {
+                Some(meaning.requirement)
+            }
+            Some(crate::ScopedOperatorApplication::SelectedTrait { meaning, .. }) => {
+                Some(meaning.requirement)
+            }
+            _ => None,
+        };
+        if let Some(requirement) = requirement {
+            qualified_builtin_carrier(program, requirement.return_type, false)?;
+            return selected_operator_result_type_reference(
+                program,
+                requirement.symbol,
+                requirement.return_type,
+                &operands,
+            );
+        }
         let candidates = typed_trees::operator::resolve_spelling_for_operands(
             program,
             spelling,
