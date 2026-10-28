@@ -7,21 +7,20 @@ use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use time_host;
 
-boundary requirement TimeHostNativeProvider::clock_nanoseconds(clock_id: u32) -> u64
-reaches TimeHost;
+boundary trait DarwinArm64TimeRead {
+    machine clock_nanoseconds(clock_id: u32) -> u64
+    reaches TimeHost;
 
-boundary requirement TimeHostNativeProvider::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-reaches TimeHost
-blocks;
-
-data TimeHostDarwinImports { }
-
+    machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
+    reaches TimeHost
+    blocks;
+}
 
 macos_arm64 machine TimeHostNativeProvider::monotonic_ticks() -> u64
     satisfies TimeHost::monotonic_ticks
 reaches TimeHost
 {
-    TimeHostNativeProvider::clock_nanoseconds(8)
+    DarwinArm64TimeRead::clock_nanoseconds(8)
 }
 
 macos_arm64 machine TimeHostNativeProvider::monotonic_ticks_per_second() -> u64
@@ -34,7 +33,7 @@ macos_arm64 machine TimeHostNativeProvider::wall_clock_raw() -> u64
     satisfies TimeHost::wall_clock_raw
 reaches TimeHost
 {
-    TimeHostNativeProvider::clock_nanoseconds(0)
+    DarwinArm64TimeRead::clock_nanoseconds(0)
 }
 
 macos_arm64 machine TimeHostNativeProvider::wall_clock_units_per_second() -> u64
@@ -84,7 +83,7 @@ blocks;
     transition { _ -> block wait(timeout_milliseconds) }
 
     machine wait(timeout_milliseconds: i32) {
-        let outcome: i32 = block TimeHostNativeProvider::poll(0, 0, timeout_milliseconds);
+        let outcome: i32 = block DarwinArm64TimeRead::poll(0, 0, timeout_milliseconds);
         transition outcome == 0 {
             true -> done()
             _ -> block wait(timeout_milliseconds)

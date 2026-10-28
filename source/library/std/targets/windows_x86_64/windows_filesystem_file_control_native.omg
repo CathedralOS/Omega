@@ -9,7 +9,6 @@ use targets::windows_x86_64::windows_filesystem_native;
 use targets::windows_x86_64::windows_filesystem_metadata_native;
 
 data WindowsNativeFileEndOfFileInfo { length: i64; }
-data WindowsFilesystemFileControlImports {}
 
 boundary trait WindowsFilesystemFileControlIo {
     machine end_of_file(handle: i64, information_class: u32, input: &WindowsNativeFileEndOfFileInfo, size: u32) -> i32

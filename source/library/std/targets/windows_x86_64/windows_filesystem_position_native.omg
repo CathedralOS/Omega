@@ -17,7 +17,6 @@ data WindowsNativeObjectBasicInfo {
     pointer_count: u32;
     reserved: [u64; 5];
 }
-data WindowsFilesystemPositionImports {}
 
 boundary trait WindowsFilesystemPositionIo {
     machine object_access(handle: i64, information_class: u32, output: &mut WindowsNativeObjectBasicInfo, size: u32, returned: &mut u32) -> i32

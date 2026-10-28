@@ -15,15 +15,19 @@ use console;
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
-data WindowsConsoleIo { }
+boundary trait WindowsConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    reaches Console;
 
-boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-reaches Console;
+    machine read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    reaches Console
+    blocks;
+
+    machine set_mode(descriptor: i32, mode: i32) -> i32
+    reaches Console;
+}
 
 // A console read waits for host input, so the import publishes `blocks`.
-boundary requirement WindowsConsoleIo::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-reaches Console
-blocks;
 
 // MSVCRT descriptors open in text mode, which translates CR LF pairs to a
 // single LF on reads, maps LF to CR LF on writes, and ends input at Ctrl+Z.
@@ -32,11 +36,6 @@ blocks;
 // moving data. `_setmode` is idempotent; calling it per operation keeps the
 // guarantee local to this provider with no separate descriptor-init hook.
 //   `int _setmode(int fd, int mode)`
-boundary requirement WindowsConsoleIo::set_mode(descriptor: i32, mode: i32) -> i32
-reaches Console;
-
-data WindowsConsoleImports { }
-
 
 // Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
 // -1 is a failed host read. The named trapping conversion rejects that
@@ -78,7 +77,6 @@ reaches Console
     let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
     let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
 }
-
 
 windows_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
     ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);

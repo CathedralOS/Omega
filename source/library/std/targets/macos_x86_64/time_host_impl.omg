@@ -28,17 +28,14 @@ use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use time_host;
 
-data DarwinX64TimeRead { }
+boundary trait DarwinX64TimeRead {
+    machine clock_nanoseconds(clock_id: u32) -> u64
+    reaches TimeHost;
 
-boundary requirement DarwinX64TimeRead::clock_nanoseconds(clock_id: u32) -> u64
-reaches TimeHost;
-
-boundary requirement DarwinX64TimeRead::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-reaches TimeHost
-blocks;
-
-data DarwinX64TimeImports { }
-
+    machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
+    reaches TimeHost
+    blocks;
+}
 
 macos_x86_64 machine TimeHostNativeProvider::monotonic_ticks() -> u64
     satisfies TimeHost::monotonic_ticks

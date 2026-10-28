@@ -35,7 +35,6 @@ data WindowsNativeDirectoryEntryInfo {
     name_bytes: u32;
     characters: [u16; 4096];
 }
-data WindowsFilesystemDirectoryImports {}
 
 boundary trait WindowsFilesystemDirectoryIo {
     machine next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, event: u64, callback: u64, context: u64,

@@ -1376,7 +1376,6 @@ invokes
     }
 }
 
-
 // Both public enumeration and recursive deletion use the same name-filtering
 // record reader. POSIX does not promise that dot entries precede ordinary names.
 machine posix_filesystem_read_dir_nth(filesystem: &mut PosixFilesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
@@ -1938,10 +1937,18 @@ invokes
 // realpath resolves all components into private PATH_MAX storage. The portable
 // caller's view is copied only after the resulting extent is checked.
 use omega::language::core::external_binding;
-data PosixCanonicalLibc { }
+
 data PosixCanonicalImports { }
-boundary requirement PosixCanonicalLibc::resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
-reaches FilesystemMetadataQuery;
+
+boundary trait PosixCanonicalLibc {
+    machine resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
+    reaches FilesystemMetadataQuery;
+
+    machine error_location() -> u64 reaches;
+
+    machine copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64 reaches;
+}
+
 machine posix_canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i64
 reaches FilesystemMetadataQuery
 
@@ -1998,8 +2005,7 @@ reaches FilesystemMetadataQuery
 // libc retains errno in the current thread. Copy the complete int immediately
 // after a failed realpath, preserving every byte rather than assuming a small
 // errno catalog. No ambient error slot survives the portable call.
-boundary requirement PosixCanonicalLibc::error_location() -> u64;
-boundary requirement PosixCanonicalLibc::copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64;
+
 machine posix_canonical_error() -> i64 {
     let location: u64 = PosixCanonicalLibc::error_location();
     let mut code: [u8; 4];

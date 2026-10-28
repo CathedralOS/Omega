@@ -21,7 +21,6 @@ data WindowsNativeReparseData {
     print_length: u16;
     rest: [u16; 8184];
 }
-data WindowsFilesystemReparseImports {}
 
 boundary trait WindowsFilesystemReparseIo {
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, control: u32, input: u64,

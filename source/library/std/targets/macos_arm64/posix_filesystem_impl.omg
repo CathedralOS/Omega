@@ -36,7 +36,6 @@ boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCallin
     machine c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64 reaches DirectoryEnumeration;
 }
 
-
 // Unlike the raw Linux syscall, libc consumes an aligned timespec[2] object.
 // Caller byte views need not have that alignment. Materialize only this native
 // 32-byte record, keeping required ABI marshaling separate from payload staging.
@@ -73,76 +72,97 @@ requires bytes.len == 8;
     narrow_u64_to_i64_wrapping(word as u64)
 }
 
+boundary trait PosixFilesystemDarwin {
+    machine c_open(path: &u8, flags: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 
-boundary requirement PosixFilesystemDarwin::c_open(path: &u8, flags: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_open_create(path: &u8, flags: i32, mode: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_create(path: &u8, mode: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_close(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemDarwin::c_remove(path: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_seek(fd: i32, offset: i64, whence: i32) -> i64
-;
-boundary requirement PosixFilesystemDarwin::c_create_dir(path: &u8, mode: i32) -> i32
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_remove_dir(path: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_create_dir_name(name: &u8, mode: i32) -> i32
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_open_at(dirfd: i32, name: &u8, flags: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_unlink_at(dirfd: i32, name: &u8, flags: i32) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_set_permissions(path: &u8, mode: u32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_set_file_permissions(fd: i32, mode: u32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_rename(from: &u8, to: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_hard_link(original: &u8, link: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_symlink(target: &u8, link: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_remove_name(path: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_remove_dir_name(path: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
-reaches FilesystemMetadataQuery;
-boundary requirement PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor: i32, name: &u8, buffer: &mut u8, flags: i32) -> i32
-reaches FilesystemMetadataQuery;
-boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
-reaches FilesystemContentWrite + FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_sync(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemDarwin::c_sync_data(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemDarwin::c_duplicate(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemDarwin::c_lock_file(fd: i32, operation: i32) -> i32
-;
-boundary requirement PosixFilesystemDarwin::c_change_owner(path: &u8, uid: i32, gid: i32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_change_owner_no_follow(path: &u8, uid: i32, gid: i32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_error_location() -> u64
-;
-boundary requirement PosixFilesystemDarwin::c_copy_from_address(destination: &mut u8, source: u64, count: u64) -> u64
-;
+    machine c_open_create(path: &u8, flags: i32, mode: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 
-data PosixFilesystemDarwin { }  // requirement namespace for the libSystem imports
-data PosixFilesystemDarwinImports { }
+    machine c_create(path: &u8, mode: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 
+    machine c_close(fd: i32) -> i32 reaches;
+
+    machine c_remove(path: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_seek(fd: i32, offset: i64, whence: i32) -> i64 reaches;
+
+    machine c_create_dir(path: &u8, mode: i32) -> i32
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+
+    machine c_remove_dir(path: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_create_dir_name(name: &u8, mode: i32) -> i32
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+
+    machine c_open_at(dirfd: i32, name: &u8, flags: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+
+    machine c_unlink_at(dirfd: i32, name: &u8, flags: i32) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_set_permissions(path: &u8, mode: u32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine c_set_file_permissions(fd: i32, mode: u32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine c_rename(from: &u8, to: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_hard_link(original: &u8, link: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_symlink(target: &u8, link: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_remove_name(path: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_remove_dir_name(path: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
+    reaches FilesystemMetadataQuery;
+
+    machine c_read_metadata_at(directory_descriptor: i32, name: &u8, buffer: &mut u8, flags: i32) -> i32
+    reaches FilesystemMetadataQuery;
+
+    machine c_set_len(fd: i32, length: i64) -> i32
+    reaches FilesystemContentWrite + FilesystemMetadataMutation;
+
+    machine c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine c_sync(fd: i32) -> i32 reaches;
+
+    machine c_sync_data(fd: i32) -> i32 reaches;
+
+    machine c_duplicate(fd: i32) -> i32 reaches;
+
+    machine c_lock_file(fd: i32, operation: i32) -> i32 reaches;
+
+    machine c_change_owner(path: &u8, uid: i32, gid: i32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine c_change_owner_no_follow(path: &u8, uid: i32, gid: i32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine c_change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine c_error_location() -> u64 reaches;
+
+    machine c_copy_from_address(destination: &mut u8, source: u64, count: u64) -> u64 reaches;
+}
+
+// requirement namespace for the libSystem imports
 
 // The negated `errno` of the call that just failed.
-macos_arm64 machine PosixFilesystemDarwin::failure_i32() -> i32
+macos_arm64 machine darwin_filesystem_failure_i32() -> i32
 
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
@@ -152,7 +172,7 @@ macos_arm64 machine PosixFilesystemDarwin::failure_i32() -> i32
     0 - (low as i32)
 }
 
-macos_arm64 machine PosixFilesystemDarwin::failure_i64() -> i64
+macos_arm64 machine darwin_filesystem_failure_i64() -> i64
 
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
@@ -163,13 +183,13 @@ macos_arm64 machine PosixFilesystemDarwin::failure_i64() -> i64
 }
 
 // Capture libc errno before restoring caller storage after a native write.
-macos_arm64 machine PosixFilesystemDarwin::normalize_i64(outcome: i64) -> i64 {
-    transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i64() _ -> outcome }
+macos_arm64 machine darwin_filesystem_normalize_i64(outcome: i64) -> i64 {
+    transition outcome < 0 { true -> darwin_filesystem_failure_i64() _ -> outcome }
 }
 
 // Darwin `ENAMETOOLONG`, answered without a call when a path does not fit.
-macos_arm64 machine PosixFilesystemDarwin::name_too_long_i32() -> i32 { -63 }
-macos_arm64 machine PosixFilesystemDarwin::name_too_long_i64() -> i64 { -63 }
+macos_arm64 machine darwin_filesystem_name_too_long_i32() -> i32 { -63 }
+macos_arm64 machine darwin_filesystem_name_too_long_i64() -> i64 { -63 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::open(path: &[u8] in Path, flags: i32) -> i32
     satisfies PosixFilesystemHost::open
@@ -180,12 +200,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let outcome: i32 = PosixFilesystemDarwin::c_open(&terminated[0], flags);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -200,12 +220,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let outcome: i32 = PosixFilesystemDarwin::c_open_create(&terminated[0], flags, mode);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -220,12 +240,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let outcome: i32 = PosixFilesystemDarwin::c_create(&terminated[0], mode);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -237,7 +257,7 @@ reaches FilesystemContentRead
 {
     let capacity: u64 = min_u64(count, buffer.len);
     let outcome: i64 = PosixFilesystemDarwinByteViews::c_read(fd, &mut buffer[0..capacity]);
-    PosixFilesystemDarwin::normalize_i64(outcome)
+    darwin_filesystem_normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
@@ -245,7 +265,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) 
 reaches FilesystemContentWrite
 {
     let outcome: i64 = PosixFilesystemDarwinByteViews::c_write(fd, bytes);
-    PosixFilesystemDarwin::normalize_i64(outcome)
+    darwin_filesystem_normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
@@ -254,7 +274,7 @@ reaches FilesystemContentRead
 {
     let capacity: u64 = min_u64(count, buffer.len);
     let outcome: i64 = PosixFilesystemDarwinByteViews::c_read_at(fd, &mut buffer[0..capacity], offset);
-    PosixFilesystemDarwin::normalize_i64(outcome)
+    darwin_filesystem_normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
@@ -262,7 +282,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8
 reaches FilesystemContentWrite
 {
     let outcome: i64 = PosixFilesystemDarwinByteViews::c_write_at(fd, bytes, offset);
-    PosixFilesystemDarwin::normalize_i64(outcome)
+    darwin_filesystem_normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
@@ -271,7 +291,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
 {
     let outcome: i32 = PosixFilesystemDarwin::c_close(fd);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -285,12 +305,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_remove(&terminated[0]);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -302,7 +322,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::seek(fd: i32, offset: i64, wh
 {
     let outcome: i64 = PosixFilesystemDarwin::c_seek(fd, offset, whence);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i64())
+        true -> (darwin_filesystem_failure_i64())
         _ -> (outcome)
     }
 }
@@ -316,12 +336,12 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_create_dir(&terminated[0], mode);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -336,12 +356,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_remove_dir(&terminated[0]);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -356,12 +376,12 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_create_dir_name(&terminated[0], mode);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -376,12 +396,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let outcome: i32 = PosixFilesystemDarwin::c_open_at(dirfd, &terminated[0], flags);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -396,12 +416,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_unlink_at(dirfd, &terminated[0], flags);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -416,12 +436,12 @@ reaches FilesystemMetadataMutation
     let outcome: i32 = PosixFilesystemDarwin::c_set_permissions(&terminated[0], mode);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -433,7 +453,7 @@ reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_set_file_permissions(fd, mode);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -449,12 +469,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_rename(&first[0], &second[0]);
     transition first_fits && second_fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -471,12 +491,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_hard_link(&first[0], &second[0]);
     transition first_fits && second_fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -493,12 +513,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_symlink(&first[0], &second[0]);
     transition first_fits && second_fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -514,7 +534,7 @@ reaches FilesystemMetadataQuery
     machine transfer(terminated: [u8; 4096], buffer: &mut [u8], count: u64) -> i64 {
         let capacity: u64 = min_u64(count, buffer.len);
         let outcome: i64 = PosixFilesystemDarwinByteViews::c_read_link(&terminated, &mut buffer[0..capacity]);
-        PosixFilesystemDarwin::normalize_i64(outcome)
+        darwin_filesystem_normalize_i64(outcome)
     }
 }
 
@@ -533,7 +553,7 @@ reaches DirectoryEnumeration
     machine ordinary(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
     {
         let outcome: i64 = PosixFilesystemDarwinByteViews::c_read_dir(fd, buffer, position);
-        PosixFilesystemDarwin::normalize_i64(outcome)
+        darwin_filesystem_normalize_i64(outcome)
     }
     machine extended(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
     requires buffer.len >= 1024;
@@ -551,7 +571,7 @@ reaches DirectoryEnumeration
         let fourth: u8 = buffer[fourth_index];
         let outcome: i64 = PosixFilesystemDarwinByteViews::c_read_dir(fd, buffer, position);
         // Capture errno before restoring bytes, including on a failed read.
-        let normalized: i64 = PosixFilesystemDarwin::normalize_i64(outcome);
+        let normalized: i64 = darwin_filesystem_normalize_i64(outcome);
         buffer[first_index] = first;
         buffer[second_index] = second;
         buffer[third_index] = third;
@@ -569,12 +589,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_remove_name(&terminated[0]);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -589,12 +609,12 @@ reaches FilesystemNamespaceMutation
     let outcome: i32 = PosixFilesystemDarwin::c_remove_dir_name(&terminated[0]);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -614,7 +634,7 @@ reaches FilesystemMetadataQuery
     transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
     machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144; {
         let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, &mut buffer[0]);
-        transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
+        transition outcome < 0 { true -> darwin_filesystem_failure_i32() _ -> outcome }
     }
 }
 
@@ -643,7 +663,7 @@ reaches FilesystemMetadataQuery
     requires buffer.len >= 144;
     {
         let outcome: i32 = PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor, &terminated[0], &mut buffer[0], flags);
-        transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
+        transition outcome < 0 { true -> darwin_filesystem_failure_i32() _ -> outcome }
     }
 }
 
@@ -653,7 +673,7 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_set_len(fd, length);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -670,7 +690,7 @@ reaches FilesystemMetadataMutation
         native.modified_seconds = darwin_timestamp_word(times[16..24]);
         native.modified_nanoseconds = darwin_timestamp_word(times[24..32]);
         let outcome: i32 = PosixFilesystemDarwin::c_set_file_times(fd, &native);
-        transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
+        transition outcome < 0 { true -> darwin_filesystem_failure_i32() _ -> outcome }
     }
 }
 
@@ -680,7 +700,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::sync(fd: i32) -> i32
 {
     let outcome: i32 = PosixFilesystemDarwin::c_sync(fd);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -691,7 +711,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::sync_data(fd: i32) -> i32
 {
     let outcome: i32 = PosixFilesystemDarwin::c_sync_data(fd);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -702,7 +722,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::duplicate(fd: i32) -> i32
 {
     let outcome: i32 = PosixFilesystemDarwin::c_duplicate(fd);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -713,7 +733,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::lock_file(fd: i32, operation:
 {
     let outcome: i32 = PosixFilesystemDarwin::c_lock_file(fd, operation);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
@@ -727,12 +747,12 @@ reaches FilesystemMetadataMutation
     let outcome: i32 = PosixFilesystemDarwin::c_change_owner(&terminated[0], uid, gid);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -747,12 +767,12 @@ reaches FilesystemMetadataMutation
     let outcome: i32 = PosixFilesystemDarwin::c_change_owner_no_follow(&terminated[0], uid, gid);
     transition fits {
         true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
+        _ -> (darwin_filesystem_name_too_long_i32())
     }
 
     machine settle(outcome: i32) -> i32 {
         transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
+            true -> (darwin_filesystem_failure_i32())
             _ -> (outcome)
         }
     }
@@ -764,7 +784,7 @@ reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_change_file_owner(fd, uid, gid);
     transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
+        true -> (darwin_filesystem_failure_i32())
         _ -> (outcome)
     }
 }
