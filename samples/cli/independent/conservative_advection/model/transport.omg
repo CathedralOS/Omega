@@ -36,9 +36,9 @@ public machine initialize(input:&io::input::Input,field:&mut Field) -> bool {
  }
  machine dimensions(input:&io::input::Input,field:&mut Field) -> bool
  requires input.values[0] == input.values[0] && input.values[1] == input.values[1] && input.values[0] >= 4.0 && input.values[0] <= 64.0 && input.values[1] >= 0.0 && input.values[1] <= 256.0 {
-  let count:u32 in Saturating=U32::from_f64(input.values[0]);
+  let count:u32 in Saturating=U32FromF64::from_f64(input.values[0]);
   field.count=count;
-  let steps:u32 in Saturating=U32::from_f64(input.values[1]);
+  let steps:u32 in Saturating=U32FromF64::from_f64(input.values[1]);
   field.steps=steps;
   field.spacing_mantissa=input.mantissas[3]; field.spacing_power=input.powers[3];
   transition input.count == field.count+5 { true -> stability(input,field) false -> bad() }

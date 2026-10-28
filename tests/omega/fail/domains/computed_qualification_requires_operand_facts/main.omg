@@ -7,7 +7,7 @@ domain i32::Issued requires self > 0 established by Issuer::issue;
 trait Issuer { machine issue() -> i32 ensures result in Issued; }
 
 machine wrong_conversion() -> i32 in Three {
-    I32::from_f64(4.75f64) as i32 in Three
+    I32FromF64::from_f64(4.75f64) as i32 in Three
 }
 
 machine wrong_anonymous() -> i32 in Three { (1 + 3) as i32 in Three }
@@ -33,11 +33,11 @@ machine later_guard(value: i32) {
 }
 
 machine counterfeit() -> i32 in Issued {
-    I32::from_f64(3.0f64) as i32 in Issued
+    I32FromF64::from_f64(3.0f64) as i32 in Issued
 }
 
 machine false_predicate() -> i32 in Never {
-    I32::from_f64(3.0f64) as i32 in Never
+    I32FromF64::from_f64(3.0f64) as i32 in Never
 }
 
 machine main() {}

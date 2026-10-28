@@ -4,8 +4,8 @@ use omega_language_std::console;
 // Named conversions check the truncated result; Exact `as` cannot truncate.
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let signed_lower: i32 = I32::from_f64(-2147483648.5f64);
-    let unsigned_lower: u32 = U32::from_f64(-0.5f64);
+    let signed_lower: i32 = I32FromF64::from_f64(-2147483648.5f64);
+    let unsigned_lower: u32 = U32FromF64::from_f64(-0.5f64);
     transition signed_lower == -2147483648 && unsigned_lower == 0u32 {
         true -> good()
         false -> bad()

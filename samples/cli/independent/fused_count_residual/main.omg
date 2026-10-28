@@ -23,11 +23,11 @@ data Moment {
 }
 
 machine fused_parameter(left: f64, right: f64, addend: f64) -> f64 {
-    F64::fused_multiply_add(left, right, addend)
+    F64FusedMultiplyAdd::fused_multiply_add(left, right, addend)
 }
 
 machine separate_parameter(left: f64, right: f64, addend: f64) -> f64 {
-    F64::multiply_then_add(left, right, addend)
+    F64MultiplyThenAdd::multiply_then_add(left, right, addend)
 }
 
 machine difference(moment: &Moment, index: i32 in Wrapping) -> f64 {
@@ -72,8 +72,8 @@ machine Main::main(main: &mut Main) reaches Console {
     machine cancel(main: &mut Main) {
         let left: f64 = 1.0000000000000002220446049250313080847263336181640625;
         let addend: f64 = 0.0 - 1.000000000000000444089209850062616169452667236328125;
-        let local_fused: f64 = F64::fused_multiply_add(left, left, addend);
-        let local_separate: f64 = F64::multiply_then_add(left, left, addend);
+        let local_fused: f64 = F64FusedMultiplyAdd::fused_multiply_add(left, left, addend);
+        let local_separate: f64 = F64MultiplyThenAdd::multiply_then_add(left, left, addend);
         main.moment.fused = fused_parameter(left, left, addend);
         main.moment.separate = separate_parameter(left, left, addend);
         transition local_fused > 0.0 && local_separate == 0.0

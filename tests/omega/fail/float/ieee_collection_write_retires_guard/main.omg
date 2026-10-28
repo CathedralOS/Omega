@@ -8,7 +8,7 @@ requires index < 2,
     let accepted: bool = reading.values[index] == reading.values[index] && reading.values[index] >= 0.0 && reading.values[index] < 1000000000.0;
     reading.values[index] = 200000000000000000000.0;
     transition accepted {
-        true -> finish(I32::from_f64(reading.values[index]), reading.other)
+        true -> finish(I32FromF64::from_f64(reading.values[index]), reading.other)
         false -> finish(0, reading.other)
     }
     machine finish(converted: i32, observed: f64) -> i32 {

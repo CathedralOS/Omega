@@ -112,8 +112,8 @@ machine subtract(product:&Digits,product_shift:i32 in Wrapping,spacing:&Digits,s
   let higher:u64 in Wrapping=aligned_digit(product,product_shift,index)+borrow;
   let value:u64 in Wrapping=match lower >= higher { true -> lower-higher false -> lower+10-higher };
   let next_borrow:u64 in Wrapping=match lower >= higher { true -> 0 false -> 1 };
-  let next_difference:f64=difference+F64::from_u64(value as u64)*power;
-  let next_denominator:f64=denominator+F64::from_u64(lower as u64)*power;
+  let next_difference:f64=difference+F64FromU64::from_u64(value as u64)*power;
+  let next_denominator:f64=denominator+F64FromU64::from_u64(lower as u64)*power;
   transition { _ -> subtract(product,product_shift,spacing,spacing_shift,index+1,next_borrow,power*10.0,next_difference,next_denominator) }
  }
  machine finish(borrow:u64 in Wrapping,difference:f64,denominator:f64) -> f64 {

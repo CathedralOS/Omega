@@ -43,10 +43,10 @@ machine main() crashes Trap {
         let selected: &mut [f64] = window(trace, 1);
         let trailing: Held = hold(selected);
         write_pair(trailing.values);
-        let first: i32 in Saturating = I32::from_f64(trace[0]);
-        let second: i32 in Saturating = I32::from_f64(trace[1]);
-        let third: i32 in Saturating = I32::from_f64(trace[2]);
-        let fourth: i32 in Saturating = I32::from_f64(trace[3]);
+        let first: i32 in Saturating = I32FromF64::from_f64(trace[0]);
+        let second: i32 in Saturating = I32FromF64::from_f64(trace[1]);
+        let third: i32 in Saturating = I32FromF64::from_f64(trace[2]);
+        let fourth: i32 in Saturating = I32FromF64::from_f64(trace[3]);
         transition first == 0 && second == 1 && third == 0 && fourth == 1 {
             true -> done()
             false -> bad()

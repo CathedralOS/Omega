@@ -49,7 +49,7 @@ public machine real(value: f64) reaches Console invokes Console; crashes Trap {
         transition value < 1.0 { true -> normalize(value * 10.0, exponent - 1) _ -> digit(value, exponent, 0) }
     }
     machine digit(value: f64, exponent: i64 in Wrapping, position: i32 in Wrapping) {
-        let converted: i32 in Saturating = I32::from_f64(value);
+        let converted: i32 in Saturating = I32FromF64::from_f64(value);
         let whole: i32 = converted as i32;
         Console::write_byte(((48 as i32 in Wrapping) + (whole as i32 in Wrapping)) as i32);
         transition position == 0 { true -> point(value, exponent, position, whole) _ -> next(value, exponent, position, whole) }
@@ -59,7 +59,7 @@ public machine real(value: f64) reaches Console invokes Console; crashes Trap {
         transition { _ -> next(value, exponent, position, whole) }
     }
     machine next(value: f64, exponent: i64 in Wrapping, position: i32 in Wrapping, whole: i32) {
-        transition position < 16 { true -> digit((value - F64::from_i32(whole)) * 10.0, exponent, position + 1) _ -> end(exponent) }
+        transition position < 16 { true -> digit((value - F64FromI32::from_i32(whole)) * 10.0, exponent, position + 1) _ -> end(exponent) }
     }
     machine end(exponent: i64 in Wrapping) { Console::write("e"); integer(exponent); }
 }
@@ -82,9 +82,9 @@ public machine precise_real(value: Precise) reaches Console invokes Console; cra
         transition { _ -> normalize(multiply(value, Precise { high: 10.0, low: 0.0 }), exponent - 1) }
     }
     machine digit(value: Precise, exponent: i64 in Wrapping, position: i32 in Wrapping) {
-        let converted: i32 in Saturating = I32::from_f64(value.high);
+        let converted: i32 in Saturating = I32FromF64::from_f64(value.high);
         let whole: i32 in Wrapping = (converted as i32) as i32 in Wrapping;
-        transition value.high == F64::from_i32(whole as i32) && value.low < 0.0 {
+        transition value.high == F64FromI32::from_i32(whole as i32) && value.low < 0.0 {
             true -> emit(value, exponent, position, whole - 1) _ -> emit(value, exponent, position, whole)
         }
     }
@@ -96,7 +96,7 @@ public machine precise_real(value: Precise) reaches Console invokes Console; cra
         Console::write("."); transition { _ -> next(value, exponent, position, whole) }
     }
     machine next(value: Precise, exponent: i64 in Wrapping, position: i32 in Wrapping, whole: i32 in Wrapping) {
-        let remainder: Precise = precise_sum(value.high - F64::from_i32(whole as i32), value.low);
+        let remainder: Precise = precise_sum(value.high - F64FromI32::from_i32(whole as i32), value.low);
         transition position < 18 {
             true -> digit(multiply(remainder, Precise { high: 10.0, low: 0.0 }), exponent, position + 1) _ -> end(exponent)
         }

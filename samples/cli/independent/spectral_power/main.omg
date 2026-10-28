@@ -36,10 +36,10 @@ machine Application::main(application: &mut Application) reaches Console crashes
         application.sampling = sampling; application.gain = gain * 0.001; application.offset = offset * 0.001;
         // The preceding options state rejects every value outside these ranges.
         // Explicit conversion domains also make this state's standalone contract clear.
-        let converted_size: i32 in Saturating = I32::from_f64(size);
-        let converted_overlap: i32 in Saturating = I32::from_f64(overlap);
-        let converted_window: i32 in Saturating = I32::from_f64(window);
-        let converted_length: i32 in Saturating = I32::from_f64(length);
+        let converted_size: i32 in Saturating = I32FromF64::from_f64(size);
+        let converted_overlap: i32 in Saturating = I32FromF64::from_f64(overlap);
+        let converted_window: i32 in Saturating = I32FromF64::from_f64(window);
+        let converted_length: i32 in Saturating = I32FromF64::from_f64(length);
         application.size = converted_size as i32 in Wrapping;
         application.overlap = converted_overlap as i32 in Wrapping;
         application.window = converted_window as i32;
@@ -89,8 +89,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
     machine weighted(application: &mut Application, source: i32 in Wrapping)
     requires source >= 0 && source < 64
     {
-        let position: f64 = F64::from_i32(application.index as i32);
-        let size: f64 = F64::from_i32(application.size as i32);
+        let position: f64 = F64FromI32::from_i32(application.index as i32);
+        let size: f64 = F64FromI32::from_i32(application.size as i32);
         let weight: f64 = match application.window == 0 { true -> 1.0 _ -> 0.5 - 0.5 * cos(6.283185307179586 * position / size) };
         application.real[application.index] = application.samples[source] * weight;
         application.imaginary[application.index] = 0.0;
@@ -142,7 +142,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     machine combine(application: &mut Application, first: i32 in Wrapping, second: i32 in Wrapping)
     requires first >= 0 && first < 64 && second >= 0 && second < 64
     {
-        let angle: f64 = -6.283185307179586 * F64::from_i32(application.butterfly as i32) / F64::from_i32(application.width as i32);
+        let angle: f64 = -6.283185307179586 * F64FromI32::from_i32(application.butterfly as i32) / F64FromI32::from_i32(application.width as i32);
         let cosine: f64 = cos(angle); let sine: f64 = sin(angle);
         let real: f64 = application.real[second] * cosine - application.imaginary[second] * sine;
         let imaginary: f64 = application.real[second] * sine + application.imaginary[second] * cosine;
@@ -171,7 +171,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         transition { _ -> segment(application) }
     }
     machine report(application: &mut Application) {
-        field(&mut application.reader, "segments=", F64::from_i32(application.segments as i32));
+        field(&mut application.reader, "segments=", F64FromI32::from_i32(application.segments as i32));
         application.index = 0;
         transition { _ -> bin(application) }
     }
@@ -179,8 +179,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
         transition application.index >= 0 && application.index <= application.size / 2 && application.index < 64 { true -> output(application) _ -> done(application) }
     }
     machine output(application: &mut Application) {
-        field(&mut application.reader, "frequency_microhz=", 1000000.0 * application.sampling * F64::from_i32(application.index as i32) / F64::from_i32(application.size as i32));
-        field(&mut application.reader, "density_nano=", 1000000000.0 * application.density[application.index] / F64::from_i32(application.segments as i32));
+        field(&mut application.reader, "frequency_microhz=", 1000000.0 * application.sampling * F64FromI32::from_i32(application.index as i32) / F64FromI32::from_i32(application.size as i32));
+        field(&mut application.reader, "density_nano=", 1000000000.0 * application.density[application.index] / F64FromI32::from_i32(application.segments as i32));
         application.index = application.index + 1;
         transition { _ -> bin(application) }
     }

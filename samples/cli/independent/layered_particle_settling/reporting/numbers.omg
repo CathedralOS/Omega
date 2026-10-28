@@ -29,6 +29,6 @@ machine digits(value: i32) reaches Console invokes Console; {
 }
 
 public machine micro(value: f64) reaches Console invokes Console; crashes Trap {
-    let scaled: i32 in Trapping = I32::from_f64(value * 1000000.0);
+    let scaled: i32 in Trapping = I32FromF64::from_f64(value * 1000000.0);
     number(scaled as i32);
 }

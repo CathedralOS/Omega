@@ -21,8 +21,8 @@ machine Main::main(main: &mut Main) reaches Console {
     same64(1.0f64);
     let nan32: f32 = 0.0f32 / 0.0f32;
     let nan64: f64 = 0.0f64 / 0.0f64;
-    let zero32: f32 = F32::negate(0.0f32);
-    let zero64: f64 = F64::negate(0.0f64);
+    let zero32: f32 = F32Negate::negate(0.0f32);
+    let zero64: f64 = F64Negate::negate(0.0f64);
     transition nan32 != nan32 && nan64 != nan64
         && !(nan32 == nan32) && !(nan64 == nan64)
         && zero32 == 0.0f32 && zero64 == 0.0f64 {

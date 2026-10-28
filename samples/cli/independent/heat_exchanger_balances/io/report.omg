@@ -11,7 +11,7 @@ machine number(value: f64) reaches Console {
     // half-milli threshold, treat the computed value as a tie. This avoids
     // rounding exact ties downward because affine propagation lost a few ulps.
     // It is a display policy, not an exact-rational promise for every input.
-    let rounded: i32 in Saturating = I32::from_f64(value * 1000.0 + 0.5001);
+    let rounded: i32 in Saturating = I32FromF64::from_f64(value * 1000.0 + 0.5001);
     let integer: u32 = narrow_i32_to_u32_trapping(rounded as i32);
     transition { _ -> digit(integer, 1000000000, false) }
     machine digit(value: u32, place: u32, started: bool) requires place >= 1 {

@@ -20,7 +20,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.celsius = 20.0;
     main.fahrenheit = main.celsius * 1.8 + 32.0;
     // A named saturating conversion truncates the float, then the policy erases.
-    let converted: i32 in Saturating = I32::from_f64(main.fahrenheit);
+    let converted: i32 in Saturating = I32FromF64::from_f64(main.fahrenheit);
     main.result = converted as i32;
 
     transition { _ -> done(main) }

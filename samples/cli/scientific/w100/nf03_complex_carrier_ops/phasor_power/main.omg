@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine large(main: &mut Main) {
         main.large = Complex { real: 3.0e200, imaginary: 4.0e200 };
         let direct: f64 = ComplexF64::norm_squared(&main.large);
-        let direct_finite: bool = F64::is_finite(direct);
+        let direct_finite: bool = F64IsFinite::is_finite(direct);
         let outcome: ComplexMagnitude<f64> = ComplexF64::try_magnitude(&main.large);
         transition direct_finite { false -> magnitude(main, outcome) _ -> bad(main) }
     }

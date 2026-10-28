@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 machine convert(value: f64) -> i32 {
     let accepted: bool = !(value < 0.0) && !(value >= 1000000000.0);
     transition accepted {
-        true -> finish(I32::from_f64(value))
+        true -> finish(I32FromF64::from_f64(value))
         false -> zero()
     }
     machine finish(observed: i32) -> i32 { observed }

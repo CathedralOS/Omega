@@ -56,7 +56,7 @@ public machine field(reader: &mut Reader, name: &[u8], value: f64) reaches Conso
         transition value > 0.0 && value < 1.0 { true -> small(reader, value * 10.0, exponent - 1) _ -> emit(reader, value, exponent) }
     }
     machine emit(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
-        let narrowed: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
+        let narrowed: i64 in Saturating = I64FromF64::from_f64(value * 1000000000000.0);
         integer(reader, narrowed as i64);
         Console::write_byte(101);
         integer(reader, (exponent - 12) as i64);

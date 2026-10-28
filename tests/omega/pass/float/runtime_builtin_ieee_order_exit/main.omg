@@ -9,7 +9,7 @@ machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> compute(main,value) _ -> fail(main)}
  machine compute(main:&mut Main,value:i32) {
-  let one:f64=F64::from_i32(value)-48.0;
+  let one:f64=F64FromI32::from_i32(value)-48.0;
   let zero:f64=one-one;
   let nan:f64=zero/zero;
   let negative_zero:f64=zero/(zero-one);
@@ -17,7 +17,7 @@ machine Main::main(main:&mut Main) reaches Console {
   main.second=max_f64(one,nan);
   let tied:f64=max_f64(zero,negative_zero);
   main.tie=one/tied;
-  let one32:f32=F32::from_i32(value)-48.0f32;
+  let one32:f32=F32FromI32::from_i32(value)-48.0f32;
   let zero32:f32=one32-one32;
   let nan32:f32=zero32/zero32;
   let negative_zero32:f32=zero32/(zero32-one32);

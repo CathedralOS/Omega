@@ -14,9 +14,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut lower32: f32 = 0.333333313465118408203125f32;
     let mut upper32: f32 = 0.3333333432674407958984375f32;
     let mut negative_upper32: f32 = 0.0f32 - upper32;
-    let mut positive32: f32 = F32::divide_toward_positive(one32, three32);
-    let mut zero32: f32 = F32::divide_toward_zero(one32, three32);
-    let mut negative32: f32 = F32::divide_toward_negative(
+    let mut positive32: f32 = F32DivideTowardPositive::divide_toward_positive(one32, three32);
+    let mut zero32: f32 = F32DivideTowardZero::divide_toward_zero(one32, three32);
+    let mut negative32: f32 = F32DivideTowardNegative::divide_toward_negative(
         0.0f32 - one32,
         three32
     );
@@ -27,9 +27,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut lower64: f64 = 0.333333333333333314829616256247390992939472198486328125;
     let mut upper64: f64 = 0.33333333333333337034076748750521801471710205078125;
     let mut negative_upper64: f64 = 0.0 - upper64;
-    let mut positive64: f64 = F64::divide_toward_positive(one64, three64);
-    let mut zero64: f64 = F64::divide_toward_zero(one64, three64);
-    let mut negative64: f64 = F64::divide_toward_negative(0.0 - one64, three64);
+    let mut positive64: f64 = F64DivideTowardPositive::divide_toward_positive(one64, three64);
+    let mut zero64: f64 = F64DivideTowardZero::divide_toward_zero(one64, three64);
+    let mut negative64: f64 = F64DivideTowardNegative::divide_toward_negative(0.0 - one64, three64);
     let mut ordinary64: f64 = one64 / three64;
 
     transition positive32 == upper32

@@ -26,11 +26,11 @@ machine Application::main(application: &mut Application) reaches Console crashes
     }
     machine options(application: &mut Application, length: f64, threshold: f64, levels: f64) {
         let depth: i32 in Wrapping = match length == 8.0 { true -> 3 _ -> match length == 16.0 { true -> 4 _ -> match length == 32.0 { true -> 5 _ -> 6 } } };
-        transition levels <= F64::from_i32(depth as i32) { true -> configure(application, length, threshold, levels, depth) _ -> invalid(application) }
+        transition levels <= F64FromI32::from_i32(depth as i32) { true -> configure(application, length, threshold, levels, depth) _ -> invalid(application) }
     }
     machine configure(application: &mut Application, length: f64, threshold: f64, levels: f64, depth: i32 in Wrapping) {
-        let size: i32 in Saturating = I32::from_f64(length);
-        let selected: i32 in Saturating = I32::from_f64(levels);
+        let size: i32 in Saturating = I32FromF64::from_f64(length);
+        let selected: i32 in Saturating = I32FromF64::from_f64(levels);
         application.length = size as i32 in Wrapping; application.levels = selected as i32 in Wrapping;
         application.depth = depth; application.threshold = threshold;
         application.index = 0; application.input_energy = 0.0;

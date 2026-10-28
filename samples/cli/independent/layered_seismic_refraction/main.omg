@@ -18,8 +18,8 @@ machine Main::main(main: &mut Main) reaches Console {
  machine counts(main: &mut Main, layers: f64, offsets: f64)
  requires layers >= 1.0 && layers <= 4.0
  requires offsets >= 0.0 && offsets <= 16.0 {
-  main.model.layers = I32::from_f64(layers) as i32 in Wrapping;
-  main.model.offsets = I32::from_f64(offsets) as i32 in Wrapping;
+  main.model.layers = I32FromF64::from_f64(layers) as i32 in Wrapping;
+  main.model.offsets = I32FromF64::from_f64(offsets) as i32 in Wrapping;
   let layer_value: f64 = main.model.layers as f64; let offset_value: f64 = main.model.offsets as f64;
   transition layers == layer_value && offsets == offset_value && main.protocol.position == 1 + 2 * main.model.layers + main.model.offsets {
    true -> velocity(main, 0, 0.0) false -> syntax(main)

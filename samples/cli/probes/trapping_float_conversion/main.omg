@@ -1,14 +1,14 @@
 // Namespace float-to-int conversions carry a policy
-// domain: `I32::from_f64(v)` / `U8::from_f64(v)` return
+// domain: `I32FromF64::from_f64(v)` / `U8FromF64::from_f64(v)` return
 // `i32 in Trapping` / `u8 in Trapping` — a NaN or
 // out-of-range operand admits a conversion trap instead
 // of a normal result.
 //
 //   * `let converted: i32 in Trapping =
-//     I32::from_f64(main.value)` — the Trapping result
+//     I32FromF64::from_f64(main.value)` — the Trapping result
 //     admits the trap; `converted as i32` erases the
 //     domain for ordinary consumers.
-//   * `U8::from_f64(200.9)` — truncating conversion
+//   * `U8FromF64::from_f64(200.9)` — truncating conversion
 //     yields 200 on a finite in-range operand.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -24,8 +24,8 @@ data Main {
 machine Main::main(main: &mut Main) {
     main.value = 0.0f64 / 0.0f64;
     main.hits = 0;
-    let converted: i32 in Trapping = I32::from_f64(main.value);
-    let small: u8 in Trapping = U8::from_f64(200.9);
+    let converted: i32 in Trapping = I32FromF64::from_f64(main.value);
+    let small: u8 in Trapping = U8FromF64::from_f64(200.9);
     transition (converted as i32) == 0 && small == 200u8 {
         true -> pass(main)
         _ -> fail(main)

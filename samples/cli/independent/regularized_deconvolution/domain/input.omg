@@ -52,7 +52,7 @@ crashes Trap
     machine append(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: f64) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 100
     {
-        let numeric: f64 = F64::from_i32(value - 48);
+        let numeric: f64 = F64FromI32::from_i32(value - 48);
         let next: f64 = match fraction == 0.0 { true -> accumulated * 10.0 + numeric _ -> accumulated + numeric * fraction };
         let next_fraction: f64 = match fraction == 0.0 { true -> 0.0 _ -> fraction * 0.1 };
         let observed: i32 = block character(reader);

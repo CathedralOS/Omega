@@ -67,11 +67,11 @@ invokes Console;
     transition value < 0.0 { true -> negative(value) false -> positive(value) }
     machine negative(value: f64) {
         Console::write("-");
-        let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        let rounded: i64 in Saturating = I64FromF64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         integer(rounded);
     }
     machine positive(value: f64) {
-        let rounded: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
+        let rounded: i64 in Saturating = I64FromF64::from_f64(value * 1000000.0 + 0.5);
         integer(rounded);
     }
 }

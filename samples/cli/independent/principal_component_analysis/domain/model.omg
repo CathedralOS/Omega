@@ -18,7 +18,7 @@ public machine analyze(a: &mut Analysis) {
   transition column < 4 { true -> mean_row(a, column, row, sum) false -> covariance(a, 0, 0, 0, 0.0) }
  }
  machine mean_row(a: &mut Analysis, column: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
-  let next: f64 = sum + (a.values[(row * 4 + column) % 64] - a.values[column % 4]) / F64::from_u64(a.rows);
+  let next: f64 = sum + (a.values[(row * 4 + column) % 64] - a.values[column % 4]) / F64FromU64::from_u64(a.rows);
   transition row < a.rows && row < 16 {
    true -> mean(a, column, row + 1, next)
    false -> store_mean(a, column, sum)
@@ -34,7 +34,7 @@ public machine analyze(a: &mut Analysis) {
  machine product(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, row: u64 in Wrapping, sum: f64) {
   let x: f64 = a.values[(row * 4 + left) % 64] - a.means[left % 4];
   let y: f64 = a.values[(row * 4 + right) % 64] - a.means[right % 4];
-  let next: f64 = sum + x * y / (F64::from_u64(a.rows) - 1.0);
+  let next: f64 = sum + x * y / (F64FromU64::from_u64(a.rows) - 1.0);
   transition { _ -> covariance(a, left, right, row + 1, next) }
  }
  machine store_covariance(a: &mut Analysis, left: u64 in Wrapping, right: u64 in Wrapping, sum: f64) {

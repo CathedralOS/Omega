@@ -51,10 +51,10 @@ machine main() crashes Trap {
     let mut samples: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
     let outcome: Outcome = acquire(&mut samples);
     apply(outcome);
-    let first: i32 in Saturating = I32::from_f64(samples[0]);
-    let second: i32 in Saturating = I32::from_f64(samples[1]);
-    let third: i32 in Saturating = I32::from_f64(samples[2]);
-    let fourth: i32 in Saturating = I32::from_f64(samples[3]);
+    let first: i32 in Saturating = I32FromF64::from_f64(samples[0]);
+    let second: i32 in Saturating = I32FromF64::from_f64(samples[1]);
+    let third: i32 in Saturating = I32FromF64::from_f64(samples[2]);
+    let fourth: i32 in Saturating = I32FromF64::from_f64(samples[3]);
     transition first == 0 && second == 1 && third == 9 && fourth == 9 {
         true -> done()
         false -> bad()

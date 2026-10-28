@@ -2,8 +2,8 @@
 // format of the computed operand they compare against —
 // every comparison direction and operator works.
 //
-//   * `F32::square_root(64.0f32) == 8.0` and
-//     `8.0 == F64::square_root(64.0f64)` — forward and
+//   * `F32SquareRoot::square_root(64.0f32) == 8.0` and
+//     `8.0 == F64SquareRoot::square_root(64.0f64)` — forward and
 //     reversed operands.
 //   * `<`, `<=`, `>=`, `!=` all fold against the bare
 //     literal.
@@ -14,11 +14,11 @@
 use omega::language::core::float_operations;
 
 machine f32_result() -> bool {
-    F32::square_root(64.0f32) == 8.0
+    F32SquareRoot::square_root(64.0f32) == 8.0
 }
 
 machine f64_result() -> bool {
-    F64::square_root(64.0f64) == 8.0
+    F64SquareRoot::square_root(64.0f64) == 8.0
 }
 
 data Main { hits: i32 in Wrapping; }
@@ -26,10 +26,10 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: &mut Main) {
     main.hits = 0;
     transition f32_result() && f64_result()
-        && 8.0 == F64::square_root(64.0f64)
-        && F32::square_root(64.0f32) < 9.0
-        && 7.0 < F64::square_root(64.0f64)
-        && F32::square_root(64.0f32) != 7.0 {
+        && 8.0 == F64SquareRoot::square_root(64.0f64)
+        && F32SquareRoot::square_root(64.0f32) < 9.0
+        && 7.0 < F64SquareRoot::square_root(64.0f64)
+        && F32SquareRoot::square_root(64.0f32) != 7.0 {
         true -> pass(main)
         _ -> fail(main)
     }

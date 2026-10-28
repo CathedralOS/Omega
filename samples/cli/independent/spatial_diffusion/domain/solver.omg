@@ -48,10 +48,10 @@ machine true_residual(grid:&mut domain::grid::Grid) {
  }
  machine nonfinite(grid:&mut domain::grid::Grid) { let zero:f64=0.0; let one:f64=1.0; grid.norm=one/zero; }
  machine finite_measure(grid:&mut domain::grid::Grid,index:u64 in Saturating,difference:f64) requires grid.n > 0 {
-  let x:f64=(F64::from_u64((index%grid.n) as u64)+0.5)/F64::from_u64(grid.n as u64);
-  let y:f64=(F64::from_u64((index/grid.n) as u64)+0.5)/F64::from_u64(grid.n as u64);
-  grid.norm=F64::maximum(grid.norm,domain::grid::magnitude(difference));
-  grid.error=F64::maximum(grid.error,domain::grid::magnitude(grid.solution[index%144]-domain::grid::exact(grid.linear,x,y)));
+  let x:f64=(F64FromU64::from_u64((index%grid.n) as u64)+0.5)/F64FromU64::from_u64(grid.n as u64);
+  let y:f64=(F64FromU64::from_u64((index/grid.n) as u64)+0.5)/F64FromU64::from_u64(grid.n as u64);
+  grid.norm=F64Maximum::maximum(grid.norm,domain::grid::magnitude(difference));
+  grid.error=F64Maximum::maximum(grid.error,domain::grid::magnitude(grid.solution[index%144]-domain::grid::exact(grid.linear,x,y)));
   transition { _ -> row(grid,index+1) }
  }
  machine done() { }
@@ -76,7 +76,7 @@ public machine solve(grid:&mut domain::grid::Grid) -> i32 {
   grid.residual[index%144]=grid.right[index%144];
   grid.direction[index%144]=grid.right[index%144];
   grid.squares=grid.squares+grid.right[index%144]*grid.right[index%144];
-  grid.norm=F64::maximum(grid.norm,domain::grid::magnitude(grid.right[index%144]));
+  grid.norm=F64Maximum::maximum(grid.norm,domain::grid::magnitude(grid.right[index%144]));
   transition { _ -> initialize(grid,index+1) }
  }
  machine threshold(grid:&mut domain::grid::Grid) -> i32 {

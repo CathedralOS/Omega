@@ -105,7 +105,7 @@ public machine parse(input:&mut Input) -> bool reaches Console invokes Console; 
  }
  machine save(input:&mut Input,bytes:u32 in Saturating,ending:bool) -> bool requires input.count < 69 {
   let power:i32 in Wrapping=(match input.exponent_negative { true -> -input.exponent false -> input.exponent })-input.fraction;
-  let magnitude:f64=F64::from_u64(input.coefficient as u64);
+  let magnitude:f64=F64FromU64::from_u64(input.coefficient as u64);
   let signed:f64=match input.negative_token { true -> -magnitude false -> magnitude };
   input.coefficients[input.count]=input.coefficient;
   input.negative[input.count]=input.negative_token;

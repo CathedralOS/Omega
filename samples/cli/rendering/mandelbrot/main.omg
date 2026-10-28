@@ -55,8 +55,8 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.x >= 0 && main.x < 64 { true -> pixel_init(main) _ -> emit_row(main) }
     }
     machine pixel_init(main: &mut Main) {
-        main.cr = (F64::from_i32(main.x) / 64.0) * 3.5 - 2.5;
-        main.ci = (F64::from_i32(main.y) / 28.0) * 2.6 - 1.3;
+        main.cr = (F64FromI32::from_i32(main.x) / 64.0) * 3.5 - 2.5;
+        main.ci = (F64FromI32::from_i32(main.y) / 28.0) * 2.6 - 1.3;
         main.zr = 0.0;
         main.zi = 0.0;
         main.k = 0;

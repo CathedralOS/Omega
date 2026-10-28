@@ -3,7 +3,7 @@ use omega_language_std::console;
 use omega::language::core::float_operations;
 public data Reporter { }
 public machine number(reporter: &mut Reporter,value: f64) reaches Console invokes Console; crashes Trap {
-    let converted: i32 in Trapping = I32::from_f64(value*1000000.0);
+    let converted: i32 in Trapping = I32FromF64::from_f64(value*1000000.0);
     let scaled: i32 = converted as i32;
     transition scaled >= -1000000000 && scaled <= 1000000000 {
         true -> sign(reporter,scaled)

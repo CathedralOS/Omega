@@ -5,13 +5,18 @@ data Reading [copy] where value >= 0.0 { value: f64; }
 machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5
 { value }
-linux_x86_64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
-linux_arm64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
-macos_arm64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
-windows_x86_64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
+boundary trait ReadingProbe {
+    machine probe(reading: Reading) -> f64 reaches;
+}
+ArmReadingProbe satisfies ReadingProbe {
+    machine probe(reading: Reading) -> f64 reaches { admit(reading.value) }
+}
+X86ReadingProbe satisfies ReadingProbe {
+    machine probe(reading: Reading) -> f64 reaches { admit(reading.value) }
+}
 machine main() crashes Trap {
     let reading: Reading = Reading { value: 0.25 };
-    let observed: f64 = probe(reading);
+    let observed: f64 = ReadingProbe::probe(reading);
     transition observed == 0.25 { true -> done() _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }

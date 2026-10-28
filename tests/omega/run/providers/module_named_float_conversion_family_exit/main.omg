@@ -15,8 +15,8 @@ crashes Trap
         _ -> missing(application)
     }
     machine convert(application: &mut Main, value: i32) {
-        let floating: f64 = F64::from_i32(value) + 0.75;
-        let converted: i32 in Saturating = I32::from_f64(floating);
+        let floating: f64 = F64FromI32::from_i32(value) + 0.75;
+        let converted: i32 in Saturating = I32FromF64::from_f64(floating);
         transition converted == 65 {
             true -> done(application)
             false -> wrong(application)

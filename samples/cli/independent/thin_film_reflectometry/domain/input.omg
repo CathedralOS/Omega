@@ -38,7 +38,7 @@ public machine number(reader: &mut Reader) -> Number reaches Console invokes Con
     }
     machine append(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, scale: f64, digits: i32, decimal: bool) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 12 {
-        let numeric: f64 = F64::from_i32(value - 48);
+        let numeric: f64 = F64FromI32::from_i32(value - 48);
         let next_scale: f64 = match decimal { true -> scale * 0.1 _ -> scale };
         let next: f64 = match decimal { true -> accumulated + numeric * next_scale _ -> accumulated * 10.0 + numeric };
         let observed: i32 = block character(reader);

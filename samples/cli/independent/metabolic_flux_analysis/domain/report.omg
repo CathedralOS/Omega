@@ -49,7 +49,7 @@ reaches Console
 invokes Console;
 {
     Console::write(name);
-    let narrowed: i64 in Saturating = I64::from_f64(value);
+    let narrowed: i64 in Saturating = I64FromF64::from_f64(value);
     integer(reader, narrowed as i64);
     Console::write_byte(10);
 }
@@ -57,7 +57,7 @@ public machine rational(reader: &mut Reader, name: &[u8], numerator: i64 in Wrap
 reaches Console invokes Console; crashes Trap {
     transition denominator > 0 { true -> emit(reader, name, numerator, denominator) _ -> invalid() }
     machine emit(reader: &mut Reader, name: &[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping) requires denominator > 0 {
-        let value: f64 = F64::from_i64(numerator as i64) / F64::from_i64(denominator as i64);
+        let value: f64 = F64FromI64::from_i64(numerator as i64) / F64FromI64::from_i64(denominator as i64);
         field(reader, name, value * 1000.0);
     }
     machine invalid() { crash Trap; }

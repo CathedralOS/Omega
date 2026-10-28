@@ -42,7 +42,7 @@ invokes Console;
         Console::write_byte(44);
         // The named conversion explicitly truncates; an Exact recast would
         // instead owe preservation of the fractional value.
-        let converted: i64 = I64::from_f64(scaled);
+        let converted: i64 = I64FromF64::from_f64(scaled);
         integer(converted as i64 in Saturating);
     }
     machine invalid() { Console::write_line("ERROR numeric output range"); Console::exit_process(70); }

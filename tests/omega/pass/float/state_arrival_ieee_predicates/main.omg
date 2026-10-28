@@ -12,7 +12,7 @@ machine land64(record: &mut Record, value: f64) {
     }
     machine bounded(record: &mut Record, value: f64)
     requires value == value && value >= 0.0 && 0.0 <= value && 1000.0 > value && value < 1000.0
-    { record.observed = I32::from_f64(value); }
+    { record.observed = I32FromF64::from_f64(value); }
     machine rejected(record: &mut Record) { record.observed = -1; }
 }
 machine land32(value: f32) -> bool {

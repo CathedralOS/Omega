@@ -11,7 +11,7 @@ invokes Console; reaches Console {
   transition { value >= 10.0 -> normalize(value / 10.0, exponent + 1) value > 0.0 && value < 1.0 -> normalize(value * 10.0, exponent - 1) _ -> mantissa(value, exponent) }
  }
  machine mantissa(value: f64, exponent: i32 in Wrapping) {
-  let digits: u64 in Saturating = U64::from_f64(value * 1000000000000.0);
+  let digits: u64 in Saturating = U64FromF64::from_f64(value * 1000000000000.0);
   unsigned(digits as u64 in Wrapping, 1000000000000, true);
   Console::write("e");
   transition exponent < 0 { true -> negative_exponent(exponent) false -> positive_exponent(exponent) }

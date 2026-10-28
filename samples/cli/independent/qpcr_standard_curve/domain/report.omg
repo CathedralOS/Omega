@@ -65,7 +65,7 @@ invokes Console;
         }
     }
     machine emit(reader: &mut Reader, value: f64, exponent: i32 in Wrapping) {
-        let significand: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
+        let significand: i64 in Saturating = I64FromF64::from_f64(value * 1000000000000.0);
         integer(reader, significand as i64);
         Console::write_byte(64);
         integer(reader, (exponent as i32) as i64);

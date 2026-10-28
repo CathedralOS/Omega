@@ -13,13 +13,13 @@ machine Main::main(main: &mut Main) reaches Console {
     let spacing: Number = block number(&mut main.reader);
     let timestep: Number = block number(&mut main.reader);
     let steps: Number = block number(&mut main.reader);
-    let cells: i32 in Saturating = I32::from_f64(count.value);
+    let cells: i32 in Saturating = I32FromF64::from_f64(count.value);
     main.problem.cells = cells as i32;
-    let iterations: i32 in Saturating = I32::from_f64(steps.value);
+    let iterations: i32 in Saturating = I32FromF64::from_f64(steps.value);
     main.problem.steps = iterations as i32;
     main.problem.spacing = spacing.value;
     main.problem.timestep = timestep.value;
-    transition count.valid && count.integer && spacing.valid && timestep.valid && steps.valid && steps.integer && count.value == F64::from_i32(main.problem.cells) && steps.value == F64::from_i32(main.problem.steps) && main.problem.cells >= 8 && main.problem.cells <= 32 && main.problem.steps >= 0 && main.problem.steps <= 256 && spacing.value > 0.0 && timestep.value > 0.0 {
+    transition count.valid && count.integer && spacing.valid && timestep.valid && steps.valid && steps.integer && count.value == F64FromI32::from_i32(main.problem.cells) && steps.value == F64FromI32::from_i32(main.problem.steps) && main.problem.cells >= 8 && main.problem.cells <= 32 && main.problem.steps >= 0 && main.problem.steps <= 256 && spacing.value > 0.0 && timestep.value > 0.0 {
         true -> read(main, 0) false -> invalid(main)
     }
     machine read(main: &mut Main, row: i32) {
@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // the identity in double-precision elimination. Refuse that numerical
     // regime before factorization rather than silently losing probability.
     machine conditioning(main: &mut Main, row: i32, norm: f64) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> coefficient(main, row, norm) false -> normalize(main, 0, 1.0 / F64::square_root(norm)) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> coefficient(main, row, norm) false -> normalize(main, 0, 1.0 / F64SquareRoot::square_root(norm)) }
     }
     machine coefficient(main: &mut Main, row: i32, norm: f64) requires row >= 0 && row < 32 {
         let magnitude: f64 = absolute(main.problem.potential[row]);

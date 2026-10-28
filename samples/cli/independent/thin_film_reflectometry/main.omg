@@ -28,9 +28,9 @@ machine Application::main(application: &mut Application) reaches Console crashes
     }
     machine invalid(application: &mut Application) { Console::write_line("ERROR input or domain"); Console::exit_process(10); }
     machine options(application: &mut Application, ambient: f64, substrate: f64, layers: f64, count: f64) {
-        let layer_integer: i32 in Saturating = I32::from_f64(layers);
-        let count_integer: i32 in Saturating = I32::from_f64(count);
-        transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64::from_i32(layer_integer as i32) && count == F64::from_i32(count_integer as i32) {
+        let layer_integer: i32 in Saturating = I32FromF64::from_f64(layers);
+        let count_integer: i32 in Saturating = I32FromF64::from_f64(count);
+        transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64FromI32::from_i32(layer_integer as i32) && count == F64FromI32::from_i32(count_integer as i32) {
             true -> configure(application, ambient, substrate, layer_integer as i32 in Wrapping, count_integer as i32 in Wrapping)
             _ -> invalid(application)
         }

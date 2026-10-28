@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) { Build::application(builder, "float_delivery_invalid");     Build::select_provider<ReadingProbe, X86ReadingProbe>(builder, windows_x86_64);
+    Build::select_provider<ReadingProbe, X86ReadingProbe>(builder, linux_x86_64);
+    Build::select_provider<ReadingProbe, ArmReadingProbe>(builder, macos_arm64);
+    Build::select_provider<ReadingProbe, ArmReadingProbe>(builder, linux_arm64);
+    Build::select_provider<ReadingProbe, X86ReadingProbe>(builder, macos_x86_64);
+}

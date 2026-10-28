@@ -66,7 +66,7 @@ machine Input::flush(input: &mut Input) {
   }
  }
  machine digit(input: &mut Input, index: u64 in Wrapping, value: f64, negative: bool, dot: bool, digits: u64 in Wrapping, fraction: u64 in Wrapping, byte: i32 in Wrapping) {
-  let next: f64 = value * 10.0 + F64::from_i32(byte - 48);
+  let next: f64 = value * 10.0 + F64FromI32::from_i32(byte - 48);
   transition dot {
    true -> mantissa(input, index + 1, next, negative, dot, digits + 1, fraction + 1)
    false -> mantissa(input, index + 1, next, negative, dot, digits + 1, fraction)

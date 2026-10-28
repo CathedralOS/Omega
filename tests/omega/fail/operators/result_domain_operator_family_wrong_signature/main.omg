@@ -1,7 +1,7 @@
 use omega::language::core::float_operations;
 
 machine wrong(value: f32) -> bool
-satisfies I8::from_f32 {
+satisfies I8FromF32::from_f32 {
     true
 }
 

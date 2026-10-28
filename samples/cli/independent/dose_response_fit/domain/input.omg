@@ -150,7 +150,7 @@ crashes Trap
         }
     }
     machine sigma(reader: &mut InputReader, observations: &mut Observations, value: i32) -> bool {
-        observations.sigma = F64::from_i32(value) / 1000.0;
+        observations.sigma = F64FromI32::from_i32(value) / 1000.0;
         transition value >= 1 && value <= 10000 {
             true -> begin(reader, observations)
             _ -> false
@@ -229,8 +229,8 @@ crashes Trap
         observations.dose[position] = row.dose;
         observations.replicate[position] = row.replicate;
         observations.role[position] = row.role;
-        observations.response[position] = F64::from_i32(value) / 1000.0;
-        observations.logarithm[position] = logarithm(clamp(F64::from_i32(row.dose), 1.0, 10000.0));
+        observations.response[position] = F64FromI32::from_i32(value) / 1000.0;
+        observations.logarithm[position] = logarithm(clamp(F64FromI32::from_i32(row.dose), 1.0, 10000.0));
         transition { _ -> rows(reader, observations, row, position + 1, 0) }
     }
 }

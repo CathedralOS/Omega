@@ -15,7 +15,7 @@ machine tail(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {
     machine terms(alpha: i32 in Wrapping, length: i32 in Wrapping, value: f64, position: i32 in Wrapping, mass: f64, total: f64) -> f64 {
         let next: f64 = match position >= alpha { true -> total + mass _ -> total };
         transition position < length {
-            true -> terms(alpha, length, value, position + 1, mass * F64::from_i32((length - position) as i32) * value / (F64::from_i32((position + 1) as i32) * (1.0 - value)), next)
+            true -> terms(alpha, length, value, position + 1, mass * F64FromI32::from_i32((length - position) as i32) * value / (F64FromI32::from_i32((position + 1) as i32) * (1.0 - value)), next)
             _ -> next
         }
     }
@@ -35,8 +35,8 @@ machine quantile(alpha: i32 in Wrapping, beta: i32 in Wrapping, probability: f64
     }
 }
 public machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Posterior {
-    let first: f64 = F64::from_i32(alpha as i32);
-    let second: f64 = F64::from_i32(beta as i32);
+    let first: f64 = F64FromI32::from_i32(alpha as i32);
+    let second: f64 = F64FromI32::from_i32(beta as i32);
     let total: f64 = first + second;
     let lower: f64 = quantile(alpha, beta, 0.025);
     let upper: f64 = quantile(alpha, beta, 0.975);
@@ -48,7 +48,7 @@ public machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Poste
 public machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33]) {
     transition { _ -> zero(alpha, beta, future, bins, 0, 1.0) }
     machine zero(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
-        transition position < future { true -> zero(alpha, beta, future, bins, position + 1, mass * F64::from_i32((beta + position) as i32) / F64::from_i32((alpha + beta + position) as i32)) _ -> first(alpha, beta, future, bins, mass) }
+        transition position < future { true -> zero(alpha, beta, future, bins, position + 1, mass * F64FromI32::from_i32((beta + position) as i32) / F64FromI32::from_i32((alpha + beta + position) as i32)) _ -> first(alpha, beta, future, bins, mass) }
     }
     machine first(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], mass: f64) {
         bins[0] = mass;
@@ -58,7 +58,7 @@ public machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i3
         transition position >= 0 && position < 32 && position < future { true -> bin(alpha, beta, future, bins, position, mass) _ -> {} }
     }
     machine bin(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
-        let following: f64 = mass * F64::from_i32((future - position) as i32) / F64::from_i32((position + 1) as i32) * F64::from_i32((alpha + position) as i32) / F64::from_i32((beta + future - position - 1) as i32);
+        let following: f64 = mass * F64FromI32::from_i32((future - position) as i32) / F64FromI32::from_i32((position + 1) as i32) * F64FromI32::from_i32((alpha + position) as i32) / F64FromI32::from_i32((beta + future - position - 1) as i32);
         bins[position + 1] = following;
         transition { _ -> next(alpha, beta, future, bins, position + 1, following) }
     }

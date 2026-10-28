@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 machine forward(left: f32, right: f32) -> f32
 ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(left), F32::meaning(right))
 {
-    F32::minimum(left, right)
+    F32Minimum::minimum(left, right)
 }
 
 machine require_min(value: f32) -> f32

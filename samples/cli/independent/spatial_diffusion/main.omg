@@ -16,7 +16,7 @@ machine field(value:f64) reaches Console invokes Console; {
   true -> emit(scaled) false -> failure()
  }
  machine emit(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
-  let integer:i64=I64::from_f64(scaled);
+  let integer:i64=I64FromF64::from_f64(scaled);
   number(integer as i64 in Wrapping);
  }
  machine failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }

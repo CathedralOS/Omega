@@ -16,7 +16,7 @@ public machine number(value: f64) reaches Console invokes Console; {
         }
     }
     machine mantissa(value: f64, exponent: i64 in Wrapping) {
-        let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000000.0);
+        let scaled: i64 in Saturating = I64FromF64::from_f64(value * 1000000000000000.0);
         integer(scaled as i64 in Wrapping);
         Console::write("e"); integer(exponent - 15);
     }

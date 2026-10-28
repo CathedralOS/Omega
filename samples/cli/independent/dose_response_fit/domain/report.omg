@@ -14,11 +14,11 @@ machine number(value: f64) reaches Console {
     }
     machine negative(bytes: &mut [u8; 21], value: f64) {
         bytes[0] = 45;
-        let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        let scaled: i64 in Saturating = I64FromF64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
     machine positive(bytes: &mut [u8; 21], value: f64) {
-        let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
+        let scaled: i64 in Saturating = I64FromF64::from_f64(value * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
     machine digits(bytes: &mut [u8; 21],
@@ -68,11 +68,11 @@ crashes Trap
         Console::write("highdose_asymptote="); number(fit.candidate.high);
         Console::write("log_half_dose="); number(fit.candidate.log_half);
         Console::write("slope="); number(fit.candidate.hill);
-        Console::write("signed_slope="); number(fit.candidate.hill * F64::from_i32(observations.direction));
+        Console::write("signed_slope="); number(fit.candidate.hill * F64FromI32::from_i32(observations.direction));
         Console::write("sse="); number(fit.candidate.sse);
         Console::write("sigma="); number(observations.sigma);
         Console::write("profile_cutoff="); number(fit.cutoff);
-        Console::write("iterations="); number(F64::from_i32(fit.candidate.iterations as i32));
+        Console::write("iterations="); number(F64FromI32::from_i32(fit.candidate.iterations as i32));
         Console::write("lowdose_asymptote_lower="); number(fit.lower[0]);
         Console::write("lowdose_asymptote_upper="); number(fit.upper[0]);
         Console::write("highdose_asymptote_lower="); number(fit.lower[1]);

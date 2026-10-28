@@ -19,7 +19,7 @@ machine reading(hundreds: u8, tens: u8, ones: u8) -> f64 {
 // the emitted numbers separately, within one displayed unit; no expected values
 // are embedded in the application. Ten digits cover all nonnegative i32 values.
 machine emit_positive(main: &mut Main, value: f64) reaches Console {
-    let rounded: i32 in Saturating = I32::from_f64(value + 0.5);
+    let rounded: i32 in Saturating = I32FromF64::from_f64(value + 0.5);
     let integer: i32 = rounded as i32;
     Console::write_byte(integer / 1000000000 % 10 + 48);
     Console::write_byte(integer / 100000000 % 10 + 48);

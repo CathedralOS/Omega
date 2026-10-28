@@ -177,10 +177,10 @@ reaches
     ProcessOutput + ProcessExit
 {
     let loaded: bool = appkit_load();
-    let rx: f64 = F64::from_i32(x);
-    let ry: f64 = F64::from_i32(y);
-    let mut rw: f64 = F64::from_i32(width);
-    let mut rh: f64 = F64::from_i32(height);
+    let rx: f64 = F64FromI32::from_i32(x);
+    let ry: f64 = F64FromI32::from_i32(y);
+    let mut rw: f64 = F64FromI32::from_i32(width);
+    let mut rh: f64 = F64FromI32::from_i32(height);
     rw = rw - 16.0;
     rh = rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
@@ -404,8 +404,8 @@ reaches
     let fbw: i64 = source_width_wide;
     let fbh: i64 = source_height_wide;
     let stride: i64 = source_width_wide << 2;
-    let fbwf: f64 = F64::from_u32(source_width);
-    let fbhf: f64 = F64::from_u32(source_height);
+    let fbwf: f64 = F64FromU32::from_u32(source_width);
+    let fbhf: f64 = F64FromU32::from_u32(source_height);
     let ctx: u64 = cg_bitmap_context(&mut pixels[0], fbw, fbh, 8, stride, window_state.space, 8198);
     let cgimg: u64 = cg_bitmap_context_image(ctx);
     let cbuf30: [u8; 8] = "NSImage\0";

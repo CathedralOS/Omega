@@ -12,7 +12,7 @@ data Main {
 machine Main::replace_level(main: &mut Main, position: u64)
 requires position < 2
 {
-    main.levels[position] = F64::from_i64(main.millimetres) / 1000.0;
+    main.levels[position] = F64FromI64::from_i64(main.millimetres) / 1000.0;
 }
 
 machine store_local(values: &mut [f32; 2], position: u64, value: f32)

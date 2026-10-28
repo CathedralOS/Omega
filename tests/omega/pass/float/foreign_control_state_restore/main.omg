@@ -25,7 +25,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console + FloatingEnvironment {
     let upward: i32 = upward_rounding_mode();
     let status: i32 = FloatingEnvironment::set_rounding(upward);
-    let one: f64 = F64::from_i32(status) + 1.0;
+    let one: f64 = F64FromI32::from_i32(status) + 1.0;
     let half_ulp: f64 =
         0.00000000000000011102230246251565404236316680908203125;
     let rounded: f64 = one + half_ulp;

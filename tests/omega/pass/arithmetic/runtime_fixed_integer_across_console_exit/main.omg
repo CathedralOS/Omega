@@ -10,7 +10,7 @@ machine Main::main(main:&mut Main) reaches Console {
   transition value >= 48 && value <= 57 {true -> bounded(main,value) _ -> fail(main)}
  }
  machine bounded(main:&mut Main,value:i32) requires value >= 48 && value <= 57 {
-  number((F64::from_i32(value)-48.0)/10.0);
+  number((F64FromI32::from_i32(value)-48.0)/10.0);
   Console::write_line("");Console::exit_process(70);
  }
  machine fail(main:&mut Main) {Console::exit_process(71);}

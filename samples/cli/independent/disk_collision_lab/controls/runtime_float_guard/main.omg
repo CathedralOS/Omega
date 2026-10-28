@@ -8,7 +8,7 @@ machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> guard(main,value) _ -> fail(main)}
  machine guard(main:&mut Main,value:i32) {
-  main.values.x=F64::from_i32(value)-48.0;
+  main.values.x=F64FromI32::from_i32(value)-48.0;
   transition abs_f64(main.values.x) <= 0.000000001 {true -> good(main) _ -> fail(main)}
  }
  machine good(main:&mut Main) {Console::exit_process(70);}

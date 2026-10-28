@@ -12,7 +12,7 @@ public machine draw(model: &mut Model) -> f64 {
     model.seed = (product as u64) % 2147483647;
     transition { _ -> uniform(model.seed) }
     machine uniform(value: u64) -> f64 {
-        let converted: f64 = F64::from_u64(value);
+        let converted: f64 = F64FromU64::from_u64(value);
         transition { _ -> (converted / 2147483647.0) }
     }
 }
@@ -45,8 +45,8 @@ public machine natural_log(value: f64) -> f64 {
 // status: 0 running, 1 horizon reached, 2 budget exhausted, 3 population
 // overflow. A pending event is tested before consuming the budget.
 public machine advance(model: &mut Model) {
-    let x_float: f64 = F64::from_u64(model.x);
-    let y_float: f64 = F64::from_u64(model.y);
+    let x_float: f64 = F64FromU64::from_u64(model.x);
+    let y_float: f64 = F64FromU64::from_u64(model.y);
     let transcription: f64 = model.birth;
     let translation: f64 = model.translation * x_float;
     let x_death: f64 = model.decay_x * x_float;

@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 machine interval_height(lower: i64, upper: i64) -> f64
 requires upper > lower
 {
-    F64::from_i64(upper) - F64::from_i64(lower)
+    F64FromI64::from_i64(upper) - F64FromI64::from_i64(lower)
 }
 
 data Main { }

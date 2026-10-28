@@ -23,7 +23,7 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 | const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant endpoints bound the checked float range |
 | other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition passes bounded `Reading` to successor machine |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | intermediate machine forwards bounded `Reading` |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute on each hosted platform |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Build-selected ordinary named implementations execute the same operation |
 
 ## Execution
 
@@ -87,3 +87,27 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Mixed-format float delivery (e.g. `f32` to `f64` widening without explicit conversion), non-orderable float NaN handling across arithmetic domains, and broader interval arithmetic chains beyond direct subset entailment remain governed under the wider `CANONICALIZE-SCALAR-RANGE-CONTRACTS` and `wiki/spec/language/numeric_values.md` roadmap.
+
+## Build-owned Core defaults migration (in progress)
+
+Owning requirement: **BUILD-OWNED-TARGET-SELECTION** in `TASKS.md`: preserve
+exact public contracts through one Terminal artifact and explicit target-keyed
+Build provider rows while retiring source target prefixes. This continuation
+also migrates Core's float requirements to boundary traits under
+**TOP-LEVEL-BOUNDARY-REQUIREMENTS**. The fact and consuming operation above are
+unchanged. The target-body place now selects ordinary `ArmReadingProbe` and
+`X86ReadingProbe` implementations; their checked bodies preserve the same
+`admit(reading.value)` obligation. All five hosted profiles, including the
+available macOS/x86-64 host, bind the same ordinary entry.
+
+Before compiler changes, the frozen Native14 producer at `35bb68180ef1` against
+the separately captured ordinary Core library wrongly refuses the local
+positive during native compilation: `main` has no executable body at its
+float comparison. The producer identity remains Native14; the authored runtime
+library is a separate captured replay input. The baseline and exact library
+hashes are retained in the target-retirement qualification evidence.
+
+The complete row, reject controls, override and target-availability controls,
+Core Build activation custody, and both engines remain to be validated. Earlier
+execution claims above describe the pre-migration implementation, not this
+unfinished continuation.

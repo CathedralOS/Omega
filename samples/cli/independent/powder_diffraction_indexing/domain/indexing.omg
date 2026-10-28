@@ -10,9 +10,9 @@ public data Problem {
     scale: f64; lattice: f64;
 }
 public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
-    let count: u64 in Saturating = U64::from_f64(raw.values[1]);
+    let count: u64 in Saturating = U64FromF64::from_f64(raw.values[1]);
     transition raw.count >= 6 && raw.count <= 9 && count >= 3 && count <= 6
-        && F64::from_u64(count as u64) == raw.values[1] && raw.count == 3 + (count as u64)
+        && F64FromU64::from_u64(count as u64) == raw.values[1] && raw.count == 3 + (count as u64)
         && raw.values[0] >= 0.5 && raw.values[0] <= 2.5 && raw.values[2] > 0.0 && raw.values[2] <= 1.0 {
         true -> initialize(raw, problem, count as u64) false -> bad()
     }
@@ -46,7 +46,7 @@ public machine sine(value: f64) -> f64 {
         transition index < 16 { true -> add(value, index, current, total) false -> done(total) }
     }
     machine add(value: f64, index: u64, current: f64, total: f64) -> f64 requires index < 16 {
-        let divisor: f64 = F64::from_u64(2 * index) * F64::from_u64(2 * index + 1);
+        let divisor: f64 = F64FromU64::from_u64(2 * index) * F64FromU64::from_u64(2 * index + 1);
         let following: f64 = (0.0 - current) * value * value / divisor;
         transition { _ -> term(value, index + 1, following, total + following) }
     }
@@ -153,18 +153,18 @@ machine fit(problem: &mut Problem) -> bool {
         transition index < problem.count && index < 6 { true -> term(problem, index, numerator, denominator) false -> scale(problem, numerator, denominator) }
     }
     machine term(problem: &mut Problem, index: u64, numerator: f64, denominator: f64) -> bool requires index < 6 {
-        let squared: f64 = F64::from_u64(problem.assignments[index]);
+        let squared: f64 = F64FromU64::from_u64(problem.assignments[index]);
         transition { _ -> accumulate(problem, index + 1, numerator + squared * problem.vectors[index], denominator + squared * squared) }
     }
     machine scale(problem: &mut Problem, numerator: f64, denominator: f64) -> bool {
-        problem.scale = numerator / denominator; problem.lattice = 1.0 / F64::square_root(problem.scale);
+        problem.scale = numerator / denominator; problem.lattice = 1.0 / F64SquareRoot::square_root(problem.scale);
         transition problem.lattice >= 2.0 && problem.lattice <= 10.0 { true -> residual(problem, 0) false -> no() }
     }
     machine residual(problem: &mut Problem, index: u64) -> bool {
         transition index < problem.count && index < 6 { true -> predict(problem, index) false -> yes() }
     }
     machine predict(problem: &mut Problem, index: u64) -> bool requires index < 6 {
-        let argument: f64 = problem.wavelength * F64::square_root(problem.scale * F64::from_u64(problem.assignments[index])) * 0.5;
+        let argument: f64 = problem.wavelength * F64SquareRoot::square_root(problem.scale * F64FromU64::from_u64(problem.assignments[index])) * 0.5;
         transition argument > 0.0 && argument < 1.0 { true -> angle(problem, index, argument) false -> no() }
     }
     machine angle(problem: &mut Problem, index: u64, argument: f64) -> bool requires index < 6 {

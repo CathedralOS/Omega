@@ -11,21 +11,21 @@ machine Main::main(main: &mut Main) reaches Console {
     let lower64: f64 = 1.41421356237309492343001693370752036571502685546875;
     let upper64: f64 = 1.4142135623730951454746218587388284504413604736328125;
     let two64: f64 = 2.0;
-    let zero64: f64 = F64::square_root_toward_zero(two64);
-    let positive64: f64 = F64::square_root_toward_positive(two64);
-    let negative64: f64 = F64::square_root_toward_negative(two64);
-    let ordinary64: f64 = F64::square_root(two64);
+    let zero64: f64 = F64SquareRootTowardZero::square_root_toward_zero(two64);
+    let positive64: f64 = F64SquareRootTowardPositive::square_root_toward_positive(two64);
+    let negative64: f64 = F64SquareRootTowardNegative::square_root_toward_negative(two64);
+    let ordinary64: f64 = F64SquareRoot::square_root(two64);
 
     let lower32: f32 = 1.41421353816986083984375f32;
     let upper32: f32 = 1.414213657379150390625f32;
     let two32: f32 = 2.0f32;
-    let zero32: f32 = F32::square_root_toward_zero(two32);
-    let positive32: f32 = F32::square_root_toward_positive(two32);
-    let negative32: f32 = F32::square_root_toward_negative(two32);
-    let ordinary32: f32 = F32::square_root(two32);
+    let zero32: f32 = F32SquareRootTowardZero::square_root_toward_zero(two32);
+    let positive32: f32 = F32SquareRootTowardPositive::square_root_toward_positive(two32);
+    let negative32: f32 = F32SquareRootTowardNegative::square_root_toward_negative(two32);
+    let ordinary32: f32 = F32SquareRoot::square_root(two32);
 
-    let exact64: f64 = F64::square_root_toward_negative(25.0);
-    let exact32: f32 = F32::square_root_toward_positive(25.0f32);
+    let exact64: f64 = F64SquareRootTowardNegative::square_root_toward_negative(25.0);
+    let exact32: f32 = F32SquareRootTowardPositive::square_root_toward_positive(25.0f32);
 
     transition zero64 == lower64 && negative64 == lower64
         && positive64 == upper64 && ordinary64 == upper64

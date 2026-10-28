@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine store(main: &mut Main, field: u64, value: u64) requires field < 10 requires value <= 1000000 {
         main.model.units[field] = value;
-        main.model.probabilities[field] = F64::from_i64(value as i64) / 1000000.0;
+        main.model.probabilities[field] = F64FromI64::from_i64(value as i64) / 1000000.0;
         transition field < 9 { true -> probability(main, field + 1) false -> distributions(main, 0) }
     }
     machine distributions(main: &mut Main, row: u64) requires row < 5 {

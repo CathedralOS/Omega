@@ -11,10 +11,10 @@ public boundary trait DifferentSlot {
 
 public UnusedNumericProvider satisfies NegationSlot {
     machine negate(value: f32) -> f32 reaches {
-        F32::negate(value)
+        F32Negate::negate(value)
     }
 }
 
 public machine is_nan(value: f32) -> bool {
-    F32::is_nan(value)
+    F32IsNan::is_nan(value)
 }

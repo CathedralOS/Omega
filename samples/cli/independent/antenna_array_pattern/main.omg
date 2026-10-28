@@ -22,7 +22,7 @@ data Main {
     symmetry: f64;
 }
 machine Main::number(main: &mut Main, value: f64) reaches Console {
-    let converted: i32 in Saturating = I32::from_f64(value);
+    let converted: i32 in Saturating = I32FromF64::from_f64(value);
     let integer: i32 = converted as i32;
     transition { _ -> digits(main, integer, 1000000000) }
     machine digits(main: &mut Main, integer: i32, divisor: i32) {
@@ -103,7 +103,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.sample >= 0 && main.sample < 9 { true -> calculate(main) false -> symmetry_guard(main, 0) }
     }
     machine calculate(main: &mut Main) {
-        let ordinal: f64 = F64::from_i32(main.sample);
+        let ordinal: f64 = F64FromI32::from_i32(main.sample);
         let direction: f64 = -1.0 + ordinal * 0.25;
         main.power = Pattern::power(&main.geometry, direction);
         main.powers[main.sample] = main.power;

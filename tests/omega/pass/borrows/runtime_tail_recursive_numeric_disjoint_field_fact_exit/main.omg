@@ -17,7 +17,7 @@ machine main() crashes Trap {
 machine fill(work: &mut Work, remaining: u64) {
     transition remaining > 0 { true -> write(work, remaining) false -> done() }
     machine write(work: &mut Work, remaining: u64) requires remaining > 0 {
-        work.scratch = F64::square_root(F64::from_u64(remaining) + 3.0);
+        work.scratch = F64SquareRoot::square_root(F64FromU64::from_u64(remaining) + 3.0);
         transition { _ -> fill(work, remaining - 1) }
     }
     machine done() { }

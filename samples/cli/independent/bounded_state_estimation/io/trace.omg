@@ -52,7 +52,7 @@ machine print_integer(value: i64) reaches Console {
     machine finished() { }
 }
 machine print_number(value: f64) reaches Console {
-    let integer: i64 in Saturating = I64::from_f64(value * 1000000.0);
+    let integer: i64 in Saturating = I64FromF64::from_f64(value * 1000000.0);
     Console::write(" ");
     print_integer(integer as i64);
 }

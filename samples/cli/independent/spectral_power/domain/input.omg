@@ -52,7 +52,7 @@ crashes Trap
     machine append(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 7
     {
-        let numeric: f64 = F64::from_i32(value - 48);
+        let numeric: f64 = F64FromI32::from_i32(value - 48);
         let next: f64 = accumulated * 10.0 + numeric;
         let observed: i32 = block character(reader);
         transition { _ -> digit(reader, observed, sign, next, digits + 1) }

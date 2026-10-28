@@ -98,7 +98,7 @@ public machine load_spectrum(application: &mut Spectrometer) -> bool {
     }
     machine save(application: &mut Spectrometer, index: i32 in Wrapping,
                value: i32 in Wrapping) -> bool {
-        application.spectrum.samples[index] = F64::from_i32(value as i32);
+        application.spectrum.samples[index] = F64FromI32::from_i32(value as i32);
         transition { _ -> samples(application, index + 1) }
     }
     machine configuration(application: &mut Spectrometer) -> bool {
@@ -114,13 +114,13 @@ public machine load_spectrum(application: &mut Spectrometer) -> bool {
         }
     }
     machine settings(application: &mut Spectrometer) -> bool {
-        application.spectrum.baseline_start = F64::from_i32(application.raw[16] as i32);
-        application.spectrum.baseline_end = F64::from_i32(application.raw[17] as i32);
-        application.spectrum.threshold = F64::from_i32(application.raw[18] as i32);
-        application.spectrum.origin = F64::from_i32(application.raw[19] as i32);
-        application.spectrum.spacing = F64::from_i32(application.raw[20] as i32);
-        application.spectrum.calibration = F64::from_i32(application.raw[21] as i32);
-        application.spectrum.tolerance = F64::from_i32(application.raw[22] as i32);
+        application.spectrum.baseline_start = F64FromI32::from_i32(application.raw[16] as i32);
+        application.spectrum.baseline_end = F64FromI32::from_i32(application.raw[17] as i32);
+        application.spectrum.threshold = F64FromI32::from_i32(application.raw[18] as i32);
+        application.spectrum.origin = F64FromI32::from_i32(application.raw[19] as i32);
+        application.spectrum.spacing = F64FromI32::from_i32(application.raw[20] as i32);
+        application.spectrum.calibration = F64FromI32::from_i32(application.raw[21] as i32);
+        application.spectrum.tolerance = F64FromI32::from_i32(application.raw[22] as i32);
         transition { _ -> catalog(application, 0) }
     }
     machine catalog(application: &mut Spectrometer, index: i32 in Wrapping) -> bool {
@@ -146,7 +146,7 @@ public machine load_spectrum(application: &mut Spectrometer) -> bool {
     }
     machine save_line(application: &mut Spectrometer, index: i32 in Wrapping,
                     value: i32 in Wrapping) -> bool {
-        application.spectrum.lines[index] = F64::from_i32(value as i32);
+        application.spectrum.lines[index] = F64FromI32::from_i32(value as i32);
         transition { _ -> catalog(application, index + 1) }
     }
 }

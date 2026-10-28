@@ -13,7 +13,7 @@ data Main where bounded >= 0.0 && bounded <= 100.0 {
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.bounded = 77.9;
-    main.a = I32::from_f64(main.bounded);
+    main.a = I32FromF64::from_f64(main.bounded);
     main.unbounded = 42.5;
     transition main.unbounded == main.unbounded
         && main.unbounded >= 0.0 && main.unbounded <= 100.0 {
@@ -21,7 +21,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
     machine guarded(main: &mut Main) {
-        main.b = I32::from_f64(main.unbounded);
+        main.b = I32FromF64::from_f64(main.unbounded);
         transition main.a == 77 && main.b == 42 { true -> good(main) _ -> bad(main) }
     }
     machine good(main: &mut Main) { Console::exit_process(78); }

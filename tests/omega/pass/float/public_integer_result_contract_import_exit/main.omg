@@ -1,13 +1,13 @@
 use omega::language::core::float_operations;
 // A typed local selects the Saturating slot without changing its denotation.
 machine saturating_integer(value: f32) -> i32 in Saturating {
-    let converted: i32 in Saturating = I32::from_f32(value);
+    let converted: i32 in Saturating = I32FromF32::from_f32(value);
     converted
 }
 
 machine integer(value: f32) -> i32 in Saturating
 ensures result == saturating_integer(value) {
-    let converted: i32 in Saturating = I32::from_f32(value);
+    let converted: i32 in Saturating = I32FromF32::from_f32(value);
     converted
 }
 machine main() crashes Trap {

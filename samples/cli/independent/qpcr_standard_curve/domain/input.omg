@@ -55,7 +55,7 @@ crashes Trap
     machine append(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 320 && fraction >= 0 && fraction < 17
     {
-        let numeric: f64 = F64::from_i32(value - 48);
+        let numeric: f64 = F64FromI32::from_i32(value - 48);
         let next_divisor: f64 = match decimal { true -> divisor * 10.0 _ -> divisor };
         let next: f64 = match decimal { true -> accumulated + numeric / next_divisor _ -> accumulated * 10.0 + numeric };
         let next_fraction: i32 = match decimal { true -> fraction + 1 _ -> fraction };
@@ -73,7 +73,7 @@ crashes Trap
         transition { _ -> digit(reader, observed, sign, accumulated, digits, 0, true, 1.0) }
     }
     machine finish(value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool) -> Number {
-        transition digits > 0 && F64::is_finite(accumulated) && (!decimal || fraction > 0) && (whitespace(value) || value == -1) {
+        transition digits > 0 && F64IsFinite::is_finite(accumulated) && (!decimal || fraction > 0) && (whitespace(value) || value == -1) {
             true -> Number { valid: true, value: sign * accumulated }
             _ -> Number { valid: false, value: 0.0 }
         }

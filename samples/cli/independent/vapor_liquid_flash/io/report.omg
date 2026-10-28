@@ -6,7 +6,7 @@ use model::flash;
 // Fifteen fractional digits; computation and displayed reconstruction are
 // separately checked against the frozen oracle. Values are nonnegative <= 1.
 machine number(value: f64) reaches Console {
-    let integer: i32 in Saturating = I32::from_f64(value);
+    let integer: i32 in Saturating = I32FromF64::from_f64(value);
     let character: i32 in Saturating = integer + 48;
     Console::write_byte(character as i32);
     Console::write_byte(46);
@@ -19,7 +19,7 @@ machine number(value: f64) reaches Console {
     }
     machine write(remainder: f64, position: u32) {
         let expanded: f64 = remainder * 10.0;
-        let integer: i32 in Saturating = I32::from_f64(expanded);
+        let integer: i32 in Saturating = I32FromF64::from_f64(expanded);
         let character: i32 in Saturating = integer + 48;
     Console::write_byte(character as i32);
         transition { _ -> digit(expanded - ((integer as i32) as f64), position + 1) }

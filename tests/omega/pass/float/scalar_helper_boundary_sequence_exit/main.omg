@@ -10,7 +10,7 @@ machine shifted_product(value: f32) -> f32 {
     let scale: f32 = 2.0f32;
     let product: f32 = value * scale;
     let offset: i32 = marker(7);
-    let shifted: f32 = product - F32::from_i32(offset);
+    let shifted: f32 = product - F32FromI32::from_i32(offset);
     shifted
 }
 

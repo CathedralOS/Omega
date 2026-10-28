@@ -9,7 +9,7 @@ public data Main { counter: Counter; }
 
 machine step(counter: &mut Counter, value: i32) -> f64 {
     counter.calls = counter.calls + 1u32;
-    F64::from_i32(value)
+    F64FromI32::from_i32(value)
 }
 
 public machine Main::main(application: &mut Main) reaches Console
@@ -23,7 +23,7 @@ crashes Trap
     }
     machine observe(application: &mut Main, value: i32) {
         let observed: f64 = min_f64(step(&mut application.counter, value), step(&mut application.counter, value));
-        let converted: i32 in Saturating = I32::from_f64(observed);
+        let converted: i32 in Saturating = I32FromF64::from_f64(observed);
         transition converted == 65 && application.counter.calls == 2u32 {
             true -> done(application)
             false -> bad(application)

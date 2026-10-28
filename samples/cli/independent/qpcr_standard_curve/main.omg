@@ -28,9 +28,9 @@ machine Application::main(application: &mut Application) reaches Console crashes
         Console::write_line("ERROR nonrepresentable calibration or inversion"); Console::exit_process(12);
     }
     machine counts(application: &mut Application, standards: f64, unknowns: f64) {
-        let count: i32 in Saturating = I32::from_f64(standards);
-        let unknown_count: i32 in Saturating = I32::from_f64(unknowns);
-        transition F64::from_i32(count as i32) == standards && F64::from_i32(unknown_count as i32) == unknowns {
+        let count: i32 in Saturating = I32FromF64::from_f64(standards);
+        let unknown_count: i32 in Saturating = I32FromF64::from_f64(unknowns);
+        transition F64FromI32::from_i32(count as i32) == standards && F64FromI32::from_i32(unknown_count as i32) == unknowns {
             true -> configure(application, count as i32 in Wrapping, unknown_count as i32 in Wrapping) _ -> invalid(application)
         }
     }
@@ -76,7 +76,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         transition complete { true -> center(application) _ -> invalid(application) }
     }
     machine center(application: &mut Application) {
-        let count: f64 = F64::from_i32(application.standards as i32);
+        let count: f64 = F64FromI32::from_i32(application.standards as i32);
         application.mean_x = application.mean_x / count; application.mean_y = application.mean_y / count;
         application.variance_x = 0.0; application.variance_y = 0.0; application.covariance = 0.0;
         application.index = 0; transition { _ -> moments(application) }
@@ -97,7 +97,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     machine coefficients(application: &mut Application) {
         application.slope = application.covariance / application.variance_x;
         application.intercept = application.mean_y - application.slope * application.mean_x;
-        transition F64::is_finite(application.slope) && F64::is_finite(application.intercept) && application.slope < 0.0 { true -> residual_start(application) _ -> numerical(application) }
+        transition F64IsFinite::is_finite(application.slope) && F64IsFinite::is_finite(application.intercept) && application.slope < 0.0 { true -> residual_start(application) _ -> numerical(application) }
     }
     machine residual_start(application: &mut Application) {
         field(&mut application.reader, "slope=", application.slope); field(&mut application.reader, "intercept=", application.intercept);
@@ -122,7 +122,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
     }
     machine summary(application: &mut Application) {
         let argument: f64 = (0.0 - 2.3025850929940456840) / application.slope;
-        transition F64::is_finite(argument) && argument <= 700.0 { true -> efficiency(application, argument) _ -> numerical(application) }
+        transition F64IsFinite::is_finite(argument) && argument <= 700.0 { true -> efficiency(application, argument) _ -> numerical(application) }
     }
     machine efficiency(application: &mut Application, argument: f64) {
         let efficiency: f64 = exponential(argument) - 1.0;
@@ -139,7 +139,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         let lower: f64 = (cq + margin - application.intercept) / application.slope;
         let upper: f64 = (cq - margin - application.intercept) / application.slope;
         let low_argument: f64 = lower * 2.3025850929940456840; let high_argument: f64 = upper * 2.3025850929940456840;
-        transition F64::is_finite(low_argument) && F64::is_finite(high_argument) && low_argument >= -700.0 && high_argument <= 700.0 {
+        transition F64IsFinite::is_finite(low_argument) && F64IsFinite::is_finite(high_argument) && low_argument >= -700.0 && high_argument <= 700.0 {
             true -> concentrations(application, central, lower, upper) _ -> numerical(application)
         }
     }

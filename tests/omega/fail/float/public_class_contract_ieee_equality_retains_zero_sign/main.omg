@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // identity with which to replace the original classification subject.
 machine category(value: f32) -> FloatClass
 requires value == 0.0f32
-ensures result == F32::classify(value) {
+ensures result == F32Classify::classify(value) {
     FloatClass::Zero { negative: false }
 }
 

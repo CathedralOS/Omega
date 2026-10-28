@@ -7,7 +7,7 @@
 //     per-op rounding: both additions collapse.
 //   * Learning: `(f64 expr) as f32` on a non-foldable
 //     tree is an EXACT cast — the checker demands a named
-//     conversion (`F32::from_f64`) for rounding/
+//     conversion (`F32FromF64::from_f64`) for rounding/
 //     truncation, it cannot prove representability
 //     itself.
 //

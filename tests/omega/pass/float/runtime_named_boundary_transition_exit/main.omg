@@ -1,16 +1,16 @@
 use omega::language::core::float_operations;
 data Value { integer: i32; }
 machine guarded(value: i32) -> f64 {
-    transition value > 0 { true -> F64::from_i32(value) false -> (F64::from_i32(value)) }
+    transition value > 0 { true -> F64FromI32::from_i32(value) false -> (F64FromI32::from_i32(value)) }
 }
 machine unconditional(value: i32) -> f64 {
-    transition { _ -> F64::from_i32(value) }
+    transition { _ -> F64FromI32::from_i32(value) }
 }
 machine field(value: &Value) -> f64 {
-    transition { _ -> F64::from_i32(value.integer) }
+    transition { _ -> F64FromI32::from_i32(value.integer) }
 }
 machine equivalent(value: i32) -> f64 {
-    let converted: f64 = F64::from_i32(value);
+    let converted: f64 = F64FromI32::from_i32(value);
     converted
 }
 machine main() crashes Trap {

@@ -7,7 +7,7 @@ use omega_language_std::console;
 //
 // Isolates a construct disk_collision_lab needs and no passing sample spells:
 // a machine returns a copy record through its states. The record carries the
-// quadratic contact time (runtime discriminant under F64::square_root) and
+// quadratic contact time (runtime discriminant under F64SquareRoot::square_root) and
 // the Newton impulse along the contact normal. Head-on masses 1 and 3,
 // centers 4 apart, radii 1, closing speed 1: contact at 2, impulse 1.5.
 
@@ -27,7 +27,7 @@ machine contact(a: Disk, b: Disk) -> Contact {
         _ -> absent()
     }
     machine root(a: Disk, b: Disk, speed: f64, radial: f64, discriminant: f64, vx: f64) -> Contact {
-        let time: f64 = (0.0 - radial - F64::square_root(discriminant)) / speed;
+        let time: f64 = (0.0 - radial - F64SquareRoot::square_root(discriminant)) / speed;
         transition time >= -0.000000001 { true -> impulse(a, b, time, vx) _ -> absent() }
     }
     machine impulse(a: Disk, b: Disk, time: f64, vx: f64) -> Contact {

@@ -148,9 +148,9 @@ machine pair01(problem: &mut Problem) {
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[0]) + magnitude(problem.matrix.values[5])) { true -> rotate(problem, off) false -> done() }
     machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[5] - problem.matrix.values[0]) / (2.0 * off);
-        let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
+        let unsigned: f64 = 1.0 / (magnitude(theta) + F64SquareRoot::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
-        let cosine: f64 = 1.0 / F64::square_root(1.0 + tangent * tangent);
+        let cosine: f64 = 1.0 / F64SquareRoot::square_root(1.0 + tangent * tangent);
         let sine: f64 = tangent * cosine;
         problem.matrix.values[0] = problem.matrix.values[0] - tangent * off;
         problem.matrix.values[5] = problem.matrix.values[5] + tangent * off;
@@ -177,9 +177,9 @@ machine pair02(problem: &mut Problem) {
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[0]) + magnitude(problem.matrix.values[10])) { true -> rotate(problem, off) false -> done() }
     machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[10] - problem.matrix.values[0]) / (2.0 * off);
-        let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
+        let unsigned: f64 = 1.0 / (magnitude(theta) + F64SquareRoot::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
-        let cosine: f64 = 1.0 / F64::square_root(1.0 + tangent * tangent);
+        let cosine: f64 = 1.0 / F64SquareRoot::square_root(1.0 + tangent * tangent);
         let sine: f64 = tangent * cosine;
         problem.matrix.values[0] = problem.matrix.values[0] - tangent * off;
         problem.matrix.values[10] = problem.matrix.values[10] + tangent * off;
@@ -206,9 +206,9 @@ machine pair03(problem: &mut Problem) {
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[0]) + magnitude(problem.matrix.values[15])) { true -> rotate(problem, off) false -> done() }
     machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[15] - problem.matrix.values[0]) / (2.0 * off);
-        let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
+        let unsigned: f64 = 1.0 / (magnitude(theta) + F64SquareRoot::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
-        let cosine: f64 = 1.0 / F64::square_root(1.0 + tangent * tangent);
+        let cosine: f64 = 1.0 / F64SquareRoot::square_root(1.0 + tangent * tangent);
         let sine: f64 = tangent * cosine;
         problem.matrix.values[0] = problem.matrix.values[0] - tangent * off;
         problem.matrix.values[15] = problem.matrix.values[15] + tangent * off;
@@ -235,9 +235,9 @@ machine pair12(problem: &mut Problem) {
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[5]) + magnitude(problem.matrix.values[10])) { true -> rotate(problem, off) false -> done() }
     machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[10] - problem.matrix.values[5]) / (2.0 * off);
-        let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
+        let unsigned: f64 = 1.0 / (magnitude(theta) + F64SquareRoot::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
-        let cosine: f64 = 1.0 / F64::square_root(1.0 + tangent * tangent);
+        let cosine: f64 = 1.0 / F64SquareRoot::square_root(1.0 + tangent * tangent);
         let sine: f64 = tangent * cosine;
         problem.matrix.values[5] = problem.matrix.values[5] - tangent * off;
         problem.matrix.values[10] = problem.matrix.values[10] + tangent * off;
@@ -264,9 +264,9 @@ machine pair13(problem: &mut Problem) {
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[5]) + magnitude(problem.matrix.values[15])) { true -> rotate(problem, off) false -> done() }
     machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[15] - problem.matrix.values[5]) / (2.0 * off);
-        let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
+        let unsigned: f64 = 1.0 / (magnitude(theta) + F64SquareRoot::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
-        let cosine: f64 = 1.0 / F64::square_root(1.0 + tangent * tangent);
+        let cosine: f64 = 1.0 / F64SquareRoot::square_root(1.0 + tangent * tangent);
         let sine: f64 = tangent * cosine;
         problem.matrix.values[5] = problem.matrix.values[5] - tangent * off;
         problem.matrix.values[15] = problem.matrix.values[15] + tangent * off;
@@ -293,9 +293,9 @@ machine pair23(problem: &mut Problem) {
     transition magnitude(off) > 0.000000000000001 * (magnitude(problem.matrix.values[10]) + magnitude(problem.matrix.values[15])) { true -> rotate(problem, off) false -> done() }
     machine rotate(problem: &mut Problem, off: f64) {
         let theta: f64 = (problem.matrix.values[15] - problem.matrix.values[10]) / (2.0 * off);
-        let unsigned: f64 = 1.0 / (magnitude(theta) + F64::square_root(1.0 + theta * theta));
+        let unsigned: f64 = 1.0 / (magnitude(theta) + F64SquareRoot::square_root(1.0 + theta * theta));
         let tangent: f64 = signed_tangent(unsigned, theta);
-        let cosine: f64 = 1.0 / F64::square_root(1.0 + tangent * tangent);
+        let cosine: f64 = 1.0 / F64SquareRoot::square_root(1.0 + tangent * tangent);
         let sine: f64 = tangent * cosine;
         problem.matrix.values[10] = problem.matrix.values[10] - tangent * off;
         problem.matrix.values[15] = problem.matrix.values[15] + tangent * off;
@@ -319,7 +319,7 @@ machine pair23(problem: &mut Problem) {
 }
 machine signed_tangent(value: f64, theta: f64) -> f64 { transition theta < 0.0 { true -> negative(value) false -> positive(value) } machine negative(value: f64) -> f64 { 0.0 - value } machine positive(value: f64) -> f64 { value } }
 machine rotation(problem: &mut Problem) {
-    let norm: f64 = F64::square_root(problem.quaternion[0] * problem.quaternion[0] + problem.quaternion[1] * problem.quaternion[1] + problem.quaternion[2] * problem.quaternion[2] + problem.quaternion[3] * problem.quaternion[3]);
+    let norm: f64 = F64SquareRoot::square_root(problem.quaternion[0] * problem.quaternion[0] + problem.quaternion[1] * problem.quaternion[1] + problem.quaternion[2] * problem.quaternion[2] + problem.quaternion[3] * problem.quaternion[3]);
     let w: f64 = problem.quaternion[0] / norm; let x: f64 = problem.quaternion[1] / norm; let y: f64 = problem.quaternion[2] / norm; let z: f64 = problem.quaternion[3] / norm;
     problem.rotation.values[0] = 1.0 - 2.0 * (y*y + z*z); problem.rotation.values[1] = 2.0 * (x*y - z*w); problem.rotation.values[2] = 2.0 * (x*z + y*w);
     problem.rotation.values[3] = 2.0 * (x*y + z*w); problem.rotation.values[4] = 1.0 - 2.0 * (x*x + z*z); problem.rotation.values[5] = 2.0 * (y*z - x*w);

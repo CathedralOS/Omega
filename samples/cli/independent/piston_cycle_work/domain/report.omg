@@ -15,7 +15,7 @@ crashes Trap
         transition { _ -> positive(0.0 - value) }
     }
     machine positive(value: f64) {
-        let scaled: i32 in Trapping = I32::from_f64(value * 1000000.0 + 0.5);
+        let scaled: i32 in Trapping = I32FromF64::from_f64(value * 1000000.0 + 0.5);
         digits(scaled as i32);
     }
 }

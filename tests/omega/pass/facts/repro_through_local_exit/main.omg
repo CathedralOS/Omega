@@ -1,10 +1,10 @@
-// Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32::from_f64(value) is finite and in range.
+// Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32FromF64::from_f64(value) is finite and in range.
 // Expected exit: 0
 use omega::language::core::float_operations;
 machine bounded(value: f64) -> i32 {
     let copied: f64 = value;
     transition value == value && value >= 0.0 && value < 1000000000.0 {
-        true -> finish(I32::from_f64(copied))
+        true -> finish(I32FromF64::from_f64(copied))
         false -> zero()
     }
     machine finish(observed: i32) -> i32 { observed }

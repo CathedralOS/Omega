@@ -1,27 +1,27 @@
 use omega::language::core::float_operations;
 
 machine finite_value(value: f32) -> f32
-requires F32::is_finite(value) { value }
+requires F32IsFinite::is_finite(value) { value }
 
 machine finite_wide(value: f64) -> f64
-requires F64::is_finite(value) { value }
+requires F64IsFinite::is_finite(value) { value }
 
 machine converted(value: i32) -> f32 {
-    finite_value(F32::from_i32(value))
+    finite_value(F32FromI32::from_i32(value))
 }
 
 machine converted_wide(value: u64) -> f64 {
-    finite_wide(F64::from_u64(value))
+    finite_wide(F64FromU64::from_u64(value))
 }
 
 machine converted_wrapping(value: u8 in Wrapping) -> f32 {
-    finite_value(F32::from_u8(value + (10u8 as u8 in Wrapping)))
+    finite_value(F32FromU8::from_u8(value + (10u8 as u8 in Wrapping)))
 }
 
 machine nested(value: i32) -> f32 {
     transition { _ -> convert(value) }
     machine convert(input: i32) -> f32 {
-        finite_value(F32::from_i32(input))
+        finite_value(F32FromI32::from_i32(input))
     }
 }
 
@@ -33,13 +33,13 @@ machine replace(slot: &mut IntegerSlot) -> bool {
 }
 
 machine finite_captured(value: f32, replaced: bool) -> f32
-requires F32::is_finite(value) { value }
+requires F32IsFinite::is_finite(value) { value }
 
 // The completed conversion stays finite even when a later actual changes its
 // source. This does not grant replay identity to either runtime invocation.
 machine captured_conversion(value: i32) -> f32 {
     let mut slot: IntegerSlot = IntegerSlot { value: value };
-    finite_captured(F32::from_i32(slot.value), replace(&mut slot))
+    finite_captured(F32FromI32::from_i32(slot.value), replace(&mut slot))
 }
 
 machine main() crashes Trap {

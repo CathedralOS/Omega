@@ -67,7 +67,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine checked(main: &mut Main, step: u64) requires step <= 8 {
         transition covariance_valid(main.filter.covariance)
-            && F64::is_finite(main.filter.estimate.position) && F64::is_finite(main.filter.estimate.velocity) {
+            && F64IsFinite::is_finite(main.filter.estimate.position) && F64IsFinite::is_finite(main.filter.estimate.velocity) {
             true -> output(main, step)
             false -> invariant(main)
         }

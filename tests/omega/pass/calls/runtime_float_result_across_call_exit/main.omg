@@ -8,7 +8,7 @@ machine transform(value: f64) -> f64 { value * 1.5 + 0.25 }
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let raw: i32 = block read_value();
-    let value: f64 = F64::from_i32(raw);
+    let value: f64 = F64FromI32::from_i32(raw);
     let first: f64 = transform(value);
     let second: f64 = transform(value + 0.5);
     Console::write_byte(70);

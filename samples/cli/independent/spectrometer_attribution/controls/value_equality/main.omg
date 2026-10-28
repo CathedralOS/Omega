@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 
 public data Main { }
 
-// A value-returning body uses ordinary Float::equal. Merely returning bool or
+// A value-returning body uses ordinary FloatEqual::equal. Merely returning bool or
 // sharing the carrier of a resultless law must not grant proposition equality.
 machine same(left: f64, right: f64) -> bool { left == right }
 
@@ -20,7 +20,7 @@ crashes Trap
         _ -> bad(application)
     }
     machine compare(application: &mut Main, value: i32) {
-        let floating: f64 = F64::from_i32(value);
+        let floating: f64 = F64FromI32::from_i32(value);
         transition same(floating, 65.0) && !same(floating, 66.0) {
             true -> done(application)
             false -> bad(application)

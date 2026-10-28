@@ -298,14 +298,14 @@ public machine min_f32(left: f32, right: f32) -> f32
 ensures F32::meaning(result) == FloatSemantics::minimum(
     F32::meaning(left), F32::meaning(right))
 {
-    F32::minimum(left, right)
+    F32Minimum::minimum(left, right)
 }
 
 public machine max_f32(left: f32, right: f32) -> f32
 ensures F32::meaning(result) == FloatSemantics::maximum(
     F32::meaning(left), F32::meaning(right))
 {
-    F32::maximum(left, right)
+    F32Maximum::maximum(left, right)
 }
 
 public machine clamp_f32(value: f32, lower: f32, upper: f32) -> f32
@@ -314,14 +314,14 @@ ensures F32::meaning(result) == FloatSemantics::minimum(
     FloatSemantics::maximum(F32::meaning(value), F32::meaning(lower)),
     F32::meaning(upper))
 {
-    F32::minimum(F32::maximum(value, lower), upper)
+    F32Minimum::minimum(F32Maximum::maximum(value, lower), upper)
 }
 
 public machine sqrt_f32(value: f32) -> f32
 ensures F32::meaning(result) == FloatSemantics::square_root(
     FloatFormat::BINARY32, F32::meaning(value))
 {
-    F32::square_root(value)
+    F32SquareRoot::square_root(value)
 }
 
 public machine abs_f32(value: f32) -> f32
@@ -332,7 +332,7 @@ ensures
 {
     transition {
         value == 0.0 -> (0.0)
-        value < 0.0 -> (F32::negate(value))
+        value < 0.0 -> (F32Negate::negate(value))
         _ -> (value)
     }
 }
@@ -341,14 +341,14 @@ public machine min_f64(left: f64, right: f64) -> f64
 ensures F64::meaning(result) == FloatSemantics::minimum(
     F64::meaning(left), F64::meaning(right))
 {
-    F64::minimum(left, right)
+    F64Minimum::minimum(left, right)
 }
 
 public machine max_f64(left: f64, right: f64) -> f64
 ensures F64::meaning(result) == FloatSemantics::maximum(
     F64::meaning(left), F64::meaning(right))
 {
-    F64::maximum(left, right)
+    F64Maximum::maximum(left, right)
 }
 
 public machine clamp_f64(value: f64, lower: f64, upper: f64) -> f64
@@ -357,7 +357,7 @@ ensures F64::meaning(result) == FloatSemantics::minimum(
     FloatSemantics::maximum(F64::meaning(value), F64::meaning(lower)),
     F64::meaning(upper))
 {
-    F64::minimum(F64::maximum(value, lower), upper)
+    F64Minimum::minimum(F64Maximum::maximum(value, lower), upper)
 }
 
 // Quiet binary64 square root: nearest-even in binary64, preserving signed
@@ -367,7 +367,7 @@ public machine sqrt_f64(value: f64) -> f64
 ensures F64::meaning(result) == FloatSemantics::square_root(
     FloatFormat::BINARY64, F64::meaning(value))
 {
-    F64::square_root(value)
+    F64SquareRoot::square_root(value)
 }
 
 // Both zeros become positive zero. Negative nonzero values are negated;
@@ -380,7 +380,7 @@ ensures
 {
     transition {
         value == 0.0 -> (0.0)
-        value < 0.0 -> (F64::negate(value))
+        value < 0.0 -> (F64Negate::negate(value))
         _ -> (value)
     }
 }

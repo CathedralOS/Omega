@@ -49,7 +49,7 @@ reaches Console
 invokes Console;
 {
     Console::write(name);
-    let narrowed: i32 in Saturating = I32::from_f64(value);
+    let narrowed: i32 in Saturating = I32FromF64::from_f64(value);
     integer(reader, narrowed as i32);
     Console::write_byte(10);
 }

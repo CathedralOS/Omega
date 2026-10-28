@@ -13,9 +13,9 @@ use omega_language_std::math;
 //                      0.30000000000000004 before the subtraction. A fused
 //                      multiply-add would keep the exact product and give
 //                      a different result, so this pins two roundings.
-//   F64::from_i32(count) * 0.5 + c = 3.5 with count = 3: a named conversion
+//   F64FromI32::from_i32(count) * 0.5 + c = 3.5 with count = 3: a named conversion
 //                      operator nested under two arithmetic applications.
-//   min(a * b, 11.5) = 11.5 and F64::maximum(c - a, 0.5) = 0.5: named
+//   min(a * b, 11.5) = 11.5 and F64Maximum::maximum(c - a, 0.5) = 0.5: named
 //                      operators (shorthand and explicit) whose outer
 //                      application takes a nested operand and a literal.
 // The first two are local initializers, the next two are field stores, the
@@ -84,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine conversions(main: &mut Main) {
-        let converted: f64 = F64::from_i32(main.count) * 0.5 + main.c;
+        let converted: f64 = F64FromI32::from_i32(main.count) * 0.5 + main.c;
         transition converted == 3.5 {
             true -> extrema(main)
             _ -> fail(main, 77)
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine extrema(main: &mut Main) {
-        let bounded: f64 = F64::maximum(main.c - main.a, 0.5);
+        let bounded: f64 = F64Maximum::maximum(main.c - main.a, 0.5);
         main.difference = min_f64(main.a * main.b, 11.5);
         transition main.difference == 11.5 && bounded == 0.5 {
             true -> pass(main)

@@ -35,7 +35,7 @@ invokes Console;
   Console::write("-"); transition { _ -> positive(0.0-value) }
  }
  machine positive(value:f64) {
-  let converted:u64 in Saturating=U64::from_f64(value*1000000.0+0.5);
+  let converted:u64 in Saturating=U64FromF64::from_f64(value*1000000.0+0.5);
   let scaled:u64=converted as u64;
   integer(scaled/1000000);Console::write(".");
   transition { _ -> fraction(scaled%1000000,100000) }

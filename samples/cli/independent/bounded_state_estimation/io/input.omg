@@ -16,7 +16,7 @@ machine reading(line: &[u8; 16], count: u64) -> bool {
         && digit(line[3]) && line[4] == 10) }
 }
 machine unsigned_value(value: u8) -> f64 {
-    transition { _ -> (F64::from_i32((value as i32) - 48)) }
+    transition { _ -> (F64FromI32::from_i32((value as i32) - 48)) }
 }
 machine measured_value(line: &[u8; 16]) -> f64 {
     let magnitude: f64 = unsigned_value(line[3]);

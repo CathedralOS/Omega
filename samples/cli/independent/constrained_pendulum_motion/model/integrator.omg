@@ -18,7 +18,7 @@ public data Pendulum {
 public machine Pendulum::project(pendulum: &mut Pendulum) {
     let radius_squared: f64 = pendulum.x * pendulum.x + pendulum.y * pendulum.y;
     pendulum.raw_drift = radius_squared - pendulum.length * pendulum.length;
-    let radius: f64 = F64::square_root(radius_squared);
+    let radius: f64 = F64SquareRoot::square_root(radius_squared);
     let scale: f64 = pendulum.length / radius;
     pendulum.x = pendulum.x * scale;
     pendulum.y = pendulum.y * scale;

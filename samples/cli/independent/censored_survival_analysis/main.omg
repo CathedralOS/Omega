@@ -11,8 +11,8 @@ use omega::language::core::float_operations;
 data Main { reader: Reader; records: Records; table: Table; logrank: Logrank; }
 machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let count: Number = block number(&mut main.reader);
-    let integer: i32 in Saturating = I32::from_f64(count.value);
-    transition count.valid && count.value >= 1.0 && count.value <= 32.0 && F64::from_i32(integer as i32) == count.value {
+    let integer: i32 in Saturating = I32FromF64::from_f64(count.value);
+    transition count.valid && count.value >= 1.0 && count.value <= 32.0 && F64FromI32::from_i32(integer as i32) == count.value {
         true -> configure(main, integer as i32 in Wrapping)
         false -> invalid(main)
     }
@@ -41,8 +41,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     requires index >= 0 && index < 32
     {
         main.records.time[index] = time;
-        let event_integer: i32 in Saturating = I32::from_f64(event);
-        let group_integer: i32 in Saturating = I32::from_f64(group);
+        let event_integer: i32 in Saturating = I32FromF64::from_f64(event);
+        let group_integer: i32 in Saturating = I32FromF64::from_f64(group);
         main.records.event[index] = event_integer as i32;
         main.records.group[index] = group_integer as i32;
         transition { _ -> read(main, index + 1) }

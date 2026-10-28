@@ -5,7 +5,7 @@ use omega_language_std::console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let nan: f64 = 0.0f64 / 0.0;
-    let converted: i32 in Trapping = I32::from_f64(nan);
+    let converted: i32 in Trapping = I32FromF64::from_f64(nan);
     Console::exit_process(converted as i32);
 }
 

@@ -19,7 +19,7 @@ machine flags() crashes Trap {
 machine directed() crashes Trap {
     let one: f64 = 1.0;
     let three: f64 = 3.0;
-    let upper: f64 = F64::divide_toward_positive(one, three);
+    let upper: f64 = F64DivideTowardPositive::divide_toward_positive(one, three);
     transition upper == 0.33333333333333337034076748750521801471710205078125 {
         true -> done()
         false -> bad()
