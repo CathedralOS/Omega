@@ -260,7 +260,7 @@ fn formed_expression_value(
                 let left_policy = policies[0]
                     .or(policies[1])
                     .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
-                let right_policy = policies[1].unwrap_or_else(|| {
+                let right_policy = policies[1].unwrap_or({
                     if matches!(
                         binary.operator,
                         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
