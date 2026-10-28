@@ -247,8 +247,18 @@ impl BuildOutputIdentity<'_> {
         self.digest.len(admitted_native_bindings.len());
         for row in admitted_native_bindings {
             self.symbol(row.requirement)?;
-            self.symbol(row.selecting_machine)?;
+            self.digest.bool(row.selecting_machine.is_some());
+            if let Some(author) = row.selecting_machine {
+                self.symbol(author)?;
+            }
             self.occurrence(row.source_span)?;
+            if let Some(retained) = &row.retained {
+                self.digest.raw(
+                    &package_compilation::native_selection_codec::package_native_bindings_digest(
+                        std::slice::from_ref(retained.as_ref()),
+                    ),
+                );
+            }
             self.digest.len(row.event_ordinal);
             self.digest.string(row.target.target_name());
             self.digest.raw(&row.receipt().identity_digest());

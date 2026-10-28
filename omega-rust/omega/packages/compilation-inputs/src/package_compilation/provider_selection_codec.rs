@@ -19,8 +19,8 @@ use symbols::{RetainedDeclaration, SymbolKind};
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x01";
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
-struct SelectionSources {
-    sources: Vec<SourceFile>,
+pub(super) struct SelectionSources {
+    pub(super) sources: Vec<SourceFile>,
 }
 
 impl SelectionSources {
@@ -41,7 +41,7 @@ impl SelectionSources {
         Self { sources }
     }
 
-    fn anchor(&self, anchor: &RetainedDeclaration, output: &mut Vec<u8>) {
+    pub(super) fn anchor(&self, anchor: &RetainedDeclaration, output: &mut Vec<u8>) {
         let source_position = self
             .sources
             .iter()
@@ -95,13 +95,7 @@ pub fn encode_package_provider_selections(
 ) -> Vec<u8> {
     let pool = SelectionSources::collect(rows);
     let mut output = MAGIC.to_vec();
-    integer(&mut output, pool.sources.len() as u64);
-    for source in &pool.sources {
-        encode_path(&source.package_root, &mut output);
-        encode_path(&source.path, &mut output);
-        source_owner(source, &mut output);
-        push_framed(&mut output, source.source.as_bytes());
-    }
+    encode_sources(&pool.sources, &mut output);
     output.extend_from_slice(&pool.rows(rows, observation));
     output
 }
@@ -138,46 +132,7 @@ pub fn decode_package_provider_selections(
     if cursor.bytes(MAGIC.len())? != MAGIC {
         return None;
     }
-    let count = sequence_length(&mut cursor)?;
-    let mut sources = Vec::with_capacity(count);
-    for _ in 0..count {
-        let package_root = decode_path(&mut cursor)?;
-        let path = decode_path(&mut cursor)?;
-        let package_identity = match cursor.u8()? {
-            0 => None,
-            1 => Some(PackageKeyIdentity::from_digest(
-                cursor.bytes(32)?.try_into().ok()?,
-            )?),
-            _ => return None,
-        };
-        let dependency_scope = match cursor.u8()? {
-            0 => DependencyScope::Product,
-            1 => DependencyScope::Build,
-            _ => return None,
-        };
-        let origin = match cursor.u8()? {
-            0 => SourceOrigin::User,
-            1 => SourceOrigin::Toolchain,
-            _ => return None,
-        };
-        let resolution_stratum = match cursor.u8()? {
-            0 => SourceResolutionStratum::Base,
-            1 => SourceResolutionStratum::CurrentActivationExtension,
-            2 => SourceResolutionStratum::DependencyActivationExtension,
-            _ => return None,
-        };
-        let source = Arc::from(std::str::from_utf8(cursor.framed()?).ok()?);
-        sources.push(SourceFile {
-            source_id: SourceId(0),
-            package_root,
-            path,
-            package_identity,
-            dependency_scope,
-            origin,
-            resolution_stratum,
-            source,
-        });
-    }
+    let sources = decode_sources(&mut cursor)?;
     let observation = match cursor.u8()? {
         0 => None,
         1 => Some(cursor.bytes(32)?.try_into().ok()?),
@@ -220,22 +175,22 @@ pub fn decode_package_provider_selections(
     cursor.exhausted().then_some((rows, observation))
 }
 
-fn integer(output: &mut Vec<u8>, value: u64) {
+pub(super) fn integer(output: &mut Vec<u8>, value: u64) {
     output.extend_from_slice(&value.to_le_bytes());
 }
-fn sequence_length(cursor: &mut ObservationCursor<'_>) -> Option<usize> {
+pub(super) fn sequence_length(cursor: &mut ObservationCursor<'_>) -> Option<usize> {
     let count = cursor.u64()?;
     (count <= MAXIMUM_ROWS)
         .then(|| usize::try_from(count).ok())
         .flatten()
 }
-fn decode_span(cursor: &mut ObservationCursor<'_>) -> Option<Span> {
+pub(super) fn decode_span(cursor: &mut ObservationCursor<'_>) -> Option<Span> {
     Some(Span::new(
         usize::try_from(cursor.u64()?).ok()?,
         usize::try_from(cursor.u64()?).ok()?,
     ))
 }
-fn decode_anchor(
+pub(super) fn decode_anchor(
     cursor: &mut ObservationCursor<'_>,
     sources: &[SourceFile],
 ) -> Option<RetainedDeclaration> {
@@ -247,6 +202,8 @@ fn decode_anchor(
         2 => SymbolKind::Conformance,
         3 => SymbolKind::Data,
         4 => SymbolKind::Operator,
+        5 => SymbolKind::State,
+        6 => SymbolKind::Field,
         _ => return None,
     };
     RetainedDeclaration::from_retained_parts(source, span, kind).ok()
@@ -258,10 +215,12 @@ fn kind_tag(kind: SymbolKind) -> u8 {
         SymbolKind::Conformance => 2,
         SymbolKind::Data => 3,
         SymbolKind::Operator => 4,
+        SymbolKind::State => 5,
+        SymbolKind::Field => 6,
         _ => unreachable!("provider selection anchors are admitted declaration roles"),
     }
 }
-fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
+pub(super) fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
     match source.package_identity {
         None => output.push(0),
         Some(owner) => {
@@ -285,13 +244,13 @@ fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
 }
 
 #[cfg(unix)]
-fn encode_path(path: &Path, output: &mut Vec<u8>) {
+pub(super) fn encode_path(path: &Path, output: &mut Vec<u8>) {
     use std::os::unix::ffi::OsStrExt;
     output.push(0);
     push_framed(output, path.as_os_str().as_bytes());
 }
 #[cfg(unix)]
-fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
+pub(super) fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStringExt;
     if cursor.u8()? != 0 {
         return None;
@@ -299,7 +258,7 @@ fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
     Some(std::ffi::OsString::from_vec(cursor.framed()?.to_vec()).into())
 }
 #[cfg(windows)]
-fn encode_path(path: &Path, output: &mut Vec<u8>) {
+pub(super) fn encode_path(path: &Path, output: &mut Vec<u8>) {
     use std::os::windows::ffi::OsStrExt;
     output.push(1);
     let bytes: Vec<_> = path
@@ -310,7 +269,7 @@ fn encode_path(path: &Path, output: &mut Vec<u8>) {
     push_framed(output, &bytes);
 }
 #[cfg(windows)]
-fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
+pub(super) fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
     use std::os::windows::ffi::OsStringExt;
     if cursor.u8()? != 1 {
         return None;
@@ -324,4 +283,58 @@ fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect();
     Some(std::ffi::OsString::from_wide(&words).into())
+}
+
+pub(super) fn encode_sources(sources: &[SourceFile], output: &mut Vec<u8>) {
+    integer(output, sources.len() as u64);
+    for source in sources {
+        encode_path(&source.package_root, output);
+        encode_path(&source.path, output);
+        source_owner(source, output);
+        push_framed(output, source.source.as_bytes());
+    }
+}
+
+pub(super) fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>> {
+    let count = sequence_length(cursor)?;
+    let mut sources = Vec::with_capacity(count);
+    for _ in 0..count {
+        let package_root = decode_path(cursor)?;
+        let path = decode_path(cursor)?;
+        let package_identity = match cursor.u8()? {
+            0 => None,
+            1 => Some(PackageKeyIdentity::from_digest(
+                cursor.bytes(32)?.try_into().ok()?,
+            )?),
+            _ => return None,
+        };
+        let dependency_scope = match cursor.u8()? {
+            0 => DependencyScope::Product,
+            1 => DependencyScope::Build,
+            _ => return None,
+        };
+        let origin = match cursor.u8()? {
+            0 => SourceOrigin::User,
+            1 => SourceOrigin::Toolchain,
+            _ => return None,
+        };
+        let resolution_stratum = match cursor.u8()? {
+            0 => SourceResolutionStratum::Base,
+            1 => SourceResolutionStratum::CurrentActivationExtension,
+            2 => SourceResolutionStratum::DependencyActivationExtension,
+            _ => return None,
+        };
+        let source = Arc::from(std::str::from_utf8(cursor.framed()?).ok()?);
+        sources.push(SourceFile {
+            source_id: SourceId(0),
+            package_root,
+            path,
+            package_identity,
+            dependency_scope,
+            origin,
+            resolution_stratum,
+            source,
+        });
+    }
+    Some(sources)
 }

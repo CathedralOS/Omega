@@ -234,7 +234,15 @@ impl CheckedCompilation {
                 &self.typed,
                 &self.build().config.provider_selections,
                 self.build().observation_summary.as_ref(),
-            )
+            )?
+            .with_checked_native_bindings(provider_planning::capture_package_native_bindings(
+                &self.typed,
+                &self.build().config.admitted_native_bindings,
+                self.build().selected_build_machine_symbol,
+                self.build().observation_summary.as_ref(),
+                self.build().evaluation_usage,
+            )?)
+            .map_err(str::to_owned)
     }
 
     pub const fn timings(&self) -> &CompileTimings {

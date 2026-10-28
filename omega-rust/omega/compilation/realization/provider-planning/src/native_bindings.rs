@@ -10,6 +10,12 @@ use effects::provider_plan::{
 };
 use language_semantics::declaration_selection::{ExecutedNativeBinding, NativeBindingValue};
 use symbols::SymbolHandle;
+
+mod retention;
+pub use retention::{
+    capture_package_native_bindings, rejoin_package_native_bindings,
+    unify_native_binding_identities,
+};
 use target::{ForeignLocatorCandidate, TargetProfile};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +45,7 @@ pub enum AdmittedNativeLocator {
 /// Build activation joins it to one exact requirement/target/supplier row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeSameStackDemand {
-    pub selecting_machine: SymbolHandle,
+    pub selecting_machine: Option<SymbolHandle>,
     pub source_span: source::SourceSpan,
     pub event_ordinal: usize,
     pub bytes: u64,
@@ -53,12 +59,17 @@ pub struct AdmittedNativeBinding {
     pub raw_locator: NativeBindingValue,
     pub widths: [u64; 3],
     pub requirement: SymbolHandle,
-    pub selecting_machine: SymbolHandle,
+    pub selecting_machine: Option<SymbolHandle>,
     pub source_span: source::SourceSpan,
     pub event_ordinal: usize,
     pub target: TargetProfile,
     pub locator: AdmittedNativeLocator,
     pub identities: terminal_psi::TerminalIdentityTable,
+    /// Present for imported checked intent. Current-world author handles are
+    /// absent on these rows; exact original source and receipt stay retained.
+    pub retained: Option<
+        std::sync::Arc<package_compilation::retained_native_bindings::RetainedNativeBinding>,
+    >,
 }
 
 impl AdmittedNativeBinding {
@@ -233,7 +244,11 @@ pub fn admit_native_binding(
         hash.u64(demand.source_span.span.start as u64);
         hash.u64(demand.source_span.span.end as u64);
         let author = typed
-            .machine(demand.selecting_machine)
+            .machine(
+                demand
+                    .selecting_machine
+                    .ok_or("native footprint has no current-world author")?,
+            )
             .ok_or("native footprint lost its exact author")?;
         hash.bytes(
             typed
@@ -395,12 +410,13 @@ pub fn admit_native_binding(
         raw_locator: event.locator.clone(),
         widths: event.widths,
         requirement,
-        selecting_machine,
+        selecting_machine: Some(selecting_machine),
         source_span,
         event_ordinal,
         target,
         locator,
         identities: identities.as_table().clone(),
+        retained: None,
     })
 }
 

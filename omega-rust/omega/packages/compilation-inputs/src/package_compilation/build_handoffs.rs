@@ -40,6 +40,7 @@ struct PackageBuildHandoffContents {
     provider_selections:
         Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
+    native_bindings: Arc<[super::retained_native_bindings::RetainedNativeBinding]>,
 }
 
 impl PackageBuildHandoff {
@@ -84,6 +85,7 @@ impl PackageBuildHandoff {
                 sources,
                 provider_selections: Arc::from([]),
                 selection_observation: None,
+                native_bindings: Arc::from([]),
             }),
         }
     }
@@ -150,6 +152,62 @@ impl PackageBuildHandoff {
         &self,
     ) -> &[build_time_evaluation::provider_declarations::RetainedProviderSelection] {
         &self.contents.provider_selections
+    }
+
+    pub fn native_bindings(&self) -> &[super::retained_native_bindings::RetainedNativeBinding] {
+        &self.contents.native_bindings
+    }
+
+    /// Only completed immutable package checking exports native application
+    /// judgments. Recovery retains them inertly; receiving source admission
+    /// independently checks every supplier and declaration anchor.
+    #[doc(hidden)]
+    pub fn with_checked_native_bindings(
+        self,
+        bindings: Vec<super::retained_native_bindings::RetainedNativeBinding>,
+    ) -> Result<Self, &'static str> {
+        for (position, binding) in bindings.iter().enumerate() {
+            binding.validate()?;
+            if bindings[..position]
+                .iter()
+                .any(|prior| prior.origin == binding.origin)
+            {
+                return Err("native package intent repeats an executed Build occurrence");
+            }
+            if binding.origin.activation().source().package_identity != Some(self.package())
+                || binding.origin.event_ordinal().is_none()
+                || binding.observation == [0; 32]
+                || binding.receipt.producer_package()
+                    != binding.origin.author().source().package_identity
+                || binding.usage.validate().is_err()
+            {
+                return Err(
+                    "native package intent lost its checked activation, supplier or Build observation",
+                );
+            }
+            if let Some(first) = bindings.first()
+                && (first.origin.activation() != binding.origin.activation()
+                    || first.observation != binding.observation
+                    || first.usage != binding.usage)
+            {
+                return Err("native package intents mix sponsoring Build invocations");
+            }
+            if let Some(demand) = &binding.same_stack_demand
+                && (demand.bytes == 0
+                    || demand.origin.activation() != binding.origin.activation()
+                    || demand.origin.author().source().package_identity
+                        != binding.origin.author().source().package_identity)
+            {
+                return Err(
+                    "native package footprint differs from its original binding activation or supplier",
+                );
+            }
+        }
+        let mut contents = Arc::unwrap_or_clone(self.contents);
+        contents.native_bindings = bindings.into();
+        Ok(Self {
+            contents: Arc::new(contents),
+        })
     }
 
     pub fn selection_observation(&self) -> Option<[u8; 32]> {

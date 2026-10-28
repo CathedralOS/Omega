@@ -13,8 +13,10 @@ mod build_handoffs;
 mod construction;
 mod dependency_graph;
 mod errors;
+pub mod native_selection_codec;
 pub mod provider_selection_codec;
 mod provider_selections;
+pub mod retained_native_bindings;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,

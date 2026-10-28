@@ -51,9 +51,7 @@ impl ProviderSchemaDeclaration {
 pub enum ProviderRowOrigin {
     Machine(symbols::SymbolHandle),
     BuildNative {
-        selecting_machine: symbols::SymbolHandle,
-        source_span: source::SourceSpan,
-        event_ordinal: usize,
+        receipt: [u8; 32],
         table_field: Option<crate::NativeFieldIdentity>,
         trait_scope: Option<checked_trees::typed_trees::trait_definition::RetainedTraitScope>,
         closed_requirement: Option<symbols::SymbolHandle>,

@@ -45,6 +45,16 @@ pub(super) fn admit(
         .unwrap_or_default();
     additional_declarations::admit(typed, computed)?;
     native_bindings::admit(source, computed)?;
+    if let Some(inputs) = package_inputs {
+        let retained = inputs.retained_package_native_bindings()?;
+        let inherited = provider_planning::rejoin_package_native_bindings(source.typed(), retained)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        computed.config.admitted_native_bindings.extend(inherited);
+    }
+    provider_planning::unify_native_binding_identities(
+        &mut computed.config.admitted_native_bindings,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let typed = source.typed();
     computed.config.behavior_exclusions = exclusions::resolve(
         typed,

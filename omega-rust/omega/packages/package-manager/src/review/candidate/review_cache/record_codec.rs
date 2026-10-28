@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Entry-field tolerance is retired. Older records may describe provisional
 // reviews and must miss, never acquire complete admission by dropping their flag.
-const RECORD_VERSION: u16 = 12;
+const RECORD_VERSION: u16 = 13;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -608,6 +608,12 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
             bundle.selection_observation(),
         ),
     );
+    push_framed(
+        out,
+        &package_compilation::native_selection_codec::encode_package_native_bindings(
+            bundle.native_bindings(),
+        ),
+    );
 }
 
 fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBuildHandoff> {
@@ -636,6 +642,9 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
         package_compilation::provider_selection_codec::decode_package_provider_selections(
             cursor.framed()?,
         )?;
+    let native = package_compilation::native_selection_codec::decode_package_native_bindings(
+        cursor.framed()?,
+    )?;
     PackageBuildHandoff::from_checked(
         package,
         purpose,
@@ -646,6 +655,8 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
         sources,
     )
     .with_retained_provider_selections(selections, observation)
+    .ok()?
+    .with_checked_native_bindings(native)
     .ok()
 }
 

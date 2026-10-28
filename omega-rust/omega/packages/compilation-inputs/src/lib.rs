@@ -49,13 +49,15 @@ mod wire_codec_sources;
 pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
-#[doc(hidden)]
-pub use package_compilation::provider_selection_codec;
 pub use package_compilation::{
     CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
     PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
     PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
     PackageDependencyClosure, PackageSourceBinding,
+};
+#[doc(hidden)]
+pub use package_compilation::{
+    native_selection_codec, provider_selection_codec, retained_native_bindings,
 };
 pub use review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,

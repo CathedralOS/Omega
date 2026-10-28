@@ -201,6 +201,9 @@ fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageBuild
             bundle.selection_observation(),
         ),
     );
+    digest.raw(
+        &crate::native_selection_codec::package_native_bindings_digest(bundle.native_bindings()),
+    );
     digest.u64(bundle.sources().len() as u64);
     for source in bundle.sources() {
         digest.bytes(source.relative_path());

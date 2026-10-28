@@ -99,6 +99,12 @@ impl PackageSourceContent {
                         .provider_selections()
                         .iter()
                         .flat_map(|selection| [&selection.subject, &selection.provider])
+                        .chain(
+                            bundle
+                                .native_bindings()
+                                .iter()
+                                .flat_map(|row| row.anchors()),
+                        )
                         .map(|anchor| anchor.source().path.clone())
                         .collect(),
                 })

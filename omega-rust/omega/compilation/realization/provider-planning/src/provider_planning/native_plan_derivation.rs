@@ -18,6 +18,9 @@ pub(super) fn append(
         .iter()
         .filter(|binding| target == Some(binding.target.target_name()))
     {
+        let Some(binding) = binding.resolved_application(typed) else {
+            continue;
+        };
         let Some(provider_binding) = binding.binding() else {
             continue;
         };
@@ -81,9 +84,7 @@ pub(super) fn append(
                     Vec::new(),
                 )
             };
-        let package = typed
-            .symbols
-            .symbol_package_identity(binding.selecting_machine);
+        let package = binding.receipt().producer_package();
         let name = format!(
             "build-native::{}::{}",
             binding.target.target_name(),
@@ -149,9 +150,7 @@ pub(super) fn append(
             .provenance
             .row_realizations
             .push(ProviderRowOrigin::BuildNative {
-                selecting_machine: binding.selecting_machine,
-                source_span: binding.source_span,
-                event_ordinal: binding.event_ordinal,
+                receipt: binding.receipt().identity_digest(),
                 table_field: binding.table_field(),
                 trait_scope: binding.trait_scope,
                 closed_requirement: binding.closed_requirement,
@@ -172,24 +171,14 @@ pub(super) fn append(
             b"omega.build-native-provider.sha256.v2\0",
         );
         for origin in &candidate.provenance.row_realizations {
-            let ProviderRowOrigin::BuildNative {
-                selecting_machine,
-                source_span,
-                event_ordinal,
-                ..
-            } = *origin
-            else {
+            let ProviderRowOrigin::BuildNative { receipt, .. } = *origin else {
                 return Err(vec![diagnostics::Diagnostic::error(
                     "native candidate mixed incompatible producer classes",
                 )]);
             };
             let binding = bindings
                 .iter()
-                .find(|binding| {
-                    binding.selecting_machine == selecting_machine
-                        && binding.source_span == source_span
-                        && binding.event_ordinal == event_ordinal
-                })
+                .find(|binding| binding.receipt().identity_digest() == receipt)
                 .ok_or_else(|| {
                     vec![diagnostics::Diagnostic::error(
                         "native candidate lost its admitted event",

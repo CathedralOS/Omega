@@ -18,9 +18,7 @@ pub(super) fn project(
     toolchain_settled: bool,
 ) -> Result<PackagePolicyProviderBinding, Vec<Diagnostic>> {
     if let provider_planning::ProviderRowOrigin::BuildNative {
-        selecting_machine,
-        source_span,
-        event_ordinal,
+        receipt: receipt_identity,
         ..
     } = origin
     {
@@ -31,9 +29,7 @@ pub(super) fn project(
             .iter()
             .filter(|row| {
                 row.requirement == requirement
-                    && row.selecting_machine == selecting_machine
-                    && row.source_span == source_span
-                    && row.event_ordinal == event_ordinal
+                    && row.receipt().identity_digest() == receipt_identity
             });
         let row = rows
             .next()
@@ -48,7 +44,26 @@ pub(super) fn project(
         }
         let receipt = row.receipt();
         let producer = PackagePolicyEvaluatedBindingProducer {
-            declaration: nominal_identity(compilation, selecting_machine)?,
+            declaration: match row.selecting_machine {
+                Some(author) => nominal_identity(compilation, author)?,
+                None => {
+                    let retained = row.retained.as_ref().ok_or_else(|| {
+                        rejected("imported native row lost original author custody")
+                    })?;
+                    let package = retained
+                        .origin
+                        .author()
+                        .source()
+                        .package_identity
+                        .ok_or_else(|| {
+                            rejected("imported native author has no immutable supplier")
+                        })?;
+                    crate::record::PackageReviewNominalIdentity {
+                        owner: crate::record::PackageReviewNominalOwner::Package(package),
+                        path: retained.author_path.clone(),
+                    }
+                }
+            },
             package: receipt.producer_package(),
             callable_identity: row
                 .identities

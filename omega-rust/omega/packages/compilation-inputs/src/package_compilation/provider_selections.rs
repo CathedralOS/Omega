@@ -29,6 +29,14 @@ impl PackageCompilationInputs {
                     }
                 }
             }
+            for row in bundle.native_bindings() {
+                for anchor in row.anchors() {
+                    let anchor = self.admit_retained_product_declaration(bundle, anchor)?;
+                    if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
+                        paths.push(anchor.source().path.clone());
+                    }
+                }
+            }
         }
         paths.sort();
         paths.dedup();
@@ -62,14 +70,55 @@ impl PackageCompilationInputs {
         Ok(selections)
     }
 
+    /// Admit the supplier bytes of checked native intent before the receiving
+    /// provider planner rejoins its declaration and application identities.
+    pub fn retained_package_native_bindings(
+        &self,
+    ) -> Result<Vec<super::retained_native_bindings::RetainedNativeBinding>, Vec<Diagnostic>> {
+        let mut rows = Vec::new();
+        for (scope, bundle) in self.dependency_build_handoff_instances() {
+            if scope != DependencyPurpose::Product {
+                continue;
+            }
+            self.admit_provider_activation(bundle)?;
+            for row in bundle.native_bindings() {
+                let mut row = row.clone();
+                row.requirement =
+                    self.admit_retained_product_declaration(bundle, &row.requirement)?;
+                if let Some(table) = &mut row.table {
+                    table.table = self.admit_retained_product_declaration(bundle, &table.table)?;
+                    table.field = self.admit_retained_product_declaration(bundle, &table.field)?;
+                }
+                // Authorship need not be a runtime Product declaration. Its
+                // bytes still belong to the exact admitted source supplier.
+                self.admit_retained_product_declaration(bundle, row.origin.author())?;
+                if let Some(demand) = &row.same_stack_demand {
+                    self.admit_retained_product_declaration(bundle, demand.origin.author())?;
+                }
+                rows.push(row);
+            }
+        }
+        Ok(rows)
+    }
+
     fn admit_provider_activation(
         &self,
         bundle: &PackageBuildHandoff,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Some(first) = bundle.provider_selections().first() else {
+        let Some((origin, observed)) = bundle
+            .provider_selections()
+            .first()
+            .map(|first| (&first.origin, bundle.selection_observation().is_some()))
+            .or_else(|| {
+                bundle
+                    .native_bindings()
+                    .first()
+                    .map(|first| (&first.origin, first.observation != [0; 32]))
+            })
+        else {
             return Ok(());
         };
-        let source = first.origin.activation().source();
+        let source = origin.activation().source();
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
         let relative = source
             .path
@@ -80,9 +129,7 @@ impl PackageCompilationInputs {
         let root = self.package_root(bundle.package()).ok_or_else(|| {
             refuse("package provider activation has no admitted source supplier".into())
         })?;
-        if source.package_identity != Some(bundle.package())
-            || bundle.selection_observation().is_none()
-        {
+        if source.package_identity != Some(bundle.package()) || !observed {
             return Err(refuse(
                 "package provider activation lost its original package or evaluation observation"
                     .into(),

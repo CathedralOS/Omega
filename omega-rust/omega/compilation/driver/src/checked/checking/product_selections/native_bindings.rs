@@ -85,7 +85,7 @@ pub(super) fn admit(
         footprints.push((
             key,
             provider_planning::NativeSameStackDemand {
-                selecting_machine: *author,
+                selecting_machine: Some(*author),
                 source_span: typed
                     .symbols
                     .rejoin_product_occurrence(event.request.source_span),
@@ -158,9 +158,9 @@ pub(super) fn admit(
                         .and_then(|scope| scope.portable_application_identity(typed))
                         == key.2
                     && prior.target.target_name() == event.target.canonical_name()
-                    && typed
-                        .symbols
-                        .symbol_package_identity(prior.selecting_machine)
+                    && prior
+                        .selecting_machine
+                        .and_then(|author| typed.symbols.symbol_package_identity(author))
                         == key.4
             })
         {

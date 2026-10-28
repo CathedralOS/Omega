@@ -27,7 +27,8 @@ mod intrinsic_requirements;
 mod native_bindings;
 pub use native_bindings::{
     AdmittedNativeBinding, AdmittedNativeLocator, NativeFieldIdentity, NativeSameStackDemand,
-    admit_native_binding,
+    admit_native_binding, capture_package_native_bindings, rejoin_package_native_bindings,
+    unify_native_binding_identities,
 };
 mod native_provider_sources;
 pub use native_provider_sources::prepare_native_provider_sources;
