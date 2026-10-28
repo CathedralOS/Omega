@@ -9,6 +9,9 @@ use terminal_psi::{
     ExternalProviderConformance, NominalDeclarationIdentity, TerminalIdentityTable,
 };
 
+mod prepared;
+pub use prepared::PreparedExternalProviderDeclarations;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalProviderDeclarations {
     pub identities: TerminalIdentityTable,

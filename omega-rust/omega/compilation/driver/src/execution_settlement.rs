@@ -267,10 +267,19 @@ fn select_checked_providers(
         &closed_program.typed,
         source.sources.exact_toolchain_sources(),
     )?;
+    // Constant closure may produce a private checked owner. Only the original
+    // immutable owner can use the source-wide lazy declaration product.
+    let closed_declarations = std::sync::OnceLock::new();
+    let external_declarations = if Arc::ptr_eq(&closed_program, &source.program) {
+        source.external_declarations.as_ref()
+    } else {
+        &closed_declarations
+    };
     let execution = prepare_selected_execution(
         closed_program,
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
+            external_declarations,
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
