@@ -1,0 +1,1 @@
+machine `forwarded` where type predicate does not hold for the supplied arguments
