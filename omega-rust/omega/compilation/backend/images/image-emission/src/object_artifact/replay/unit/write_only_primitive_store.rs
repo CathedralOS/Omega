@@ -139,32 +139,13 @@ fn validate_store(
             value,
             definition_ordinal,
         } => (
-            definition_ordinal < store.operation_ordinal
-                && function
-                    .provenance
-                    .operations
-                    .iter()
-                    .filter(|operation| **operation == defining_operation)
-                    .count()
-                    == 1
-                && exact_zero_code_definition_count(
-                    function,
-                    defining_operation,
-                    definition_ordinal,
-                    store.code_offset,
-                ) == 1
-                && function.unit_integer_constants.iter().all(|constant| {
-                    constant.defining_operation != defining_operation
-                        && constant.source_value != source_value
-                })
-                && function.unit_scalar_homes.iter().all(|home| {
-                    home.defining_operation != defining_operation
-                        && home.source_value != source_value
-                })
-                && zero_code_store_source_is_consistent(
-                    &function.unit_write_only_primitive_stores,
-                    store.source,
-                ),
+            exclusive_zero_code_immediate(
+                function,
+                store,
+                defining_operation,
+                source_value,
+                definition_ordinal,
+            ),
             ScalarType::Boolean,
             1,
             Some(u64::from(value)),
@@ -180,32 +161,13 @@ fn validate_store(
                 semantic_vocabulary::IeeeFloatValue::Binary64(bits) => (8, bits),
             };
             (
-                definition_ordinal < store.operation_ordinal
-                    && function
-                        .provenance
-                        .operations
-                        .iter()
-                        .filter(|operation| **operation == defining_operation)
-                        .count()
-                        == 1
-                    && exact_zero_code_definition_count(
-                        function,
-                        defining_operation,
-                        definition_ordinal,
-                        store.code_offset,
-                    ) == 1
-                    && function.unit_integer_constants.iter().all(|constant| {
-                        constant.defining_operation != defining_operation
-                            && constant.source_value != source_value
-                    })
-                    && function.unit_scalar_homes.iter().all(|home| {
-                        home.defining_operation != defining_operation
-                            && home.source_value != source_value
-                    })
-                    && zero_code_store_source_is_consistent(
-                        &function.unit_write_only_primitive_stores,
-                        store.source,
-                    ),
+                exclusive_zero_code_immediate(
+                    function,
+                    store,
+                    defining_operation,
+                    source_value,
+                    definition_ordinal,
+                ),
                 ScalarType::IeeeFloat(value.format()),
                 byte_size,
                 Some(bits),
@@ -330,6 +292,40 @@ pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape
         }
         _ => None,
     }
+}
+
+fn exclusive_zero_code_immediate(
+    function: &MachineCodeFunction,
+    store: &UnitWriteOnlyPrimitiveStoreRecord,
+    defining_operation: semantic_vocabulary::OperationId,
+    source_value: ValueId,
+    definition_ordinal: usize,
+) -> bool {
+    definition_ordinal < store.operation_ordinal
+        && function
+            .provenance
+            .operations
+            .iter()
+            .filter(|operation| **operation == defining_operation)
+            .count()
+            == 1
+        && exact_zero_code_definition_count(
+            function,
+            defining_operation,
+            definition_ordinal,
+            store.code_offset,
+        ) == 1
+        && function.unit_integer_constants.iter().all(|constant| {
+            constant.defining_operation != defining_operation
+                && constant.source_value != source_value
+        })
+        && function.unit_scalar_homes.iter().all(|home| {
+            home.defining_operation != defining_operation && home.source_value != source_value
+        })
+        && zero_code_store_source_is_consistent(
+            &function.unit_write_only_primitive_stores,
+            store.source,
+        )
 }
 
 fn exact_zero_code_definition_count(
