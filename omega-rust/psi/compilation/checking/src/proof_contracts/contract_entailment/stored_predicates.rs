@@ -85,9 +85,11 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
             .filter_map(|member| member.as_field())
         {
             let mut place = self.place.clone();
-            place.segments.push(facts::PlaceSegment::Field {
-                symbol: field.symbol,
-            });
+            crate::value_custody::places::push_field_place_segments(
+                program,
+                &mut place.segments,
+                field.symbol,
+            );
             if let Some(value) = judge.captured_place_projection(
                 &place,
                 language_semantics::content::ContentPlaceVersion::Current,
@@ -137,9 +139,11 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
                 variant,
                 |field| {
                     let mut place = self.place.clone();
-                    place.segments.push(facts::PlaceSegment::Field {
-                        symbol: field.symbol,
-                    });
+                    crate::value_custody::places::push_field_place_segments(
+                        program,
+                        &mut place.segments,
+                        field.symbol,
+                    );
                     judge.captured_place_projection(
                         &place,
                         language_semantics::content::ContentPlaceVersion::Current,
