@@ -118,6 +118,11 @@ impl PackageCompilationInputs {
         else {
             return Ok(());
         };
+        let package = bundle.package().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Core Build activation requires captured Toolchain source custody",
+            )]
+        })?;
         let source = origin.activation().source();
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
         let relative = source
@@ -126,10 +131,10 @@ impl PackageCompilationInputs {
             .map_err(|_| {
                 refuse("package provider activation is outside its original source root".into())
             })?;
-        let root = self.package_root(bundle.package()).ok_or_else(|| {
+        let root = self.package_root(package).ok_or_else(|| {
             refuse("package provider activation has no admitted source supplier".into())
         })?;
-        if source.package_identity != Some(bundle.package()) || !observed {
+        if source.package_identity != Some(package) || !observed {
             return Err(refuse(
                 "package provider activation lost its original package or evaluation observation"
                     .into(),
@@ -204,11 +209,11 @@ impl PackageCompilationInputs {
                 let owner = source.package_identity.ok_or_else(|| {
                     refuse("retained generated provider source has no supplying package".into())
                 })?;
-                let supplying_bundle = if owner == bundle.package() {
+                let supplying_bundle = if Some(owner) == bundle.package() {
                     bundle
                 } else {
                     self.dependency_build_handoff_instances()
-                        .find(|(scope, supplied)| *scope == DependencyPurpose::Product && supplied.package() == owner)
+                        .find(|(scope, supplied)| *scope == DependencyPurpose::Product && supplied.package() == Some(owner))
                         .map(|(_, supplied)| supplied)
                         .ok_or_else(|| refuse("retained generated provider source has no handoff for its supplying package and purpose".into()))?
                 };

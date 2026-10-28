@@ -200,15 +200,23 @@ pub(crate) fn admit_dependency_build_handoffs(
         if source_scope == source::DependencyScope::Build && scope != source_scope {
             continue;
         }
+        if bundle.sources().is_empty() {
+            continue;
+        }
+        let package = bundle.package().ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "generated package source requires an ordinary supplying package",
+            )]
+        })?;
         let package_root = package_inputs
-            .package_root(bundle.package())
+            .package_root(package)
             .expect("validated generated-source bundle retains its package root");
         for source in bundle.sources() {
             // Keep path errors in authored order with physical collisions.
             entries.push((
                 dependency_generated_source_logical_path(package_root, source),
                 source,
-                bundle.package(),
+                package,
                 scope,
             ));
         }

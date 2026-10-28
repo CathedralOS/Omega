@@ -547,7 +547,10 @@ fn recover_dependency_binding(
 }
 
 fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
-    encode_identity(bundle.package(), out);
+    let subject = bundle
+        .package_source()
+        .expect("a validated package review retains an ordinary package source subject");
+    encode_identity(subject.package, out);
     out.push(purpose_tag(bundle.purpose()));
     encode_target(bundle.target(), out);
     encode_optional(
@@ -555,7 +558,7 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
         out,
         |profile, out| encode_target(*profile, out),
     );
-    let closure = bundle.dependency_closure();
+    let closure = subject.dependency_closure;
     encode_identity(closure.root(), out);
     out.push(declaration_kind_tag(closure.root_role()));
     crate::codec_bytes::push_count_u64(out, closure.packages().len());
@@ -566,7 +569,7 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
     for binding in closure.dependencies() {
         encode_dependency_binding(binding, out);
     }
-    out.extend_from_slice(&bundle.source_consumption_commitment().digest());
+    out.extend_from_slice(&subject.source_consumption_commitment.digest());
     crate::codec_bytes::push_count_u64(out, bundle.sources().len());
     for source in bundle.sources() {
         push_framed(out, source.relative_path());

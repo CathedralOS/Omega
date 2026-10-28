@@ -55,6 +55,17 @@ impl CapturedCoreSource {
     pub fn identity(&self) -> CoreSourceIdentity {
         self.identity
     }
+    pub(crate) fn contains_source(&self, source: &source::SourceFile) -> bool {
+        source.origin == source::SourceOrigin::Toolchain
+            && source.package_identity.is_none()
+            && source
+                .path
+                .strip_prefix(&source.package_root)
+                .ok()
+                .and_then(|relative| self.tree.read_to_string(relative).ok())
+                .is_some_and(|bytes| bytes == source.source)
+    }
+
     pub(crate) fn tree(&self) -> &Arc<source::CapturedSourceTree> {
         &self.tree
     }

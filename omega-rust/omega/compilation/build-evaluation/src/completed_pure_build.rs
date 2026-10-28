@@ -37,11 +37,11 @@ pub(crate) struct CompletedPureBuildInputs {
 #[derive(Clone, PartialEq, Eq)]
 struct CompletedPureBuildDependency {
     consumer_scope: build_declarations::DependencyPurpose,
-    package: semantic_vocabulary::PackageKeyIdentity,
+    source_owner: package_compilation::BuildSourceOwner,
     producer_purpose: build_declarations::DependencyPurpose,
     build_execution_profile: Option<target::TargetProfile>,
-    dependency_closure: package_compilation::PackageDependencyClosure,
-    source_consumption_commitment: package_compilation::PackageSourceConsumptionCommitment,
+    dependency_closure: Option<package_compilation::PackageDependencyClosure>,
+    source_consumption_commitment: Option<package_compilation::PackageSourceConsumptionCommitment>,
 }
 
 impl CompletedPureBuildInputs {
@@ -82,10 +82,10 @@ impl CompletedPureBuildInputs {
                 .dependency_build_handoff_instances()
                 .map(|(consumer_scope, bundle)| CompletedPureBuildDependency {
                     consumer_scope,
-                    package: bundle.package(),
+                    source_owner: bundle.source_owner(),
                     producer_purpose: bundle.purpose(),
                     build_execution_profile: bundle.build_execution_profile(),
-                    dependency_closure: bundle.dependency_closure().clone(),
+                    dependency_closure: bundle.dependency_closure().cloned(),
                     source_consumption_commitment: bundle.source_consumption_commitment(),
                 })
                 .collect(),

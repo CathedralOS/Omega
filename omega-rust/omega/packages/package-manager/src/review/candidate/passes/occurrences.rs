@@ -501,9 +501,9 @@ impl<'pass> PackageReviewRound<'pass> {
                     )?;
                 let bundle = review.build_handoff();
                 if review.resolution() != custody.resolution()
-                    || bundle.package() != dependency.identity()
+                    || bundle.package() != Some(dependency.identity())
                     || bundle.source_consumption_commitment()
-                        != review.source_consumption_commitment()
+                        != Some(review.source_consumption_commitment())
                 {
                     return Err(CompileResolvedPackageReviewsError::CompilationInputs {
                         package: key.clone(),

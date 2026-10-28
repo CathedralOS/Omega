@@ -88,7 +88,7 @@ impl PackageSourceContent {
                 .dependency_build_handoff_instances()
                 .map(|(scope, bundle)| GeneratedSourceContent {
                     scope,
-                    package: bundle.package(),
+                    source_owner: bundle.source_owner(),
                     sources: bundle.sources().to_vec(),
                     selected_product_sources: bundle
                         .provider_selections()
@@ -111,7 +111,7 @@ impl PackageSourceContent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GeneratedSourceContent {
     scope: DependencyPurpose,
-    package: PackageKeyIdentity,
+    source_owner: crate::BuildSourceOwner,
     sources: Vec<PackageGeneratedSource>,
     selected_product_sources: Vec<std::path::PathBuf>,
 }
