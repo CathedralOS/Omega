@@ -32,10 +32,8 @@ field corruption and confusing schema identity with the zero discriminator.
 
 Every build binds all four hosted ProgramEntry targets. Each twin changes only
 the PayloadValue bound from 50 to 80, preserving the numbers, ordering, tombstone,
-constructed values, canaries and consuming result <= 60 requirement. The observed
-candidate local rejection is "cannot prove ensures contract for exit from evaluate
-at statement 2: result <= 60". Other places must retain that obligation before
-the row is accepted.
+constructed values, canaries and consuming result <= 60 requirement. All nine twins reject with "cannot prove ensures contract" for the consuming
+result bound; their original source and runtime checks remain pinned.
 
 The const-name place transports real named Sample/Empty values. Its ordinary
 zero home is a shared control; this does not claim an uninitialized const form.
@@ -45,6 +43,8 @@ zero home is a shared control; this does not claim an uninitialized const form.
 - [Pure sum retirement](controls/pure_sum_retirement/main.omg) keeps a case
   tombstone and a same-numbered payload tombstone in independent scopes, with
   distinct First/Later outcomes and a first-authored zero check.
+- [Empty reference array](controls/empty_reference_array/main.omg) establishes
+  a zero-length payload without inventing a reference element.
 - [Contextual field](controls/contextual_case_field/main.omg) preserves a
   numbered ordinary field named case and its neighbor.
 - [Old order](controls/retired_case_order/main.omg) and
@@ -62,11 +62,17 @@ under tests/omega/{pass,fail}/data/prefix_case_*.
 
 ## Verification frontier
 
-The row is **not accepted yet**. Candidate c702 local source checking now accepts
-the unchanged witness, including zero's qualified payload. The local negative
-rejects its result obligation. The first public run exits 0 natively but Terminal
-refuses a mixed scalar-field lookup; that runtime gap remains under repair.
-The other places, controls and hosted runtime acceptance remain pending.
+Optimized Rust producer `22662ce1c2593ab013a93819659a2fb125beaa48` checks all
+nine places and the three positive controls, rejects all nine twins and five
+negative controls for their authored reasons, and runs all twelve positive
+programs with native exit 0 and Terminal exit 0 on macOS arm64. This repairs the
+initial empty zero-payload home and named mixed-constant failures. The four
+Build bindings do not claim execution on the other hosts.
+
+The parent remains open until the Omega-written parser/resolver gates run.
+Their current harness clears source checking but native lowering refuses the
+structural result of `Console::read_byte`; that compiler prerequisite is under
+repair. No product-parser runtime acceptance is claimed yet.
 
 | Requirement | Witness and remaining verification |
 | --- | --- |
@@ -74,7 +80,7 @@ The other places, controls and hosted runtime acceptance remain pending.
 | Identity and lifetime | Independent common/case/payload scopes and exact active case; no extra lifetime claim. |
 | Composition | Same mixed carrier and bound across the nine places above. |
 | Soundness | Twin result-bound refusal and scoped syntax/identity rejects. |
-| Psi lowering and Terminal | Retain common field, active payload and zero's authored case; Terminal runtime repair remains open. |
+| Psi lowering and Terminal | Retain common field, active payload and zero's authored case; all nine Terminal executions pass. |
 | Layout and ABI | Mixed carrier and canaries pass through calls/results; stable IDs must not become runtime ordinals. |
-| Instruction selection | Native branch/common/payload transport must meet each authored oracle. |
+| Instruction selection | All nine native executions meet their authored branch/common/payload oracles. |
 | Encoding and emission | Actual native/Terminal agreement on matching hosts is required; four Build bindings alone are not execution evidence. |
