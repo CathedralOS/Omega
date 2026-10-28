@@ -1,0 +1,5 @@
+// The Core package's ordinary Product declaration closure. Its Build chooses
+// target-keyed named implementations from these checked declarations.
+use omega::language::core::float_operations;
+use omega::language::core::native::arm64_float;
+use omega::language::core::native::x86_64_float;

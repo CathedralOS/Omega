@@ -298,7 +298,7 @@ fn complete_build_source(
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
-        build_handoffs,
+        mut build_handoffs,
         preparation,
         mut source,
         captured_source: _,
@@ -356,6 +356,7 @@ fn complete_build_source(
             Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
             None => None,
         };
+        build_handoffs = product.build_handoffs;
         source = product.source;
         base_sources = product.base_sources;
         source_file_count = product.source_file_count;
