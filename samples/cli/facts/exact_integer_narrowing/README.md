@@ -88,12 +88,15 @@ invalid controls refuse at the same exact-cast gate. Raw streams, source hashes
 and producer bindings are retained in the owning evidence; baseline refusal is
 not candidate acceptance.
 
-Actual optimized producer `4588a029b629f69684409fae92a91cbcd6986b60`
+Actual optimized integrated producer
+`8110ebd0070bc4a8d2724f1abd4a5bd30a48a315`
 on `macos_arm64` accepts the twelve positive programs and rejects all thirteen
 controls for their intended obligations. All twelve execute with native and
 Terminal exit 0; thirteen fresh copied-project runs, including the companion
 Wrapping remainder control, also retain and reload their canonical Terminal
-artifacts. Corpus records pin this row and its controls. Four authored target
+artifacts. The integration rechecks all 789 affected retained source outcomes
+without semantic movement. Corpus rows retain their original 4588 recording
+identity; the new qualification records identify 8110 explicitly. Four authored target
 bindings establish no execution claim for the other three hosts.
 
 This completes the narrowing row and its computed-value controls. It closes
@@ -107,8 +110,9 @@ authenticated normal Trapping value retains its opaque identity when optional
 mathematical unfolding cannot be proved. Wrapping and Saturating keep their
 selected node results and count rules; raw legacy range normalization retains
 its separate formation checks. The owning qualification distinguishes the fresh
-4588 observations from retained 4c99 comparisons and the reviewed one-line lint
-change.
+fresh 8110 integration observations from the retained 4588 recordings and
+4c99 comparisons. The reviewed one-line lint change and actual main conflict
+resolution retain their separate source identities.
 
 ## Selected-operation formation controls
 
