@@ -382,8 +382,18 @@ impl PreCheckEvaluation {
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(), String> {
         if let Some(recorded) = &self.recorded_authority {
-            recorded.require_current_program(authority.as_deref(), program)?;
-            self.selection_authority = authority;
+            self.selection_authority = match recorded {
+                // A continuation can carry pre-reconciliation jobs beside
+                // later package-owned jobs. Fresh evaluation preserves each
+                // producer's mode; the enclosing source context separately
+                // rejoins its complete current authority. Absence here is not
+                // a wildcard in that outer comparison.
+                validation::RecordedDeclarationAuthority::Absent => None,
+                validation::RecordedDeclarationAuthority::Packages(_) => {
+                    recorded.require_current_program(authority.as_deref(), program)?;
+                    authority
+                }
+            };
             self.recorded_authority = None;
         }
         Ok(())
