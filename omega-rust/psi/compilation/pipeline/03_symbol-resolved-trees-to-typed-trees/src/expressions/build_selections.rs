@@ -21,9 +21,12 @@ pub(crate) fn lower(
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let source_span = request.source_span();
-    // These coordinates were captured from actual source-expression ledger
-    // attachments. Preserve them beside the inert request until its Product
-    // owner materializes the ordinary source recipe.
+    // Typing retains the resolver's original attachments and also issues
+    // type-reference selections for static receivers and structural inputs.
+    // Rejoin against that same typed ledger after operand capture; the earlier
+    // resolver ledger cannot contain typing's ordinary selection suffix.
+    // Preserve those exact coordinates beside the inert request until its
+    // Product owner materializes the ordinary source recipe.
     let mut operand_selections = Vec::new();
     for operand in request.designated_operands() {
         for (_, selection) in operand
@@ -36,12 +39,15 @@ pub(crate) fn lower(
                 Diagnostic::error("designated operand lost its authored selection kind")
             })?;
             operand_selections.push(
-                source
+                target
                     .authored_declaration_selections()
                     .source_coordinate_occurrence(selection.source_span, selection.exposure, kind)
                     .map_err(|reason| {
-                        Diagnostic::error(reason.to_string())
-                            .with_source_span(selection.source_span)
+                        Diagnostic::error(format!(
+                            "Build operand cannot rejoin its {kind:?} selection ({:?}): {reason}",
+                            selection.exposure
+                        ))
+                        .with_source_span(selection.source_span)
                     })?,
             );
         }
