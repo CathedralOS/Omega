@@ -27,6 +27,34 @@ pub(crate) use construction::{
     stage_optimized_register_homes_after_selected_lowering_with_assignment,
 };
 
+/// The source-evidence accessors every run-based route publishes: the
+/// environment, selections and budget the admitted source legality settled,
+/// plus the shared assignment-context rows.
+macro_rules! source_evidence_accessors {
+    ($field:ident) => {
+        pub const fn register_environment(
+            &self,
+        ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+            self.$field.source_legality_stage().register_environment()
+        }
+        /// The governing optimizer selections admitted with the run.
+        pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+            self.$field.selections()
+        }
+        /// The per-pass work budget admitted beside the source's evidence.
+        pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+            self.$field.source_legality_stage().budget_per_pass()
+        }
+        assignment_context_accessors!(
+            $field
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+        );
+    };
+}
+
 /// Strict homes after one or more separately requested literal folds. The
 /// complete append-only fold chain remains owned and the manifest ledger is
 /// derived from it rather than accepted from a caller.
@@ -132,28 +160,7 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
             None => self.run.source_legality_stage().legality(),
         }
     }
-    /// The register environment admitted with the run's source legality —
-    /// the lowering suite preserves it, so the source's environment is the
-    /// current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.run.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the run.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.run.selections()
-    }
-    /// The per-pass work budget admitted beside the source's evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.run.source_legality_stage().budget_per_pass()
-    }
-    assignment_context_accessors!(
-        run.source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    source_evidence_accessors!(run);
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterSelectedLowering {
         custody: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     });
@@ -213,28 +220,7 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     pub fn legality(&self) -> &ValidatedAllocationLegality {
         self.run.legality()
     }
-    /// The register environment admitted with the run's source legality —
-    /// the pre-allocation families preserve it, so the source's environment
-    /// is the current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.run.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the run.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.run.selections()
-    }
-    /// The per-pass work budget admitted beside the source's evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.run.source_legality_stage().budget_per_pass()
-    }
-    assignment_context_accessors!(
-        run.source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    source_evidence_accessors!(run);
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterPreAllocation {
         custody: &StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     });
