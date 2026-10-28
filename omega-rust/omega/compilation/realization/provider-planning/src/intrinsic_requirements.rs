@@ -4,16 +4,16 @@
 //! (`boundary operator F32::negate(value: f32) -> f32`) or a
 //! receiver-free top-level boundary requirement (`boundary requirement
 //! F32::negate(value: f32) -> f32`). The sealed realization catalog, the
-//! diagnostic labels, the plan-schema joins and the execution rewrites need
+//! plan-schema joins and selected execution need
 //! the same facts of the requirement -- its exact symbol, `Owner::name` path,
 //! entry parameters, result type and package -- so this view carries them
 //! once and each consumer keys on it instead of on one declaration species.
 //! A token-bearing boundary machine retains its ordinary requirement identity
 //! and exposes its token signature for closed primitive-meaning classification.
 //!
-//! `closed_execution.rs` classifies the closed compiler execution child a
-//! fixed token spells, and `diagnostic_label.rs` names the compiler-known
-//! realization a requirement selects.
+//! `execution_identity` classifies one validated execution child for both
+//! planning and dispatch. Token semantics and named numeric signatures have
+//! distinct catalog rules, but no consumer decodes a diagnostic label.
 
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::signature::StateParameter;
@@ -21,7 +21,7 @@ use checked_trees::typed_trees::types::TypeReferenceHandle;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
 
 mod closed_execution;
-mod diagnostic_label;
+mod named_execution;
 mod numeric_type;
 pub use numeric_type::primitive_numeric_type;
 
@@ -54,6 +54,17 @@ pub struct IntrinsicRequirement<'typed> {
 }
 
 impl<'typed> IntrinsicRequirement<'typed> {
+    /// Classify the existing numeric catalog against the complete signature.
+    /// This supplies meaning only; exact provider/overload/source joins remain
+    /// independent obligations at each admission boundary.
+    pub fn execution_identity(
+        &self,
+        typed: &TypedTrees,
+    ) -> Option<effects::CompilerIntrinsicExecutionIdentity> {
+        self.closed_execution(typed)
+            .or_else(|| self.named_execution(typed))
+    }
+
     pub fn from_operator(
         typed: &'typed TypedTrees,
         operator: &'typed checked_trees::typed_trees::operator::OperatorDefinition,
