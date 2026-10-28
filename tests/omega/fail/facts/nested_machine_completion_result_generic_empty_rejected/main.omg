@@ -1,0 +1,3 @@
+// Expected exit: 0
+machine missing<T>(value: T) -> T {}
+machine main() {}
