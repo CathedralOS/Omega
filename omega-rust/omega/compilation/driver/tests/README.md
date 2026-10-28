@@ -61,7 +61,7 @@ distinct program inputs and each owns one production.
 
 For target installations whose entry carries hosted context or service bindings,
 `terminal_target_provisions.txt` may contain `compiled-application`. This trusted
-fixture configuration requests one ordinary compilation cohort for the host and
+fixture configuration requests one ordinary compilation cohort for the requested target and
 the authored target roster. Each target supplies only its own actual admitted
 runtime provisions, and every report must retain the same canonical Terminal
 artifact. No foreign image is executed by this option; the observations are

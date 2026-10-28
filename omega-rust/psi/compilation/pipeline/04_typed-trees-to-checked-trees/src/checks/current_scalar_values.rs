@@ -118,11 +118,33 @@ impl<'program> CurrentScalarValues<'program> {
             .state_parameters(state)
             .iter()
             .filter_map(|parameter| {
-                let primitive = integer_carrier(program, parameter.type_reference)?;
+                // A scalar parameter names either an owned value or the
+                // current scalar in a stable borrowed place. Both use the
+                // same store and call-frame invalidation below. Write-only
+                // storage starts without an observation; its first completed
+                // store must supply one before any postcondition can read it.
+                let (primitive, readable) = if let Some(reference) =
+                    validation::reference_shell(program, parameter.type_reference)
+                {
+                    if !validation::state_reference_parameter_binding_is_stable(
+                        program,
+                        machine,
+                        state,
+                        parameter.symbol,
+                    ) {
+                        return None;
+                    }
+                    (
+                        integer_carrier(program, reference.referee)?,
+                        reference.access.is_readable(),
+                    )
+                } else {
+                    (integer_carrier(program, parameter.type_reference)?, true)
+                };
                 Some(Binding {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
-                    value: Some(ScopedArithmeticValue::Atom {
+                    value: readable.then(|| ScopedArithmeticValue::Atom {
                         identity: format!(
                             "state:{:?}:parameter:{:?}",
                             state.symbol, parameter.symbol
@@ -811,8 +833,8 @@ impl<'program> CurrentScalarValues<'program> {
                 }
             }
         }
-        // the lane owns the occurrence once; main's newer semantics still resolve the
-        // scoped term into a completed scalar value (admitted unsigned remainder included).
+        // Resolve the captured term under this occurrence's exact callable;
+        // admission alone does not supply the completed scalar value.
         let occurrence = self.occurrence();
         admitted(occurrence, expression, &self.current, &self.fields, 0)
             .then(|| scoped(occurrence, expression, &self.current, &self.fields))

@@ -50,4 +50,5 @@ pass/facts/abstract_signature_call_through_other_machine_exit built 1968ms exit:
 pass/facts/abstract_signature_call_through_other_state_exit built 1915ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_through_parameter_exit built 1935ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
 pass/facts/abstract_signature_call_through_target_body_exit built 1802ms exit:0 interpreter-exit:0 interpreter:agrees @289c0e2e2740+wt
+pass/facts/checked_asm_countdown_through_target_body_exit built 2412ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ec14fcf828f7
 pass/write_only/returned_destination_transport_exit built 16665ms exit:0 interpreter-exit:0 interpreter:agrees @c5d73037f08c+wt

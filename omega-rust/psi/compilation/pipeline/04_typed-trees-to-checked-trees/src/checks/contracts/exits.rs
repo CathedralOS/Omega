@@ -100,7 +100,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         Option<(
             &'program typed_trees::machine::Machine,
             crate::checks::current_scalar_values::CurrentScalarValues<'program>,
-            typed_trees::expression::ExpressionHandle,
+            Option<typed_trees::expression::ExpressionHandle>,
         )>,
     >,
 ) -> bool {
