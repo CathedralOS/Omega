@@ -1,0 +1,38 @@
+{
+  "source": "69b14c7fec5f36880ee5675df568b475900fcf50",
+  "producer": "1f85b81b0b31b0e25d50e165925e4567f5fa85b9",
+  "target": "macos_arm64",
+  "review": {
+    "accepted": true,
+    "reviewer": "/root/fact_a",
+    "candidate": "69b14c7fec5f36880ee5675df568b475900fcf50"
+  },
+  "qualification": {
+    "state_revision": 95,
+    "reused": 4,
+    "invalidated": 0,
+    "kind": "completed replay, no engines executed by qualification"
+  },
+  "observations": {
+    "public": 200,
+    "public_native_terminal_zero_agreements": 89,
+    "public_intended_rejects": 111,
+    "retained_check": 199,
+    "retained_native_terminal_zero_agreements": 88,
+    "historical_compare_unchanged": 4,
+    "preexisting_current_baseline_source_rejection": 1,
+    "ranked_theorem_check": 0,
+    "new_checking_goldens": 22,
+    "new_native_goldens": 10,
+    "incoming_call_checks": 4,
+    "incoming_call_native_terminal_agreements": 2
+  },
+  "sha256": {
+    "qualification.tar.gz": "c58fe9da61a345397d55ab856df400159da77dec6bfde15828db397f2e81fb47",
+    "ea5033a8c98d1e21b92c837dca51bc431756e54b.bundle": "770b3b8a532abaf9bc36e2ba2b84a1794c2cbc803432056b0147f271b5ad8e29",
+    "fe968e5697cada681e9ae3e000402d87487ab8c5.bundle": "1bbab4c916babfda73e7447eee7145b8adbf9ed364e2518e536fa50ea9432c27",
+    "boolean-guard-integrated-1f85b81b0b31b0e25d50e165925e4567f5fa85b9.bundle": "6a344ead076e4d977aec76469c794699796d45f917283d7a142e4b2a82a8c859"
+  },
+  "archive_members": 2913,
+  "limits": "Typed Boolean-field guards in checked readonly predicate frames, complete necessary/converse conditions, admitted whole Boolean reasoning and exact formal/captured identities. Broad parent structured/domain/runtime/theorem acceptance remains open. Native execution host macos_arm64 only."
+}
