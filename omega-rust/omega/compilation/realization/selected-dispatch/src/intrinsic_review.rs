@@ -192,20 +192,6 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             .zip(&retained.provider.row_realizations)
             .zip(&retained.row_external_completion_leaves)
         {
-            let Some(realization_symbol) = realization_symbol.authored() else {
-                // Neither a Build locator nor a settlement table supplies a
-                // sealed intrinsic execution identity or an authored completion.
-                if matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                ) {
-                    diagnostics.push(Diagnostic::error(
-                        "intrinsic row has no exact authored realization",
-                    ));
-                }
-                rows.push(None);
-                continue;
-            };
             if !matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -221,7 +207,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     row,
                     retained.provider.schema.symbol(),
                     *requirement_symbol,
-                    realization_symbol,
+                    *realization_symbol,
                     !completion_leaves.is_empty(),
                     accepted_console_binding,
                     accepted_process_exit_binding,
@@ -269,7 +255,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                             row,
                             retained.provider.schema.symbol(),
                             *requirement_symbol,
-                            realization_symbol,
+                            *realization_symbol,
                             !completion_leaves.is_empty(),
                             accepted_console_binding,
                             accepted_process_exit_binding,
@@ -287,7 +273,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                         row,
                         retained.provider.schema.symbol(),
                         *requirement_symbol,
-                        realization_symbol,
+                        *realization_symbol,
                         !completion_leaves.is_empty(),
                         accepted_console_binding,
                         accepted_process_exit_binding,
