@@ -49,6 +49,11 @@ ratified language contracts, not claims that their compiler migration is complet
 `STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md) retain that implementation
 and source-migration acceptance.
 
+The 2026-10-28 [requirement-clause unification](wiki/spec/language/state_contracts.md#requirement-clauses)
+retires `where` in favor of `requires` and direct assembly contract clauses.
+The examples use the ratified spelling; `REQUIRES-UNIFICATION` in
+[TASKS.md](TASKS.md) retains the compiler and source migration.
+
 ## Machines
 
 A machine defines behavior, its inputs, and its contract. It can look like an
@@ -104,13 +109,13 @@ runtime tail cycles carry values and ownership without growing the call stack.
 
 ## Domains and invariants
 
-The data declaration's `where` clause keeps every valid player's health between
+The data declaration's `requires` clause keeps every valid player's health between
 0 and 100. Named domains describe additional facts: a player may respawn only
 when dead and outside a cutscene, and respawning must leave them alive:
 
 ```omega
 data Player
-    where self.health <= 100
+    requires self.health <= 100
 {
     health: u32;
     in_cutscene: bool;
@@ -174,7 +179,7 @@ requires packet.len >= 16
     let source_address: addr = address_of(&packet[0]);
     let destination_address: addr = address_of(&mut destination[0]);
 
-    asm where clobbers xmm0 {
+    asm clobbers xmm0 {
         copy
             requires packet.len >= 16:
         movdqu xmm0, [source_address];

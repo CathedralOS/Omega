@@ -63,12 +63,13 @@ alignment and authority requirements. A memory projection whose width, address
 space or modeled backing is ambiguous is not a proposition the checker can
 establish.
 
-The optional body-level `where` surface remains the concise single-block form
-and supplies entry `requires`, falling-through `ensures` and an exact
-register-clobber declaration:
+The optional body-level contract is the concise single-block form and supplies
+entry `requires`, falling-through `ensures` and an exact register-clobber
+declaration directly after `asm`, following
+[unified requirement clauses](state_contracts.md#requirement-clauses):
 
 ```omega
-asm where
+asm
     requires context.ready
     clobbers none
     ensures context.ready
@@ -145,7 +146,7 @@ trust assertion substitutes for this proof.
 
 An [assumed binding contract](../build/assumed_binding_contracts.md) can supply
 explicitly admitted premises at an authorized runtime crossing. It cannot exempt
-an assembly block from the instruction catalog, reinterpret `asm where` as an
+an assembly block from the instruction catalog, reinterpret an assembly contract as an
 assumption, admit raw emitted bytes, or suppress instruction obligations. The
 checked body consumes authority under its own contract, just like non-assembly
 code; the potentially false relationship belongs to the root-selected boundary.

@@ -63,11 +63,11 @@ value; see [proof views](chapter_10_compile_time_proofs.md#proof-views).
 ## Dependent Data
 
 Fields can witness one another. Their coupling belongs to the data's default
-domain, expressed with `where`:
+domain, expressed with `requires`:
 
 ```omega
 data MemoryMap
-where
+requires
     embed(count) * embed(stride) <= embed(len),
     stride >= 40,
     len <= 4096,
@@ -94,7 +94,7 @@ optional container zero-constructible without inventing an invalid payload:
 
 ```omega
 data Player
-where health in 1..=100,
+requires health in 1..=100,
 {
     health: i32;
 }

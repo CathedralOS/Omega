@@ -23,7 +23,7 @@ the enclosing machine. Several instructions use explicit `;` separators.
 A block may state assertions and its exact realized register footprint:
 
 ```omega
-asm where
+asm
     requires ready
     clobbers none
     ensures ready

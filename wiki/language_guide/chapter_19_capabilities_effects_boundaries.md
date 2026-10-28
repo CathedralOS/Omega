@@ -358,7 +358,7 @@ trait Visitor<Context> {
 machine visit_pair<Context, Step>(
     context: &mut Context, first: u32, second: u32
 )
-where machine Step satisfies Visitor<Context>::visit;
+requires machine Step satisfies Visitor<Context>::visit;
 {
     Step(context, first);
     Step(context, second);
@@ -896,7 +896,7 @@ machine install<machine Handler>(
     module: ModuleHandle,
     thread: ThreadId,
 ) -> Registration
-where machine Handler satisfies HookProcedure::call;
+requires machine Handler satisfies HookProcedure::call;
 
 install<ApplicationHook>(hook, module, thread)
 ```
