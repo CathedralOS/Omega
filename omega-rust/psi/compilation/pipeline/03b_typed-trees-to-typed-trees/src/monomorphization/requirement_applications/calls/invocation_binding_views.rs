@@ -69,7 +69,9 @@ pub(super) fn complete_arguments(
             call.static_requirement_dispatch.as_ref(),
         ),
     };
-    let dispatch = dispatch?;
+    let Some(dispatch) = dispatch else {
+        return direct_arguments(program, owner, target, call);
+    };
     let (_, signature) = program.trait_machine_signature(dispatch.requirement)?;
     let parameters = program.state_signature_type_parameters(signature);
     let arguments = call.arguments(program);
@@ -137,6 +139,61 @@ pub(super) fn complete_arguments(
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
             // A runtime value subject is not a static invocation operand.
+            StaticMachineBindingValue::RuntimeValue { .. } => return None,
+        });
+    }
+    Some(complete)
+}
+
+/// A direct public method retains inferred operands beside its original source
+/// list. Rejoin that exact declaration and lexical owner before reading them;
+/// a closed receiving signature owns no replacement inference telescope.
+fn direct_arguments(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    target: SymbolHandle,
+    call: StaticArgumentCall<'_>,
+) -> Option<Vec<StaticMachineArgument>> {
+    let template = program
+        .closed_requirement_application(target)
+        .map_or(target, |closed| closed.template);
+    let (_, signature) = program.trait_machine_signature(template)?;
+    let parameters = program.state_signature_type_parameters(signature);
+    let explicit = call.arguments(program);
+    if explicit.len() == parameters.len() {
+        return Some(explicit.to_vec());
+    }
+    if explicit.len() > parameters.len() || !call.application().is_valid() {
+        return None;
+    }
+    let source = program
+        .expression_table
+        .static_machine_application(call.application());
+    if source.lexical_owner != owner
+        || source.binding_declaration != template
+        || source.registration_operation != template
+    {
+        return None;
+    }
+    let bindings = program
+        .expression_table
+        .static_machine_application_bindings(call.application());
+    let mut complete = explicit.to_vec();
+    for parameter in &parameters[explicit.len()..] {
+        let mut selected = bindings
+            .iter()
+            .filter(|binding| binding.parameter == parameter.symbol);
+        let binding = selected.next()?;
+        if selected.next().is_some() {
+            return None;
+        }
+        complete.push(match &binding.value {
+            StaticMachineBindingValue::Type(reference)
+            | StaticMachineBindingValue::Const(reference) => program
+                .static_operand_from_type_reference(*reference)
+                .ok()?,
+            StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Conformance(argument) => argument.clone(),
             StaticMachineBindingValue::RuntimeValue { .. } => return None,
         });
     }

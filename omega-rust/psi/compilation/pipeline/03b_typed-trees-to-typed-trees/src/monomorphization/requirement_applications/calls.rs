@@ -721,10 +721,10 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             continue;
         }
         let application = super::super::applications::retain_authored_call(program, site, owner);
-        let mut arguments = program
-            .expression_table
-            .static_machine_application_arguments(application)
-            .to_vec();
+        // The authored list can omit inferred operands. Keep it intact as
+        // source evidence, and retain the complete occurrence-derived tuple in
+        // its separate bindings lane before retargeting to a closed signature.
+        let mut arguments = invocation.tuple.arguments.clone();
         if arguments.len() != parameters.len() {
             // Argument admission owns malformed source telescopes.
             continue;
