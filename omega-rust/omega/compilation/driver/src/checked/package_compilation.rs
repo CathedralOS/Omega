@@ -369,14 +369,14 @@ impl CompilationSession {
     }
 
     /// Export one dependency's Product selections without replaying Build.
-    /// Native-bearing intent includes static recipes that must complete their
-    /// ordinary immutable Product checking before another package consumes it.
+    /// Source-issued selection intent must complete its ordinary immutable
+    /// Product judgment before another package consumes it.
     /// The original prepared Product remains available to its scheduler.
     pub fn prepare_package_build_handoff(
         &mut self,
         build: &PackageBuild,
     ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
-        if build.source.build().native_binding_requests.is_empty() {
+        if build.source.build().declared_product_selections.is_empty() {
             return Ok(build.build_handoff().clone());
         }
         let checked = self.check_package_build(PackageBuild {
