@@ -2295,6 +2295,8 @@ fail/calls/free_machine_named_transition_rejected rejected 268ms expected @9ac99
 	machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
 fail/calls/generic_operator_guard_argument_mismatch rejected 2427ms expected @a92f16431042
 	named operator `identity` static argument for parameter `T` does not equal the type inferred from its operands
+fail/calls/guarded_terminal_linear_record_field rejected 860ms expected @0b82225a93b4
+	linear value `named(name(nominal\\(package-owner\\(32:a1fdaa9ac4ce5200e2a5b4a5b631d8c0a5b4d768b1ffd302fb7950f41dafb2a0\\)\\,path\\(Observation\\)\\)))` reaches scope exit without being consumed or transferred in machine `probe` state `entry`
 fail/calls/immutable_arg_for_mut_param_rejected rejected 1057ms expected @a92f16431042
 	argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -3089,7 +3091,7 @@ fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expec
 	machine `Main::main` state `checked` declares result `named(name(i32))`, which differs from the machine's no result
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 3147ms expected @a92f16431042
 	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
-fail/control_flow/terminal_unit_linear_local_cleanup rejected 959ms expected @8ed577b2a049
+fail/control_flow/terminal_unit_linear_local_cleanup rejected 933ms expected @0b82225a93b4
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 fail/control_flow/termination_countdown_stalled_decrease rejected 4198ms expected @a92f16431042
 	terminating machine Main::countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -17764,7 +17766,8 @@ fail/slices/nested_machine_field_window_out_of_bounds rejected 747ms expected @8
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1067ms check-target:macos_arm64 @8ed577b2a049
+pass/calls/runtime_guarded_terminal_record_field_exit checked 1061ms check-target:macos_arm64 @0b82225a93b4
+pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1061ms check-target:macos_arm64 @0b82225a93b4
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
