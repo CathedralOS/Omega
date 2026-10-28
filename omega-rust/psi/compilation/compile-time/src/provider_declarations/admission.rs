@@ -19,19 +19,6 @@ pub(super) fn form(
     boundary_identity: ProviderSelectionIdentity,
     provider_type: ProviderSelectionIdentity,
 ) -> Result<ProviderDeclarations, Diagnostic> {
-    let original = context.typed;
-    // Product formation may run while Build retains only its executable
-    // projection. Resolve all declaration roles and inherited rows against
-    // the same retained Product frontier used by operand lookup. This view
-    // describes candidates; the caller retains activation and choice custody.
-    let context = ProviderPlanningContext::new(
-        if context.scope == source::DependencyScope::Product {
-            context.typed.product_declarations()
-        } else {
-            context.typed
-        },
-        context.scope,
-    );
     let typed = context.typed;
     if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
         return Err(Diagnostic::error(format!(
@@ -85,24 +72,6 @@ pub(super) fn form(
         || (typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
             && !identities::is_named_provider(typed, provider_type.symbol))
     {
-        if std::env::var_os("OMEGA_TRACE_PROVIDER_FORM").is_some() {
-            eprintln!(
-                "provider-form scope={:?} incoming={:?} kind={:?} original-roster={} current-roster={} original-named={} current-named={} next-view-named={} original-path={} current-path={}",
-                context.scope,
-                provider_type.symbol,
-                provider_type
-                    .symbol
-                    .is_valid()
-                    .then(|| typed.symbols.get(provider_type.symbol).kind),
-                original.conformances().len(),
-                typed.conformances().len(),
-                identities::is_named_provider(original, provider_type.symbol),
-                identities::is_named_provider(typed, provider_type.symbol),
-                identities::is_named_provider(typed.product_declarations(), provider_type.symbol),
-                original.symbols.display_path(provider_type.symbol, "::"),
-                typed.symbols.display_path(provider_type.symbol, "::")
-            );
-        }
         return Err(Diagnostic::error(format!(
             "provider selection type `{}` does not resolve to an exact provider data declaration or named implementation",
             provider_type.authored_path

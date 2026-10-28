@@ -62,14 +62,18 @@ pub(crate) fn prepare_checked_build(
     } else {
         validation::execution_projection::project_build_program(typed, entry)?
     };
+    // Projection deliberately removes conformance descriptor roots from host
+    // type-work. Provider planning still needs their complete declaration
+    // roster. Borrow the retained frontier, filtered to this Build scope;
+    // checking and execution below keep the projected program.
     let context = provider_planning::ProviderPlanningContext::new(
-        &provisional,
+        provisional.product_declarations(),
         source::DependencyScope::Build,
     );
     let mut defaults =
         build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let inherited = handoffs.rejoin_provider_selections(
-        &provisional,
+        context.typed,
         packages,
         source::DependencyScope::Build,
     )?;
