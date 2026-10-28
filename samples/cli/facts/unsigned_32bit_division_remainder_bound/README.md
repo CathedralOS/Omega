@@ -95,3 +95,26 @@ python tools/corpus_gate.py --filter facts/unsigned_32bit_division_remainder_bou
 - Signed 32-bit remainder bounds (`i32 % i32`) with negative dividend conventions.
 - Dynamic runtime non-zero denominator assertions for unbounded inputs.
 - 64-bit and 128-bit unsigned remainder interval bounds.
+
+## Completed runtime remainder composition
+
+The [Wrapping local-result control](controls/wrapping_local_result/main.omg)
+retains the existing `runtime_remainder_result_cast_exit` operation, contracts,
+inputs and exit-70 oracle. The selected unsigned remainder is first captured in
+a `u32 in Wrapping` local, then explicitly erased to `u32`; its established
+`result < divisor` guarantee proves both later signed casts. The original inline
+return fixture remains unchanged. This is the same unsigned remainder-bound
+mechanism, with a completed local value instead of an inline expression.
+
+The [reject twin](controls/wrapping_local_result/invalid/main.omg) changes only
+the remainder's divisor operand to an explicitly typed Wrapping zero, keeping
+the original helper contract and actual calls. It must reject the remainder's
+own zero-divisor obligation; the desired result guarantee cannot form that
+partial operation. Both sources are pinned under `tests/omega/{pass,fail}/facts/`.
+
+This control belongs to the DOMAIN-DEFAULT-PREDICATE-UNIFICATION native-harness
+prerequisite. The retained `177a9d65` baseline rejects the valid local return's
+postcondition and rejects the twin for the intended definedness obligation.
+Current-candidate Source, native/Terminal exit-70 agreement and the existing
+nine-place remainder row still require exact-producer validation; these
+source records do not claim those results. No input bound or operation changes.

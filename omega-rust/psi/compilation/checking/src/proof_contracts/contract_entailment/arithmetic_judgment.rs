@@ -293,6 +293,10 @@ pub(super) struct Engine<'program> {
     /// Exact numeric projections and quotient occurrences installed by the
     /// owning strict query after checking builtin meaning and source custody.
     strict_occurrences: Vec<(ExpressionHandle, Polynomial)>,
+    /// Completed remainders selected by the scoped-value owner. Their frozen
+    /// operands retain the occurrence's substitution while its hypotheses are
+    /// installed later; raw opaque terms carry no such admission authority.
+    admitted_integer_remainders: Vec<strict_bindings::AdmittedIntegerRemainder>,
     pub(super) saved_conditions: Vec<SavedCondition>,
     /// One call-observation namespace for this judgment. Reusing it prevents
     /// a shared public-clause expression from identifying different invocations
@@ -365,6 +369,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
+            admitted_integer_remainders: Vec::new(),
             saved_conditions: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,

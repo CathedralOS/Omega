@@ -9,6 +9,15 @@ use crate::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
 };
 
+/// Only the independently formed scoped remainder marker creates this recipe.
+/// Polynomials capture the actual roster before another declaration is read.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct AdmittedIntegerRemainder {
+    dividend: Polynomial,
+    divisor: Polynomial,
+    value: Polynomial,
+}
+
 impl<'program> Engine<'program> {
     /// Actuals are completed in the caller before this complete formal roster
     /// becomes visible. Source operations then simplify their applied values,
@@ -269,11 +278,69 @@ impl<'program> Engine<'program> {
                 self.with_scoped_expression(term, |engine| {
                     // This occurrence was admitted by the caller's selected-value
                     // owner; bare policy syntax receives no such authority.
-                    engine.bind_strict_integer_division(term.expression)?;
-                    engine.normalize(term.expression)
+                    engine.capture_admitted_integer_remainder(term.expression)
                 })?
             }
         })
+    }
+
+    /// Preserve one independently formed remainder without requiring its
+    /// occurrence hypotheses to have arrived already. Binding or normalization
+    /// failure cannot publish a partial recipe into the original engine.
+    fn capture_admitted_integer_remainder(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<Polynomial> {
+        let binary = self.program.expression_table.binary_node(expression)?;
+        if binary.operator != BinaryOperator::Modulo {
+            return None;
+        }
+        let mut admitted = self.clone();
+        let dividend = admitted.normalize(binary.left)?;
+        let divisor = admitted.normalize(binary.right)?;
+        let value = admitted.integer_binary_value(
+            BinaryOperator::Modulo,
+            dividend.clone(),
+            divisor.clone(),
+        )?;
+        if !admitted.bind_strict_occurrence(expression, value.clone()) {
+            return None;
+        }
+        let recipe = AdmittedIntegerRemainder {
+            dividend,
+            divisor,
+            value: value.clone(),
+        };
+        if !admitted.admitted_integer_remainders.contains(&recipe) {
+            admitted.admitted_integer_remainders.push(recipe);
+        }
+        admitted.refresh_admitted_integer_remainders();
+        *self = admitted;
+        Some(value)
+    }
+
+    /// Revisit only explicit completed-operation recipes once their exact
+    /// hypotheses are live. Unsigned dividend and positive divisor must be
+    /// independently established before the correlated remainder bound enters
+    /// the matrix; candidate opaque-term discovery cannot authorize it.
+    pub(in crate::proof_contracts::contract_entailment) fn refresh_admitted_integer_remainders(
+        &mut self,
+    ) {
+        let recipes = self.admitted_integer_remainders.clone();
+        loop {
+            let mut changed = false;
+            for recipe in &recipes {
+                changed |= self.install_integer_operation_bounds(
+                    BinaryOperator::Modulo,
+                    &recipe.dividend,
+                    &recipe.divisor,
+                    &recipe.value,
+                );
+            }
+            if !changed {
+                break;
+            }
+        }
     }
 
     fn with_scoped_expression(
@@ -767,6 +834,18 @@ impl<'program> Engine<'program> {
                 expression,
             )
             && self.bind_strict_occurrence(expression, Polynomial::constant(value))
+    }
+
+    /// Read one already-retained scalar occurrence without replaying its
+    /// expression or manufacturing an arrival-specific source binding.
+    pub(in crate::proof_contracts::contract_entailment) fn strict_occurrence_value(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<Polynomial> {
+        self.strict_occurrences
+            .iter()
+            .find(|(source, _)| *source == expression)
+            .map(|(_, value)| value.clone())
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn bind_strict_occurrence(
