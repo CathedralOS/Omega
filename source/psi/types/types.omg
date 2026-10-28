@@ -79,7 +79,6 @@ where
 public data Selection [copy] {
     case None;
     case Machine(handle: u64 in Trapping);
-    case State(handle: u64 in Trapping);
     case Field(field: u64 in Trapping);
     case Length;
     // A call of a machine binder through its `where machine` contract, by

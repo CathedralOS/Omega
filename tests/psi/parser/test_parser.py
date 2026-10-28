@@ -31,7 +31,6 @@ class Observation:
     ]
     machines: tuple[tuple[int, ...], ...] = ()
     parameters: tuple[tuple[int, ...], ...] = ()
-    states: tuple[tuple[int, ...], ...] = ()
     expressions: tuple[tuple[int, ...], ...] = ()
     arguments: tuple[int, ...] = ()
     construct_fields: tuple[tuple[int, ...], ...] = ()
@@ -78,8 +77,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR14"
-    assert reader.u64() == 14
+    assert reader.bytes(8) == b"OMGPAR15"
+    assert reader.u64() == 15
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -228,7 +227,7 @@ def decode(payload: bytes) -> Observation:
     )
     # Machine rows: owner flag and span, name span, generic-parameter range,
     # parameter range, return-type flag and handle, clause range, entry
-    # statement range, state range, body flag, expression range, visibility
+    # statement range, machine range, body flag, expression range, visibility
     # flag, span, target flag and span, boundary flag, container tag,
     # operator token tag and span, contract range, every-requirement flag.
     machines = tuple(
@@ -245,7 +244,6 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.byte(),
-            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -279,25 +277,6 @@ def decode(payload: bytes) -> Observation:
     )
     parameters = tuple(
         (
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-        )
-        for _ in range(reader.u64())
-    )
-    states = tuple(
-        (
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.u64(),
-            reader.byte(),
-            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -557,7 +536,6 @@ def decode(payload: bytes) -> Observation:
         generic_parameters,
         machines,
         parameters,
-        states,
         expressions,
         arguments,
         construct_fields,
@@ -631,9 +609,9 @@ def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     machines are untargeted, not boundary, and stand at the root; rows
     spelled before operator tokens and contracts carry neither, and rows
     spelled before lexicographic measures have no components."""
-    rows = tuple(row if len(row) >= 32 else row + (0, 1, 0, 0, 0, 0) for row in rows)
-    rows = tuple(row if len(row) >= 39 else row + NO_TOKEN for row in rows)
-    return tuple(row if len(row) == 41 else row + (0, 0) for row in rows)
+    rows = tuple(row if len(row) >= 31 else row + (0, 1, 0, 0, 0, 0) for row in rows)
+    rows = tuple(row if len(row) >= 38 else row + NO_TOKEN for row in rows)
+    return tuple(row if len(row) == 40 else row + (0, 0) for row in rows)
 
 
 # The clause kinds whose rows hold a fact expression: requires, ensures and
@@ -715,7 +693,6 @@ def accepted(
     ] = (),
     machines: tuple[tuple[int, ...], ...] = (),
     parameters: tuple[tuple[int, ...], ...] = (),
-    states: tuple[tuple[int, ...], ...] = (),
     expressions: tuple[tuple[int, ...], ...] = (),
     arguments: tuple[int, ...] = (),
     construct_fields: tuple[tuple[int, ...], ...] = (),
@@ -751,7 +728,6 @@ def accepted(
         generic_parameters,
         machine_rows(machines),
         parameters,
-        states,
         expressions,
         arguments,
         construct_fields,
@@ -790,7 +766,6 @@ def rejected(
     generic_parameter_count: int = 0,
     machine_count: int = 0,
     parameter_count: int = 0,
-    state_count: int = 0,
     expression_count: int = 0,
     statement_count: int = 0,
     name_path_count: int = 0,
@@ -819,7 +794,6 @@ def rejected(
     assert len(actual.generic_parameters) == generic_parameter_count, (name, actual)
     assert len(actual.machines) == machine_count, (name, actual)
     assert len(actual.parameters) == parameter_count, (name, actual)
-    assert len(actual.states) == state_count, (name, actual)
     assert len(actual.expressions) == expression_count, (name, actual)
     assert len(actual.statements) == statement_count, (name, actual)
     assert len(actual.name_paths) == name_path_count, (name, actual)
@@ -1680,7 +1654,6 @@ def machine_form_cases(program: str) -> None:
          {"member_count": 1, "type_reference_count": 1}),
         ("satisfies-label", b"machine f() satisfies A::b as {}", 158, b"{", 1, {"member_count": 2}),
         ("satisfies-binding", b"machine f() satisfies A::b via ;", 159, b";", 1, {"member_count": 2}),
-        ("state-satisfies-not-admitted", b"machine f() { state s() satisfies A::b {} }", 105, b"satisfies", 1, {}),
         ("termination-subject", b"machine f() terminates by ; {}", 160, b";", 1, {}),
         ("termination-subject-end", b"machine f() terminates by (a b) {}", 161, b"b", 2,
          {"expression_count": 1}),
@@ -2705,8 +2678,7 @@ def main() -> None:
         name: bytes,
         first_parameter: int,
         parameter_count: int,
-        first_state: int,
-        state_count: int,
+        parent: int,
         span: tuple[int, int],
         owner: bytes = b"",
         return_type: int = -1,
@@ -2731,8 +2703,7 @@ def main() -> None:
             *clause_range,
             first_statement,
             statement_count,
-            first_state,
-            state_count,
+            parent,
             1 if has_body else 0,
             *expression_range,
             1 if public else 0,
@@ -2744,35 +2715,11 @@ def main() -> None:
         name_span = at(source, name)
         return (*name_span, type_reference, 1, name_span[1], at(source, end_fragment)[2])
 
-    def state_row(
-        source: bytes,
-        name: bytes,
-        first_parameter: int,
-        parameter_count: int,
-        span: tuple[int, int],
-        return_type: int = -1,
-        first_statement: int = 0,
-        statement_count: int = 0,
-        clause_range: tuple[int, int] = (0, 0),
-    ) -> tuple[int, ...]:
-        return (
-            *at(source, name),
-            first_parameter,
-            parameter_count,
-            0 if return_type < 0 else 1,
-            max(return_type, 0),
-            *clause_range,
-            first_statement,
-            statement_count,
-            1,
-            *span,
-        )
-
     source = b"machine main() {}"
     accepted(
         program, "machine-empty", source,
         ((3, 0, 1, 0, 17),), (), (),
-        machines=(machine_row(source, b"main", 0, 0, 0, 0, (0, 17)),),
+        machines=(machine_row(source, b"main", 0, 0, 0, (0, 17)),),
     )
     source = b"pub machine Counter::clear(counter: &mut Counter) {}"
     accepted(
@@ -2782,7 +2729,7 @@ def main() -> None:
             named(source, b"Counter", 2),
             reference(source, b"&mut", b"&mut Counter", 2, 0),
         ),
-        machines=(machine_row(source, b"clear", 0, 1, 0, 0, (0, len(source)), owner=b"Counter", public=True),),
+        machines=(machine_row(source, b"clear", 0, 1, 0, (0, len(source)), owner=b"Counter", public=True),),
         parameters=(parameter_row(source, b"counter", 1, b"&mut Counter"),),
     )
     source = b"machine add(left: u64, right: &u64) -> u64 {}"
@@ -2795,7 +2742,7 @@ def main() -> None:
             reference(source, b"&u64", b"&u64", 1, 1),
             named(source, b"u64", 3),
         ),
-        machines=(machine_row(source, b"add", 0, 2, 0, 0, (0, len(source)), return_type=3),),
+        machines=(machine_row(source, b"add", 0, 2, 0, (0, len(source)), return_type=3),),
         parameters=(
             parameter_row(source, b"left", 0, b"left: u64"),
             parameter_row(source, b"right", 2, b"&u64"),
@@ -2805,26 +2752,26 @@ def main() -> None:
     accepted(
         program, "machine-without-parameter-list", source,
         ((3, 0, 1, 0, len(source)),), (), (),
-        machines=(machine_row(source, b"tick", 0, 0, 0, 0, (0, len(source))),),
+        machines=(machine_row(source, b"tick", 0, 0, 0, (0, len(source))),),
     )
-    source = b"machine run(n: u64) { state step(a: u8) -> u8 {} state halt {} }"
+    source = b"machine run(n: u64) { machine step(a: u8) -> u8 {} machine halt {} }"
     accepted(
-        program, "machine-states", source,
-        ((3, 0, 1, 0, 64),), (), (),
+        program, "nested-machine-declarations", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
         type_references=(named(source, b"u64"), named(source, b"u8", 1), named(source, b"u8", 2)),
-        machines=((0, 1, 0, 0, 1, 8, 11, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 1, 0, 64),),
-        parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
-        states=(
-            (1, 28, 32, 1, 1, 1, 2, 0, 0, 0, 0, 1, 22, 48),
-            (1, 55, 59, 2, 0, 0, 0, 0, 0, 0, 0, 1, 49, 62),
+        machines=(
+            machine_row(source, b"run", 0, 1, 0, (0, len(source))),
+            machine_row(source, b"step", 1, 1, 1, (source.index(b"machine step"), source.index(b"{}") + 2), return_type=2),
+            machine_row(source, b"halt", 2, 0, 1, (source.index(b"machine halt"), source.rindex(b"}") - 1)),
         ),
+        parameters=(parameter_row(source, b"n", 0, b"n: u64"), parameter_row(source, b"a", 1, b"a: u8")),
     )
     source = b"machine wrap(x: u64 in Wrapping) {}"
     accepted(
         program, "machine-qualified-parameter", source,
         ((3, 0, 1, 0, len(source)),), (), (),
         type_references=(qualified(source, b"u64", b"Wrapping"),),
-        machines=(machine_row(source, b"wrap", 0, 1, 0, 0, (0, len(source))),),
+        machines=(machine_row(source, b"wrap", 0, 1, 0, (0, len(source))),),
         parameters=(parameter_row(source, b"x", 0, b"Wrapping"),),
     )
     source = b"use a; data D { x: u8; } machine m() {}"
@@ -2837,7 +2784,7 @@ def main() -> None:
         ((1, 0, 1, 16, 22),),
         ((1, 16, 17, 0, 1, 16, 22),),
         type_references=(named(source, b"u8"),),
-        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 25, 39),),
+        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 25, 39),),
     )
     source = b"data View { target: &Record; }"
     accepted(
@@ -2866,40 +2813,38 @@ def main() -> None:
     rejected(program, "machine-unknown-clause", b"machine f() decreases n {}", 47, (12, 21))
     rejected(program, "machine-unsupported-statement", b"machine f() { if x {} }", 48, (14, 16))
     rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
-    rejected(program, "state-name", b"machine f() { state }", 49, (20, 21))
-    rejected(program, "state-body", b"machine f() { state s() }", 50, (24, 25))
-    rejected(program, "state-unsupported-statement", b"machine f() { state s() { if } }", 51, (26, 28))
+    retired = b"machine f() { state s() {} }"
+    rejected(program, "retired-state-declaration", retired, 78, (retired.index(b"s()"), retired.index(b"s()") + 1),
+             expression_count=1)
+    malformed = b"machine f() { machine s() }"
+    rejected(program, "nested-machine-body", malformed, 47, (malformed.index(b"}"), malformed.index(b"}") + 1), machine_count=1)
+    unsupported = b"machine f() { machine s() { if } }"
+    rejected(program, "nested-machine-unsupported-statement", unsupported, 48, (unsupported.index(b"if"), unsupported.index(b"if") + 2), machine_count=1)
 
-    exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(2048))
+    exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(4096))
     exact_machine_status, exact_machine_payload = run(program, exact_machines)
     assert exact_machine_status == 0
-    assert len(decode(exact_machine_payload).machines) == 2048
+    assert len(decode(exact_machine_payload).machines) == 4096
     rejected(
         program,
-        "machine-capacity-plus-one",
+        "machine-root-capacity-plus-one",
         exact_machines + b"machine overflow() {}",
-        52,
-        (len(exact_machines), len(exact_machines) + 7),
-        root_count=2048,
-        machine_count=2048,
+        5,
+        (len(exact_machines + b"machine overflow() {}"), len(exact_machines + b"machine overflow() {}")),
+        root_count=4096,
+        machine_count=4097,
     )
     # The parameter table's 32,768 rows take at least 131,075 tokens, more
     # than one unit holds; the resolver gate's source sets reach that edge.
-    exact_states = b"machine f() { " + b"".join(
-        f"state s{index} {{}} ".encode() for index in range(8192)
+    exact_nested = b"machine f() { " + b"".join(
+        f"machine s{index} {{}} ".encode() for index in range(10239)
     ) + b"}"
-    exact_state_status, exact_state_payload = run(program, exact_states)
-    assert exact_state_status == 0
-    assert len(decode(exact_state_payload).states) == 8192
-    overflow_state_start = len(exact_states) - 1
-    rejected(
-        program,
-        "state-capacity-plus-one",
-        exact_states[:-1] + b"state overflow {} }",
-        54,
-        (overflow_state_start, overflow_state_start + 5),
-        state_count=8192,
-    )
+    status, payload = run(program, exact_nested)
+    assert status == 0
+    assert len(decode(payload).machines) == 10240
+    overflow_start = len(exact_nested) - 1
+    rejected(program, "nested-machine-capacity-plus-one", exact_nested[:-1] + b"machine overflow {} }",
+             48, (overflow_start, overflow_start + 7), machine_count=10240)
 
     # Body tables: 16,384 statements and 8,192 transition arms. A statement
     # or arm past its table rejects once it completes, at the token after it.
@@ -3100,7 +3045,7 @@ def main() -> None:
     )
     body(
         "string-argument-and-state-tail",
-        b'machine f() { log("hi"); state s(a: u8) -> u8 { a } }',
+        b'machine f() { log("hi"); machine s(a: u8) -> u8 { a } }',
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 14, 17, 0, 1, 14, 17),
             (5, 0, 0, 0, 0, 0, 0, 1, 18, 22, 0, 1, 18, 22),
@@ -3131,7 +3076,7 @@ def main() -> None:
     # or a value.
     body(
         "wildcard-transition",
-        b"machine f() { transition { _ -> g() } state g() {} }",
+        b"machine f() { transition { _ -> g() } machine g() {} }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 32, 33, 0, 1, 32, 33),
             (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 35),
@@ -3141,7 +3086,7 @@ def main() -> None:
     )
     body(
         "guarded-arms",
-        b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> {} _ -> s(0) } state s(v: u8) {} }",
+        b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> {} _ -> s(0) } machine s(v: u8) {} }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 36, 37, 0, 1, 36, 37),
             (2, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 40, 44),
@@ -3171,7 +3116,7 @@ def main() -> None:
     )
     body(
         "subject-literal-and-terminal-arms",
-        b"machine f(x: u8) { transition x < 2 { true -> a(x) _ -> {} } state a(v: u8) {} }",
+        b"machine f(x: u8) { transition x < 2 { true -> a(x) _ -> {} } machine a(v: u8) {} }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 30, 31, 0, 1, 30, 31),
             (3, 0, 0, 0, 0, 0, 0, 1, 34, 35, 0, 1, 34, 35),
@@ -3326,7 +3271,7 @@ def main() -> None:
 
     # A state's arrival `requires` facts share the clause table; a state
     # admits no other clause and a machine admits no `where`.
-    source = b"machine f(n: u64) { state s(n: u64) requires n < 9 requires n > 0 {} }"
+    source = b"machine f(n: u64) { machine s(n: u64) requires n < 9 requires n > 0 {} }"
     status, payload = run(program, source)
     assert status == 0, f"state-requires: status {status}"
     actual = decode(payload)
@@ -3336,12 +3281,12 @@ def main() -> None:
         (6, 0, 0, 1, 2, 1, first_requires, source.index(b"9") + 1),
         (6, 0, 0, 1, 5, 1, second_requires, source.index(b"0 {") + 1),
     )), f"state-requires:\n{actual.clauses}"
-    assert actual.states[0][7:9] == (0, 2), f"state-requires:\n{actual.states}"
+    assert actual.machines[1][13:15] == (0, 2), f"state-requires:\n{actual.machines}"
     assert actual.machines[0][13:15] == (0, 0), f"state-requires:\n{actual.machines}"
 
     # `requires` and `ensures` facts continue after `,` like `where` facts:
     # each fact is its own clause row, spanning from its first token.
-    source = b"machine f(n: u64) ensures n > 0, n < 9 { state s(n: u64) requires n < 9, n > 0, {} }"
+    source = b"machine f(n: u64) ensures n > 0, n < 9 { machine s(n: u64) requires n < 9, n > 0, {} }"
     status, payload = run(program, source)
     assert status == 0, f"fact-lists: status {status}"
     actual = decode(payload)
@@ -3356,10 +3301,8 @@ def main() -> None:
         (6, 0, 0, 1, 11, 1, second_requires, second_requires + len(b"n > 0")),
     )), f"fact-lists:\n{actual.clauses}"
     assert actual.machines[0][13:15] == (0, 2), f"fact-lists:\n{actual.machines}"
-    assert actual.states[0][7:9] == (2, 2), f"fact-lists:\n{actual.states}"
+    assert actual.machines[1][13:15] == (2, 2), f"fact-lists:\n{actual.machines}"
     admission_rejections = (
-        ("state-ensures", b"machine f() { state s ensures 1 {} }", 105, (22, 29), {}),
-        ("state-reaches", b"machine f() { state s reaches A {} }", 105, (22, 29), {}),
         ("machine-where", b"machine f() where 1 {}", 105, (12, 17), {}),
     )
     for name, source, diagnostic, span, counts in admission_rejections:
@@ -3444,7 +3387,7 @@ def main() -> None:
     # Every keyword but `self` is a name in an expression, as in every other
     # name position. A Name holds its identifier in its own row and stores
     # no path member.
-    source = b"machine f() { g(target, data); transition { _ -> data(target) } state data(target: u8) {} }"
+    source = b"machine f() { g(target, data); transition { _ -> data(target) } machine data(target: u8) {} }"
     status, payload = run(program, source)
     assert status == 0, f"keyword-names: status {status}"
     actual = decode(payload)
@@ -3751,7 +3694,7 @@ def main() -> None:
         ),
         type_arguments=(0,),
         generic_parameters=((2, *at(source, b"T"), 0, 0, 0, *at(source, b"T")),),
-        machines=(machine_row(source, b"as_slice", 0, 1, 0, 0, (0, len(source)), owner=b"Vec",
+        machines=(machine_row(source, b"as_slice", 0, 1, 0, (0, len(source)), owner=b"Vec",
                               return_type=5, generic_range=(0, 1)),),
         parameters=(parameter_row(source, b"items", 2, b"&Vec<T>"),),
     )
@@ -3783,7 +3726,7 @@ def main() -> None:
         program, "bodyless-machine", source,
         ((3, 0, 1, 0, len(source)),), (), (),
         type_references=(named(source, b"f64"), named(source, b"FloatMeaning")),
-        machines=(machine_row(source, b"meaning64", 0, 1, 0, 0, (0, len(source)), owner=b"Float",
+        machines=(machine_row(source, b"meaning64", 0, 1, 0, (0, len(source)), owner=b"Float",
                               return_type=1, has_body=False),),
         parameters=(parameter_row(source, b"value", 0, b"f64"),),
     )
@@ -3812,7 +3755,7 @@ def main() -> None:
     contract("cast-fact-after-semicolon", b"machine f() requires a; b as u8 == 4; {}", [6, 6], [True])
     bodyless_rejections = (
         ("machine-body-or-end", b"machine f() -> u8 x", 47, (18, 19), {"type_reference_count": 1}),
-        ("bodyless-state", b"machine f() { state s(); }", 50, (23, 24), {}),
+        ("bodyless-state", b"machine f() { machine s(); }", 50, (23, 24), {}),
         ("fact-semicolon-then-close", b"machine f() requires a; }", 2, (24, 25),
          {"root_count": 1, "machine_count": 1, "expression_count": 1}),
     )

@@ -1524,7 +1524,6 @@ crashes Trap
         Checker::evaluate_tree(checker, syntax, resolution, typing, arm.target, checking);
         let selection: Selection = Typing::selection(typing, arm.target);
         transition selection {
-            Selection::State { handle } -> jump(checker, syntax, resolution, typing, arm.target, handle, checking)
             _ -> terminal(checker, syntax, resolution, typing, arm, checking)
         }
     }
@@ -1542,39 +1541,6 @@ crashes Trap
     machine returned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, value: Value) {
         Checker::require_result_qualification(checker, syntax, resolution, typing, arm.target, value, arm.source_span);
         transition { _ -> owed(checker, syntax, resolution, typing, arm, value) }
-    }
-
-    // A jump is an edge of the body's local control graph
-    // (termination.omg), to its target state's node.
-    machine jump(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping, checking: bool) {
-        let node: u64 in Trapping = state - checker.first_state + 1;
-        Checker::record_edge(checker, node);
-        transition checking {
-            true -> required(checker, syntax, resolution, typing, call, state, node)
-            _ -> contributed(checker, syntax, typing, call, state)
-        }
-    }
-
-    // A target state's `requires` facts must hold at the jump, and a cyclic
-    // jump of a terminating body descends its ranking.
-    machine required(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping, node: u64 in Trapping) {
-        let item: StateItem = SyntaxTrees::state_item(syntax, state);
-        let expression: Expression = SyntaxTrees::expression(syntax, call);
-        Checker::require_descent(checker, syntax, resolution, typing, expression, node, item.first_parameter, item.parameter_count);
-        Checker::require_argument_qualifications(checker, syntax, resolution, typing, expression, item.first_parameter, item.parameter_count);
-        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, item.first_parameter, expression, ClauseKind::Requires, true);
-        transition held {
-            true -> done()
-            _ -> unproven(checker, expression)
-        }
-    }
-
-    machine unproven(checker: &mut Checker, expression: Expression) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::RequirementUnproven, expression.source_span);
-    }
-
-    machine contributed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping) {
-        Checker::contribute(checker, syntax, typing, call, state);
     }
 
     machine done() {}

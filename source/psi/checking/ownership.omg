@@ -414,7 +414,6 @@ crashes Trap
         Checker::own_tree(checker, syntax, resolution, typing, arm.target, UseRole::Value);
         let selection: Selection = Typing::selection(typing, arm.target);
         transition selection {
-            Selection::State { handle as _ } -> exit(checker, syntax, resolution, typing, arm)
             _ -> terminal(checker, syntax, resolution, typing, arm)
         }
     }

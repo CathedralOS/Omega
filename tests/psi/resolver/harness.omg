@@ -48,14 +48,14 @@ blocks;
         _ -> malformed(resolver_harness)
     }
 
-    state packages(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine packages(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> package_row(resolver_harness, sources, parser, remaining)
             _ -> dependencies(resolver_harness, sources, parser)
         }
     }
 
-    state package_row(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine package_row(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let toolchain: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         let mut name: ModulePath;
         ModulePath::clear(&mut name);
@@ -66,7 +66,7 @@ blocks;
         }
     }
 
-    state add_package(
+    machine add_package(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -81,7 +81,7 @@ blocks;
         }
     }
 
-    state dependencies(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    machine dependencies(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         transition count.complete {
             true -> dependency(resolver_harness, sources, parser, count.value)
@@ -89,14 +89,14 @@ blocks;
         }
     }
 
-    state dependency(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine dependency(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> dependency_row(resolver_harness, sources, parser, remaining)
             _ -> units(resolver_harness, sources, parser)
         }
     }
 
-    state dependency_row(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine dependency_row(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let requester: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         let scope: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         let mut alias: ModulePath;
@@ -111,7 +111,7 @@ blocks;
         }
     }
 
-    state dependency_scope(
+    machine dependency_scope(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -127,7 +127,7 @@ blocks;
         }
     }
 
-    state add_dependency(
+    machine add_dependency(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -144,7 +144,7 @@ blocks;
         }
     }
 
-    state units(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    machine units(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser) {
         let count: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         transition count.complete {
             true -> unit(resolver_harness, sources, parser, count.value)
@@ -152,14 +152,14 @@ blocks;
         }
     }
 
-    state unit(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine unit(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> unit_row(resolver_harness, sources, parser, remaining)
             _ -> prepare_resolve(resolver_harness, sources, parser)
         }
     }
 
-    state unit_row(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine unit_row(resolver_harness: &mut ResolverHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
         let unit_package: HarnessWord = block ResolverHarness::read_u32(resolver_harness);
         let mut module_path: ModulePath;
         ModulePath::clear(&mut module_path);
@@ -170,7 +170,7 @@ blocks;
         }
     }
 
-    state source(
+    machine source(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -187,7 +187,7 @@ blocks;
         }
     }
 
-    state source_byte(
+    machine source_byte(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -203,7 +203,7 @@ blocks;
         }
     }
 
-    state source_read(
+    machine source_read(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -220,7 +220,7 @@ blocks;
         }
     }
 
-    state source_store(
+    machine source_store(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -238,7 +238,7 @@ blocks;
         }
     }
 
-    state tokenize(
+    machine tokenize(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -254,7 +254,7 @@ blocks;
         }
     }
 
-    state parse(
+    machine parse(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -270,7 +270,7 @@ blocks;
         }
     }
 
-    state add(
+    machine add(
         resolver_harness: &mut ResolverHarness,
         sources: &mut SourceSet,
         parser: &mut Parser,
@@ -286,13 +286,13 @@ blocks;
         }
     }
 
-    state prepare_resolve(resolver_harness: &mut ResolverHarness, sources: &SourceSet, parser: &Parser) {
+    machine prepare_resolve(resolver_harness: &mut ResolverHarness, sources: &SourceSet, parser: &Parser) {
         let mut resolver: Resolver;
         Resolver::initialize(&mut resolver);
         transition { _ -> resolve(resolver_harness, sources, parser, &mut resolver) }
     }
 
-    state resolve(
+    machine resolve(
         resolver_harness: &mut ResolverHarness,
         sources: &SourceSet,
         parser: &Parser,
@@ -306,27 +306,27 @@ blocks;
         }
     }
 
-    state accepted(resolver_harness: &mut ResolverHarness) {
+    machine accepted(resolver_harness: &mut ResolverHarness) {
         Console::exit_process(0);
     }
 
-    state resolve_rejected(resolver_harness: &mut ResolverHarness) {
+    machine resolve_rejected(resolver_harness: &mut ResolverHarness) {
         Console::exit_process(249);
     }
 
-    state parse_rejected(resolver_harness: &mut ResolverHarness) {
+    machine parse_rejected(resolver_harness: &mut ResolverHarness) {
         Console::exit_process(250);
     }
 
-    state lex_rejected(resolver_harness: &mut ResolverHarness) {
+    machine lex_rejected(resolver_harness: &mut ResolverHarness) {
         Console::exit_process(251);
     }
 
-    state source_full(resolver_harness: &mut ResolverHarness) {
+    machine source_full(resolver_harness: &mut ResolverHarness) {
         Console::exit_process(252);
     }
 
-    state malformed(resolver_harness: &mut ResolverHarness) {
+    machine malformed(resolver_harness: &mut ResolverHarness) {
         Console::exit_process(253);
     }
 }
@@ -338,14 +338,14 @@ blocks;
 {
     transition { _ -> next(resolver_harness, 0, 0, 1) }
 
-    state next(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    machine next(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
             true -> byte(resolver_harness, read, value, scale)
             _ -> word(value)
         }
     }
 
-    state byte(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    machine byte(resolver_harness: &mut ResolverHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value as byte } -> next(resolver_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
@@ -353,11 +353,11 @@ blocks;
         }
     }
 
-    state word(value: u64 in Trapping) -> HarnessWord {
+    machine word(value: u64 in Trapping) -> HarnessWord {
         HarnessWord { value: value, complete: true }
     }
 
-    state ended() -> HarnessWord {
+    machine ended() -> HarnessWord {
         HarnessWord { value: 0, complete: false }
     }
 }
@@ -375,14 +375,14 @@ blocks;
         _ -> failed()
     }
 
-    state byte(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    machine byte(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
             true -> read(resolver_harness, path, left)
             _ -> complete()
         }
     }
 
-    state read(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    machine read(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> store(resolver_harness, path, left, value)
@@ -390,7 +390,7 @@ blocks;
         }
     }
 
-    state store(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
+    machine store(resolver_harness: &mut ResolverHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = ModulePath::append(path, value as u8);
         transition kept {
             true -> byte(resolver_harness, path, left - 1)
@@ -398,11 +398,11 @@ blocks;
         }
     }
 
-    state complete() -> bool {
+    machine complete() -> bool {
         true
     }
 
-    state failed() -> bool {
+    machine failed() -> bool {
         false
     }
 }
@@ -439,17 +439,17 @@ crashes Trap
         _ -> rejected_header(resolver_harness, output)
     }
 
-    state accepted_header(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+    machine accepted_header(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         ResolverHarness::write_byte(resolver_harness, 1);
         transition { _ -> diagnostic(resolver_harness, output) }
     }
 
-    state rejected_header(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+    machine rejected_header(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         ResolverHarness::write_byte(resolver_harness, 0);
         transition { _ -> diagnostic(resolver_harness, output) }
     }
 
-    state diagnostic(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+    machine diagnostic(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         transition output.diagnostic.code {
             ResolveDiagnosticCode::None -> diagnostic_tag(resolver_harness, output, 0)
             ResolveDiagnosticCode::UnresolvedImport -> diagnostic_tag(resolver_harness, output, 1)
@@ -462,7 +462,6 @@ crashes Trap
             ResolveDiagnosticCode::UnknownDataType -> diagnostic_tag(resolver_harness, output, 7)
             ResolveDiagnosticCode::UnknownDomain -> diagnostic_tag(resolver_harness, output, 8)
             ResolveDiagnosticCode::DuplicateParameter -> diagnostic_tag(resolver_harness, output, 9)
-            ResolveDiagnosticCode::DuplicateState -> diagnostic_tag(resolver_harness, output, 10)
             ResolveDiagnosticCode::DuplicateMachine -> diagnostic_tag(resolver_harness, output, 11)
             ResolveDiagnosticCode::DuplicateGenericParameter -> diagnostic_tag(resolver_harness, output, 12)
             ResolveDiagnosticCode::UnknownName -> diagnostic_tag(resolver_harness, output, 13)
@@ -492,14 +491,14 @@ crashes Trap
         }
     }
 
-    state diagnostic_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, tag: u8) {
+    machine diagnostic_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, tag: u8) {
         ResolverHarness::write_byte(resolver_harness, tag);
         ResolverHarness::write_source_span(resolver_harness, output.diagnostic.source_span);
         ResolverHarness::write_u64(resolver_harness, output.binding_count as u64 in Trapping);
         transition { _ -> binding(resolver_harness, output, 0) }
     }
 
-    state binding(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine binding(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         transition index < output.binding_count {
             true -> binding_row(resolver_harness, output, index)
             _ -> value_count(resolver_harness, output)
@@ -510,43 +509,43 @@ crashes Trap
     // parameter, 4 pattern binder, 5 state, 6 machine, 7 data, 8 case, 9
     // ambiguous, 10 generic binder, 11 constant, 12 data field, 13 returned
     // value, 14 proposition) and two handles.
-    state value_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+    machine value_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         ResolverHarness::write_u64(resolver_harness, output.value_binding_count as u64 in Trapping);
         transition { _ -> value(resolver_harness, output, 0) }
     }
 
-    state value(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine value(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         transition index < output.value_binding_count {
             true -> value_row(resolver_harness, output, index)
             _ -> path_count(resolver_harness, output)
         }
     }
 
-    state path_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+    machine path_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         ResolverHarness::write_u64(resolver_harness, output.path_binding_count as u64 in Trapping);
         transition { _ -> path(resolver_harness, output, 0) }
     }
 
-    state path(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine path(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         transition index < output.path_binding_count {
             true -> path_row(resolver_harness, output, index)
             _ -> requirement_count(resolver_harness, output)
         }
     }
 
-    state requirement_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
+    machine requirement_count(resolver_harness: &mut ResolverHarness, output: &NameResolution) {
         ResolverHarness::write_u64(resolver_harness, output.requirement_count as u64 in Trapping);
         transition { _ -> requirement(resolver_harness, output, 0) }
     }
 
-    state requirement(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine requirement(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         transition index < output.requirement_count {
             true -> requirement_row(resolver_harness, output, index)
             _ -> done()
         }
     }
 
-    state requirement_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine requirement_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         let binding: ValueBinding = NameResolution::requirement(output, index);
         transition binding {
             ValueBinding::Machine { handle } -> requirement_tag(resolver_harness, output, index, 1, handle)
@@ -554,13 +553,13 @@ crashes Trap
         }
     }
 
-    state requirement_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, tag: u8, handle: u64 in Trapping) {
+    machine requirement_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, tag: u8, handle: u64 in Trapping) {
         ResolverHarness::write_byte(resolver_harness, tag);
         ResolverHarness::write_u64(resolver_harness, handle);
         transition { _ -> requirement(resolver_harness, output, index + 1) }
     }
 
-    state path_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine path_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         let path_binding: PathBinding = NameResolution::path_binding(output, index);
         transition path_binding {
             PathBinding::Unresolved -> path_tag(resolver_harness, output, index, 0, 0)
@@ -569,13 +568,13 @@ crashes Trap
         }
     }
 
-    state path_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, tag: u8, handle: u64 in Trapping) {
+    machine path_tag(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, tag: u8, handle: u64 in Trapping) {
         ResolverHarness::write_byte(resolver_harness, tag);
         ResolverHarness::write_u64(resolver_harness, handle);
         transition { _ -> path(resolver_harness, output, index + 1) }
     }
 
-    state value_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine value_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         let value_binding: ValueBinding = output.value_bindings[index];
         transition value_binding {
             ValueBinding::NotAName -> value_tag(resolver_harness, output, index, 0, 0, 0)
@@ -584,7 +583,6 @@ crashes Trap
             ValueBinding::Local { statement } -> value_tag(resolver_harness, output, index, 2, statement, 0)
             ValueBinding::Parameter { parameter } -> value_tag(resolver_harness, output, index, 3, parameter, 0)
             ValueBinding::PatternBinder { field } -> value_tag(resolver_harness, output, index, 4, field, 0)
-            ValueBinding::State { handle } -> value_tag(resolver_harness, output, index, 5, handle, 0)
             ValueBinding::Machine { handle } -> value_tag(resolver_harness, output, index, 6, handle, 0)
             ValueBinding::Data { item } -> value_tag(resolver_harness, output, index, 7, item, 0)
             ValueBinding::DataCase { item, data_case } -> value_tag(resolver_harness, output, index, 8, item, data_case)
@@ -601,20 +599,20 @@ crashes Trap
     }
 
     // A layout query: 1 `size_of`, 2 `align_of`.
-    state layout_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, query: LayoutQuery) {
+    machine layout_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, query: LayoutQuery) {
         transition query {
             LayoutQuery::Size -> value_tag(resolver_harness, output, index, 18, 1, 0)
             LayoutQuery::Align -> value_tag(resolver_harness, output, index, 18, 2, 0)
         }
     }
 
-    state predicate_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, predicate: BytePredicate) {
+    machine predicate_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, predicate: BytePredicate) {
         let tag: u64 = ResolverHarness::byte_predicate_tag(predicate);
         let first: u64 in Trapping = tag as u64 in Trapping;
         transition { _ -> value_tag(resolver_harness, output, index, 17, first, 0) }
     }
 
-    state value_tag(
+    machine value_tag(
         resolver_harness: &mut ResolverHarness,
         output: &NameResolution,
         index: u64 in Trapping,
@@ -628,7 +626,7 @@ crashes Trap
         transition { _ -> value(resolver_harness, output, index + 1) }
     }
 
-    state binding_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    machine binding_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
         let type_binding: TypeBinding = output.type_bindings[index];
         transition type_binding {
             TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0)
@@ -646,7 +644,7 @@ crashes Trap
         }
     }
 
-    state builtin_row(
+    machine builtin_row(
         resolver_harness: &mut ResolverHarness,
         output: &NameResolution,
         index: u64 in Trapping,
@@ -678,7 +676,7 @@ crashes Trap
         }
     }
 
-    state type_row(
+    machine type_row(
         resolver_harness: &mut ResolverHarness,
         output: &NameResolution,
         index: u64 in Trapping,
@@ -698,7 +696,7 @@ crashes Trap
         }
     }
 
-    state domain_row(
+    machine domain_row(
         resolver_harness: &mut ResolverHarness,
         output: &NameResolution,
         index: u64 in Trapping,
@@ -710,7 +708,7 @@ crashes Trap
         transition { _ -> binding(resolver_harness, output, index + 1) }
     }
 
-    state done() {}
+    machine done() {}
 }
 
 machine ResolverHarness::write_source_span(resolver_harness: &mut ResolverHarness, source_span: SourceSpan) reaches Console {
@@ -743,7 +741,7 @@ machine ResolverHarness::byte_predicate_tag(predicate: BytePredicate) -> u64 {
         BytePredicate::NonEmpty -> tag(8)
     }
 
-    state tag(value: u64) -> u64 {
+    machine tag(value: u64) -> u64 {
         value
     }
 }

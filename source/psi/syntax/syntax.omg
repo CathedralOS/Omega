@@ -392,7 +392,6 @@ public data ClauseOwner [copy] {
     case TraitMember;
     case Contract;
     case Refinement;
-    case State;
     case Data;
     case DataCase;
     case Domain;
@@ -414,21 +413,6 @@ public data Clause [copy] {
     // whose `flag` is its inclusiveness.
     has_range: bool;
     range: u64 in Trapping;
-    source_span: SourceSpan;
-}
-
-// A named state member of a machine body. Its parameters are a contiguous
-// range of `SyntaxTrees::parameters`.
-public data StateItem [copy] {
-    name: IdentifierSpan;
-    first_parameter: u64 in Trapping;
-    parameter_count: u64 in Trapping;
-    has_return_type: bool;
-    return_type: u64 in Trapping;
-    first_clause: u64 in Trapping;
-    clause_count: u64 in Trapping;
-    first_statement: u64 in Trapping;
-    statement_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -478,9 +462,8 @@ public data OperatorToken [copy] {
 // its `where machine` contracts, one per static machine binder, a contiguous
 // range of `SyntaxTrees::contracts`. A fixed token after `machine` binds
 // `operator`, spelled at `token`.
-// The parameters and return type are the entry's signature; `first_state`
-// and `state_count` cover the authored `state` members; the entry's own
-// statements precede them in the body. A bodyless declaration ends at `;`
+// Every declaration has its own signature, contract and executable ranges.
+// Its lexical parent scopes names without retaining runtime values. A bodyless declaration ends at `;`
 // and owns no statements or states. Every expression of the declaration,
 // in its clauses and its bodies, lies in the contiguous range from
 // `first_expression`. A target-scoped declaration (`linux_arm64 machine
@@ -500,8 +483,8 @@ public data MachineItem [copy] {
     clause_count: u64 in Trapping;
     first_statement: u64 in Trapping;
     statement_count: u64 in Trapping;
-    first_state: u64 in Trapping;
-    state_count: u64 in Trapping;
+    // Lexical declaration parent, machine handle plus one; zero at package/container scope.
+    parent: u64 in Trapping;
     has_body: bool;
     first_expression: u64 in Trapping;
     expression_count: u64 in Trapping;
@@ -766,12 +749,8 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedMachineReturnType;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
-    case ExpectedStateName;
-    case ExpectedStateBody;
-    case ExpectedStateBodyEnd;
     case MachineCapacityExceeded;
     case ParameterCapacityExceeded;
-    case StateCapacityExceeded;
     case ExpectedOperand;
     case ExpectedExpressionPathMember;
     case ExpectedFieldName;
@@ -933,10 +912,9 @@ where
     type_reference_count <= 65536,
     type_argument_count <= 1024,
     type_lifetime_count <= 1024,
-    machine_count <= 2048,
+    machine_count <= 10240,
     parameter_count <= 32768,
     erased_binding_count <= 1024,
-    state_count <= 8192,
     expression_count <= 131072,
     argument_count <= 65536,
     construct_field_count <= 4096,
@@ -981,14 +959,12 @@ where
     // The lifetime arguments of applied names, each run named by its row.
     type_lifetimes: [IdentifierSpan; 1024];
     type_lifetime_count: u64;
-    machines: [MachineItem; 2048] in Trapping;
+    machines: [MachineItem; 10240] in Trapping;
     machine_count: u64;
     parameters: [Parameter; 32768] in Trapping;
     parameter_count: u64;
     erased_bindings: [ErasedBinding; 1024] in Trapping;
     erased_binding_count: u64;
-    states: [StateItem; 8192] in Trapping;
-    state_count: u64;
     expressions: [Expression; 131072] in Trapping;
     expression_count: u64;
     arguments: [u64; 65536] in Trapping;
@@ -1045,7 +1021,6 @@ public machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: Source
     syntax_trees.machine_count = 0;
     syntax_trees.parameter_count = 0;
     syntax_trees.erased_binding_count = 0;
-    syntax_trees.state_count = 0;
     syntax_trees.expression_count = 0;
     syntax_trees.argument_count = 0;
     syntax_trees.construct_field_count = 0;
@@ -1292,23 +1267,6 @@ crashes Trap
     }
 
     machine invalid() -> Parameter {
-        crash Trap;
-    }
-}
-
-public machine SyntaxTrees::state_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem
-crashes Trap
-{
-    transition handle < syntax_trees.state_count {
-        true -> read(syntax_trees, handle)
-        _ -> invalid()
-    }
-
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem {
-        syntax_trees.states[handle]
-    }
-
-    machine invalid() -> StateItem {
         crash Trap;
     }
 }

@@ -1,0 +1,1 @@
+receives `owned` as both mutable and read-only

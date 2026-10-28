@@ -584,7 +584,6 @@ crashes Trap
 
     machine selected(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, result: u64 in Trapping, selection: Selection) {
         transition selection {
-            Selection::State { handle } -> done()
             _ -> completes(typer, syntax, arm, result)
         }
     }

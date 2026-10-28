@@ -36,7 +36,7 @@ DIAGNOSTICS = (
     "UncoveredDispatch", "ImmutablePlace", "ImplicitAttenuation",
     "MissingPatternField", "DuplicatePatternField",
 )
-SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
+SELECTIONS = ("none", "machine", "reserved", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
 
@@ -457,12 +457,12 @@ def main() -> None:
         b"        _ -> got(0)\n"
         b"    }\n"
         b"\n"
-        b"    state got(value: u8) -> u8 {\n"
+        b"    machine got(value: u8) -> u8 {\n"
         b"        value\n"
         b"    }\n"
         b"}",
         ((b"got(v)", "()"), (b"v!3", "u8"), (b"true", "bool"), (b"0", "u8"), (b"value!2", "u8")),
-        selections=((b"got(v)", "state", 0), (b"got(0)", "state", 0)),
+        selections=((b"got(v)", "machine", 1), (b"got(0)", "machine", 1)),
     )
     assert observation.render(observation.binders[0]) == "u8", "case-patterns-bind-payload-types: binder"
     accepted(
@@ -476,8 +476,8 @@ def main() -> None:
         b"        _ -> no()\n"
         b"    }\n"
         b"\n"
-        b"    state yes() -> bool { true }\n"
-        b"    state no() -> bool { false }\n"
+        b"    machine yes() -> bool { true }\n"
+        b"    machine no() -> bool { false }\n"
         b"}",
         ((b"a < 3", "bool"), (b"3", "u8"), (b"-1", "i64"), (b"l == L::On", "bool")),
     )
@@ -593,7 +593,7 @@ def main() -> None:
         b"        _ -> got(0)\n"
         b"    }\n"
         b"\n"
-        b"    state got(x: u16) -> u16 { x }\n"
+        b"    machine got(x: u16) -> u16 { x }\n"
         b"}\n"
         b"machine wrap(x: u16) -> Opt<u16> { Opt::Some { v: x } }",
         (
@@ -729,7 +729,7 @@ def main() -> None:
     rejected(
         program,
         "guard-is-boolean",
-        b"machine f(level: u8) { transition { level -> g() } state g() {} }",
+        b"machine f(level: u8) { transition { level -> g() } machine g() {} }",
         "NotBoolean",
         b"level!2",
     )
@@ -737,7 +737,7 @@ def main() -> None:
         program,
         "case-of-other-data",
         b"data S { case A; }\ndata T { case B; }\n"
-        b"machine f(s: S) { transition s { T::B -> g() } state g() {} }",
+        b"machine f(s: S) { transition s { T::B -> g() } machine g() {} }",
         "CaseOfOtherData",
         b"T::B",
     )
@@ -922,7 +922,7 @@ def main() -> None:
     rejected(
         program,
         "target-argument-count",
-        b"machine f() { transition { _ -> g(1) } state g() {} }",
+        b"machine f() { transition { _ -> g(1) } machine g() {} }",
         "TargetArgumentCount",
         b"g(1)",
     )
@@ -998,20 +998,20 @@ def main() -> None:
         program,
         "guarded-arms",
         b"data T { case A; case B(v: u8); }\n"
-        b"machine f(t: T, x: u8) -> u8 { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } state s(v: u8) -> u8 { v } }",
+        b"machine f(t: T, x: u8) -> u8 { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } machine s(v: u8) -> u8 { v } }",
         ((b"v == x", "bool"), (b"x > 1", "bool")),
     )
     rejected(
         program,
         "arm-guard-must-be-boolean",
-        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::B { v } if v -> s(v) _ -> s(1) } state s(v: u8) {} }",
+        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::B { v } if v -> s(v) _ -> s(1) } machine s(v: u8) {} }",
         "NotBoolean",
         b"v!3",
     )
     rejected(
         program,
         "guarded-arms-cover-nothing",
-        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) } state s(v: u8) {} }",
+        b"data T { case A; case B(v: u8); }\nmachine f(t: T) { transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) } machine s(v: u8) {} }",
         "UncoveredDispatch",
         b"transition t { T::A -> s(0) T::B { v } if v == 1 -> s(v) }",
     )
@@ -1277,7 +1277,7 @@ def main() -> None:
         program,
         "an-anonymous-subject-dispatches-on-exact-values",
         b"machine f() -> u8 {\n    transition 0 {\n        0 -> zero()\n        _ -> other()\n    }\n"
-        b"    state zero() -> u8 { 1 }\n    state other() -> u8 { 2 }\n}",
+        b"    machine zero() -> u8 { 1 }\n    machine other() -> u8 { 2 }\n}",
         (),
     )
     # A rank range's endpoints are integers (wiki/spec/language/termination.md#ranking).
@@ -1351,7 +1351,7 @@ def main() -> None:
         program,
         "transition-constant-path-pattern",
         b"data Size { value: u8; }\nconst Size::MAX: u8 = 9;\n"
-        b"machine f(c: u8) { transition c { Size::MAX -> g() _ -> g() } state g() {} }",
+        b"machine f(c: u8) { transition c { Size::MAX -> g() _ -> g() } machine g() {} }",
         ((b"Size::MAX!2", "u8"),),
     )
     rejected(
@@ -1375,56 +1375,56 @@ def main() -> None:
     accepted(
         program,
         "transition-cases-cover",
-        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() K::B -> g() } state g() {} }",
+        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() K::B -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-booleans-cover",
-        b"machine f(b: bool) { transition b { true -> g() false -> g() } state g() {} }",
+        b"machine f(b: bool) { transition b { true -> g() false -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-complementary-equalities-cover",
-        b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } state g() {} }",
+        b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-opposed-boolean-comparisons-cover",
-        b"machine f(a: u8) { transition { (a < 3) == true -> g() false == (a < 3) -> g() } state g() {} }",
+        b"machine f(a: u8) { transition { (a < 3) == true -> g() false == (a < 3) -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "transition-true-guard-closes",
-        b"machine f(x: u8) { transition { x < 3 -> g() true -> g() } state g() {} }",
+        b"machine f(x: u8) { transition { x < 3 -> g() true -> g() } machine g() {} }",
         (),
     )
     rejected(
         program,
         "transition-literal-ladder-needs-a-wildcard",
-        b"machine f(c: u8) { transition c { 1 -> g() 2 -> g() } state g() {} }",
+        b"machine f(c: u8) { transition c { 1 -> g() 2 -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition c { 1 -> g() 2 -> g() }",
     )
     rejected(
         program,
         "transition-misses-a-case",
-        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() } state g() {} }",
+        b"data K { case A; case B; }\nmachine f(k: K) { transition k { K::A -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition k { K::A -> g() }",
     )
     rejected(
         program,
         "transition-order-ladder-needs-a-wildcard",
-        b"machine f(x: u8) { transition { x < 3 -> g() x >= 3 -> g() } state g() {} }",
+        b"machine f(x: u8) { transition { x < 3 -> g() x >= 3 -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition { x < 3 -> g() x >= 3 -> g() }",
     )
     # The rejection spells `!=`, which `rejected` reads as an occurrence.
-    source = b"machine f(x: u8, y: u8) { transition { x == y -> g() x != 1 -> g() } state g() {} }"
+    source = b"machine f(x: u8, y: u8) { transition { x == y -> g() x != 1 -> g() } machine g() {} }"
     status, payload = run(program, source)
     observation = decode(payload)
     expected = ("UncoveredDispatch", span_of(source, b"transition { x == y -> g() x != 1 -> g() }"))

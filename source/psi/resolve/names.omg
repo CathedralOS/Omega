@@ -92,36 +92,7 @@ crashes Trap
         Resolver::bind_body(resolver, sources, syntax, index, item.first_parameter, item.parameter_count,
             item.first_statement, item.statement_count
         );
-        transition { _ -> next_state(resolver, sources, syntax, index, item, 0) }
-    }
-
-    machine next_state(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping
-    ) {
-        transition offset < item.state_count && resolver.output.accepted {
-            true -> state_body(resolver, sources, syntax, index, item, offset)
-            _ -> next_machine(resolver, sources, syntax, index + 1)
-        }
-    }
-
-    machine state_body(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping
-    ) {
-        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        Resolver::bind_body(resolver, sources, syntax, index, state_item.first_parameter,
-            state_item.parameter_count, state_item.first_statement, state_item.statement_count
-        );
-        transition { _ -> next_state(resolver, sources, syntax, index, item, offset + 1) }
+        transition { _ -> next_machine(resolver, sources, syntax, index + 1) }
     }
 
     machine done() {}
@@ -985,36 +956,45 @@ crashes Trap
     }
 }
 
-// A transition target: a state of the machine, else a callee.
+// Calls and terminal transfers resolve the same lexical callable declaration.
 machine Resolver::target_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    let item: MachineItem = SyntaxTrees::machine_item(syntax, scope.machine);
-    transition { _ -> next(resolution, sources, syntax, scope, item, name, 0) }
+    Resolver::callee_name(resolution, sources, syntax, scope, name)
+}
 
-    machine next(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
-        transition offset < item.state_count {
-            true -> candidate(resolution, sources, syntax, scope, item, name, offset)
-            _ -> callee(resolution, sources, syntax, scope, name)
+// The first matching lexical tier owns the complete ordinary overload family.
+// A child scope never searches a sibling's descendants or enclosing runtime binders.
+machine Resolver::lexical_callee(sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    transition { _ -> candidate(sources, syntax, machine + 1, name, 0) }
+
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+        transition index < syntax.machine_count {
+            true -> named(sources, syntax, parent, name, index)
+            false -> outer(sources, syntax, parent, name)
         }
     }
 
-    machine candidate(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
-        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        let named: bool = SourceSet::spans_equal(sources, state_item.name.source_span, name);
-        transition named {
-            true -> found(ValueBinding::State { handle: item.first_state + offset })
-            _ -> next(resolution, sources, syntax, scope, item, name, offset + 1)
+    machine named(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let same: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
+        transition item.parent == parent && same {
+            true -> found(ValueBinding::Machine { handle: index })
+            false -> candidate(sources, syntax, parent, name, index + 1)
         }
     }
 
-    machine callee(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        Resolver::callee_name(resolution, sources, syntax, scope, name)
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, parent - 1);
+        transition item.parent > 0 {
+            true -> candidate(sources, syntax, item.parent, name, 0)
+            false -> found(ValueBinding::Unresolved)
+        }
     }
 
-    machine found(binding: ValueBinding) -> ValueBinding {
-        binding
-    }
+    machine found(binding: ValueBinding) -> ValueBinding { binding }
 }
 
 // A single-name callee: a machine binder of the enclosing machine, else a
@@ -1030,13 +1010,22 @@ crashes Trap
 
     machine enclosing(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
         transition scope.has_machine {
-            true -> container(resolution, sources, syntax, scope, name)
+            true -> lexical(resolution, sources, syntax, scope, name)
             _ -> free_machine(resolution, sources, syntax, name)
         }
     }
 
+    machine lexical(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        let local: ValueBinding = Resolver::lexical_callee(sources, syntax, scope.machine, name);
+        transition local {
+            ValueBinding::Unresolved -> container(resolution, sources, syntax, scope, name)
+            _ -> found(local)
+        }
+    }
+
     machine container(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let owner: MachineOwner = NameResolution::machine_owner(resolution, scope.machine);
+        let root: u64 in Trapping = Resolver::lexical_root(syntax, scope.machine);
+        let owner: MachineOwner = NameResolution::machine_owner(resolution, root);
         transition owner.container == MachineContainer::Root || owner.container == MachineContainer::Measure {
             true -> free_machine(resolution, sources, syntax, name)
             _ -> fellow(resolution, sources, syntax, owner, name)
@@ -1241,7 +1230,7 @@ crashes Trap
 
     machine machine_scope(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, scope.machine);
-        let own: ValueBinding = Resolver::binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
+        let own: ValueBinding = Resolver::lexical_value_binder(sources, syntax, scope.machine, name, machine_binder);
         transition own {
             ValueBinding::GenericParameter { parameter } -> found(own)
             _ -> outer(resolution, sources, syntax, scope, name, machine_binder)
@@ -1249,7 +1238,8 @@ crashes Trap
     }
 
     machine outer(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
-        let owner: MachineOwner = NameResolution::machine_owner(resolution, scope.machine);
+        let root: u64 in Trapping = Resolver::lexical_root(syntax, scope.machine);
+        let owner: MachineOwner = NameResolution::machine_owner(resolution, root);
         let container: TypeScope = Resolver::container_scope(syntax, owner);
         Resolver::binder_named(sources, syntax, container.first_generic_parameter, container.generic_parameter_count, name, machine_binder)
     }
@@ -1409,5 +1399,22 @@ crashes Trap
 
     machine found(binding: ValueBinding) -> ValueBinding {
         binding
+    }
+}
+
+machine Resolver::lexical_value_binder(sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+    let own: ValueBinding = Resolver::binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
+    transition own {
+        ValueBinding::Unresolved -> outer(sources, syntax, item.parent, name, machine_binder)
+        _ -> own
+    }
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+        transition parent > 0 {
+            true -> Resolver::lexical_value_binder(sources, syntax, parent - 1, name, machine_binder)
+            false -> ValueBinding::Unresolved
+        }
     }
 }

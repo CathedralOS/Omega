@@ -1,0 +1,21 @@
+// A terminal invocation captures the completed scalar observation before transferring its existing mutable reference; distinct mutable inputs remain disjoint.
+// Expected exit: 0
+data Cell [copy] { value: u64; canary: u64; }
+machine replace(cell: &mut Cell) -> u64 { cell.value }
+machine update(cell: &mut Cell, before: u64, other: &mut Cell) -> u64 {
+    cell.value = 73;
+    other.value = 19;
+    before
+}
+machine forward(cell: &mut Cell, other: &mut Cell) -> u64 {
+    transition { _ -> update(cell, replace(cell), other) }
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 37, canary: 11 };
+    let mut other: Cell = Cell { value: 11, canary: 23 };
+    let before: u64 = forward(&mut cell, &mut other);
+    transition before == 37 && cell.value == 73 && cell.canary == 11 && other.value == 19 && other.canary == 23 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -215,39 +215,7 @@ crashes Trap
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         let result: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         Typer::type_body(typer, sources, syntax, resolution, item.first_statement, item.statement_count, result);
-        transition { _ -> next_state(typer, sources, syntax, resolution, index, item, result, 0) }
-    }
-
-    machine next_state(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        index: u64 in Trapping,
-        item: MachineItem,
-        machine_result: u64 in Trapping,
-        offset: u64 in Trapping
-    ) {
-        transition offset < item.state_count && typer.output.accepted {
-            true -> state_body(typer, sources, syntax, resolution, index, item, machine_result, offset)
-            _ -> next_machine(typer, sources, syntax, resolution, index + 1)
-        }
-    }
-
-    machine state_body(
-        typer: &mut Typer,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        index: u64 in Trapping,
-        item: MachineItem,
-        machine_result: u64 in Trapping,
-        offset: u64 in Trapping
-    ) {
-        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        let result: u64 in Trapping = Typer::declared_result(typer, state_item.has_return_type, state_item.return_type, machine_result);
-        Typer::type_body(typer, sources, syntax, resolution, state_item.first_statement, state_item.statement_count, result);
-        transition { _ -> next_state(typer, sources, syntax, resolution, index, item, machine_result, offset + 1) }
+        transition { _ -> next_machine(typer, sources, syntax, resolution, index + 1) }
     }
 
     machine done() {}

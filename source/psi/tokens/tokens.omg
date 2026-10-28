@@ -35,7 +35,6 @@ public data KeywordKind [copy] {
     case Public;
     case Return;
     case SelfValue;
-    case State;
     case Struct;
     case Target;
     case Transition;

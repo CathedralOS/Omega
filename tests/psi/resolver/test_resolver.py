@@ -19,7 +19,6 @@ PAYLOAD_FIELD_COLLIDES_WITH_COMMON_FIELD = 6
 UNKNOWN_DATA_TYPE = 7
 UNKNOWN_DOMAIN = 8
 DUPLICATE_PARAMETER = 9
-DUPLICATE_STATE = 10
 DUPLICATE_MACHINE = 11
 DUPLICATE_GENERIC_PARAMETER = 12
 UNKNOWN_NAME = 13
@@ -62,10 +61,6 @@ def parameter(handle: int) -> tuple[int, int, int]:
 
 def binder(field: int) -> tuple[int, int, int]:
     return (4, field, 0)
-
-
-def state(handle: int) -> tuple[int, int, int]:
-    return (5, handle, 0)
 
 
 def machine(handle: int) -> tuple[int, int, int]:
@@ -653,7 +648,7 @@ def main() -> None:
     accepted(
         program,
         "machine-signature-types",
-        b"machine f(a: u8, b: &mut D) -> u64 { state s(x: D) {} }\ndata D { y: u8; }",
+        b"machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) {} }\ndata D { y: u8; }",
         (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u8")),
     )
     accepted(
@@ -683,12 +678,12 @@ def main() -> None:
     accepted(
         program,
         "state-repeats-machine-and-parameter-names",
-        b"machine f(a: u8) { state f(a: u8) {} }",
+        b"machine f(a: u8) { machine f(a: u8) {} }",
         (builtin("u8"), builtin("u8")),
     )
     rejected(program, "unknown-parameter-type", b"machine f(a: Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-return-type", b"machine f() -> Q {}", UNKNOWN_DATA_TYPE, b"Q")
-    rejected(program, "unknown-state-parameter-type", b"machine f() { state s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-state-parameter-type", b"machine f() { machine s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-referee", b"machine f(a: &Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(
         program,
@@ -702,7 +697,7 @@ def main() -> None:
     rejected(
         program,
         "duplicate-state-parameter",
-        b"machine f() { state s(x: u8, x: u8) {} }",
+        b"machine f() { machine s(x: u8, x: u8) {} }",
         DUPLICATE_PARAMETER,
         b"x",
         2,
@@ -710,8 +705,8 @@ def main() -> None:
     rejected(
         program,
         "duplicate-state",
-        b"machine f() { state s {} state s {} }",
-        DUPLICATE_STATE,
+        b"machine f() { machine s {} machine s {} }",
+        DUPLICATE_MACHINE,
         b"s {}",
         2,
         length=1,
@@ -837,12 +832,12 @@ def main() -> None:
         b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
         b"machine f(x: u64) -> u64\nrequires x > 0\n{\n"
         b"    transition { _ -> g(x) }\n\n"
-        b"    state g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
+        b"    machine g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (
             field_name(0), field_name(1), NOT_A_NAME,
             parameter(0), NOT_A_NAME, NOT_A_NAME,
-            state(0), parameter(0), NOT_A_NAME,
+            machine(1), parameter(0), NOT_A_NAME,
             parameter(1), NOT_A_NAME, NOT_A_NAME,
             parameter(1),
         ),
@@ -904,7 +899,7 @@ def main() -> None:
     )
 
     # Expression names: locals, then pattern binders, then the body's own
-    # parameters; callees name machines, targets a state before a machine,
+    # parameters; callees name machines, targets a machine before a machine,
     # constructions and paths a data declaration's case.
     accepted(
         program,
@@ -916,14 +911,14 @@ def main() -> None:
     accepted(
         program,
         "state-scope",
-        b"machine f(a: u8) { transition { _ -> s(a) } state s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
+        b"machine f(a: u8) { transition { _ -> s(a) } machine s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
         (builtin("u8"), builtin("u8"), builtin("u8")),
-        (state(0), parameter(0), NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME),
+        (machine(1), parameter(0), NOT_A_NAME, machine(2), parameter(1), NOT_A_NAME),
     )
     rejected(
         program,
         "state-cannot-see-entry-parameter",
-        b"machine f(a: u8) { transition { _ -> s() } state s() { g(a); } }\nmachine g(x: u8) {}",
+        b"machine f(a: u8) { transition { _ -> s() } machine s() { g(a); } }\nmachine g(x: u8) {}",
         UNKNOWN_NAME,
         b"a)",
         length=1,
@@ -933,11 +928,11 @@ def main() -> None:
         "cases-constructions-and-patterns",
         b"data T { case A; case B(v: u8); }\n"
         b"machine f(t: T) { transition t { T::B { v } -> s(v) _ -> s(1) } "
-        b"state s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
+        b"machine s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
         (builtin("u8"), data(0), builtin("u8"), data(0), data(0)),
         (
-            parameter(0), data_case(0, 1), state(0), binder(0), NOT_A_NAME,
-            state(0), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
+            parameter(0), data_case(0, 1), machine(1), binder(0), NOT_A_NAME,
+            machine(1), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
         ),
     )
     # An arm's `if` guard sees the pattern's binders
@@ -947,19 +942,19 @@ def main() -> None:
         "arm-guards-see-pattern-binders",
         b"data T { case A; case B(v: u8); }\n"
         b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } "
-        b"state s(v: u8) {} }",
+        b"machine s(v: u8) {} }",
         (builtin("u8"), data(0), builtin("u8"), builtin("u8")),
         (
-            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, state(0), binder(0), NOT_A_NAME,
-            parameter(1), NOT_A_NAME, NOT_A_NAME, state(0), parameter(1), NOT_A_NAME,
-            state(0), NOT_A_NAME, NOT_A_NAME,
+            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, machine(1), binder(0), NOT_A_NAME,
+            parameter(1), NOT_A_NAME, NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME,
+            machine(1), NOT_A_NAME, NOT_A_NAME,
         ),
     )
     rejected(
         program,
         "arm-guard-cannot-see-another-arm's-binder",
         b"data T { case A; case B(v: u8); }\n"
-        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } state s(v: u8) {} }",
+        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } machine s(v: u8) {} }",
         UNKNOWN_NAME,
         b"v == 1",
         length=1,
@@ -1053,7 +1048,7 @@ def main() -> None:
     accepted(
         program,
         "generic-machine-signature",
-        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { state s(x: T) {} }\ndata Vec<T> { v: T; }",
+        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) {} }\ndata Vec<T> { v: T; }",
         (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(1)),
     )
     accepted(
@@ -1417,14 +1412,14 @@ def main() -> None:
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
     rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
-    # A state formal carries the entry subject its arrivals pass it, read
+    # A machine formal carries the entry subject its arrivals pass it, read
     # from the body bindings while resolution runs (clauses.omg).
     accepted(
         program,
         "ranked-state-arrivals-bind-carriers",
         b"machine count(n: u64) -> u64\nterminates by n;\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n"
-        b"    state step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
-        b"    state done() -> u64 { 0 }\n}",
+        b"    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
+        b"    machine done() -> u64 { 0 }\n}",
         (builtin("u64"),) * 5,
     )
     # A view names the compiler's ranking vocabulary by spelling, not a
