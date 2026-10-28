@@ -998,17 +998,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             for outcome in outcomes {
                 let subject = outcome.value;
                 let truth = guard_preserves_values
-                    .then(|| {
-                        let StructuralTerm::Constructor { data, case, fields } = &constructor
-                        else {
-                            return None;
-                        };
-                        (data == "bool" && fields.is_empty())
-                            .then(|| {
-                                language_semantics::const_value::boolean_literal_spelling(case)
-                            })
-                            .flatten()
-                    })
+                    .then(|| constructor.boolean_constructor())
                     .flatten();
                 let subject_judgment = truth.map(|_| {
                     outcome.judge.judge_equation(
@@ -1762,17 +1752,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     let mut branch_equations = remaining_equations.clone();
                     let mut skipped_equations = remaining_equations.clone();
                     let truth = guard_preserves_values
-                        .then(|| {
-                            let StructuralTerm::Constructor { data, case, fields } = &constructor
-                            else {
-                                return None;
-                            };
-                            (data == "bool" && fields.is_empty())
-                                .then(|| {
-                                    language_semantics::const_value::boolean_literal_spelling(case)
-                                })
-                                .flatten()
-                        })
+                        .then(|| constructor.boolean_constructor())
                         .flatten();
                     let subject_judgment = truth.map(|_| {
                         outcome.judge.judge_equation(

@@ -934,16 +934,8 @@ pub(super) fn fold_scalar_binary(
         .iter()
         .all(|(primitive, _)| *primitive == typed_trees::types::PrimitiveType::Bool)
     {
-        let truth = |term: &StructuralTerm| {
-            let StructuralTerm::Constructor { data, case, fields } = term else {
-                return None;
-            };
-            (data == "bool" && fields.is_empty())
-                .then(|| language_semantics::const_value::boolean_literal_spelling(case))
-                .flatten()
-        };
-        let left = truth(left)?;
-        let right = truth(right)?;
+        let left = left.boolean_value()?;
+        let right = right.boolean_value()?;
         let value = match operator {
             BinaryOperator::Equal => left == right,
             BinaryOperator::NotEqual => left != right,

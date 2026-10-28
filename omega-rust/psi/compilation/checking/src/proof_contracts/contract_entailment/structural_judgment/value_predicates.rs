@@ -893,13 +893,7 @@ pub(super) fn boolean_term(value: bool) -> StructuralTerm {
 }
 
 pub(super) fn boolean_value(value: &StructuralTerm) -> Option<bool> {
-    let StructuralTerm::Constructor { data, case, fields } = value.semantic_value() else {
-        return None;
-    };
-    if data != "bool" || !fields.is_empty() {
-        return None;
-    }
-    language_semantics::const_value::boolean_literal_spelling(case)
+    value.boolean_value()
 }
 
 fn projected_meaning(

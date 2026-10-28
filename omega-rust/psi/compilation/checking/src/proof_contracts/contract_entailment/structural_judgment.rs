@@ -258,14 +258,17 @@ impl StructuralTerm {
         }
     }
 
-    pub(super) fn boolean_value(&self) -> Option<bool> {
-        let Self::Constructor { data, case, fields } = self.semantic_value() else {
+    pub(super) fn boolean_constructor(&self) -> Option<bool> {
+        let Self::Constructor { data, case, fields } = self else {
             return None;
         };
-        if data != "bool" || !fields.is_empty() {
-            return None;
-        }
-        language_semantics::const_value::boolean_literal_spelling(case)
+        (data == "bool" && fields.is_empty())
+            .then(|| language_semantics::const_value::boolean_literal_spelling(case))
+            .flatten()
+    }
+
+    pub(super) fn boolean_value(&self) -> Option<bool> {
+        self.semantic_value().boolean_constructor()
     }
 
     pub(super) fn into_semantic_value(self) -> Self {
