@@ -979,7 +979,7 @@ fn validate<'program>(
         {
             proven_machine_contracts.push((symbol, judged));
         }
-        arithmetic_decisions.append(machine.arithmetic_decisions);
+        arithmetic_decisions.extend(machine.arithmetic_decisions);
         formation_obligations.extend(machine.formation_obligations);
         stored_integer_writes.extend(machine.stored_integer_writes);
         // A site validated twice keeps its first application and reports an
