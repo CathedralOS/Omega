@@ -365,6 +365,8 @@ pub(super) struct StructuralJudge<'program> {
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
+    pub(super) returned_field_trace:
+        Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
@@ -419,6 +421,8 @@ pub(super) struct StructuralJudge<'program> {
     /// site (per-leaf clones all share the same cell).
     frame_resolver:
         Arc<std::sync::OnceLock<Option<crate::machine_calls::calls::CallFrameResolver<'program>>>>,
+    prepared_integer_premises_cache:
+        Arc<std::sync::Mutex<integer_predicates::PreparedIntegerPremisesCache<'program>>>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -433,6 +437,7 @@ impl Clone for StructuralJudge<'_> {
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
+            returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
@@ -457,6 +462,7 @@ impl Clone for StructuralJudge<'_> {
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
             frame_resolver: Arc::clone(&self.frame_resolver),
+            prepared_integer_premises_cache: Arc::clone(&self.prepared_integer_premises_cache),
         }
     }
 }
@@ -829,6 +835,7 @@ impl<'program> StructuralJudge<'program> {
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
+            returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
@@ -848,6 +855,9 @@ impl<'program> StructuralJudge<'program> {
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
             disequalities: Arc::new(Vec::new()),
             frame_resolver: Arc::new(std::sync::OnceLock::new()),
+            prepared_integer_premises_cache: Arc::new(std::sync::Mutex::new(
+                integer_predicates::PreparedIntegerPremisesCache::default(),
+            )),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
             hypotheses_contradictory: false,

@@ -342,7 +342,19 @@ pub(crate) fn field_equality<'program>(
 pub(crate) fn validate_equatable_conformances(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
-    for conformance in &program.conformances {
+    validate_equatable_conformances_in(program, &crate::lowerer::TypingCohort::default())
+}
+
+pub(crate) fn validate_equatable_conformances_in(
+    program: &SymbolResolvedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+) -> Result<(), Diagnostic> {
+    let skip = if cohort.data_definitions == program.data_definitions.len() {
+        cohort.conformances
+    } else {
+        0
+    };
+    for conformance in program.conformances.iter().skip(skip) {
         if !is_equatable_implementation(program, conformance)
             || !equals_row(conformance)
                 .is_some_and(|row| row.source == ConformanceRowSource::Synthesized)

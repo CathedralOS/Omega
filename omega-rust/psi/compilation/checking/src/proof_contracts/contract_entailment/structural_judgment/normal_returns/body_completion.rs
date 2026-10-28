@@ -104,25 +104,27 @@ impl<'program> StructuralJudge<'program> {
             .map(|parameter| parameter.name.to_string())
             .collect::<Vec<_>>();
         let mut diagnostics = Vec::new();
-        let arms = recognize_structural_state_leaves(
-            program,
-            theorem,
-            &captured,
-            &classification,
-            &mut diagnostics,
-            program.machine_states(callee),
-            entry,
-            &parameter_names,
-            incoming,
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            true,
-            &mut Vec::new(),
-            &mut 0,
-            &mut None,
-            CitationFacts::default(),
-        )?;
+        let arms = phase_profile::scope("05.bc.recognize", || {
+            recognize_structural_state_leaves(
+                program,
+                theorem,
+                &captured,
+                &classification,
+                &mut diagnostics,
+                program.machine_states(callee),
+                entry,
+                &parameter_names,
+                incoming,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                true,
+                &mut Vec::new(),
+                &mut 0,
+                &mut None,
+                CitationFacts::default(),
+            )
+        })?;
         if !diagnostics.is_empty() {
             return None;
         }

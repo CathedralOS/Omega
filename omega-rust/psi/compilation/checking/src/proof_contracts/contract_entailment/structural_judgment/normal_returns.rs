@@ -289,6 +289,9 @@ impl<'program> StructuralJudge<'program> {
         &self,
         value: StructuralTerm,
     ) -> StructuralTerm {
+        if self.captured_result_equations.is_empty() {
+            return value;
+        }
         self.completed_value_identity_at(value, 0)
     }
 
@@ -2719,6 +2722,30 @@ impl<'program> StructuralJudge<'program> {
             ));
         }
         for (left, right) in equations {
+            let max_premise_occ = self.rewrites.max_premise_occurrence();
+            let pattern_occ = match (
+                Self::term_max_captured_occurrence(&left),
+                Self::term_max_captured_occurrence(&right),
+            ) {
+                (Some(l), Some(r)) => {
+                    if l > r {
+                        Some(l)
+                    } else if r > l {
+                        Some(r)
+                    } else {
+                        None
+                    }
+                }
+                (Some(l), None) => Some(l),
+                (None, Some(r)) => Some(r),
+                (None, None) => None,
+            };
+            if let Some(occ) = pattern_occ
+                && occ <= max_premise_occ
+            {
+                std::sync::Arc::make_mut(&mut self.rewrites)
+                    .bump_integer_premise_revision_for_occurrences(occ);
+            }
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));
             std::sync::Arc::make_mut(&mut self.normal_guarantees)

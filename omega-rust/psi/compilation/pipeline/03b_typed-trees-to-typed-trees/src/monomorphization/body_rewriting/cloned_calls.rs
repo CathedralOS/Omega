@@ -245,8 +245,7 @@ pub(crate) fn rewrite_cloned_calls(
         cloned_runtime_call_subjects(program, states, state_symbols, expression_start);
     let handles: Vec<_> = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
@@ -440,8 +439,7 @@ fn restore_recursive_invocation_targets(
     }
     let expressions = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     for handle in expressions {

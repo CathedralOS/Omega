@@ -339,7 +339,11 @@ fn type_requires_establishment_inner(
                 }
             });
             definition.is_some_and(|definition| {
-                data_requires_establishment_inner(program, definition, index)
+                if index.seen.is_empty() {
+                    data_requires_establishment(program, definition)
+                } else {
+                    data_requires_establishment_inner(program, definition, index)
+                }
             })
         }
         TypeReferenceNode::Generic { base_symbol, .. } => {
@@ -356,7 +360,11 @@ fn type_requires_establishment_inner(
                     )
                 })
                 .is_none_or(|definition| {
-                    data_requires_establishment_inner(program, definition, index)
+                    if index.seen.is_empty() {
+                        data_requires_establishment(program, definition)
+                    } else {
+                        data_requires_establishment_inner(program, definition, index)
+                    }
                 })
         }
         _ => false,

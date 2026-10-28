@@ -77,19 +77,25 @@ pub(super) fn validate(
     // premises: the primary arm assumes the guard, the continuation
     // assumes its complement, and each crosses only its own effects.
     // Keep the ordinary guard environment for targets without values.
-    let narrowed = arithmetic_domains::guard_narrowed_environment(
-        program,
-        machine,
-        current_state,
-        &transition.guard,
-        value_environment,
+    let guard_is_always = matches!(
+        transition.guard,
+        typed_trees::statement::TransitionGuardNode::Always
     );
+    let narrowed_owned = (!guard_is_always).then(|| {
+        arithmetic_domains::guard_narrowed_environment(
+            program,
+            machine,
+            current_state,
+            &transition.guard,
+            value_environment,
+        )
+    });
 
     // Fall-through complement: an exit-if-true transition (valid
     // target, no `_` arm) leaves the guard REFUTED for every later
     // statement in this state -- the MR2 terminal-tail shape's
     // `n - 1` after `transition n == 0 { true -> exit }`.
-    if transition.target.is_valid() && !transition.continuation.is_valid() {
+    if transition.target.is_valid() && !transition.continuation.is_valid() && !guard_is_always {
         *value_environment = arithmetic_domains::fall_through_narrowed_environment(
             program,
             machine,
@@ -98,6 +104,7 @@ pub(super) fn validate(
             value_environment,
         );
     }
+    let narrowed = narrowed_owned.as_ref().unwrap_or(&*value_environment);
 
     // A terminal call forwards the same logical result as an ordinary call.
     // A Unit call can complete a Unit state; a scalar/structural value still

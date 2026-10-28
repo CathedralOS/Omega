@@ -42,10 +42,6 @@ impl PreparedPackageBuild {
         let execution = self.prepared.build_sources.build_execution_profile;
         package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
             == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
-            && inputs.semantic_role_discovery() == self.inputs.semantic_role_discovery()
-            && inputs
-                .accepted_semantic_bindings()
-                .eq(self.inputs.accepted_semantic_bindings())
     }
     /// Select a realization context from one completed Build. The source
     /// continuation, executed effects and charges remain shared. Target-local

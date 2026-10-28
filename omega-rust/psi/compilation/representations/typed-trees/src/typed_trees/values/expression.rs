@@ -1131,6 +1131,20 @@ impl ExpressionTable {
             .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
     }
 
+    pub fn iter_expressions_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> + '_ {
+        let start_root = self
+            .expression_roots
+            .storage_slice()
+            .partition_point(|handle| (handle.arena_index() as usize) < start_arena_index);
+        self.expression_roots
+            .iter_from(start_root)
+            .filter(move |(_, handle)| handle.arena_index() as usize >= start_arena_index)
+            .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
+    }
+
     /// Project iteration roots without rewriting any expression or inbound
     /// handle. The caller owns graph closure; newly inserted expressions join
     /// the resulting roster through the ordinary insertion operation.

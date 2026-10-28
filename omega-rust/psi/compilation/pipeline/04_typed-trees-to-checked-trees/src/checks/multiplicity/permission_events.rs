@@ -102,6 +102,7 @@ pub(crate) fn prepare_permission_events(
         .map(|(handle, state)| (handle, state.clone()))
         .collect::<Vec<_>>();
     for (state_handle, state_flow) in state_flows {
+        let _setup_guard = phase_profile::guard("05.perm.a_setup");
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
@@ -389,6 +390,8 @@ pub(crate) fn prepare_permission_events(
                         parameter.type_reference,
                     ) != Multiplicity::Unrestricted
             });
+        drop(_setup_guard);
+        let _walk_guard = phase_profile::guard("05.perm.b_walk");
         super::permission_schedule::walk(
             program,
             state,
