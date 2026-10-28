@@ -33,13 +33,22 @@ pub(crate) fn selection_plan(
     let mut plans = Vec::with_capacity(members.len());
     let mut selected_path = None;
     for (path, observed) in workspace.members.iter().zip(members) {
-        if observed.source_capture().canonical_live_root()
-            != root
-                .source_capture()
-                .canonical_live_root()
-                .join(path.as_str())
-        {
-            return Err("workspace declaration came from a different member capture".into());
+        // Storage publication may give a member an independent physical root.
+        // Its complete closed inventory must still equal the exact declared
+        // subtree of this catalog, not merely share a path spelling.
+        let prefix = Path::new(path.as_str());
+        let expected = root
+            .source_capture()
+            .tree()
+            .entries()
+            .filter_map(|(entry, node)| {
+                let relative = entry.strip_prefix(prefix).ok()?;
+                (!relative.as_os_str().is_empty()).then_some((relative, node))
+            });
+        if !expected.eq(observed.source_capture().tree().entries()) {
+            return Err(
+                "workspace declaration came from a different authenticated member inventory".into(),
+            );
         }
         let bytes = observed
             .source_capture()

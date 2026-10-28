@@ -246,7 +246,6 @@ impl ScanContext<'_> {
             executes,
         );
     }
-
     /// An assignment target is scanned for the calls inside it -- `self.rows[self
     /// .index()] = v` performs one -- but the target itself is not a read.
     /// `value_custody::places` already reports an unknown direct or nested field
@@ -271,13 +270,15 @@ impl ScanContext<'_> {
             formation_obligations: &mut *self.formation_obligations,
         };
         nested.scan(expression, value_environment, executes);
-        let read_reports =
-            unknown_field_read_reports(self.program, self.machine, self.state, expression);
-        self.diagnostics.extend(
-            target_diagnostics
-                .into_iter()
-                .filter(|diagnostic| !read_reports.contains(&diagnostic.message)),
-        );
+        if !target_diagnostics.is_empty() {
+            let read_reports =
+                unknown_field_read_reports(self.program, self.machine, self.state, expression);
+            self.diagnostics.extend(
+                target_diagnostics
+                    .into_iter()
+                    .filter(|diagnostic| !read_reports.contains(&diagnostic.message)),
+            );
+        }
     }
 
     /// Only the direct expression statement may discard Unit. Recursive operands
@@ -357,15 +358,12 @@ impl ScanContext<'_> {
         // exception, and only for MEMBER access: text carries a `.len` view, so `s.len`
         // is legal. An UNRESOLVED receiver or a struct / array / slice receiver is
         // left alone (those accesses are separate).
-        let primitive_access = match program.expression_table.expression(expression) {
-            ExpressionNode::Member(member) => Some((
-                member.receiver,
-                format!("member `{}`", member.member.as_str()),
-            )),
-            ExpressionNode::Indexed(indexed) => Some((indexed.collection, "an index".to_owned())),
+        let primitive_receiver = match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => Some((member.receiver, Some(member.member.as_str()))),
+            ExpressionNode::Indexed(indexed) => Some((indexed.collection, None)),
             _ => None,
         };
-        if let Some((receiver, access)) = primitive_access
+        if let Some((receiver, member_name)) = primitive_receiver
             && let Some(receiver_type) = crate::value_custody::places::declared_place_type(
                 program,
                 machine,
@@ -374,6 +372,10 @@ impl ScanContext<'_> {
             )
             && let Some(primitive) = program.primitive_type_reference(receiver_type)
         {
+            let access = match member_name {
+                Some(member) => format!("member `{member}`"),
+                None => "an index".to_owned(),
+            };
             self.diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
              scalar has no members or elements",

@@ -391,9 +391,7 @@ pub(super) fn invocation_tuples(
                 );
                 for expression in expressions {
                     if let Some(call) = program.expression_table.call_node(expression) {
-                        add(
-                            machine.symbol,
-                            call.target_symbol,
+                        let receiver = if call.receiver.is_valid() {
                             validation::qualified_trait_scope(
                                 program,
                                 machine.symbol,
@@ -407,7 +405,14 @@ pub(super) fn invocation_tuples(
                                     position,
                                     call.receiver,
                                 ),
-                            ),
+                            )
+                        } else {
+                            None
+                        };
+                        add(
+                            machine.symbol,
+                            call.target_symbol,
+                            receiver,
                             call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
@@ -454,6 +459,13 @@ fn dispatch_instance(
 
 pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let invocations = prepare_invocations(program)?;
+    let invocation_map: std::collections::HashMap<
+        (super::super::CallSite, SymbolHandle),
+        &InvocationTuple,
+    > = invocations
+        .iter()
+        .map(|invocation| ((invocation.site, invocation.owner), &invocation.tuple))
+        .collect();
     let mut expression_updates = Vec::new();
     let mut expression_dispatch_updates = Vec::new();
     let mut diagnostics = Vec::new();
@@ -466,13 +478,17 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                 .indexed_statements(state.statement_nodes)
             {
                 if let Some(call) = statement.as_call() {
-                    let invocation = prepared_occurrence(
-                        &invocations,
-                        super::super::CallSite::Statement(
-                            state.statement_nodes.handle_at(position as u32),
-                        ),
-                        machine.symbol,
-                    )?;
+                    let site = super::super::CallSite::Statement(
+                        state.statement_nodes.handle_at(position as u32),
+                    );
+                    let invocation = invocation_map
+                        .get(&(site, machine.symbol))
+                        .copied()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "requirement call lost its prepared invocation",
+                            )]
+                        })?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
                         let selected =
                             dispatch_instance(program, machine.symbol, dispatch, invocation);
@@ -513,11 +529,15 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     let Some(call) = program.expression_table.call_node(expression) else {
                         continue;
                     };
-                    let invocation = prepared_occurrence(
-                        &invocations,
-                        super::super::CallSite::Expression(expression),
-                        machine.symbol,
-                    )?;
+                    let site = super::super::CallSite::Expression(expression);
+                    let invocation = invocation_map
+                        .get(&(site, machine.symbol))
+                        .copied()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "requirement call lost its prepared invocation",
+                            )]
+                        })?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
                         let selected =
                             dispatch_instance(program, machine.symbol, dispatch, invocation);
@@ -534,20 +554,24 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             }
                         }
                     }
-                    let receiver = validation::qualified_trait_scope(
-                        program,
-                        machine.symbol,
-                        program
-                            .expression_table
-                            .name_path_node(call.receiver)
-                            .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                        validation::expression_type_reference_in_state(
+                    let receiver = if call.receiver.is_valid() {
+                        validation::qualified_trait_scope(
                             program,
-                            state.symbol,
-                            position,
-                            call.receiver,
-                        ),
-                    );
+                            machine.symbol,
+                            program
+                                .expression_table
+                                .name_path_node(call.receiver)
+                                .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                            validation::expression_type_reference_in_state(
+                                program,
+                                state.symbol,
+                                position,
+                                call.receiver,
+                            ),
+                        )
+                    } else {
+                        None
+                    };
                     let selected = instance(
                         program,
                         machine.symbol,

@@ -15,7 +15,7 @@ pub(crate) mod declaration_selection;
 pub(crate) mod generic_data;
 pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
-mod target_families;
+pub(crate) mod target_families;
 pub(crate) mod trait_defaults;
 pub(crate) mod type_equations;
 

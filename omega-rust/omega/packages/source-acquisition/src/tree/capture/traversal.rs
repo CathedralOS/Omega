@@ -361,7 +361,11 @@ fn open_observed_directory(
 /// the closing membership recheck is not required because the close compares
 /// raw membership — an excluded member appearing or vanishing mid-traversal
 /// is still drift under the quiescent-tree premise and rejects.
-fn excluded_from_capture(policy: SourceTreePolicy, logical_dir: &Path, name: &OsStr) -> bool {
+pub(crate) fn excluded_from_capture(
+    policy: SourceTreePolicy,
+    logical_dir: &Path,
+    name: &OsStr,
+) -> bool {
     policy == SourceTreePolicy::LocalPackage
         && (name == ".git"
             || (logical_dir.as_os_str().is_empty()

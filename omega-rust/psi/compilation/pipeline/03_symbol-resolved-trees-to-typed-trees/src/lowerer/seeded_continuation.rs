@@ -330,7 +330,8 @@ pub fn lower_seeded_extension(
         ));
     }
 
-    if let Err(error) = super::validate_resolved_semantics(&source) {
+    let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
+    if let Err(error) = super::validate_resolved_semantics_in(&source, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     let resolved_ledger = source.authored_declaration_selections().clone();
@@ -345,7 +346,6 @@ pub fn lower_seeded_extension(
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
-    let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
     if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
@@ -431,7 +431,8 @@ fn lower_body_completion(
             "authored-body completion changed retained normalized statement, transition target or type storage",
         ));
     }
-    super::validate_resolved_semantics(&source)?;
+    let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
+    super::validate_resolved_semantics_in(&source, &cohort)?;
     let mut candidate = retained.typed.as_ref().clone();
     join_resolved_semantics(&source, &predecessor, &mut candidate)?;
     let mut lowerer = Lowerer {
@@ -442,7 +443,6 @@ fn lower_body_completion(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
         ),
     };
-    let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
     type_resolved_cohort(&mut lowerer, &cohort)?;
     for forwarding in source
         .evidence_forwardings

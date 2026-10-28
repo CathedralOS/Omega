@@ -9,9 +9,9 @@ use std::sync::Arc;
 /// a separate operation for transaction and review custody.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedLocalSource {
-    pub(super) requested_root: PathBuf,
-    pub(super) normalized: ResolvedSourceTree,
-    pub(super) tree: Arc<source::CapturedSourceTree>,
+    pub(crate) requested_root: PathBuf,
+    pub(crate) normalized: ResolvedSourceTree,
+    pub(crate) tree: Arc<source::CapturedSourceTree>,
 }
 
 impl CapturedLocalSource {

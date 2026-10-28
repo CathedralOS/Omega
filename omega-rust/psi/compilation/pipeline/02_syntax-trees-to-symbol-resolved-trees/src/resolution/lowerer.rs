@@ -338,12 +338,28 @@ impl Lowerer {
         });
         // The retained constant rows are lookup, not new declaration work.
         // Lowering registers each fresh declaration by its allocation handle.
+        let mut authored_by_owner: std::collections::HashMap<
+            symbols::SymbolHandle,
+            &symbol_resolved_trees::signature::AuthoredServiceReachRow,
+            symbols::BuildSymbolHasher,
+        > = std::collections::HashMap::with_capacity_and_hasher(
+            base.authored_service_reach_rows.len(),
+            symbols::BuildSymbolHasher::default(),
+        );
+        for row in &base.authored_service_reach_rows {
+            authored_by_owner.entry(row.owner).or_insert(row);
+        }
+        let retained_reach = |owner: symbols::SymbolHandle,
+                              row: language_semantics::ServiceReachRowId| {
+            crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+                row,
+                authored: authored_by_owner.get(&owner).copied().cloned(),
+            }
+        };
         self.pending_machine_service_reaches = base
             .machines
             .iter()
-            .map(|machine| {
-                retained_service_reach_for(&base, machine.symbol, machine.service_reach_row)
-            })
+            .map(|machine| retained_reach(machine.symbol, machine.service_reach_row))
             .collect();
         for definition in &base.traits {
             for offset in 0..definition.machines.len() {
@@ -353,11 +369,7 @@ impl Lowerer {
                     .declarations
                     .trait_machine_signatures
                     .get(handle);
-                let reaches = retained_service_reach_for(
-                    &base,
-                    signature.symbol,
-                    signature.service_reach_row,
-                );
+                let reaches = retained_reach(signature.symbol, signature.service_reach_row);
                 self.pending_signature_service_reaches
                     .push(PendingSignatureServiceReach {
                         location: PendingSignatureLocation::Trait(handle),
@@ -375,8 +387,7 @@ impl Lowerer {
             let Some(signature) = contract.structural() else {
                 continue;
             };
-            let reaches =
-                retained_service_reach_for(&base, signature.symbol, signature.service_reach_row);
+            let reaches = retained_reach(signature.symbol, signature.service_reach_row);
             self.pending_signature_service_reaches
                 .push(PendingSignatureServiceReach {
                     location: PendingSignatureLocation::MachineParameter(handle),
@@ -549,21 +560,6 @@ impl Lowerer {
             pending_machine_service_reaches,
             pending_signature_service_reaches,
         ))
-    }
-}
-
-fn retained_service_reach_for(
-    program: &SymbolResolvedTrees,
-    owner: symbols::SymbolHandle,
-    row: language_semantics::ServiceReachRowId,
-) -> crate::selection::service_reaches::PendingAuthoredServiceReach {
-    crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
-        row,
-        authored: program
-            .authored_service_reach_rows
-            .iter()
-            .find(|row| row.owner == owner)
-            .cloned(),
     }
 }
 

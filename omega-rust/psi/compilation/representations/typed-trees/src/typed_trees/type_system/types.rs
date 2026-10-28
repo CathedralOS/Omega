@@ -472,6 +472,16 @@ impl TypeReferenceTable {
         self.type_references.iter()
     }
 
+    /// Live type nodes with `handle.arena_index() as usize >= start_arena_index`.
+    pub fn references_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> + '_ {
+        self.type_references
+            .iter_from(start_arena_index.saturating_sub(1))
+            .filter(move |(handle, _)| handle.arena_index() as usize >= start_arena_index)
+    }
+
     /// Every NAMED type reference in the table, as `(handle, symbol)` pairs.
     /// The machine-monomorphization pass scans these for generic type-parameter
     /// references to substitute before checking/layout (a type parameter's
@@ -482,6 +492,17 @@ impl TypeReferenceTable {
     ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
         self.type_references
             .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
+                _ => None,
+            })
+    }
+
+    pub fn named_references_from(
+        &self,
+        start_arena_index: usize,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
+        self.references_from(start_arena_index)
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::Named { symbol, name } => Some((handle, *symbol, name.as_str())),
                 _ => None,

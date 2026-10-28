@@ -60,6 +60,16 @@ fn evaluate_application_group(
     let sources = context.sources.clone();
     let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
     let selection_authority = context.selection_authority.clone();
+    let mut endpoint_leaves = Vec::new();
+    collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
+    let has_call_const_expression = syntax
+        .type_references
+        .const_expression_nodes()
+        .into_iter()
+        .any(|(_, expression)| contains_call(&syntax, expression));
+    if endpoint_leaves.is_empty() && !has_call_const_expression {
+        return Ok((syntax, false));
+    }
     let mut const_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             &syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(), context.retained_base(),
@@ -95,11 +105,6 @@ fn evaluate_application_group(
             applications.push((*type_reference, *expression));
         }
     }
-    // Range endpoints nested in generic arguments also feed synthesis. Only
-    // their call leaves are collected here; the probe's shared endpoint fold
-    // decides which of them can actually close.
-    let mut endpoint_leaves = Vec::new();
-    collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
     if endpoint_leaves.is_empty() && applications.is_empty() {
         return Ok((syntax, false));
     }

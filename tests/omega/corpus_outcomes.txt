@@ -331,6 +331,8 @@ fail/arithmetic/undeclared_bare_name_rejected rejected 981ms expected @a92f16431
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/arithmetic/unequal_observations_do_not_compose rejected 543ms expected @a92f16431042
 	partial exact division in machine `quotient` state `calculate` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/unit_terminal_unguarded_cast rejected 400ms expected @e3d69b170c94
+	Exact integer cast in machine `located` state `entry` from `i32` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/unknown_field_write_rejected rejected 978ms expected @a92f16431042
 	machine `Main::main` state `main` assignment: data `Main` has no field `cont` (check the spelling of the field name)
 	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -4370,6 +4372,8 @@ fail/drops/qualified_scalar_control_consumed_owner_reused rejected 918ms expecte
 	cannot use `claim.value` in machine `consume` state `entry` (statement 3) after `claim` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `claim` first
 fail/drops/read_after_conditional_call_move rejected 4345ms expected @a92f16431042
 	cannot use `owner.value` in machine `invalid` state `entry` (statement 2) after `owner` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `owner` first
+fail/drops/replaced_record_scalar_duplicate_move rejected 688ms expected @e3d69b170c94
+	cannot use `style` in machine `verify` state `entry` (statement 7) after `style` was transferred or consumed at statement 6: it holds no value; read what is needed before the transfer or assign a whole value to `style` first
 fail/drops/reserved_call_result_cleanup_mutated rejected 1779ms expected @a92f16431042
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: holder.value does not establish Token::drop clause `token.value == 42`
 fail/drops/result_cleanup_disjunctive_result rejected 2051ms expected @a92f16431042
@@ -23252,6 +23256,7 @@ pass/arithmetic/runtime_trapping_overflow_traps checked 9159ms check-target:maco
 pass/arithmetic/runtime_trapping_shift_count_traps checked 9249ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_u64_guarded_cap_store_exit checked 8618ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_unbounded_zero_product_exit checked 2611ms check-target:macos_arm64 @a92f16431042
+pass/arithmetic/runtime_unit_terminal_guarded_cast_exit checked 1790ms check-target:macos_arm64 @e3d69b170c94
 pass/arithmetic/runtime_widened_result_predicates_exit checked 8588ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_wrapping_mutable_local_exit checked 8292ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_wrapping_operand_truncation_exit checked 8347ms check-target:macos_arm64 @a92f16431042
@@ -25169,6 +25174,7 @@ pass/drops/runtime_projected_reference_transition_cleanup_exit checked 5562ms ch
 pass/drops/runtime_projected_transition_cleanup_exit checked 11311ms check-target:macos_arm64 @a92f16431042
 pass/drops/runtime_record_construction_cleanup_order_exit checked 5185ms check-target:macos_arm64 @a92f16431042
 pass/drops/runtime_replaced_record_custody_transfer_exit checked 5123ms check-target:macos_arm64 @a92f16431042
+pass/drops/runtime_replaced_record_scalar_exit checked 1840ms check-target:macos_arm64 @e3d69b170c94
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 5198ms check-target:macos_arm64 @a92f16431042
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 5250ms check-target:macos_arm64 @a92f16431042
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 5120ms check-target:macos_arm64 @a92f16431042

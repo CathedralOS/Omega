@@ -26,7 +26,17 @@ use resolved::statement::{StatementNode, TransitionGuardNode, TransitionTargetNo
 use symbol_resolved_trees as resolved;
 
 pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Result<(), Diagnostic> {
-    for machine in &program.machines {
+    validate_equality_operands_in(program, &crate::lowerer::TypingCohort::default())
+}
+
+pub(crate) fn validate_equality_operands_in(
+    program: &SymbolResolvedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+) -> Result<(), Diagnostic> {
+    for (ordinal, machine) in program.machines.iter().enumerate() {
+        if ordinal < cohort.machines && !cohort.completed_machines.contains(&machine.symbol) {
+            continue;
+        }
         for contract in program.signature_contracts(machine.contracts) {
             scan_proof_facts(program, contract.facts)?;
         }
@@ -44,7 +54,7 @@ pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Resul
         }
     }
 
-    for domain in &program.domain_definitions {
+    for domain in program.domain_definitions.iter().skip(cohort.domain_definitions) {
         scan_proof_facts(program, domain.facts)?;
     }
 
