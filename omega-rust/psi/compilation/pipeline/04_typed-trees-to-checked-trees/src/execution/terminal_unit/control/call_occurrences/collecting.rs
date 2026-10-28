@@ -809,6 +809,21 @@ pub(super) fn collect(
     });
     let pending_index = consumed.pending_minima.len();
     consumed.pending_minima.push(None);
+    macro_rules! visit_computation {
+        ($child:expr) => {
+            collect(
+                program,
+                facts,
+                state,
+                statement,
+                $child,
+                calls,
+                minimum_call_ordinal,
+                visits,
+                consumed,
+            )
+        };
+    }
     match &plans.nodes.get(handle).kind {
         CheckedScalarComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
@@ -833,95 +848,25 @@ pub(super) fn collect(
             ..
         } => {
             for field in plans.case_fields.span(subject.fields)? {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    field.value,
-                    calls,
-                    minimum_call_ordinal,
-                    visits,
-                    consumed,
-                )?;
+                visit_computation!(field.value)?;
             }
         }
         CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
-            collect(
-                program,
-                facts,
-                state,
-                statement,
-                *left,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
-            collect(
-                program,
-                facts,
-                state,
-                statement,
-                *right,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            visit_computation!(*left)?;
+            visit_computation!(*right)?;
         }
         checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
-            collect(
-                program,
-                facts,
-                state,
-                statement,
-                *operand,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            visit_computation!(*operand)?;
         }
         CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
             for operand in subject.scalar_operands(&plans.operands) {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    operand,
-                    calls,
-                    minimum_call_ordinal,
-                    visits,
-                    consumed,
-                )?;
+                visit_computation!(operand)?;
             }
             for arm in plans.dispatch_arms.span(*arms)? {
                 if let Some(pattern) = arm.pattern.computation() {
-                    collect(
-                        program,
-                        facts,
-                        state,
-                        statement,
-                        pattern,
-                        calls,
-                        minimum_call_ordinal,
-                        visits,
-                        consumed,
-                    )?;
+                    visit_computation!(pattern)?;
                 }
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    arm.value,
-                    calls,
-                    minimum_call_ordinal,
-                    visits,
-                    consumed,
-                )?;
+                visit_computation!(arm.value)?;
             }
         }
         CheckedScalarComputationKind::RetainedConstant { .. }
@@ -1036,17 +981,7 @@ pub(super) fn collect(
                 .into_iter()
                 .chain(plans.operands.span(*arguments)?.iter().copied())
             {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    operand,
-                    calls,
-                    minimum_call_ordinal,
-                    visits,
-                    consumed,
-                )?;
+                visit_computation!(operand)?;
             }
             for argument in plans.structural_arguments.span(*structural_arguments)? {
                 if let checked_trees::CheckedScalarComputationStructuralArgument::Place(source) =
@@ -1068,17 +1003,7 @@ pub(super) fn collect(
                     argument
                 {
                     for field in plans.case_fields.span(subject.fields)? {
-                        collect(
-                            program,
-                            facts,
-                            state,
-                            statement,
-                            field.value,
-                            calls,
-                            minimum_call_ordinal,
-                            visits,
-                            consumed,
-                        )?;
+                        visit_computation!(field.value)?;
                     }
                 }
             }
@@ -1088,17 +1013,7 @@ pub(super) fn collect(
         } => {
             for dependency in plans.evaluation_operands.span(*operands)? {
                 if let checked_trees::CheckedScalarEvaluationOperand::Scalar(value) = dependency {
-                    collect(
-                        program,
-                        facts,
-                        state,
-                        statement,
-                        *value,
-                        calls,
-                        minimum_call_ordinal,
-                        visits,
-                        consumed,
-                    )?;
+                    visit_computation!(*value)?;
                 }
                 if let checked_trees::CheckedScalarEvaluationOperand::Structural(value) = dependency
                 {
@@ -1117,32 +1032,12 @@ pub(super) fn collect(
                     )?;
                 }
             }
-            collect(
-                program,
-                facts,
-                state,
-                statement,
-                *operand,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            visit_computation!(*operand)?;
         }
         CheckedScalarComputationKind::Apply { operands, .. }
         | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
             for operand in plans.operands.span(*operands)? {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    *operand,
-                    calls,
-                    minimum_call_ordinal,
-                    visits,
-                    consumed,
-                )?;
+                visit_computation!(*operand)?;
             }
         }
         CheckedScalarComputationKind::Select {
@@ -1152,17 +1047,7 @@ pub(super) fn collect(
             ..
         } => {
             for operand in [condition, when_true, when_false] {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    *operand,
-                    calls,
-                    minimum_call_ordinal,
-                    visits,
-                    consumed,
-                )?;
+                visit_computation!(*operand)?;
             }
         }
     }
