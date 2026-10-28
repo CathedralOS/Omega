@@ -46,6 +46,26 @@ macro_rules! receipt_accessor_rows {
     };
 }
 
+/// A by-value receipt whose accessor rows are exactly its fields. The struct
+/// and `receipt_accessor_rows!` stay one roster.
+macro_rules! copy_receipt {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            $($fvis:vis $field:ident : $ty:ty),* $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        $vis struct $name {
+            $($fvis $field: $ty),*
+        }
+
+        impl $name {
+            receipt_accessor_rows!($name { $($field: $ty),* });
+        }
+    };
+}
+
 pub(crate) use optimization_core::digest_encoder;
 mod assignment;
 mod output;
