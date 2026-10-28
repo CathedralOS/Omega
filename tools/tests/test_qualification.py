@@ -54,10 +54,22 @@ class QualificationTests(unittest.TestCase):
     def git(self, *arguments):
         return kit.git(self, self.repository, *arguments)
 
+    def executable_producer_fixture(self):
+        # Qualification tests consume the identity/profile, not this program.
+        # Use real host executable bytes so unrelated fixture artifacts cannot
+        # masquerade as an executable merely by carrying a Cargo receipt.
+        self.library.write_bytes(Path(sys.executable).read_bytes())
+        self.library.chmod(0o755)
+        receipt = Path(str(self.library) + ".compiler-profile.json")
+        data = json.loads(receipt.read_text())
+        data["binary_sha256"] = qualification.file_digest(self.library)
+        receipt.write_text(json.dumps(data))
+
     def test_producer_profile_is_required_before_command_or_capture_starts(self):
         marker = self.root / "command-ran"
         config = copy.deepcopy(self.config)
         check = config["checks"][0]
+        self.executable_producer_fixture()
         check["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         check["command"] = [sys.executable, "-c",
                             "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('ran')"]
@@ -586,6 +598,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_reuse_attestation_does_not_relax_new_capture_producer_source_equality(self):
         config = copy.deepcopy(self.config)
+        self.executable_producer_fixture()
         config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         qualification.amend(self.state, 0, config, "pin producer inputs")
         self.run_check()
@@ -716,6 +729,7 @@ class QualificationTests(unittest.TestCase):
         path = self.root / "producer.json"
         config = copy.deepcopy(self.config)
         config["checks"][0]["kind"] = "native"
+        self.executable_producer_fixture()
         config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         qualification.amend(self.state, 0, config, "compiler provenance added")
         candidate = self.commit("src/program", "new compiler semantics")
@@ -726,6 +740,7 @@ class QualificationTests(unittest.TestCase):
     def test_rebuilt_producer_amendment_invalidates_and_retains_prior_evidence(self):
         self.run_check()
         config = copy.deepcopy(self.config)
+        self.executable_producer_fixture()
         config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         record = qualification.amend(self.state, 2, config, "reviewed exact rebuilt producer")
         self.assertEqual(len(record["runs"]), 1)
@@ -1236,6 +1251,7 @@ class CompletedQualificationTests(unittest.TestCase):
     setUp = QualificationTests.setUp
     git = QualificationTests.git
     commit = QualificationTests.commit
+    executable_producer_fixture = QualificationTests.executable_producer_fixture
 
     def completed_orphan(self, *, mutate_artifact=False, exit_code=0):
         # The subprocess really completes and writes once. ENOSPC occurs only
@@ -1252,6 +1268,7 @@ class CompletedQualificationTests(unittest.TestCase):
                      + ").write_text('measured baseline')\n")
         code += "raise SystemExit(" + str(exit_code) + ")\n"
         self.base = self.commit("check.py", code)
+        self.executable_producer_fixture()
         self.config["checks"][0]["producer"] = dict(
             revision=self.base, inputs=["src"], executables=[str(self.library)])
         record = qualification.load(self.state)
@@ -1569,6 +1586,7 @@ class CompletedQualificationTests(unittest.TestCase):
         original_stamps = copy.deepcopy(capture["artifact_stamps"])
         replacement = self.root / "replacement.rlib"
         replacement.write_bytes(self.library.read_bytes())
+        replacement.chmod(stat.S_IMODE(self.library.stat().st_mode))
         replacement.replace(self.library)
         self.assertNotEqual(original_stamps[str(self.library)],
                             qualification.artifact_stamps([str(self.library)])[str(self.library)])
