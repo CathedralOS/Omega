@@ -8,11 +8,11 @@ use optimization_core::{
     SelectedLoweringOptimizationCompletionIdentity,
 };
 pub(crate) use recovery::{
-    assign_source, assign_source_reusing, recover,
-    recover_after_active_resident_rematerialization, recover_after_declined_fixed_view_probe,
-    recover_after_fixed_view_copies, recover_after_pre_allocation,
-    recover_after_pre_allocation_with_reuse, recover_after_selected_lowering,
-    recover_after_selected_lowering_with_reuse, recover_with_reuse,
+    assign_source, assign_source_reusing, recover, recover_after_active_resident_rematerialization,
+    recover_after_declined_fixed_view_probe, recover_after_fixed_view_copies,
+    recover_after_pre_allocation, recover_after_pre_allocation_with_reuse,
+    recover_after_selected_lowering, recover_after_selected_lowering_with_reuse,
+    recover_with_reuse,
 };
 use register_homes::{
     PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
@@ -130,24 +130,7 @@ impl RuntimeSpillSource {
         }
     }
 
-    /// The register environment is an upstream fact both arms share through
-    /// the underlying legality stage.
-    pub(crate) fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.legality_stage().register_environment()
-    }
-
-    /// The governing optimizer selections admitted with the shared legality
-    /// stage.
-    pub(crate) fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.legality_stage().selections()
-    }
-
-    /// The per-pass work budget admitted beside the same evidence.
-    pub(crate) fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.legality_stage().budget_per_pass()
-    }
+    admitted_stage_accessors!(fn pub(crate), legality_stage);
 
     /// The optimized-target product the emission stages read, shared by
     /// handle.
