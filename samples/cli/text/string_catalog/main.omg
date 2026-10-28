@@ -117,8 +117,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // Check entry1.name.
     transition name_view(&main.catalog.entry1.name) == "Alpha" {
-        true -> check_name2(main)
-        _ -> bad_name1(main)
+        true -> block check_name2(main)
+        _ -> block bad_name1(main)
     }
 
     machine bad_name1(main: &mut Main) {
@@ -130,8 +130,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_name2(main: &mut Main) {
         transition name_view(&main.catalog.entry2.name) == "Beta" {
-            true -> check_label(main)
-            _ -> bad_name2(main)
+            true -> block check_label(main)
+            _ -> block bad_name2(main)
         }
     }
 
@@ -144,8 +144,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_label(main: &mut Main) {
         transition live(&main.catalog.label) == "[Alpha+Beta]" {
-            true -> check_total(main)
-            _ -> bad_label(main)
+            true -> block check_total(main)
+            _ -> block bad_label(main)
         }
     }
 
@@ -158,8 +158,8 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine check_total(main: &mut Main) {
         transition main.catalog.total == 70 {
-            true -> good(main)
-            _ -> bad_total(main)
+            true -> block good(main)
+            _ -> block bad_total(main)
         }
     }
 
