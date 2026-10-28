@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "unselected_target_fma_needs_no_deployment_features");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

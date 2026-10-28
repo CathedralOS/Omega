@@ -620,6 +620,11 @@ supplies operator selections. Adapter dispatch reads the canonical backing
 through a Product declaration/occurrence selection instead of cloning and
 pruning a separate program. Build copies remain outside that selected frontier.
 Provider grants resolve through backend provider evidence.
+Optional x86 FMA admission consumes demanded Terminal builtin proposals at
+native provider admission. Checked source retains no separate FMA association
+list: an operation in an unselected target body creates no deployment demand
+for the selected body. Exact profile and feature admission remain required for
+each realized FMA, and its ordinary target-operation record carries that custody.
 Product adapter dispatch and selected float executions live beside the checked
 program in `SelectedExecution`; they never copy or mutate checked Psi. The
 reference checked interpreter receives those explicit execution bindings.
