@@ -93,6 +93,24 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let semantic = &facts.semantic;
+    macro_rules! prove_instantiated {
+        ($expression:expr) => {
+            semantic_context_proves_instantiated_boolean_expression(
+                program,
+                facts,
+                call_flow,
+                call_frames,
+                context,
+                contexts,
+                caller_state_symbol,
+                statement_index,
+                call_site,
+                target_state,
+                target_state_symbol,
+                $expression,
+            )
+        };
+    }
     if direct_context_proves_instantiated_boolean_expression(
         program,
         facts,
@@ -112,58 +130,15 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
 
     match program.expression_table.expression(expression) {
         typed_trees::expression::ExpressionNode::Borrow(inner) => {
-            semantic_context_proves_instantiated_boolean_expression(
-                program,
-                facts,
-                call_flow,
-                call_frames,
-                context,
-                contexts,
-                caller_state_symbol,
-                statement_index,
-                call_site,
-                target_state,
-                target_state_symbol,
-                inner.target,
-            )
+            prove_instantiated!(inner.target)
         }
         typed_trees::expression::ExpressionNode::Binary(binary) => match binary.operator {
-            typed_trees::expression::BinaryOperator::And => {
-                [binary.left, binary.right].iter().all(|operand| {
-                    semantic_context_proves_instantiated_boolean_expression(
-                        program,
-                        facts,
-                        call_flow,
-                        call_frames,
-                        context,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
-                        call_site,
-                        target_state,
-                        target_state_symbol,
-                        *operand,
-                    )
-                })
-            }
-            typed_trees::expression::BinaryOperator::Or => {
-                [binary.left, binary.right].iter().any(|operand| {
-                    semantic_context_proves_instantiated_boolean_expression(
-                        program,
-                        facts,
-                        call_flow,
-                        call_frames,
-                        context,
-                        contexts,
-                        caller_state_symbol,
-                        statement_index,
-                        call_site,
-                        target_state,
-                        target_state_symbol,
-                        *operand,
-                    )
-                })
-            }
+            typed_trees::expression::BinaryOperator::And => [binary.left, binary.right]
+                .iter()
+                .all(|operand| prove_instantiated!(*operand)),
+            typed_trees::expression::BinaryOperator::Or => [binary.left, binary.right]
+                .iter()
+                .any(|operand| prove_instantiated!(*operand)),
             _ => prove_instantiated_boolean_expression_via_context_domain_membership(
                 program,
                 semantic,
