@@ -214,7 +214,11 @@ impl ConstantProofApplication<'_, '_> {
                 self.closure.source.facts.constant_predicate_obligations[position].clone();
             checked_trees::ConstantPredicateObligation::discharge_all(
                 std::iter::once(&mut obligation),
-                program,
+                &mut |expression, owner| {
+                    program
+                        .closed_integer_expression_value_in(expression, owner)
+                        .map(checked_trees::facts::scalar_predicates::ScalarValue::Integer)
+                },
                 self.target_scope,
             )?;
             self.closure
