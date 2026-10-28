@@ -45,49 +45,6 @@ pub enum UnsettledFilesystemRequirement {
     OrdinaryReleaseContract,
 }
 
-/// Strong identity of one retained occurrence-specific ordinary-release
-/// contract bound into a direct-syscall mechanism key.
-///
-/// Ordinary-release narrowing requires exact checked constraint evidence in
-/// the mechanism key; this identity is the domain-separated commitment the
-/// checking stage's retained evidence produces. It stays disjoint from the
-/// conservative unconstrained argument contract and every other narrowing
-/// derivation, so a constrained mechanism and an unconstrained one never
-/// share a key or a classification row.
-
-/// Bind one retained occurrence commitment into the ordinary-release contract
-/// coordinate of a direct-syscall mechanism.
-///
-/// `occurrence_commitment` is the checking stage's strong commitment of the
-/// program's constrained acquisition/observation/release lifecycle.
-/// Minting this coordinate does not itself establish the
-/// occurrence and grants no classification, permission, or admission: the
-/// mechanism row still emits only through `filesystem_release_mechanism_row`.
-/// Bind one retained ordinary-release contract into an exact mechanism's
-/// checked argument-contract coordinate, producing the occurrence-bound key.
-///
-/// A direct syscall keeps its target and number while the coordinate is
-/// replaced by the contract; a normalized foreign import keeps its target,
-/// locator, and admitted calling plan while the coordinate enters beside the
-/// plan. Compiler intrinsics and checked physical mechanisms carry no such
-/// coordinate and can never be occurrence-bound. The result is a distinct key
-/// that no row for the unconstrained mechanism can classify; minting it
-/// establishes nothing by itself.
-/// Look up the settled cohort for one canonical `FilesystemHost` requirement
-/// name. The name locates the human-reviewed row; it is never a key in the
-/// emitted artifacts.
-/// Emit the exact consumer permission row for one `FilesystemHost` schema
-/// method. `method.name` locates the settled cohort; the emitted row is keyed
-/// by the supplied schema commitment and the method's complete normalized
-/// requirement identity.
-///
-/// Ordinary-release cohorts emit an explicit empty permission: the consumer
-/// grants reach while permitting no closed class. That empty row is what the
-/// proved constrained release occurrence later fits inside; it is not a claim
-/// that a generic release mechanism classifies empty.
-/// Emit the complete consumer permission table for one canonical
-/// `FilesystemHost` schema. Every method must resolve to a settled cohort;
-/// unknown members fail the whole table rather than emitting a partial one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FilesystemCohortDisposition {
     /// The requirement's selected mechanism exercises exactly this portable
@@ -191,15 +148,13 @@ pub fn filesystem_host_permission_rows(
 pub(crate) fn filesystem_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
-) -> Result<TerminalAuthorityPolicyRow, UnsettledFilesystemRequirement> {
-    match settled_filesystem_cohort(&method.name) {
-        Some(FilesystemCohortDisposition::Facets(facets)) => Ok(TerminalAuthorityPolicyRow::new(
-            mechanism,
-            TerminalAuthorityDisposition::from_filesystem_facets(facets.iter().copied()),
-        )),
-        Some(FilesystemCohortDisposition::OrdinaryReleaseContract) => {
-            Err(UnsettledFilesystemRequirement::OrdinaryReleaseContract)
-        }
-        None => Err(UnsettledFilesystemRequirement::UnknownRequirement),
-    }
+) -> Option<TerminalAuthorityPolicyRow> {
+    let FilesystemCohortDisposition::Facets(facets) = settled_filesystem_cohort(&method.name)?
+    else {
+        return None;
+    };
+    Some(TerminalAuthorityPolicyRow::new(
+        mechanism,
+        TerminalAuthorityDisposition::from_filesystem_facets(facets.iter().copied()),
+    ))
 }
