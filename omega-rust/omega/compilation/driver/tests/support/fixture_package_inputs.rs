@@ -208,29 +208,17 @@ pub struct ReviewedFixtureCompilation {
     completion: Option<package_manager::operations::ProjectCompilationCompletion>,
 }
 
-/// Consume the fixture's explicit consent through the same package-product
-/// entrance as accepted-lock compilation. The caller may batch these requests
-/// for a target cohort; each target carries its own admitted rows.
-pub fn accepted_fixture_product_request(
-    prepared: &mut ReviewedFixtureCompilation,
-    target: Option<&str>,
-) -> Result<compiler::PackageCompilationRequest, Vec<Diagnostic>> {
-    let profile = TargetProfile::from_omega_target_name(target).map_err(|error| vec![error])?;
-    let position = prepared
-        .plans
-        .iter()
-        .position(|(target, _)| *target == profile)
-        .ok_or_else(|| vec![Diagnostic::error("fixture Product target was not prepared")])?;
-    let (_, request) = prepared.plans.remove(position);
-    Ok(request)
-}
-
 /// Compile the complete admitted target cohort, then let package management
 /// reconcile its ordered outcomes and close staging before products escape.
 pub fn produce_fixture_products(
     prepared: &mut ReviewedFixtureCompilation,
-    requests: Vec<compiler::PackageCompilationRequest>,
 ) -> Result<Vec<(TargetProfile, compiler::CompilationOutput)>, Vec<Diagnostic>> {
+    // Completion owns the admission roster. Keep each accepted request in
+    // that roster's order rather than rebuilding an order from target names.
+    let requests = std::mem::take(&mut prepared.plans)
+        .into_iter()
+        .map(|(_, request)| request)
+        .collect();
     let completion = prepared.completion.take().ok_or_else(|| {
         vec![Diagnostic::error(
             "fixture Product completion already consumed",
@@ -270,13 +258,15 @@ pub fn produce_fixture(
     target: Option<&str>,
 ) -> Result<compiler::CompilationOutput, Vec<Diagnostic>> {
     if prepared.package_inputs.is_some() {
-        let request = accepted_fixture_product_request(prepared, target)?;
-        let mut products = produce_fixture_products(prepared, vec![request])?;
-        return products.pop().map(|(_, product)| product).ok_or_else(|| {
-            vec![Diagnostic::error(
-                "fixture Product completion lost its output",
-            )]
-        });
+        let profile = TargetProfile::from_omega_target_name(target).map_err(|error| vec![error])?;
+        return produce_fixture_products(prepared)?
+            .into_iter()
+            .find_map(|(target, product)| (target == profile).then_some(product))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "fixture Product completion lost its requested target output",
+                )]
+            });
     }
     let mut request = CheckedCompileRequest::new(&prepared.root_path, target);
     request.build = prepared.execution.take().ok_or_else(|| {

@@ -92,14 +92,7 @@ pub(super) fn produce(
     });
     let mut prepared = fixture_package_inputs::review_fixture(discovered, &profiles, native)?;
     let reports = if prepared.package_inputs.is_some() {
-        let requests = targets
-            .iter()
-            .map(|profile| {
-                let name = profile.map(|profile| profile.target_name());
-                fixture_package_inputs::accepted_fixture_product_request(&mut prepared, name)
-            })
-            .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        fixture_package_inputs::produce_fixture_products(&mut prepared, requests)?
+        fixture_package_inputs::produce_fixture_products(&mut prepared)?
             .into_iter()
             .map(|(profile, output)| {
                 output
