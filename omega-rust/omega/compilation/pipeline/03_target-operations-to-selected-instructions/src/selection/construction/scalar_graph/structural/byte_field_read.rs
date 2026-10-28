@@ -4,11 +4,12 @@
 //! its current length; finding an address grants no permission to read it.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole,
+    VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 
@@ -70,12 +71,7 @@ pub(in crate::selection) fn read_byte(
         SelectedInstructionKind::Load8Indexed,
         builder.constraints.keys.load8_indexed.ok_or(invalid())?,
         &[payload, index_register, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*index, *length, definition.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![*index, *length, definition.value]),
     )?;
     Ok(output)
 }

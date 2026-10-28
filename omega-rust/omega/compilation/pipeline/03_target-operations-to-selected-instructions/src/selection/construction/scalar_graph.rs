@@ -2,6 +2,7 @@
 //! Scalar instructions share one selection path regardless of the caller's result.
 
 use crate::selection::constraints::{fixed_input_constraint, row};
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::model::SelectedInstructionError;
 use calling_conventions::ValueLocation;
 use legalized_operations::{
@@ -396,12 +397,7 @@ fn select_function(
                             SelectedInstructionKind::ImageAddress { reference },
                             key,
                             &[output],
-                            SelectedInstructionProvenance {
-                                operations: vec![operation.operation],
-                                values: vec![result.value],
-                                fuel: operation.fuel.clone(),
-                                ..Default::default()
-                            },
+                            operation_provenance(operation, vec![result.value]),
                         )?;
                         output
                     }

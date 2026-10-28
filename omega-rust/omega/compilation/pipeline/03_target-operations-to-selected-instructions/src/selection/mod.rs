@@ -26,6 +26,7 @@ mod model;
 mod native_code_layout_input;
 mod owned_block_home_input;
 mod parameter_use;
+mod place_declaration;
 pub(crate) mod primitive_local_input;
 mod record_input;
 mod reference_input;
