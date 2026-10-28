@@ -127,7 +127,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // This union retains ingress captures, ordinary no-normal invocations and
 // inherited scalar memberships; neither independent marker-196 layout suffices.
 // Machines retain authored runtime ordering across scalar and structural lanes.
-pub(crate) const FORMAT_MARKER: u16 = 198;
+// Normal structural guarantees retain their exact formal-relative path.
+pub(crate) const FORMAT_MARKER: u16 = 199;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -278,3 +279,6 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     digest.raw(&bytes);
     SemanticFingerprint::from_bytes(digest.finish())
 }
+
+#[cfg(test)]
+mod normal_qualification_tests;

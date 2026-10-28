@@ -436,11 +436,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         validate_crash_route_predicates(&declaration.crash_routes)?;
         validate_parameter_order(&declaration.structural_parameters)?;
         require_increasing(
-            declaration.requires.iter().copied(),
-            "boundary requirements by argument index and domain",
+            declaration.requires.iter(),
+            "boundary requirements by argument index, path and domain",
         )?;
         require_increasing(
-            declaration.normal_qualifications.iter().copied(),
+            declaration.normal_qualifications.iter(),
             "boundary normal parameter qualifications",
         )?;
         require_increasing(

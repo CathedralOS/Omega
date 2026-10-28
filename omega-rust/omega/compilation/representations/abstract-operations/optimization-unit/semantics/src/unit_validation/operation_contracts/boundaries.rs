@@ -16,7 +16,9 @@ pub(crate) fn boundary_requirements_match(
                     .get(requirement.argument_index as usize)
                     .is_some_and(|argument| {
                         structural_source_contract(caller, argument.place).is_some_and(|source| {
-                            source.carries_qualification(&argument.path, requirement.domain)
+                            let mut path = argument.path.clone();
+                            path.extend_from_slice(&requirement.path);
+                            source.carries_qualification(&path, requirement.domain)
                         })
                     })
         })

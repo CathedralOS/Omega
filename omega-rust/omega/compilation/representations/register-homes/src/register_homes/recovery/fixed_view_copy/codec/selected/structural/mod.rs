@@ -18,3 +18,6 @@ pub(super) use function::{
     decode_contracts, decode_invocation_site, decode_local_slot, encode_contracts,
 };
 pub(super) use settlements::decode_cleanup;
+
+#[cfg(test)]
+mod normal_qualification_tests;

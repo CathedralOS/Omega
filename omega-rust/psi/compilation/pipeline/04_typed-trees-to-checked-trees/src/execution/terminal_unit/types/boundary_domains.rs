@@ -38,8 +38,33 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
         for domain in &parameter.qualifications {
             structural.push(CheckedUnitStructuralDomainRequirementPlan {
                 argument_index: u32::try_from(argument_index).ok()?,
+                path: Vec::new(),
                 domain: *domain,
             });
+        }
+        let source = source_parameters.get(parameter.position as usize)?;
+        if crate::checks::contracts::exclusive_referent_type(program, source.type_reference)
+            .is_valid()
+        {
+            // This is the declaration's descendant/default roster, before any
+            // arrival or authored requires facts augment a parameter. Its
+            // normal duty is distinct from an additional root qualification.
+            let declared =
+                validation::structural_qualification_contract(program, source.type_reference)
+                    .ok()?;
+            for reference in declared.projection_types {
+                shapes.add_type(reference, binders, &[])?;
+            }
+            for (domain, carrier) in declared.domains {
+                shapes.add_domain(domain, carrier, binders)?;
+            }
+            for row in declared.projected_qualifications {
+                normal.push(CheckedUnitStructuralDomainRequirementPlan {
+                    argument_index: u32::try_from(argument_index).ok()?,
+                    path: row.path,
+                    domain: row.domain,
+                });
+            }
         }
     }
     for contract in contracts.filter(|contract| {
@@ -118,6 +143,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
                 )?;
                 let row = CheckedUnitStructuralDomainRequirementPlan {
                     argument_index: u32::try_from(argument_index).ok()?,
+                    path: Vec::new(),
                     domain,
                 };
                 if entry {
