@@ -1381,7 +1381,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     operand_span = control.operands
                         .insert_many(captured_operands.iter().copied());
                 }
-                control.operator_invocations.append(
+                control.operator_invocations.append_to_span(
+                    &mut control.statements.get_mut(self.statement_fact).operator_invocations,
                     checked_trees::FlowOperatorInvocationFact {
                         operator_use,
                         named_use: arena::Handle::invalid(),
@@ -1471,7 +1472,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .control
                 .operands
                 .insert_many(bound.iter().copied());
-            self.context.control.operator_invocations.append(
+            self.context.control.operator_invocations.append_to_span(
+                &mut self
+                    .context
+                    .control
+                    .statements
+                    .get_mut(self.statement_fact)
+                    .operator_invocations,
                 checked_trees::FlowOperatorInvocationFact {
                     operator_use: arena::Handle::invalid(),
                     named_use,

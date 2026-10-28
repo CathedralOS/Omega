@@ -75,24 +75,21 @@ impl Emission<'_, '_, '_> {
             .iter()
             .any(|(_, parameter)| parameter.place == source.place);
         if !is_local && !is_ingress {
-            let published_here = self
+            // Materialization records only actual producers or owned arrivals.
+            // Their exact contract above remains authoritative even after the
+            // producing operation moves into a sealed private block.
+            if self
                 .operations
                 .structural_materialization_statement(source.place, self.state)?
                 == Some(self.statement)
-                && (self.operations.iter().any(|operation| {
-                    operation
-                        .result
-                        .structural()
-                        .is_some_and(|result| result.place == source.place)
-                }) || self
-                    .operations
-                    .arrival_claims
-                    .iter()
-                    .any(|(place, _)| *place == source.place));
-            if published_here {
+            {
                 return Ok((whole, projected));
             }
-            return Err(LoweringError::Unsupported(
+            return Err(LoweringError::at_statement(
+                self.checked,
+                self.machine,
+                self.state,
+                self.statement,
                 "membership source lacks its completed physical/source correspondence",
             ));
         }

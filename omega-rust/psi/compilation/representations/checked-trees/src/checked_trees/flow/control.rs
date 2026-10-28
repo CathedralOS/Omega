@@ -175,6 +175,9 @@ pub struct FlowStatementFact {
     pub statement_index: usize,
     pub storage_snapshot: arena::Handle<super::FlowStorageSnapshot>,
     pub value_observations: HandleSpan<super::FlowValueObservationFact>,
+    /// Spelled and named operator consumers at this exact statement. Their
+    /// evaluated operands retain the same occurrence custody as ordinary calls.
+    pub operator_invocations: HandleSpan<FlowOperatorInvocationFact>,
     /// Completed RHS after destination evaluation, before storage. Zero for
     /// statements without a stored value; children retain their own epochs.
     pub stored_value: arena::Handle<super::FlowOperandFact>,
