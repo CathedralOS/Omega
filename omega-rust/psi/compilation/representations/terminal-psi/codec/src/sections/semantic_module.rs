@@ -15,6 +15,7 @@ pub(crate) mod canonical_order;
 pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
 pub(crate) mod dynamic_result_admission;
+mod external_provider_wire;
 pub(crate) mod integer_math_term_wire;
 mod machine_declaration_wire;
 pub(crate) mod machine_wire;

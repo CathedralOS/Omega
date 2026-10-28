@@ -31,7 +31,6 @@ use crate::sections::semantic_module::wire::{
 };
 use terminal_psi::TerminalIdentityIndex;
 
-mod external_providers;
 mod reference_outputs;
 
 pub(crate) fn encode_boundary_machine(
@@ -59,13 +58,6 @@ pub(crate) fn encode_boundary_machine(
             return crate::codec_error::malformed("unsupported numeric intrinsic meaning");
         };
         writer.bytes(&bytes);
-    }
-    writer.len(
-        "external provider conformances",
-        declaration.external_providers.len(),
-    )?;
-    for candidate in &declaration.external_providers {
-        external_providers::encode(writer, candidate)?;
     }
     writer.u32(declaration.identity.0);
     writer.u32(declaration.owner.identity().0);
@@ -315,7 +307,6 @@ pub(crate) fn decode_boundary_machine(
         } else {
             None
         },
-        external_providers: decode_counted(reader, external_providers::decode)?,
         identity: TerminalIdentityIndex(reader.u32()?),
         owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
         role: match reader.u8()? {

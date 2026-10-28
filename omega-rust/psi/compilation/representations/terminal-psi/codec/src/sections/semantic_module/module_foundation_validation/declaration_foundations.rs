@@ -97,19 +97,6 @@ pub(super) fn validate_boundary_machine(
 ) -> Result<(), CodecError> {
     terminal_psi::validate_numeric_intrinsic_signature(boundary, &module.structural_types)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    if !strictly_increasing(boundary.external_providers.iter()) {
-        return malformed("external provider conformances must be canonical and unique");
-    }
-    if !boundary.external_providers.is_empty()
-        && boundary.role != terminal_psi::BoundaryDeclarationRole::Callable
-    {
-        return malformed("contract evidence cannot carry external provider conformances");
-    }
-    for candidate in &boundary.external_providers {
-        candidate
-            .validate(&module.identities)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
-    }
     terminal_semantics::closed_conformances::validate_boundary_callable(module, boundary)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     if module

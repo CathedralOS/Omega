@@ -209,8 +209,6 @@ pub struct BoundaryMachineDeclaration {
     pub declaration: Option<CheckedBoundaryCallable>,
     /// Psi-owned numeric meaning, independent of any provider selection.
     pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
-    /// Exact checked satisfaction edges, not selected executable providers.
-    pub external_providers: Vec<super::external_providers::ExternalProviderConformance>,
     pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     /// Exact opaque completion contract; installation must authenticate it.

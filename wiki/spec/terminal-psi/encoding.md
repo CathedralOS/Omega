@@ -1346,8 +1346,12 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
-Marker 201 adds a counted external-provider conformance roster after numeric
-meaning and before the boundary identity. Each row retains a checked machine
+Marker 201 adds a counted module-level external-provider conformance roster
+after boundary machines and before checked provider candidates. It is independent
+of call shapes: directly lowered comparisons still require satisfaction evidence.
+Each row contains the requirement's nominal declaration and callable identity
+indices, optional requirement package digest, optional four-byte numeric meaning,
+optional authored target membership string, checked realization machine
 declaration, optional realization package digest, optional selecting owner
 (nominal declaration index, provider identity index, optional package digest),
 and the structural external binding. Package digests are 32 bytes with a
@@ -1356,9 +1360,11 @@ the language vocabulary: 2 = syscall followed by an i64 number, 3 = compiler
 intrinsic with no payload, 4 = vtable slot followed by an i64 index, 5 = vtable
 field and 6 = table function, each followed by a counted field string.
 Rows are strictly ordered and unique. Referenced declarations and signatures
-must exist; checked commitments and field names must be nonempty. Evidence-only
-boundaries cannot carry candidates. These are checked satisfaction edges for
-the enclosing requirement, not provider choices or external execution grants.
+must exist; checked commitments, target membership and field names must be
+nonempty. Numeric meaning agrees with any corresponding callable boundary.
+These are checked satisfaction edges, not provider choices or external execution
+grants. Authored target membership retains the existing family migration
+vocabulary; it is never inferred from a normalized overload's spelling.
 
 Marker 200 added optional numeric meaning immediately after the optional checked
 callable: a presence Boolean followed, when

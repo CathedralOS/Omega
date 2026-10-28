@@ -25,7 +25,6 @@ use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 
-mod external_providers;
 mod reference_outputs;
 
 /// Declare each retained boundary, in roster order, with the parameter roster
@@ -44,7 +43,6 @@ pub(crate) fn lower_declarations(
     next_place: &mut u64,
 ) -> Result<(Vec<BoundaryMachineDeclaration>, Vec<BoundaryParameters>), LoweringError> {
     let mut declarations = Vec::with_capacity(boundaries.len());
-    let external_providers = external_providers::collect(checked);
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
         validate_requirement_kind(checked, plan)?;
@@ -153,9 +151,6 @@ pub(crate) fn lower_declarations(
             domain_ids,
         )?;
         declarations.push(BoundaryMachineDeclaration {
-            external_providers: external_providers::lower(
-                &external_providers, plan.machine, identities, checked, exact_toolchain_sources,
-            )?,
             numeric_intrinsic: checked.typed.numeric_intrinsic_execution(plan.machine),
             scalar_domain_requirements,
             normal_qualifications,

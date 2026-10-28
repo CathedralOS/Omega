@@ -129,6 +129,8 @@ pub struct TerminalModule {
     pub reborrow_restored_call_uses: Vec<TerminalReborrowRestoredCallUse>,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
+    /// Exact external satisfaction edges, including demands lowered without calls.
+    pub external_providers: Vec<ExternalProviderConformance>,
     /// Every checked, target-neutral provider candidate eligible to realize a
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
@@ -274,6 +276,7 @@ impl TerminalModule {
             placement_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
+            external_providers: Vec::new(),
             provider_candidates: Vec::new(),
             boundary_application_candidates: Vec::new(),
             callback_applications: Vec::new(),

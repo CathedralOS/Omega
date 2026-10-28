@@ -340,9 +340,11 @@ that classification; diagnostic strings do not gate support. Package review
 still independently rejoins its supplied candidate to retained selection
 custody. Psi publishes numeric meaning and its exact IEEE format in canonical
 Terminal boundary declarations; native proposal creation consumes that meaning
-and joins the selected external realization to the boundary's canonical checked
-satisfaction edges. The catalog retains exact realization and selecting-owner
-declarations, package identities and structural binding mechanisms independently
+and joins the selected external realization to canonical checked satisfaction
+edges. The module-level catalog is independent of executable call shapes, so
+directly lowered comparisons retain the same relation. It retains requirement,
+realization and selecting-owner
+declarations, authored target membership, package identities and structural binding mechanisms independently
 of target selection. Native retention omits the duplicate numeric execution
 sidecar; host and placement authority judgments remain separate. Portable
 decoding validates declaration coordinates and the complete numeric signature.

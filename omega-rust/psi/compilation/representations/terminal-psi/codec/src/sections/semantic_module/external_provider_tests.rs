@@ -10,7 +10,12 @@ fn module() -> TerminalModule {
         NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap(),
     );
     module.identities = identity_table(8);
-    module.boundary_machines[0].external_providers = vec![ExternalProviderConformance {
+    module.external_providers = vec![ExternalProviderConformance {
+        requirement: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
+        requirement_identity: TerminalIdentityIndex(3),
+        requirement_package: None,
+        numeric_intrinsic: module.boundary_machines[0].numeric_intrinsic,
+        target: Some("macos_arm64".into()),
         realization: CheckedMachineDeclaration {
             machine: NominalDeclarationIdentity::new(TerminalIdentityIndex(4)),
             state: NominalDeclarationIdentity::new(TerminalIdentityIndex(5)),
@@ -46,13 +51,13 @@ fn external_provider_satisfaction_round_trips_all_mechanisms_without_source() {
         },
     ] {
         let mut module = module();
-        module.boundary_machines[0].external_providers[0].binding = binding;
+        module.external_providers[0].binding = binding;
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
         let mut missing = module.clone();
-        missing.boundary_machines[0].external_providers.clear();
+        missing.external_providers.clear();
         assert_ne!(
             semantic_fingerprint(&module).unwrap(),
             semantic_fingerprint(&missing).unwrap()
@@ -61,11 +66,21 @@ fn external_provider_satisfaction_round_trips_all_mechanisms_without_source() {
 }
 
 #[test]
+fn external_provider_satisfaction_survives_without_an_executable_boundary_call() {
+    let mut module = module();
+    module.boundary_machines.clear();
+    let bytes = encode_module(&module).unwrap();
+    let decoded = decode_module(&bytes).unwrap();
+    assert_eq!(decoded.external_providers, module.external_providers);
+    assert!(decoded.boundary_machines.is_empty());
+    assert_eq!(encode_module(&decoded).unwrap(), bytes);
+}
+
+#[test]
 fn external_provider_satisfaction_rejects_missing_coordinates_and_duplicate_edges() {
     for mutation in 0..6 {
         let mut module = module();
-        let boundary = &mut module.boundary_machines[0];
-        let candidate = &mut boundary.external_providers[0];
+        let candidate = &mut module.external_providers[0];
         match mutation {
             0 => candidate.realization.callable = TerminalIdentityIndex(99),
             1 => candidate
@@ -80,9 +95,9 @@ fn external_provider_satisfaction_rejects_missing_coordinates_and_duplicate_edge
             }
             4 => {
                 let duplicate = candidate.clone();
-                boundary.external_providers.push(duplicate);
+                module.external_providers.push(duplicate);
             }
-            5 => boundary.role = BoundaryDeclarationRole::ContractEvidence,
+            5 => candidate.target = Some(String::new()),
             _ => unreachable!(),
         }
         let bytes = encode_raw(&module).unwrap();
@@ -100,7 +115,7 @@ fn external_provider_satisfaction_binds_declaration_package_owner_and_mechanism(
     let fingerprint = semantic_fingerprint(&original).unwrap();
     for mutation in 0..5 {
         let mut changed = original.clone();
-        let candidate = &mut changed.boundary_machines[0].external_providers[0];
+        let candidate = &mut changed.external_providers[0];
         match mutation {
             0 => candidate.realization.contract = [18; 32],
             1 => {

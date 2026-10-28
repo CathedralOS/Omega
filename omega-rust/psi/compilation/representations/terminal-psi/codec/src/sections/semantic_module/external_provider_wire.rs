@@ -1,10 +1,12 @@
 //! Canonical external satisfaction declarations. This wire carries no selected
-//! target, executable address, or admission grant.
+//! deployment target, executable address, or admission grant.
 
-use super::super::machine_declaration_wire;
-use super::{CodecError, Reader, TerminalIdentityIndex, Writer};
+use super::CodecError;
+use super::machine_declaration_wire;
+use super::wire::{Reader, Writer};
 use language_semantics::ExternalBindingIdentity;
 use semantic_vocabulary::PackageKeyIdentity;
+use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
     ExternalProviderConformance, ExternalProviderOwner, NominalDeclarationIdentity,
 };
@@ -13,6 +15,19 @@ pub(super) fn encode(
     writer: &mut Writer,
     candidate: &ExternalProviderConformance,
 ) -> Result<(), CodecError> {
+    writer.u32(candidate.requirement.identity().0);
+    writer.u32(candidate.requirement_identity.0);
+    encode_package(writer, candidate.requirement_package);
+    writer.boolean(candidate.numeric_intrinsic.is_some());
+    if let Some(meaning) = candidate.numeric_intrinsic {
+        writer.bytes(&meaning.canonical_encoding().ok_or(
+            CodecError::MalformedStructuralFoundation("invalid external provider numeric meaning"),
+        )?);
+    }
+    writer.boolean(candidate.target.is_some());
+    if let Some(target) = &candidate.target {
+        writer.string("external provider target membership", target)?;
+    }
     machine_declaration_wire::encode(writer, &candidate.realization)?;
     encode_package(writer, candidate.realization_package);
     writer.boolean(candidate.provider.is_some());
@@ -35,6 +50,26 @@ pub(super) fn encode(
 }
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ExternalProviderConformance, CodecError> {
+    let requirement = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
+    let requirement_identity = TerminalIdentityIndex(reader.u32()?);
+    let requirement_package = decode_package(reader)?;
+    let numeric_intrinsic = if reader.boolean()? {
+        Some(
+            language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+                reader.array()?,
+            )
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "invalid external provider numeric meaning",
+            ))?,
+        )
+    } else {
+        None
+    };
+    let target = if reader.boolean()? {
+        Some(reader.string("external provider target membership")?)
+    } else {
+        None
+    };
     let realization = machine_declaration_wire::decode(reader)?;
     let realization_package = decode_package(reader)?;
     let provider = if reader.boolean()? {
@@ -63,6 +98,11 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ExternalProviderConforma
         tag => return Err(CodecError::InvalidTag("external provider binding", tag)),
     };
     Ok(ExternalProviderConformance {
+        requirement,
+        requirement_identity,
+        requirement_package,
+        numeric_intrinsic,
+        target,
         realization,
         realization_package,
         provider,

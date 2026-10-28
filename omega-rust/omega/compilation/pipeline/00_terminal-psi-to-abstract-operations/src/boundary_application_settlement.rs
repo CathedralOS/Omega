@@ -85,18 +85,8 @@ fn project_terminal_boundary_application_realizations(
         };
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {
-                let mut boundaries = module.boundary_machines.iter().filter(|boundary| {
-                    module.identities.text(boundary.identity) == Some(requirement.overload())
-                });
-                let boundary = boundaries.next();
-                if boundaries.next().is_some() {
-                    return Err(error(
-                        "selected intrinsic has ambiguous Terminal requirements",
-                    ));
-                }
                 let execution = crate::provider_admission::selected_execution(
-                    boundary.and_then(|boundary| boundary.numeric_intrinsic),
-                    boundary.map_or(&[], |boundary| boundary.external_providers.as_slice()),
+                    &module.external_providers,
                     &module.identities,
                     plan,
                     row,

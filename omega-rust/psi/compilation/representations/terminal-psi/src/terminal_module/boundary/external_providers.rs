@@ -1,5 +1,5 @@
 //! Checked external satisfaction is portable; choosing and admitting a provider
-//! is not. These edges belong to the enclosing exact boundary requirement.
+//! is not. The explicit requirement survives lowering even without a call.
 
 use crate::{
     CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalIdentityIndex,
@@ -21,6 +21,12 @@ pub struct ExternalProviderOwner {
 /// without reopening source or treating numeric meaning as provider authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExternalProviderConformance {
+    pub requirement: NominalDeclarationIdentity,
+    pub requirement_identity: TerminalIdentityIndex,
+    pub requirement_package: Option<PackageKeyIdentity>,
+    pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    /// Legacy authored family membership, not a selected deployment target.
+    pub target: Option<String>,
     pub realization: CheckedMachineDeclaration,
     pub realization_package: Option<PackageKeyIdentity>,
     pub provider: Option<ExternalProviderOwner>,
@@ -35,7 +41,16 @@ impl ExternalProviderConformance {
                 .text(identity)
                 .is_some_and(|text| !text.is_empty())
         };
+        if self.target.as_ref().is_some_and(String::is_empty)
+            || self
+                .numeric_intrinsic
+                .is_some_and(|meaning| meaning.signature().is_none())
+        {
+            return Err("external provider has invalid target membership or numeric meaning");
+        }
         if ![
+            self.requirement.identity(),
+            self.requirement_identity,
             declaration.machine.identity(),
             declaration.state.identity(),
             declaration.semantic_declaration,

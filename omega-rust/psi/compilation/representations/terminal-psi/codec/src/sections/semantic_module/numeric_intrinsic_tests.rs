@@ -21,7 +21,6 @@ pub(super) fn module(meaning: NumericIntrinsic) -> TerminalModule {
     module.boundary_machines.push(BoundaryMachineDeclaration {
         id: BoundaryMachineId::new(1).unwrap(),
         numeric_intrinsic: Some(meaning),
-        external_providers: Vec::new(),
         declaration: None,
         role: BoundaryDeclarationRole::Callable,
         kind: BoundaryRequirementKind::Machine,

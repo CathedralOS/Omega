@@ -39,6 +39,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+    external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
@@ -119,8 +120,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
         let execution = match selected_execution(
-            boundary.numeric_intrinsic,
-            &boundary.external_providers,
+            external_providers,
             identities,
             &plans[selected_row.plan_index],
             selected_row.row,
@@ -134,6 +134,12 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 continue;
             }
         };
+        if let Err(reason) = reconcile_numeric_meaning(boundary.numeric_intrinsic, execution) {
+            diagnostics.push(Diagnostic::error(format!(
+                "Terminal boundary `{requirement}` {reason}"
+            )));
+            continue;
+        }
         let format = boundary
             .numeric_intrinsic
             .and_then(|meaning| meaning.builtin_format());
@@ -602,23 +608,26 @@ fn compiler_builtin_execution(
 /// meaning alone cannot authorize execution; a same-signature provider or a
 /// declaration from another package cannot replace the selected realization.
 pub(crate) fn selected_execution(
-    meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
     plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, &'static str> {
-    let Some(meaning) = meaning else {
-        reconcile_numeric_meaning(None, retained)?;
-        return Ok(retained);
-    };
     let effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
     else {
         return Err("numeric provider does not select an external compiler intrinsic");
     };
     let mut candidates = external_providers.iter().filter(|candidate| {
-        candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
+        candidate.numeric_intrinsic.is_some()
+            && identities.text(candidate.requirement_identity)
+                == Some(plan.identities.text(row.requirement_identity))
+            && candidate.requirement_package == plan.schema.trait_package_identity
+            && candidate
+                .target
+                .as_ref()
+                .is_none_or(|target| *target == plan.target)
+            && candidate.binding == language_semantics::ExternalBindingIdentity::CompilerIntrinsic
             && identities.text(candidate.realization.callable) == Some(machine.as_str())
             && candidate.realization_package == plan.origin_package_identity
             && match &candidate.provider {
@@ -631,12 +640,20 @@ pub(crate) fn selected_execution(
                 }
             }
     });
-    let (Some(candidate), None) = (candidates.next(), candidates.next()) else {
+    let candidate = candidates.next();
+    if candidates.next().is_some() {
         return Err(
             "selected numeric provider does not rejoin one canonical external satisfaction",
         );
+    }
+    let Some(candidate) = candidate else {
+        reconcile_numeric_meaning(None, retained)?;
+        return Ok(retained);
     };
     candidate.validate(identities)?;
+    let meaning = candidate
+        .numeric_intrinsic
+        .ok_or("numeric provider has no canonical meaning")?;
     let execution = CompilerIntrinsicExecutionIdentity::from(meaning);
     // A source-review consumer can still supply its independently retained row.
     // It cannot replace the portable meaning. Native persistence omits it.
@@ -679,9 +696,16 @@ mod tests {
         };
         let mut identities = TerminalIdentityTableBuilder::default();
         let callable = identities.intern("Realizer::negate(f32)->f32");
+        let requirement = identities.intern("F32::negate(f32)->f32");
         let provider = identities.intern("Realizer");
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([31; 32]);
+        let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
         let candidate = ExternalProviderConformance {
+            requirement: NominalDeclarationIdentity::new(requirement),
+            requirement_identity: requirement,
+            requirement_package: package,
+            numeric_intrinsic: Some(meaning),
+            target: Some("macos_arm64".into()),
             realization: CheckedMachineDeclaration {
                 machine: NominalDeclarationIdentity::new(callable),
                 state: NominalDeclarationIdentity::new(callable),
@@ -701,36 +725,32 @@ mod tests {
             binding: language_semantics::ExternalBindingIdentity::CompilerIntrinsic,
         };
         let identities = identities.build();
-        let plan = ProviderPlan {
+        let mut plan = ProviderPlan {
+            target: "macos_arm64".into(),
             provider_type: "Realizer".into(),
             provider_type_package_identity: package,
             origin_package_identity: package,
             ..ProviderPlan::default()
         };
+        plan.schema.trait_package_identity = package;
         let row = effects::provider_plan::ProviderPlanRow {
             method: "negate".into(),
-            requirement_identity: Default::default(),
+            requirement_identity: plan.identities.intern("F32::negate(f32)->f32"),
             requirement_lifetime_partition: Vec::new(),
             admitted_same_stack_bytes: 0,
             binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
                 machine: "Realizer::negate(f32)->f32".into(),
             },
         };
-        let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
+        let execute = |candidates: &[ExternalProviderConformance]| {
+            selected_execution(candidates, &identities, &plan, &row, None)
+        };
         assert_eq!(
-            selected_execution(
-                Some(meaning),
-                std::slice::from_ref(&candidate),
-                &identities,
-                &plan,
-                &row,
-                None
-            )
-            .unwrap(),
+            execute(std::slice::from_ref(&candidate)).unwrap(),
             Some(meaning.into())
         );
-        assert!(selected_execution(Some(meaning), &[], &identities, &plan, &row, None).is_err());
-        for mutation in 0..6 {
+        assert_ne!(execute(&[]), Ok(Some(meaning.into())));
+        for mutation in 0..9 {
             let mut altered = candidate.clone();
             match mutation {
                 0 => altered.realization.callable = provider,
@@ -742,28 +762,26 @@ mod tests {
                         language_semantics::ExternalBindingIdentity::Syscall { number: 1 }
                 }
                 5 => altered.provider = None,
+                6 => altered.target = Some("linux_x86_64".into()),
+                7 => altered.requirement_identity = callable,
+                8 => altered.requirement_package = None,
                 _ => unreachable!(),
             }
-            assert!(
-                selected_execution(Some(meaning), &[altered], &identities, &plan, &row, None)
-                    .is_err(),
+            assert_ne!(
+                execute(&[altered]),
+                Ok(Some(meaning.into())),
                 "mutation {mutation}"
             );
         }
-        assert!(
-            selected_execution(
-                Some(meaning),
-                &[candidate.clone(), candidate.clone()],
-                &identities,
-                &plan,
-                &row,
-                None
-            )
-            .is_err()
+        let mut sibling = candidate.clone();
+        sibling.target = Some("linux_x86_64".into());
+        assert_eq!(
+            execute(&[candidate.clone(), sibling]).unwrap(),
+            Some(meaning.into())
         );
+        assert!(execute(&[candidate.clone(), candidate.clone()]).is_err());
         assert!(
             selected_execution(
-                Some(meaning),
                 &[candidate],
                 &identities,
                 &plan,
