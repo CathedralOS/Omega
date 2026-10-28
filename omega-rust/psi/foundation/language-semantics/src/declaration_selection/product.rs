@@ -296,7 +296,6 @@ pub enum ExecutedBuildSelection {
     Entry(ExecutedRootBinding),
     Declaration(ExecutedProductSelection),
     Exclusion(ExecutedEnumExclusion),
-    Native(ExecutedNativeBinding),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
