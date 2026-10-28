@@ -127,10 +127,8 @@ pub(super) fn decode_placement(
     cursor: &mut Cursor<'_>,
 ) -> Result<ValuePlacement, FixedViewCopyDecodeError> {
     let shape = decode_shape(cursor)?;
-    let count = cursor.length()?;
-    let mut locations = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        locations.push(match cursor.byte()? {
+    let locations = decode_list(cursor, |cursor| {
+        Ok(match cursor.byte()? {
             1 => ValueLocation::Register {
                 register: decode_machine_register(cursor)?,
                 value_byte_offset: cursor.u32()?,
@@ -153,8 +151,8 @@ pub(super) fn decode_placement(
                 alignment: cursor.u16()?,
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownValueLocation(tag)),
-        });
-    }
+        })
+    })?;
     Ok(ValuePlacement { shape, locations })
 }
 

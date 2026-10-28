@@ -412,17 +412,15 @@ fn decode_content_entry_claim(
 ) -> Result<ContentEntryClaim, FixedViewCopyDecodeError> {
     let claim = decode_id(cursor, ClaimId::new)?;
     let input = decode_content_place(cursor)?;
-    let count = cursor.length()?;
-    let mut projections = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        projections.push(ClaimContentProjection {
+    let projections = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(ClaimContentProjection {
             projection: ContentProjectionIdentity {
                 domain: decode_id(cursor, ContentDomainId::new)?,
                 projection_report_fingerprint: cursor.u64()?,
             },
             algebra: decode_content_algebra(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(ContentEntryClaim {
         claim,
         input,
@@ -464,16 +462,14 @@ fn decode_content_place(
         tag => return Err(FixedViewCopyDecodeError::UnknownContentPlaceVersion(tag)),
     };
     let root = decode_id(cursor, PlaceId::new)?;
-    let count = cursor.length()?;
-    let mut segments = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        segments.push(match cursor.byte()? {
+    let segments = decode_list(cursor, |cursor| {
+        Ok(match cursor.byte()? {
             1 => ContentPlaceSegment::Field(decode_string(cursor)?),
             2 => ContentPlaceSegment::FixedIndex(cursor.u64()?),
             3 => ContentPlaceSegment::Case(decode_string(cursor)?),
             tag => return Err(FixedViewCopyDecodeError::UnknownContentPlaceSegment(tag)),
-        });
-    }
+        })
+    })?;
     Ok(ContentStructuralPlace {
         version,
         root,
@@ -536,10 +532,8 @@ pub(super) fn decode_effect(
 pub(super) fn decode_ownership(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<OwnershipEvent>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut ownership = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        ownership.push(match cursor.byte()? {
+    let ownership = decode_list(cursor, |cursor| {
+        Ok(match cursor.byte()? {
             1 => OwnershipEvent::ClaimTransfer(decode_ids(cursor, ClaimId::new)?),
             2 => OwnershipEvent::ClaimCompletion(decode_list(cursor, decode_completion_receipt)?),
             3 => {
@@ -550,8 +544,8 @@ pub(super) fn decode_ownership(
             5 => OwnershipEvent::CrashFrontier(decode_ids(cursor, ClaimId::new)?),
             6 => OwnershipEvent::ExternalCompletionFrontier(decode_ids(cursor, ClaimId::new)?),
             tag => return Err(FixedViewCopyDecodeError::UnknownOwnershipEvent(tag)),
-        });
-    }
+        })
+    })?;
     Ok(ownership)
 }
 
