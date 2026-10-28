@@ -1,5 +1,7 @@
 use crate::proof::{assumption_proof, semantic_axiom_proof};
-use semantic_vocabulary::{IntegerMathTerm, IntegerValue, ScalarTerm};
+use semantic_vocabulary::{
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType,
+};
 
 use super::{
     AcceptedPremise, AcceptedProofRule, BTreeSet, IntegerAffineBoundConversionError,
@@ -16,7 +18,6 @@ use crate::{
 use semantic_vocabulary::PropositionId;
 
 fn transport_certificate() -> (PropositionContext, Vec<Proposition>, ProofNode) {
-    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let scalar_type = ScalarType::Integer(integer);
     let source = ValueId::new(1).expect("source");
@@ -120,11 +121,7 @@ fn existing_assumption_rule_checks_fixed_carrier_normalization_to_math() {
     let zero = ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).expect("zero");
     let assumption = Proposition::LessOrEqual(zero, value);
     let goal = lift_fixed_integer_relation(&assumption).expect("mathematical carrier relation");
-    let context = PropositionContext::from_value_types([(
-        value_id,
-        semantic_vocabulary::ScalarType::Integer(integer_type),
-    )])
-    .expect("context");
+    let context = integer_context(integer_type, &[88]);
     let proof = assumption_proof(goal.clone(), 0);
     assert!(check_certificate(&context, &goal, &[assumption], &[], &proof).is_ok());
 
@@ -189,10 +186,7 @@ fn disjunction_introduction_checks_one_exact_selected_child() {
         );
         assert_eq!(
             accepted.assumptions,
-            vec![AcceptedPremise {
-                index: usize::from(expected == right),
-                proposition: expected,
-            }]
+            vec![recorded_premise(usize::from(expected == right), &expected)]
         );
     }
 
@@ -242,17 +236,9 @@ fn disjunction_introduction_checks_one_exact_selected_child() {
 
 #[test]
 fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let divisor = ScalarTerm::value(
-        ValueId::new(1).expect("divisor"),
-        ScalarType::Integer(integer),
-    );
-    let literal =
-        |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+    let divisor = integer_value(integer, 1);
+    let literal = |value| signed_literal(integer, value);
     let negative_two_bound = Proposition::LessOrEqual(divisor.clone(), literal(-2));
     let negative_one_bound = Proposition::LessOrEqual(divisor.clone(), literal(-1));
     let positive_bound = Proposition::LessOrEqual(literal(1), divisor.clone());
@@ -277,11 +263,7 @@ fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
             index: 0,
         },
     };
-    let context = PropositionContext::from_value_types([(
-        ValueId::new(1).expect("divisor"),
-        ScalarType::Integer(integer),
-    )])
-    .expect("context");
+    let context = integer_context(integer, &[1]);
     let acceptance = accept_certificate(
         &context,
         &goal,
@@ -301,29 +283,17 @@ fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
     );
     assert_eq!(
         acceptance.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: negative_two_bound,
-        }]
+        vec![recorded_premise(0, &negative_two_bound)]
     );
 }
 
 #[test]
 fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let left = ScalarTerm::value(ValueId::new(1).expect("left"), ScalarType::Integer(integer));
-    let literal =
-        |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
+    let literal = |value| signed_literal(integer, value);
     let first = Proposition::LessOrEqual(left.clone(), literal(-2));
-    let context = PropositionContext::from_value_types([(
-        ValueId::new(1).expect("left"),
-        ScalarType::Integer(integer),
-    )])
-    .expect("context");
+    let context = integer_context(integer, &[1]);
     let proof = |second: Proposition, conclusion: Proposition| ProofNode {
         conclusion,
         rule: ProofRule::IntegerLessOrEqualTransitivity {
@@ -399,22 +369,10 @@ fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
 
 #[test]
 fn integer_order_substitution_transports_either_endpoint_in_either_equality_orientation() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let divisor = ScalarTerm::value(
-        ValueId::new(1).expect("divisor"),
-        ScalarType::Integer(integer),
-    );
-    let literal =
-        |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
-    let context = PropositionContext::from_value_types([(
-        ValueId::new(1).expect("divisor"),
-        ScalarType::Integer(integer),
-    )])
-    .expect("context");
+    let divisor = integer_value(integer, 1);
+    let literal = |value| signed_literal(integer, value);
+    let context = integer_context(integer, &[1]);
 
     let positive_literal = Proposition::LessOrEqual(literal(1), literal(5));
     let positive_equality = Proposition::Equal(divisor.clone(), literal(5));
@@ -448,10 +406,7 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
     );
     assert_eq!(
         accepted.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: positive_equality,
-        }]
+        vec![recorded_premise(0, &positive_equality)]
     );
 
     let negative_literal = Proposition::LessOrEqual(literal(-2), literal(-1));
@@ -488,22 +443,10 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
 
 #[test]
 fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let divisor = ScalarTerm::value(
-        ValueId::new(1).expect("divisor"),
-        ScalarType::Integer(integer),
-    );
-    let literal =
-        |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
-    let context = PropositionContext::from_value_types([(
-        ValueId::new(1).expect("divisor"),
-        ScalarType::Integer(integer),
-    )])
-    .expect("context");
+    let divisor = integer_value(integer, 1);
+    let literal = |value| signed_literal(integer, value);
+    let context = integer_context(integer, &[1]);
     let relation = Proposition::LessOrEqual(literal(1), literal(5));
     let equality = Proposition::Equal(literal(5), divisor.clone());
     let conclusion = Proposition::LessOrEqual(literal(1), divisor.clone());
@@ -620,34 +563,12 @@ fn integer_order_substitution_rejects_every_shape_and_endpoint_mismatch() {
 
 #[test]
 fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let root = ScalarTerm::value(ValueId::new(1).expect("root"), ScalarType::Integer(integer));
-    let target = ScalarTerm::value(
-        ValueId::new(2).expect("target"),
-        ScalarType::Integer(integer),
-    );
-    let sibling = ScalarTerm::value(
-        ValueId::new(3).expect("sibling"),
-        ScalarType::Integer(integer),
-    );
-    let literal =
-        |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
-    let context = PropositionContext::from_value_types([
-        (ValueId::new(1).expect("root"), ScalarType::Integer(integer)),
-        (
-            ValueId::new(2).expect("target"),
-            ScalarType::Integer(integer),
-        ),
-        (
-            ValueId::new(3).expect("sibling"),
-            ScalarType::Integer(integer),
-        ),
-    ])
-    .expect("context");
+    let root = integer_value(integer, 1);
+    let target = integer_value(integer, 2);
+    let sibling = integer_value(integer, 3);
+    let literal = |value| signed_literal(integer, value);
+    let context = integer_context(integer, &[1, 2, 3]);
     let root_bound = Proposition::LessOrEqual(literal(1), root.clone());
     let landing = Proposition::Equal(sibling.clone(), literal(2));
     let definition = Proposition::Equal(
@@ -688,14 +609,8 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
     assert_eq!(
         accepted.semantic_axioms,
         vec![
-            AcceptedPremise {
-                index: 0,
-                proposition: landing,
-            },
-            AcceptedPremise {
-                index: 1,
-                proposition: definition.clone(),
-            },
+            recorded_premise(0, &landing),
+            recorded_premise(1, &definition),
         ]
     );
     assert_eq!(
@@ -754,40 +669,17 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
 
 #[test]
 fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let root = ScalarTerm::value(
-        ValueId::new(1).expect("root"),
-        ScalarType::Integer(i16_type),
-    );
-    let target = ScalarTerm::value(
-        ValueId::new(2).expect("target"),
-        ScalarType::Integer(i8_type),
-    );
-    let middle = ScalarTerm::value(
-        ValueId::new(3).expect("middle"),
-        ScalarType::Integer(u16_type),
-    );
-    let context = PropositionContext::from_value_types([
-        (
-            ValueId::new(1).expect("root"),
-            ScalarType::Integer(i16_type),
-        ),
-        (
-            ValueId::new(2).expect("target"),
-            ScalarType::Integer(i8_type),
-        ),
-        (
-            ValueId::new(3).expect("middle"),
-            ScalarType::Integer(u16_type),
-        ),
-    ])
-    .expect("context");
+    let root = integer_value(i16_type, 1);
+    let target = integer_value(i8_type, 2);
+    let middle = integer_value(u16_type, 3);
+    let context = values_context([
+        (1, ScalarType::Integer(i16_type)),
+        (2, ScalarType::Integer(i8_type)),
+        (3, ScalarType::Integer(u16_type)),
+    ]);
     let root_bound = Proposition::LessOrEqual(
         ScalarTerm::integer(i16_type, IntegerValue::Signed(1)).expect("i16 one"),
         root.clone(),
@@ -829,10 +721,7 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
     );
     assert_eq!(
         accepted.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: definition.clone(),
-        }]
+        vec![recorded_premise(0, &definition)]
     );
     let first_definition = Proposition::Equal(
         middle.clone(),
@@ -855,14 +744,8 @@ fn integer_cast_bound_checks_complete_definition_word_and_exact_custody() {
     assert_eq!(
         accepted.semantic_axioms,
         vec![
-            AcceptedPremise {
-                index: 0,
-                proposition: first_definition,
-            },
-            AcceptedPremise {
-                index: 1,
-                proposition: second_definition,
-            },
+            recorded_premise(0, &first_definition),
+            recorded_premise(1, &second_definition),
         ],
     );
     assert_eq!(
@@ -933,13 +816,7 @@ fn accepted_trust_closure_binds_the_exact_cited_premise() {
         &proof,
     )
     .expect("exact cited premise");
-    assert_eq!(
-        accepted.assumptions,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: cited.clone(),
-        }]
-    );
+    assert_eq!(accepted.assumptions, vec![recorded_premise(0, &cited)]);
     assert_eq!(
         accept_certificate(
             &PropositionContext::default(),
@@ -978,10 +855,6 @@ fn nested_scopes_do_not_export_discharged_same_index_premises() {
 
 #[test]
 fn semantic_equalities_compose_only_through_the_same_middle_term() {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
-    };
-
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let a = ScalarTerm::value(ValueId::new(1).expect("a"), ScalarType::Integer(integer));
     let b = ScalarTerm::value(ValueId::new(2).expect("b"), ScalarType::Integer(integer));
@@ -998,24 +871,14 @@ fn semantic_equalities_compose_only_through_the_same_middle_term() {
             middle_equals_right: Box::new(semantic_axiom_proof(axioms[1].clone(), 1)),
         },
     };
-    let context = PropositionContext::from_value_types([
-        (ValueId::new(1).expect("a"), ScalarType::Integer(integer)),
-        (ValueId::new(2).expect("b"), ScalarType::Integer(integer)),
-    ])
-    .expect("context");
+    let context = integer_context(integer, &[1, 2]);
     let accepted =
         accept_certificate(&context, &goal, &[], &axioms, &proof).expect("transitive equality");
     assert_eq!(
         accepted.semantic_axioms,
         vec![
-            AcceptedPremise {
-                index: 0,
-                proposition: axioms[0].clone(),
-            },
-            AcceptedPremise {
-                index: 1,
-                proposition: axioms[1].clone(),
-            },
+            recorded_premise(0, &axioms[0]),
+            recorded_premise(1, &axioms[1]),
         ]
     );
 }
@@ -1153,13 +1016,7 @@ fn correlated_division_fixture() -> (
             },
         },
     };
-    let context = PropositionContext::from_value_types((100..=103).map(|raw| {
-        (
-            ValueId::new(raw).expect("value"),
-            semantic_vocabulary::ScalarType::Integer(integer_type),
-        )
-    }))
-    .expect("context");
+    let context = integer_context(integer_type, &[100, 101, 102, 103]);
     (
         context,
         semantic_axioms,
@@ -1238,4 +1095,53 @@ fn correlated_forbidden_root_rule_rejects_nonparameter_root_and_forged_conclusio
             IntegerCorrelatedForbiddenRootConversionError::ConclusionMismatch,
         ))
     );
+}
+
+// ---------------------------------------------------------------- fixture vocabulary
+//
+// The rule pins below read the same few fixtures: a fixed integer carrier, the
+// values a rule cites, the context those values are typed in, and the literal
+// constructor the integer-order pins spell. Each was written out at every pin;
+// these owners state the vocabulary once, so a pin names only the values it
+// actually uses.
+
+/// A context typing the named values at one fixed integer carrier.
+fn integer_context(integer: IntegerType, values: &[u64]) -> PropositionContext {
+    values_context(
+        values
+            .iter()
+            .map(|value| (*value, ScalarType::Integer(integer))),
+    )
+}
+
+/// A context typing each named value at its own scalar type.
+fn values_context(values: impl IntoIterator<Item = (u64, ScalarType)>) -> PropositionContext {
+    PropositionContext::from_value_types(
+        values
+            .into_iter()
+            .map(|(value, scalar_type)| (ValueId::new(value).expect("value"), scalar_type)),
+    )
+    .expect("context")
+}
+
+/// A value read at one fixed integer carrier.
+fn integer_value(integer: IntegerType, value: u64) -> ScalarTerm {
+    ScalarTerm::value(
+        ValueId::new(value).expect("value"),
+        ScalarType::Integer(integer),
+    )
+}
+
+/// The signed literal constructor the integer-order pins spell.
+fn signed_literal(integer: IntegerType, value: i128) -> ScalarTerm {
+    ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("signed literal")
+}
+
+/// One recorded premise row of an accepted closure: the citation index beside
+/// the proposition it cites.
+fn recorded_premise(index: usize, proposition: &Proposition) -> AcceptedPremise {
+    AcceptedPremise {
+        index,
+        proposition: proposition.clone(),
+    }
 }
