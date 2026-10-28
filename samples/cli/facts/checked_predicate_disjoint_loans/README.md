@@ -485,3 +485,34 @@ remains open. It does not establish arbitrary dynamic Boolean indexing, generic
 or evidence-selected bodies, stored-reference crossings, or unrestricted runtime
 collection predicates. All four hosted entry bindings are present; native
 execution here is macOS ARM64.
+
+
+### Integrated Boolean guard acceptance
+
+Producer `1f85b81b0b31b0e25d50e165925e4567f5fa85b9` integrates pinned
+main `60173d2f9c83e679d5620f4e85e4003b706a7a91`. Landed #407 now owns
+admitted-body termification; its structural judgment implementation is retained
+byte-for-byte. The superseded framed helper and conditional body adapter are
+removed. Typed Boolean observations and complete condition export remain; inner
+call eligibility, active proof identity and independent formation remain owned
+by the shared implementation.
+
+Fresh integrated evidence records 200 public observations (89 native/Terminal
+exit-zero agreements and 111 intended rejects), 199 checking outcomes (88 accepted
+and 111 rejected with their authored reasons), and 88 native/Terminal agreements.
+Four incoming borrowed-call checks and two corresponding engine consumers also
+pass. The valid ranked theorem checks on the original baseline and integrated
+producer; stored-reference and partial-division controls retain their refusals.
+The three runtime timing notices remain recorded without resetting their baselines.
+
+Three existing snapshot-rejection diagnostic rows replace only encoded package
+identities. The exact measured rows from the completed integrated checking capture
+are spliced through the existing corpus record owner, retaining their original
+producer stamp. No engine execution is claimed for that recording operation; all
+unrelated rows, keys and diagnostic lines are preserved. The original 22 checking
+and 10 native additions remain the Boolean production's scoped additions.
+
+The original `ea503`/`4ef139` observations and review remain historical. The old
+16b comparison loss and byte-identical 33da/ea503 ranking refusal remain explicit
+and uncredited as described above. Broader BORROW-PROOF-CONVERGENCE acceptance
+remains open; this completion establishes only the Boolean guard production.
