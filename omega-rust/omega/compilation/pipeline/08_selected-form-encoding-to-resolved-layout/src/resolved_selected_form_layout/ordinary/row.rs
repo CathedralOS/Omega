@@ -150,52 +150,33 @@ fn validate_internal_fixup(
     let Some(callee) = instruction.kind.machine_callee() else {
         return unexpected(instruction.id);
     };
-    match (architecture, fixup.kind) {
+    let placeholder = match (architecture, fixup.kind) {
         (
             Architecture::X86_64,
             SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
-        ) => {}
+        ) => [0, 0, 0, 0],
         (
             Architecture::Aarch64,
             SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-        ) => {}
+        ) => 0x9400_0000_u32.to_le_bytes(),
         _ => return unexpected(instruction.id),
-    }
+    };
     if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
         || fixup.callee != callee
         || fixup.addend != 0
     {
         return unexpected(instruction.id);
     }
-    let patch_start = usize::from(fixup.patch_row_offset);
-    let patch_end = patch_start
-        .checked_add(usize::from(fixup.patch_byte_width))
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    let canonical_placeholder = match fixup.kind {
-        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => {
-            bytes.get(patch_start..patch_end) == Some(&[0, 0, 0, 0])
-        }
-        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => {
-            bytes.get(patch_start..patch_end) == Some(&0x9400_0000_u32.to_le_bytes())
-        }
-    };
-    if !canonical_placeholder {
-        return unexpected(instruction.id);
-    }
-    let row_len = u64::try_from(bytes.len())
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    let row_end = instruction_offset
-        .checked_add(row_len)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    if instruction_offset
-        .checked_add(u64::from(fixup.opcode_row_offset))
-        .is_none_or(|offset| offset >= row_end)
-        || instruction_offset
-            .checked_add(u64::from(fixup.reference_row_offset))
-            .is_none_or(|offset| offset > row_end)
-    {
-        return unexpected(instruction.id);
-    }
+    validate_unresolved_field(
+        instruction,
+        instruction_offset,
+        bytes,
+        fixup.patch_row_offset,
+        fixup.patch_byte_width,
+        fixup.opcode_row_offset,
+        fixup.reference_row_offset,
+        placeholder,
+    )?;
     Ok(fixup)
 }
 
@@ -213,17 +194,17 @@ fn validate_foreign_fixup(
     else {
         return unexpected(instruction.id);
     };
-    match (architecture, fixup.kind) {
+    let placeholder = match (architecture, fixup.kind) {
         (
             Architecture::X86_64,
             SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
-        ) => {}
+        ) => [0, 0, 0, 0],
         (
             Architecture::Aarch64,
             SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-        ) => {}
+        ) => 0x9400_0000_u32.to_le_bytes(),
         _ => return unexpected(instruction.id),
-    }
+    };
     if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
         || fixup.boundary != boundary
         || fixup.ordinal != ordinal
@@ -231,35 +212,16 @@ fn validate_foreign_fixup(
     {
         return unexpected(instruction.id);
     }
-    let patch_start = usize::from(fixup.patch_row_offset);
-    let patch_end = patch_start
-        .checked_add(usize::from(fixup.patch_byte_width))
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    let canonical_placeholder = match fixup.kind {
-        SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => {
-            bytes.get(patch_start..patch_end) == Some(&[0, 0, 0, 0])
-        }
-        SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => {
-            bytes.get(patch_start..patch_end) == Some(&0x9400_0000_u32.to_le_bytes())
-        }
-    };
-    if !canonical_placeholder {
-        return unexpected(instruction.id);
-    }
-    let row_len = u64::try_from(bytes.len())
-        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    let row_end = instruction_offset
-        .checked_add(row_len)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
-    if instruction_offset
-        .checked_add(u64::from(fixup.opcode_row_offset))
-        .is_none_or(|offset| offset >= row_end)
-        || instruction_offset
-            .checked_add(u64::from(fixup.reference_row_offset))
-            .is_none_or(|offset| offset > row_end)
-    {
-        return unexpected(instruction.id);
-    }
+    validate_unresolved_field(
+        instruction,
+        instruction_offset,
+        bytes,
+        fixup.patch_row_offset,
+        fixup.patch_byte_width,
+        fixup.opcode_row_offset,
+        fixup.reference_row_offset,
+        placeholder,
+    )?;
     validate_callback_materializations(
         architecture,
         instruction,
@@ -268,6 +230,40 @@ fn validate_foreign_fixup(
         &fixup.callbacks,
     )?;
     Ok(fixup)
+}
+
+/// Both unresolved field families keep the same custody shape: the patch still
+/// holds its canonical template at the row-relative offset, and the opcode and
+/// reference offsets stay inside the row the field patches.
+#[allow(clippy::too_many_arguments)]
+fn validate_unresolved_field(
+    instruction: &SelectedInstruction,
+    instruction_offset: u64,
+    bytes: &[u8],
+    patch_row_offset: u16,
+    patch_byte_width: u8,
+    opcode_row_offset: u16,
+    reference_row_offset: u16,
+    placeholder: [u8; 4],
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let patch_start = usize::from(patch_row_offset);
+    let patch_end = patch_start
+        .checked_add(usize::from(patch_byte_width))
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    if bytes.get(patch_start..patch_end) != Some(placeholder.as_slice()) {
+        return unexpected(instruction.id);
+    }
+    let row_len = u64::try_from(bytes.len())
+        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let row_end = instruction_offset
+        .checked_add(row_len)
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let opcode = instruction_offset.checked_add(u64::from(opcode_row_offset));
+    let reference = instruction_offset.checked_add(u64::from(reference_row_offset));
+    if opcode.is_none_or(|at| at >= row_end) || reference.is_none_or(|at| at > row_end) {
+        return unexpected(instruction.id);
+    }
+    Ok(())
 }
 
 /// The materialization groups travel inside the call row's encoding: they
