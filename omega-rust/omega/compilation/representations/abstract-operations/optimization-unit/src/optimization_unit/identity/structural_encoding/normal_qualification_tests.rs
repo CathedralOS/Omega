@@ -27,6 +27,7 @@ fn unit() -> PsiOptimizationUnit {
         role: terminal_psi::BoundaryDeclarationRole::Callable,
         kind: BoundaryRequirementKind::Machine,
         completion: BoundaryCompletion::NormalReturn,
+        numeric_intrinsic: None,
         unconditional_termination: false,
         identity: TerminalIdentityIndex(1),
         owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),

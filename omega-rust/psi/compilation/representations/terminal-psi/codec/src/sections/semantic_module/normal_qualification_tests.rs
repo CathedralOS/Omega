@@ -90,6 +90,7 @@ fn module() -> TerminalModule {
         role: terminal_psi::BoundaryDeclarationRole::Callable,
         kind: BoundaryRequirementKind::Machine,
         completion: BoundaryCompletion::NormalReturn,
+        numeric_intrinsic: None,
         unconditional_termination: false,
         identity: TerminalIdentityIndex(11),
         owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
