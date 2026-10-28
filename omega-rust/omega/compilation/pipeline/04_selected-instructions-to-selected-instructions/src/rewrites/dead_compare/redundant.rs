@@ -115,29 +115,18 @@ impl RedundantCompareReceipt {
 
 receipt_selected_identities!(RedundantCompareReceipt);
 
-/// Canonical identity of one validated redundant-compare removal: every
-/// receipt field — the coordinate, both plan identities, and the proof
-/// inputs — is part of the durable record, so two removals of the same
-/// compare under different sources stay distinct transformations.
-pub(crate) fn redundant_compare_identity(
-    receipt: &RedundantCompareReceipt,
-) -> RedundantCompareIdentity {
-    RedundantCompareIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-redundant-compare-removal.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("redundant-compare function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.compare.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated redundant-compare removal: every
+// receipt field — the coordinate, both plan identities, and the proof
+// inputs — is part of the durable record, so two removals of the same
+// compare under different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    redundant_compare_identity,
+    RedundantCompareIdentity,
+    RedundantCompareReceipt,
+    b"omega.terminal-redundant-compare-removal.v1\0",
+    "redundant-compare",
+    compare,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RedundantCompareError {
@@ -150,10 +139,6 @@ pub enum RedundantCompareError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RedundantCompareError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid redundant-compare removal: {self:?}")
-    }
-}
+failed_display!(RedundantCompareError, "invalid redundant-compare removal");
 
 impl std::error::Error for RedundantCompareError {}

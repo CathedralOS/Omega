@@ -132,27 +132,18 @@ impl DeadCompareReceipt {
 
 receipt_selected_identities!(DeadCompareReceipt);
 
-/// Canonical identity of one validated dead-compare removal: every receipt
-/// field — the coordinate, both plan identities, and the proof inputs — is
-/// part of the durable record, so two removals of the same compare under
-/// different sources stay distinct transformations.
-pub(crate) fn dead_compare_identity(receipt: &DeadCompareReceipt) -> DeadCompareIdentity {
-    DeadCompareIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-dead-compare-removal.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("dead-compare function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.compare.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated dead-compare removal: every receipt
+// field — the coordinate, both plan identities, and the proof inputs — is
+// part of the durable record, so two removals of the same compare under
+// different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    dead_compare_identity,
+    DeadCompareIdentity,
+    DeadCompareReceipt,
+    b"omega.terminal-dead-compare-removal.v1\0",
+    "dead-compare",
+    compare,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeadCompareError {
@@ -165,10 +156,6 @@ pub enum DeadCompareError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for DeadCompareError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid dead-compare removal: {self:?}")
-    }
-}
+failed_display!(DeadCompareError, "invalid dead-compare removal");
 
 impl std::error::Error for DeadCompareError {}

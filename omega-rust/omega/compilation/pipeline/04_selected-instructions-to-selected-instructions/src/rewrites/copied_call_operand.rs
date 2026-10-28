@@ -104,31 +104,22 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::fold_selected_copied_call_operand;
 pub(crate) use validation::copied_call_operand_measured_steps;
 
-/// Canonical identity of one validated copied-call-operand reroute:
-/// every receipt field — the coordinate, both plan identities, and the
-/// proof inputs — is part of the durable record, so two reroutes of the
-/// same call under different sources stay distinct transformations. The
-/// domain separator is this family's own: the reroute retains the
-/// producer ordinary copy removal removes, so no
-/// `omega.terminal-copy-removal` identity may record it.
-pub(crate) fn copied_call_operand_identity(
-    receipt: &CopiedCallOperandReceipt,
-) -> CopiedCallOperandIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-copied-call-operand.v1\0");
-    bytes.extend_from_slice(&receipt.source_selected.bytes());
-    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
-    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.fuel_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(
-        &u64::try_from(receipt.function_index)
-            .expect("copied-call-operand function index fits u64")
-            .to_le_bytes(),
-    );
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.producer.0.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, receipt.call.0.to_le_bytes());
-    CopiedCallOperandIdentity::from_canonical_bytes(&bytes)
-}
+// Canonical identity of one validated copied-call-operand reroute:
+// every receipt field — the coordinate, both plan identities, and the
+// proof inputs — is part of the durable record, so two reroutes of the
+// same call under different sources stay distinct transformations. The
+// domain separator is this family's own: the reroute retains the
+// producer ordinary copy removal removes, so no
+// `omega.terminal-copy-removal` identity may record it.
+rewrite_receipt_identity!(
+    copied_call_operand_identity,
+    CopiedCallOperandIdentity,
+    CopiedCallOperandReceipt,
+    b"omega.terminal-copied-call-operand.v1\0",
+    "copied-call-operand",
+    producer,
+    call,
+);
 
 /// An accepted copied-call-operand reroute with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,10 +208,6 @@ pub enum CopiedCallOperandError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for CopiedCallOperandError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid copied call operand fold: {self:?}")
-    }
-}
+failed_display!(CopiedCallOperandError, "invalid copied call operand fold");
 
 impl std::error::Error for CopiedCallOperandError {}

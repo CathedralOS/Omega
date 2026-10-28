@@ -122,29 +122,18 @@ impl EquivalentCompareReceipt {
 
 receipt_selected_identities!(EquivalentCompareReceipt);
 
-/// Canonical identity of one validated equivalent-compare removal: every
-/// receipt field — the coordinate, both plan identities, and the proof
-/// inputs — is part of the durable record, so two removals of the same
-/// compare under different sources stay distinct transformations.
-pub(crate) fn equivalent_compare_identity(
-    receipt: &EquivalentCompareReceipt,
-) -> EquivalentCompareIdentity {
-    EquivalentCompareIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-equivalent-compare-removal.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("equivalent-compare function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.compare.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated equivalent-compare removal: every
+// receipt field — the coordinate, both plan identities, and the proof
+// inputs — is part of the durable record, so two removals of the same
+// compare under different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    equivalent_compare_identity,
+    EquivalentCompareIdentity,
+    EquivalentCompareReceipt,
+    b"omega.terminal-equivalent-compare-removal.v1\0",
+    "equivalent-compare",
+    compare,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EquivalentCompareError {
@@ -157,10 +146,6 @@ pub enum EquivalentCompareError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for EquivalentCompareError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid equivalent-compare removal: {self:?}")
-    }
-}
+failed_display!(EquivalentCompareError, "invalid equivalent-compare removal");
 
 impl std::error::Error for EquivalentCompareError {}

@@ -235,11 +235,7 @@ pub enum RuntimeSpillError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RuntimeSpillError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid runtime-value spill: {self:?}")
-    }
-}
+failed_display!(RuntimeSpillError, "invalid runtime-value spill");
 
 impl std::error::Error for RuntimeSpillError {}
 
