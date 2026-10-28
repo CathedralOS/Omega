@@ -819,7 +819,7 @@ impl<'pass> PackageReviewRound<'pass> {
             policy,
             policy_canonical_bytes,
         } = evidence;
-        if build_handoff.package() != key.identity() || build_handoff.target() != checked_target {
+        if build_handoff.package() != Some(key.identity()) || build_handoff.target() != checked_target {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
             });

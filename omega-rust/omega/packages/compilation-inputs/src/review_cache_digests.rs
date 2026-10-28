@@ -21,13 +21,13 @@ use crate::{
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x04";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SOURCE-SUBJECT-INPUTS\x01";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
 /// Commit the current activation's own generated outputs as well as the
 /// dependency bundles already covered by `review_cache_inputs_digest`.
 pub fn package_build_handoff_digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
-    let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v3\0");
+    let mut digest = DomainDigestEncoder::new(b"omega-source-build-handoff-v1\0");
     hash_generated_bundle(&mut digest, bundle);
     digest.finish()
 }
