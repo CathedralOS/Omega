@@ -69,7 +69,8 @@ pub(crate) use operand_values::{
     CapturedOperand, CapturedValue, CapturedValueChoice, captured_lifetime_roots,
     captured_observation_places, captured_observation_roots, captured_operand_at_path,
     captured_operand_child_at_path, captured_operand_handle_at_path, captured_operand_values,
-    captured_value_places, observe_captured_values, project_captured_view_place,
+    captured_result_membership, captured_value_places, observe_captured_values,
+    project_captured_view_place,
 };
 pub(crate) use selection_conditions::{SelectionCondition, SelectionConditions};
 mod operator_calls;

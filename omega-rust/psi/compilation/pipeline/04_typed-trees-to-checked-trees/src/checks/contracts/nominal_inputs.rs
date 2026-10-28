@@ -169,6 +169,25 @@ pub(super) fn check(
                 .is_some_and(|projections| {
                     !projections.is_empty()
                         && projections.iter().all(|captured| {
+                            let invocation = facts
+                                .flow
+                                .control
+                                .operands
+                                .span_or_empty(call.operands)
+                                .last();
+                            if invocation.is_some_and(|observation| {
+                                observation.storage_snapshot == call.invocation_storage
+                                    && crate::flow::captured_result_membership(
+                                        program,
+                                        facts,
+                                        captured,
+                                        observation,
+                                        *domain_symbol,
+                                        *semantic_domain,
+                                    )
+                            }) {
+                                return true;
+                            }
                             // A reaching producer explains the value, but a
                             // later observation also retains qualifications
                             // established on the stored copy. Keep their

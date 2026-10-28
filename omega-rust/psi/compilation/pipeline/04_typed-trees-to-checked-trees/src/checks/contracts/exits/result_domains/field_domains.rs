@@ -241,6 +241,39 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         if root_satisfied {
             continue;
         }
+        // Completed values retain the producer's field promises even when
+        // their address can be described only by a conservative footprint.
+        // Current backing writes remain an independent, complete check.
+        let result_membership =
+            crate::flow::CapturedOperand::recorded(&facts.flow.control, exit.returned_value)
+                .and_then(|capture| {
+                    crate::flow::captured_operand_values(
+                        program,
+                        &facts.flow,
+                        &facts.semantic,
+                        state_flow,
+                        capture,
+                        entry.return_type,
+                        &path,
+                    )
+                })
+                .is_some_and(|values| {
+                    !values.is_empty()
+                        && values.iter().all(|value| {
+                            facts.flow.control.operands.is_valid(exit.returned_value)
+                                && crate::flow::captured_result_membership(
+                                    program,
+                                    facts,
+                                    value,
+                                    facts.flow.control.operands.get(exit.returned_value),
+                                    domain_symbol,
+                                    semantic_domain,
+                                )
+                        })
+                });
+        if result_membership {
+            continue;
+        }
         let satisfied = if let Some(subjects) = returned_storage.as_ref() {
             {
                 subjects.iter().all(|storage| {
