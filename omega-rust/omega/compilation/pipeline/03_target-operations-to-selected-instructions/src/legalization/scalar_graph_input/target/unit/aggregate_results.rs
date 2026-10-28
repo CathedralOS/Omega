@@ -7,6 +7,15 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
 use crate::legalization::{accepted_fact, references_obligation};
 
+fn same_result_home(
+    result_home: &target_operations::TargetStructuralHomeRequirement,
+    optimized: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    plan: &AbstractOperationPlan,
+) -> Result<bool, LegalizationError> {
+    Ok(*result_home == scalar_graph_input::aggregate_results::result_home(optimized, place, plan)?)
+}
+
 pub(super) fn validate(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
@@ -41,12 +50,7 @@ pub(super) fn validate(
                 || backing_type != et
                 || established_case != ee
                 || rejected_case != er
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
                 || !sources
                     .iter()
                     .any(|(value, source)| value == ec && source == committed)
@@ -98,12 +102,7 @@ pub(super) fn validate(
                 || bound_at != expected_bound
                 || covered_case != expected_covered
                 || rejected_case != expected_rejected
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
                 || !sources
                     .iter()
                     .any(|(value, source)| value == committed_at && source == committed)
@@ -140,12 +139,7 @@ pub(super) fn validate(
                 || upper_claim != expected_upper_claim
                 || covered_case != expected_covered
                 || rejected_case != expected_rejected
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
             {
                 return Err(LegalizationError::custody());
             }
@@ -165,12 +159,7 @@ pub(super) fn validate(
         ) => {
             if psi_operation != expected_operation
                 || machine != expected_machine
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
                 || !plan
                     .functions
                     .iter()
@@ -203,12 +192,7 @@ pub(super) fn validate(
             if psi_operation != expected_operation
                 || elements != expected_elements
                 || u64::try_from(elements.len()).ok() != Some(length)
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
             {
                 return Err(LegalizationError::custody());
             }
@@ -256,12 +240,7 @@ pub(super) fn validate(
             if psi_operation != expected_operation
                 || fields != expected_fields
                 || fields.len() != declarations.clone().count()
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
                 || fields.iter().zip(declarations).any(|(field, declaration)| {
                     field.field != declaration.id
                         || declaration.relevance.is_erased()
@@ -311,12 +290,7 @@ pub(super) fn validate(
             if psi_operation != expected_operation
                 || elements != expected_elements
                 || u64::try_from(elements.len()).ok() != Some(count)
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
                 || elements.iter().any(|element| {
                     !sources.iter().any(|(value, source)| {
                         value == element && source.scalar_type() == scalar_type
@@ -404,12 +378,7 @@ pub(super) fn validate(
                             || index.operand.scalar_type() != *scalar_type
                     },
                 )
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
                 || result_home.layout.shape() != expected_shape
             {
                 return Err(LegalizationError::custody());
@@ -432,12 +401,7 @@ pub(super) fn validate(
             if psi_operation != expected_operation
                 || result_case != expected_case
                 || fields != expected_fields
-                || *result_home
-                    != scalar_graph_input::aggregate_results::result_home(
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
+                || !same_result_home(result_home, optimized, result.place, plan)?
             {
                 return Err(LegalizationError::custody());
             }
