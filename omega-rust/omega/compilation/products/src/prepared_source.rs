@@ -145,6 +145,12 @@ impl PreparedCheckedSource {
     pub fn preparation(&self) -> SourcePreparation {
         self.preparation.clone()
     }
+
+    pub fn captured_core_source(
+        &self,
+    ) -> Result<package_compilation::CapturedCoreSource, Vec<Diagnostic>> {
+        self.source_checkpoint.captured_core_source()
+    }
     /// Fork only at a real sibling boundary, freezing shared source pages once.
     pub fn fork(&mut self) -> Self {
         Self {

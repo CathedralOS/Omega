@@ -34,8 +34,10 @@ mod cursor;
 pub(crate) use optimization_core::digest_encoder;
 pub mod source_assembly;
 pub mod source_imports;
+mod toolchain_build;
 pub mod toolchain_library;
 pub use build_execution::*;
+pub use toolchain_build::{BuildSourceOwner, CapturedCoreSource, CoreSourceIdentity};
 mod package_compilation;
 mod review_cache_digests;
 #[doc(hidden)]

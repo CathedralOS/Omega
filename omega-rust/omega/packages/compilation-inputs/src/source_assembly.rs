@@ -341,6 +341,19 @@ impl ImmutableSourceParseCheckpoint {
         &self.root_path
     }
 
+    pub fn captured_core_source(&self) -> Result<crate::CapturedCoreSource, Vec<Diagnostic>> {
+        self.source_storage.captured_core_source()
+    }
+
+    pub fn prepare_captured_core(
+        input: &crate::CapturedCoreSource,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let storage = SourceStorage::for_captured_core(input, catalogue)?;
+        Self::prepare_storage(&input.build_path(), None, storage, timings, catalogue)
+    }
+
     /// Prepare shared physical sources without Product imports or a child's
     /// target attachments when an authored Build exists. Target-local generated
     /// bundles join their respective scope during assembly.
@@ -376,8 +389,24 @@ impl ImmutableSourceParseCheckpoint {
         timings: &mut CompileTimings,
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut source_storage =
+        let source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
+        Self::prepare_storage(
+            root_path,
+            package_inputs,
+            source_storage,
+            timings,
+            catalogue,
+        )
+    }
+
+    fn prepare_storage(
+        root_path: &Path,
+        package_inputs: Option<&PackageCompilationInputs>,
+        mut source_storage: SourceStorage,
+        timings: &mut CompileTimings,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<Self, Vec<Diagnostic>> {
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         let has_build = project

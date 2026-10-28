@@ -20,7 +20,7 @@ pub(crate) struct SourceStorage {
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
     anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>,
-    anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>,
+    core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>,
     package_roots: Vec<RegisteredPackageRoot>,
     toolchain_root: Option<PathBuf>,
     // Import reconciliation borrows custody independently of its mutable results.
@@ -93,7 +93,7 @@ impl SourceStorage {
                 "source preparation cannot combine an unbound capture with a supplied package graph",
             )]);
         }
-        match package_inputs {
+        let mut storage = match package_inputs {
             Some(package_inputs) => {
                 package_inputs.validate_for_compilation(root_path, &super::bundled_core_root()?)?;
                 let root_package = package_inputs
@@ -162,35 +162,75 @@ impl SourceStorage {
                     })?;
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
-                // Core is a closed toolchain dependency, not the subset of
-                // declarations demanded by one exported machine.
-                let core = package_source::local::operations::capture_local_source_input(
-                    super::bundled_core_root()?,
-                    package_source::LocalSourceLimits::default(),
-                )
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "cannot capture anonymous core dependency: {error}"
-                    ))]
-                })?;
-                let core_root = core.canonical_live_root().to_path_buf();
-                let core_tree = if core_root == storage.default_package_root {
-                    captured.tree().clone()
-                } else {
-                    storage
-                        .filesystem
-                        .add_capture(core_root.clone(), core.tree().clone())
-                        .map_err(|error| {
-                            vec![Diagnostic::error(format!(
-                                "cannot mount captured core dependency: {error}"
-                            ))]
-                        })?;
-                    core.tree().clone()
-                };
-                storage.anonymous_core_capture = Some((core_root, core_tree));
                 Ok(storage)
             }
+        }?;
+        storage.capture_core()?;
+        Ok(storage)
+    }
+
+    fn capture_core(&mut self) -> Result<(), Vec<Diagnostic>> {
+        if self.core_capture.is_some() {
+            return Ok(());
         }
+        let core = package_source::local::operations::capture_local_source_input(
+            super::bundled_core_root()?,
+            package_source::LocalSourceLimits::default(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot capture Core Build source: {error}"
+            ))]
+        })?;
+        let root = core.canonical_live_root().to_path_buf();
+        let tree = if root == self.default_package_root {
+            self.anonymous_capture
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| core.tree().clone())
+        } else {
+            self.filesystem
+                .add_capture(root.clone(), core.tree().clone())
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "cannot mount captured Core source: {error}"
+                    ))]
+                })?;
+            core.tree().clone()
+        };
+        self.core_capture = Some((root, tree));
+        Ok(())
+    }
+
+    pub(crate) fn captured_core_source(
+        &self,
+    ) -> Result<crate::CapturedCoreSource, Vec<Diagnostic>> {
+        let (root, tree) = self.core_capture.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "source admission lost its complete Core capture",
+            )]
+        })?;
+        crate::CapturedCoreSource::new(root.clone(), tree.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+
+    pub(crate) fn for_captured_core(
+        input: &crate::CapturedCoreSource,
+        catalogue: &mut source::SourceCatalogue,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut storage =
+            Self::for_compilation(input.root().to_path_buf(), input.root().to_path_buf());
+        storage
+            .filesystem
+            .add_capture(input.root().to_path_buf(), input.tree().clone())
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot admit Core Build capture: {error}"
+                ))]
+            })?;
+        storage.sources = catalogue.begin_selection();
+        storage.core_capture = Some((input.root().to_path_buf(), input.tree().clone()));
+        Ok(storage)
     }
 
     /// Establish ownership on a separate parsed Product prefix, never on the
@@ -208,7 +248,7 @@ impl SourceStorage {
             .validate_unbound_source_join(&self.default_package_root, capture)
             .map_err(refuse)?;
         let mut filesystem = inputs.source_filesystem().clone();
-        if let Some((root, tree)) = &self.anonymous_core_capture
+        if let Some((root, tree)) = &self.core_capture
             && *root != self.default_package_root
         {
             filesystem
@@ -248,7 +288,6 @@ impl SourceStorage {
         self.sources
             .retain_product_dependency_scope(inputs.dependencies());
         self.anonymous_capture = None;
-        self.anonymous_core_capture = None;
         Ok(())
     }
 
@@ -368,7 +407,7 @@ impl SourceStorage {
                 ))]);
             }
         }
-        let (core_root, core_snapshot) = self.anonymous_core_capture.as_ref().ok_or_else(|| {
+        let (core_root, core_snapshot) = self.core_capture.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "anonymous source capture lost its core dependency",
             )]
