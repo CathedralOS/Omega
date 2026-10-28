@@ -12,8 +12,8 @@
 //! implementation cannot supply those public guarantees implicitly.
 
 use super::specification_calls::{
-    SelectedCallContract, owner_contracts, owner_name, owner_parameters, owner_return_type,
-    owner_symbol, selected_contract_by_symbol,
+    SelectedCallContract, owner_contracts, owner_is_proof, owner_name, owner_parameters,
+    owner_return_type, owner_symbol, selected_contract_by_symbol,
 };
 use crate::proof_contracts::contract_entailment::RESULT_BINDER;
 use crate::proof_contracts::contract_entailment::law_conformance::{
@@ -121,22 +121,6 @@ fn citation_is_self(
         .is_some_and(|callee| callee.symbol == machine.symbol)
 }
 
-fn citation_owner_is_proof(
-    program: &dyn crate::CheckingInput,
-    classification: &typed_trees::proof_only::ProofOnlyClassification,
-    owner: &SelectedCallContract<'_>,
-) -> bool {
-    match owner {
-        SelectedCallContract::Concrete(machine, _) => {
-            classification.is_proof_machine(program, machine)
-        }
-        SelectedCallContract::Signature(signature) => {
-            classification.is_proof_signature(program, signature)
-        }
-        _ => false,
-    }
-}
-
 /// Fast eligibility check before `establish_citation` clones/re-intakes a
 /// `StructuralJudge` or termifies call arguments on a runtime path.
 pub(super) fn can_establish_citation(
@@ -160,7 +144,7 @@ pub(super) fn can_establish_citation(
     if (runtime_invocation && (self_citation || target.has_static_selection))
         || (!runtime_invocation
             && ((self_citation && !resultless_entry)
-                || !citation_owner_is_proof(program, classification, &owner)))
+                || !owner_is_proof(program, classification, &owner)))
     {
         return false;
     }
@@ -267,7 +251,7 @@ pub(crate) fn is_citation_statement(
     {
         return false;
     }
-    citation_owner_is_proof(program, classification, &owner)
+    owner_is_proof(program, classification, &owner)
         || matches!(owner, SelectedCallContract::Concrete(callee, _) if crate::mathematical_applications::is_indexed_logical_machine(program, callee))
 }
 
@@ -651,7 +635,7 @@ pub(crate) fn instantiate_citation(
     if (runtime_invocation && (self_citation || target.has_static_selection))
         || (!runtime_invocation
             && ((self_citation && (!allow_self_induction || !resultless_entry))
-                || !citation_owner_is_proof(program, classification, &owner)))
+                || !owner_is_proof(program, classification, &owner)))
     {
         return established;
     }

@@ -69,9 +69,8 @@ pub fn structural_call_requirement_entailed(
         state,
         statement_index,
         in_transition_target,
-        callee.symbol,
+        &super::specification_calls::SelectedCallContract::Concrete(callee_machine, callee),
         program.state_parameters(callee),
-        Some(callee_machine),
         None,
         ExpressionHandle::invalid(),
         0,
@@ -134,10 +133,6 @@ pub fn selected_value_call_requirement_entailed(
     {
         return false;
     }
-    let callee_machine = match owner {
-        super::specification_calls::SelectedCallContract::Concrete(machine, _) => Some(machine),
-        _ => None,
-    };
     let Some(parameter_scope) =
         super::specification_calls::call_parameter_scope(program, machine.symbol, &owner, site)
     else {
@@ -192,9 +187,8 @@ pub fn selected_value_call_requirement_entailed(
             statement_index,
             call_expression,
         ),
-        super::specification_calls::owner_symbol(&owner),
+        &owner,
         parameter_scope.as_ref(),
-        callee_machine,
         Some(site),
         call_expression,
         leading_operands,
@@ -212,9 +206,8 @@ fn structural_requirement_at_prefix(
     state: SymbolHandle,
     statement_index: usize,
     in_transition_target: bool,
-    callee_owner: SymbolHandle,
+    owner: &super::specification_calls::SelectedCallContract<'_>,
     parameters: &[typed_trees::signature::StateParameter],
-    callee_machine: Option<&Machine>,
     call_site: Option<crate::CallSite<'_>>,
     call_expression: ExpressionHandle,
     leading_operands: usize,
@@ -223,7 +216,14 @@ fn structural_requirement_at_prefix(
     case_facts_only: bool,
     inherited: Option<&InheritedPredicate>,
 ) -> bool {
-    let callee_owner = inherited.map_or(callee_owner, |predicate| predicate.owner);
+    let callee_owner = inherited.map_or_else(
+        || super::specification_calls::owner_symbol(owner),
+        |predicate| predicate.owner,
+    );
+    let callee_machine = match owner {
+        super::specification_calls::SelectedCallContract::Concrete(machine, _) => Some(*machine),
+        _ => None,
+    };
     let expression = inherited.map_or(expression, |predicate| predicate.expression);
     let predicate_parameters =
         inherited.map_or(parameters, |predicate| predicate.parameters.as_slice());
@@ -232,7 +232,7 @@ fn structural_requirement_at_prefix(
         return false;
     };
     let runtime_values = !classification.is_proof_machine(program, machine)
-        || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
+        || !super::specification_calls::owner_is_proof(program, &classification, owner);
     let acyclic = crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
     );
