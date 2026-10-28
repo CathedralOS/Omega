@@ -1,0 +1,22 @@
+// Fact: a `&write` store into a record's reference leaf installs the incoming
+// descriptor — the stored target reads the new referent's 85 while the
+// displaced referent's 11 and the sibling stamp's 17 stay untouched.
+// Place: const name. A named constant selects the incoming referent.
+// Expected exit: 0
+const CHOSEN: u64 = 1;
+data Cell { value: i64; }
+data Held { target: &Cell; stamp: i64; }
+
+machine main() crashes Trap {
+    let left: Cell = Cell { value: 11 };
+    let cells: [Cell; 2] = [Cell { value: 71 }, Cell { value: 85 }];
+    let mut held: Held = Held { target: &left, stamp: 17 };
+    let slot: &write Held = &write held;
+    slot.target = &cells[CHOSEN];
+    transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
