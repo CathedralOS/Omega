@@ -150,24 +150,13 @@ pub(super) fn checked_terminator(
     // Checking forms every canonical arm. Execution retains only the selected
     // edge when its guard is a closed static proposition, keeping the original
     // statement coordinate and its checked value/custody records.
-    for (index, statement) in statements.iter().enumerate().skip(binding_count) {
-        let StatementNode::Transition(transition) = statement else {
-            break;
-        };
-        let selected = match transition.guard {
-            TransitionGuardNode::Always => true,
-            TransitionGuardNode::When(guard) => match program.static_boolean_value(guard) {
-                Some(value) => value,
-                None => break,
-            },
-        };
-        if !selected {
-            continue;
-        }
-        if transition.continuation.is_valid() {
-            break;
-        }
-        let ordinal = u32::try_from(index).ok()?;
+    if let Some(selected) = crate::execution::selected_transitions::selected_transition(
+        program,
+        statements,
+        binding_count,
+    ) {
+        let ordinal = selected.statement_ordinal;
+        let transition = selected.transition;
         return match checked_branch_destination(program, machine, ordinal, transition, false)? {
             CheckedScalarBranchDestination::Return {
                 statement_ordinal,
