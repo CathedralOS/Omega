@@ -176,8 +176,6 @@ failed_display!(
     "Terminal fixed-view copy materialization failed"
 );
 
-impl std::error::Error for FixedViewCopyError {}
-
 /// Bumps a synthetic instruction or register identifier, mapping arithmetic
 /// overflow to the function-scoped identifier-overflow error.
 pub(super) fn bump_identifier(

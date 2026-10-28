@@ -112,12 +112,6 @@ impl EquivalentCompareReceipt {
     /// The removed equivalent compare instruction.
         compare: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// equivalent-compare domain separator.
-    pub fn identity(&self) -> EquivalentCompareIdentity {
-        equivalent_compare_identity(self)
-    }
 }
 
 receipt_selected_identities!(EquivalentCompareReceipt);
@@ -147,5 +141,3 @@ pub enum EquivalentCompareError {
 }
 
 failed_display!(EquivalentCompareError, "invalid equivalent-compare removal");
-
-impl std::error::Error for EquivalentCompareError {}

@@ -91,12 +91,6 @@ impl CopyRemovalReceipt {
     /// The removed `CopyI64` instruction's source-side identity.
         copy: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the copy-removal
-    /// domain separator.
-    pub fn identity(&self) -> CopyRemovalIdentity {
-        copy_removal_identity(self)
-    }
 }
 
 receipt_selected_identities!(CopyRemovalReceipt);
@@ -127,8 +121,6 @@ pub enum CopyRemovalError {
 }
 
 failed_display!(CopyRemovalError, "invalid copy removal");
-
-impl std::error::Error for CopyRemovalError {}
 
 /// The removal's measured scan: the shared rewrite scan, then per
 /// this function's body instructions, terminator edges and their binding

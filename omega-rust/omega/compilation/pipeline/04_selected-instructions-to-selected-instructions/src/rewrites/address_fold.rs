@@ -95,12 +95,6 @@ impl AddressFoldReceipt {
     /// The folded displacement-carrying instruction's source-side identity.
         access: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the address-fold
-    /// domain separator.
-    pub fn identity(&self) -> AddressFoldIdentity {
-        address_fold_identity(self)
-    }
 }
 
 receipt_selected_identities!(AddressFoldReceipt);
@@ -132,5 +126,3 @@ pub enum AddressFoldError {
 }
 
 failed_display!(AddressFoldError, "invalid address fold");
-
-impl std::error::Error for AddressFoldError {}

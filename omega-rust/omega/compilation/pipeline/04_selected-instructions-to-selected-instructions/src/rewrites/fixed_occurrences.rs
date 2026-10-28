@@ -67,16 +67,10 @@ pub enum FixedOccurrencesError {
     },
 }
 
-impl std::fmt::Display for FixedOccurrencesError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "fixed-occurrence materialization failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for FixedOccurrencesError {}
+failed_display!(
+    FixedOccurrencesError,
+    "fixed-occurrence materialization failed"
+);
 
 /// Materialize eligible physical occurrences through the target's ordinary copy row.
 /// This is a required realization, not an optimizer policy or a permission
@@ -422,9 +416,13 @@ fn rewrite_function(
             function.boundary_settlements[settlement_idx].instruction_index = new_pos;
         }
         for (block_index, new_instructions, new_terminator) in block_updates {
-            function
-                .blocks
-                .replace_block_contents(block_index, new_instructions, new_terminator, 0, 0);
+            function.blocks.replace_block_contents(
+                block_index,
+                new_instructions,
+                new_terminator,
+                0,
+                0,
+            );
         }
     }
     Ok(())

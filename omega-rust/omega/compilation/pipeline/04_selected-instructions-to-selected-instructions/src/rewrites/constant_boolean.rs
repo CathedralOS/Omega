@@ -126,12 +126,6 @@ impl ConstantBooleanReceipt {
     /// The folded flag-reader materialization's source-side identity.
         materialization: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// constant-boolean domain separator.
-    pub fn identity(&self) -> ConstantBooleanIdentity {
-        constant_boolean_identity(self)
-    }
 }
 
 receipt_selected_identities!(ConstantBooleanReceipt);
@@ -174,5 +168,3 @@ pub enum ConstantBooleanError {
 }
 
 failed_display!(ConstantBooleanError, "invalid constant boolean fold");
-
-impl std::error::Error for ConstantBooleanError {}

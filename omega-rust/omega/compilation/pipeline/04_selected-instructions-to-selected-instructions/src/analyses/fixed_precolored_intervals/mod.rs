@@ -111,5 +111,3 @@ failed_display!(
     FixedPrecoloredIntervalError,
     "fixed/precolored interval analysis failed"
 );
-
-impl std::error::Error for FixedPrecoloredIntervalError {}
