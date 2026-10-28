@@ -80,18 +80,56 @@ impl MachineOverloadIndex {
     }
 }
 
-fn expression_owner_source_spans(program: &dyn crate::CheckingInput) -> HashMap<u32, SourceSpan> {
+#[derive(Clone, Copy)]
+struct CallOwner {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    source_span: SourceSpan,
+}
+
+#[derive(Clone, Copy)]
+struct CallOperands<'call> {
+    owner: Option<CallOwner>,
+    static_arguments: &'call [typed_trees::expression::StaticMachineArgument],
+    arguments: &'call [ExpressionHandle],
+}
+
+fn expression_owners(program: &dyn crate::CheckingInput) -> HashMap<u32, CallOwner> {
     let mut owners = HashMap::default();
     for machine in program.machines() {
         let Some(source_span) = program.symbols.symbol_source_span(machine.symbol) else {
             continue;
         };
-        for state in program.machine_states(machine) {
+        for (ordinal, state) in program.machine_states(machine).iter().enumerate() {
+            let owner = CallOwner {
+                machine: machine.symbol,
+                state: state.symbol,
+                source_span,
+            };
+            let mut contract_roots = Vec::new();
+            let machine_contracts = if ordinal == 0 {
+                program.machine_contracts(machine)
+            } else {
+                &[]
+            };
+            for contract in machine_contracts
+                .iter()
+                .chain(program.state_contracts(state))
+            {
+                crate::expression_traversal::collect_contract_facts(
+                    program,
+                    contract.facts,
+                    &mut contract_roots,
+                );
+            }
+            for root in contract_roots {
+                record_expression_owner(program, root, owner, &mut owners);
+            }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 for root in crate::machine_calls::calls::statement_value_expression_roots(
                     program, statement,
                 ) {
-                    record_expression_owner(program, root, source_span, &mut owners);
+                    record_expression_owner(program, root, owner, &mut owners);
                 }
             }
         }
@@ -102,17 +140,17 @@ fn expression_owner_source_spans(program: &dyn crate::CheckingInput) -> HashMap<
 fn record_expression_owner(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    source_span: SourceSpan,
-    owners: &mut HashMap<u32, SourceSpan>,
+    owner: CallOwner,
+    owners: &mut HashMap<u32, CallOwner>,
 ) {
     if !expression.is_valid() || owners.contains_key(&expression.arena_index()) {
         return;
     }
-    owners.insert(expression.arena_index(), source_span);
+    owners.insert(expression.arena_index(), owner);
     crate::expression_traversal::children(
         program,
         program.expression_table.expression(expression),
-        |child| record_expression_owner(program, child, source_span, owners),
+        |child| record_expression_owner(program, child, owner, owners),
     );
 }
 
@@ -122,12 +160,16 @@ fn record_expression_owner(
 /// replaces that provisional symbol with the exact machine, trait-requirement,
 /// or unspelled boundary-operator result overload before downstream consumers.
 
-pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub fn resolve_named_result_overloads(
+    program: &mut TypedTrees,
+) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+    let boolean_equalities = crate::static_type_boolean_equalities(program);
+    program.prepare_static_type_contexts(&boolean_equalities);
     let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
         collect_expected_expression_calls(program)
             .into_iter()
             .collect();
-    let expression_owner_source_spans = expression_owner_source_spans(program);
+    let expression_owners = expression_owners(program);
     let machine_overloads = MachineOverloadIndex::new(program);
     let mut diagnostics = Vec::new();
 
@@ -143,9 +185,10 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 program,
                 &machine_overloads,
                 call,
-                expression_owner_source_spans
+                expression_owners.get(&handle.arena_index()).copied(),
+                expression_owners
                     .get(&handle.arena_index())
-                    .copied()
+                    .map(|owner| owner.source_span)
                     .unwrap_or_else(|| program.expression_table.source_span(handle)),
                 expected,
                 &mut diagnostics,
@@ -169,6 +212,11 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     program,
                     &machine_overloads,
                     call,
+                    Some(CallOwner {
+                        machine: machine.symbol,
+                        state: state.symbol,
+                        source_span: call.source_span,
+                    }),
                     program
                         .symbols
                         .symbol_source_span(machine.symbol)
@@ -178,7 +226,12 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 ) {
                     if let Some(operator) = program.operator_definition_by_symbol(selected) {
                         if !operator.return_type.is_valid() {
-                            statement_updates.push((state.statement_nodes, index, selected));
+                            statement_updates.push((
+                                machine.symbol,
+                                state.statement_nodes,
+                                index,
+                                selected,
+                            ));
                             continue;
                         }
                         let returns_non_unit = !matches!(
@@ -204,7 +257,12 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                             ));
                         }
                     } else {
-                        statement_updates.push((state.statement_nodes, index, selected));
+                        statement_updates.push((
+                            machine.symbol,
+                            state.statement_nodes,
+                            index,
+                            selected,
+                        ));
                     }
                 }
             }
@@ -216,31 +274,46 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    for (target, selected) in transition_updates {
+    let mut changed_owners = Vec::new();
+    for (target, selected, owner) in transition_updates {
         let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
             program.statement_table.transition_target_mut(target)
         else {
             unreachable!("collected transition target changed shape");
         };
-        path.symbol = selected;
+        if path.symbol != selected {
+            path.symbol = selected;
+            changed_owners.push(owner);
+        }
     }
     for (handle, selected) in expression_updates {
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             unreachable!("collected expression call changed shape");
         };
-        call.target_symbol = selected;
+        if call.target_symbol != selected {
+            call.target_symbol = selected;
+            if let Some(owner) = expression_owners.get(&handle.arena_index()) {
+                changed_owners.push(owner.machine);
+            }
+        }
     }
-    for (statements, index, selected) in statement_updates {
+    for (owner, statements, index, selected) in statement_updates {
         let StatementNode::Call(call) =
             &mut program.statement_table.statements_mut(statements)[index]
         else {
             unreachable!("collected statement call changed shape");
         };
-        call.target_symbol = selected;
+        if call.target_symbol != selected {
+            call.target_symbol = selected;
+            changed_owners.push(owner);
+        }
     }
     for (state_symbol, statements, index, call, selected, returns_value) in
         operator_statement_updates
     {
+        if let Some(owner) = program.machine_holding_state(state_symbol) {
+            changed_owners.push(owner.symbol);
+        }
         let source_span = call.source_span;
         let authored_call_selection = call.authored_call_selection;
         let receiver_members = program
@@ -338,7 +411,9 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 relevance: language_core::BindingRelevance::Relevant,
             });
     }
-    Ok(())
+    changed_owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
+    changed_owners.dedup();
+    Ok(changed_owners)
 }
 
 /// A terminal arm naming a machine is a call whose normal result completes the
@@ -351,7 +426,11 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
 fn selected_transition_call_symbols(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(typed_trees::statement::TransitionTargetHandle, SymbolHandle)> {
+) -> Vec<(
+    typed_trees::statement::TransitionTargetHandle,
+    SymbolHandle,
+    SymbolHandle,
+)> {
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -362,6 +441,7 @@ fn selected_transition_call_symbols(
                 for target in transition.targets() {
                     let typed_trees::statement::TransitionTargetNode::Named {
                         path,
+                        arguments,
                         source_span,
                         ..
                     } = program.statement_table.transition_target(target)
@@ -377,6 +457,15 @@ fn selected_transition_call_symbols(
                     let Some(entry) = named_machine_overload_family_symbol(
                         program,
                         name.as_str(),
+                        CallOperands {
+                            owner: Some(CallOwner {
+                                machine: machine.symbol,
+                                state: state.symbol,
+                                source_span: *source_span,
+                            }),
+                            static_arguments: &[],
+                            arguments: program.statement_table.expression_handles(*arguments),
+                        },
                         *source_span,
                         state.return_type.is_valid().then_some(state.return_type),
                         diagnostics,
@@ -384,7 +473,7 @@ fn selected_transition_call_symbols(
                         continue;
                     };
                     if let Some(owner) = program.machine_holding_state(entry) {
-                        updates.push((target, owner.symbol));
+                        updates.push((target, owner.symbol, machine.symbol));
                     }
                 }
             }
@@ -450,16 +539,27 @@ fn selected_named_statement_callable_symbol(
     program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     call: &typed_trees::statement::TableCall,
+    owner: Option<CallOwner>,
     source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
+    let path = named_call_path(
+        program,
+        call.target.as_str(),
+        call.receiver.is_empty(),
+        call.receiver_symbol,
+    );
     if let Some(resolution) = named_callable_resolution(
         program,
         machine_overloads,
         call.target_symbol,
-        call.receiver.is_empty(),
-        call.target.as_str(),
+        path.as_deref(),
+        CallOperands {
+            owner,
+            static_arguments: &call.machine_arguments,
+            arguments: program.statement_table.expression_handles(call.arguments),
+        },
         source_span,
         expected_result,
         diagnostics,
@@ -518,16 +618,37 @@ fn selected_named_expression_callable_symbol(
     program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     call: &TableCallExpression,
+    owner: Option<CallOwner>,
     source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
+    let receiver = if call.receiver.is_valid() {
+        match program.expression_table.expression(call.receiver) {
+            ExpressionNode::Name(path) => {
+                path.resolved_symbol().unwrap_or_else(SymbolHandle::invalid)
+            }
+            _ => SymbolHandle::invalid(),
+        }
+    } else {
+        SymbolHandle::invalid()
+    };
+    let path = named_call_path(
+        program,
+        call.target.as_str(),
+        !call.receiver.is_valid(),
+        receiver,
+    );
     if let Some(resolution) = named_callable_resolution(
         program,
         machine_overloads,
         call.target_symbol,
-        !call.receiver.is_valid(),
-        call.target.as_str(),
+        path.as_deref(),
+        CallOperands {
+            owner,
+            static_arguments: &call.machine_arguments,
+            arguments: program.expression_table.expression_handles(call.arguments),
+        },
         source_span,
         expected_result,
         diagnostics,
@@ -581,6 +702,37 @@ fn selected_named_expression_callable_symbol(
     )
 }
 
+/// Source lookup owns namespace precedence; typed selection only narrows its
+/// returned declarations by actual operands. A runtime receiver cannot grant
+/// a static namespace merely by sharing its diagnostic spelling.
+fn named_call_path<'name>(
+    program: &dyn crate::CheckingInput,
+    target: &'name str,
+    receiver_missing: bool,
+    receiver: SymbolHandle,
+) -> Option<std::borrow::Cow<'name, str>> {
+    if receiver_missing {
+        return Some(std::borrow::Cow::Borrowed(target));
+    }
+    if !receiver.is_valid()
+        || !matches!(
+            program.symbols.get(receiver).kind,
+            SymbolKind::Module
+                | SymbolKind::Data
+                | SymbolKind::BuiltinType
+                | SymbolKind::Domain
+                | SymbolKind::Trait
+                | SymbolKind::Machine
+        )
+    {
+        return None;
+    }
+    Some(std::borrow::Cow::Owned(format!(
+        "{}::{target}",
+        program.symbols.display_path(receiver, "::")
+    )))
+}
+
 /// The named-callable admission shared by statement and expression calls:
 /// a targetless unnamed call resolves through the machine overload family;
 /// a provisional target naming a non-operator callable resolves directly.
@@ -591,16 +743,19 @@ fn named_callable_resolution(
     program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
     target_symbol: SymbolHandle,
-    receiver_missing: bool,
-    target_name: &str,
+    path: Option<&str>,
+    operands: CallOperands<'_>,
     source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<Option<SymbolHandle>> {
-    if !target_symbol.is_valid() && receiver_missing {
+    if !target_symbol.is_valid()
+        && let Some(path) = path
+    {
         return Some(named_machine_overload_family_symbol(
             program,
-            target_name,
+            path,
+            operands,
             source_span,
             expected_result,
             diagnostics,
@@ -772,30 +927,106 @@ fn select_overload_symbol(
 fn named_machine_overload_family_symbol(
     program: &dyn crate::CheckingInput,
     target_name: &str,
+    operands: CallOperands<'_>,
     source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    let target_path = program.callable_path_by_text(target_name);
-    let overloads = program
-        .machines()
-        .iter()
-        .filter_map(|machine| {
+    let mut overloads = program
+        .symbols
+        .top_level_candidates_from_source(target_name, &[SymbolKind::Machine], source_span)
+        .into_iter()
+        .filter_map(|symbol| {
+            let machine = program.machine(symbol)?;
             let identity = program.machine_callable_identity(machine);
-            if program.callable_identity_path(identity) != target_path {
-                return None;
-            }
-            let states = program.machine_states(machine);
-            let callable = states
-                .iter()
-                .find(|state| state.name.as_str() == target_name)
-                .or_else(|| states.first())?;
-            program
-                .symbols
-                .source_reference_can_see_symbol(source_span, callable.symbol)
-                .then_some((callable.symbol, identity))
+            let callable = program.machine_states(machine).first()?;
+            Some((callable.symbol, identity))
         })
         .collect::<Vec<_>>();
+    if overloads.first().is_some_and(|(_, first)| {
+        overloads.iter().any(|(_, candidate)| {
+            program.callable_identity_path(*candidate) != program.callable_identity_path(*first)
+        })
+    }) {
+        diagnostics.push(Diagnostic::error(format!(
+            "named call `{target_name}` is ambiguous between declaration namespaces"
+        )));
+        return None;
+    }
+    // Result dispatch distinguishes members of one parameter family. First
+    // use the actual typed operands to select that family; return context
+    // must not silently choose between different input signatures.
+    let distinct_parameters = overloads.first().is_some_and(|(_, first)| {
+        overloads.iter().any(|(_, candidate)| {
+            program.callable_identity_parameters(*candidate)
+                != program.callable_identity_parameters(*first)
+        })
+    });
+    if distinct_parameters {
+        let owner = operands.owner?;
+        let caller = program.machine(owner.machine)?;
+        let caller_state = program.state_by_symbol(owner.state)?;
+        overloads.retain(|(target, _)| {
+            let Some((callee, entry)) = crate::find_state(program, *target) else {
+                return false;
+            };
+            let parameters = program.state_parameters(entry);
+            if parameters.len() != operands.arguments.len() {
+                return false;
+            }
+            let Some(substitutions) = crate::call_type_arguments(
+                program,
+                caller,
+                Some(caller_state),
+                callee,
+                entry,
+                operands.static_arguments,
+                operands.arguments,
+            ) else {
+                return false;
+            };
+            parameters
+                .iter()
+                .zip(operands.arguments)
+                .all(|(parameter, argument)| {
+                    match crate::expression_result_type_reference(
+                        program,
+                        caller,
+                        caller_state,
+                        *argument,
+                    ) {
+                        Some(actual) => {
+                            crate::value_custody::expression_types::completed_call_operand_matches(
+                                program,
+                                actual,
+                                parameter.type_reference,
+                                &substitutions,
+                            )
+                        }
+                        None => {
+                            crate::value_custody::expression_types::argument_matches_call_carrier(
+                                program,
+                                owner.machine,
+                                *argument,
+                                parameter.type_reference,
+                                &substitutions,
+                            )
+                        }
+                    }
+                })
+        });
+        if overloads.first().is_some_and(|(_, first)| {
+            overloads.iter().any(|(_, candidate)| {
+                program.callable_identity_parameters(*candidate)
+                    != program.callable_identity_parameters(*first)
+            })
+        }) {
+            // Unknown or equally compatible operands do not establish a
+            // unique family. Keep the unresolved selection for the ordinary
+            // call admission diagnostic after preparation settles its inputs.
+            return None;
+        }
+    }
     select_unbound_overload_family_symbol(
         program,
         &overloads,

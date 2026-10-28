@@ -1,0 +1,118 @@
+// Exact IEEE endpoint, format, sign, kind and payload vectors; expectations are literals.
+// Expected exit: 0
+use omega::language::core::float;
+machine negative(sign: float::Sign) -> bool {
+    match sign { float::Sign::Positive -> false, float::Sign::Negative -> true }
+}
+machine classify32(bits: u32, expected_negative: bool, expected_kind: u32, expected_payload: u32) -> bool {
+    let value: f32 = float::from_bits(bits);
+    let shape: bool = match float::classify<f32>(value) {
+        float::Classification::Zero { sign } -> (expected_kind == 0u32 && negative(sign) == expected_negative),
+        float::Classification::Subnormal { sign } -> (expected_kind == 1u32 && negative(sign) == expected_negative),
+        float::Classification::Normal { sign } -> (expected_kind == 2u32 && negative(sign) == expected_negative),
+        float::Classification::Infinity { sign } -> (expected_kind == 3u32 && negative(sign) == expected_negative),
+        float::Classification::NaN { sign, kind, payload } -> (negative(sign) == expected_negative && payload == expected_payload && (match kind { float::NaNKind::Quiet -> (expected_kind == 4u32), float::NaNKind::Signaling -> (expected_kind == 5u32) }))
+    };
+    shape && negative(float::sign<f32>(value)) == expected_negative
+        && float::is_nan<f32>(value) == (expected_kind >= 4u32)
+        && float::is_signaling_nan<f32>(value) == (expected_kind == 5u32)
+        && float::is_finite<f32>(value) == (expected_kind <= 2u32)
+}
+machine classify64(bits: u64, expected_negative: bool, expected_kind: u32, expected_payload: u64) -> bool {
+    let value: f64 = float::from_bits(bits);
+    let shape: bool = match float::classify<f64>(value) {
+        float::Classification::Zero { sign } -> (expected_kind == 0u32 && negative(sign) == expected_negative),
+        float::Classification::Subnormal { sign } -> (expected_kind == 1u32 && negative(sign) == expected_negative),
+        float::Classification::Normal { sign } -> (expected_kind == 2u32 && negative(sign) == expected_negative),
+        float::Classification::Infinity { sign } -> (expected_kind == 3u32 && negative(sign) == expected_negative),
+        float::Classification::NaN { sign, kind, payload } -> (negative(sign) == expected_negative && payload == expected_payload && (match kind { float::NaNKind::Quiet -> (expected_kind == 4u32), float::NaNKind::Signaling -> (expected_kind == 5u32) }))
+    };
+    shape && negative(float::sign<f64>(value)) == expected_negative
+        && float::is_nan<f64>(value) == (expected_kind >= 4u32)
+        && float::is_signaling_nan<f64>(value) == (expected_kind == 5u32)
+        && float::is_finite<f64>(value) == (expected_kind <= 2u32)
+}
+machine main() crashes Trap {
+    transition float::to_bits(float::min<f32>()) == 0xFF7FFFFFu32
+        && float::to_bits(float::max<f32>()) == 0x7F7FFFFFu32
+        && float::to_bits(float::min_positive_normal<f32>()) == 0x00800000u32
+        && float::to_bits(float::min_positive_subnormal<f32>()) == 0x00000001u32
+        && float::to_bits(float::max_subnormal<f32>()) == 0x007FFFFFu32
+        && float::to_bits(float::epsilon<f32>()) == 0x34000000u32
+        && float::to_bits(float::infinity<f32>()) == 0x7F800000u32
+        && float::to_bits(float::negative_infinity<f32>()) == 0xFF800000u32
+        && float::to_bits(float::quiet_nan<f32>()) == 0x7FC00000u32
+        && float::radix<f32>() == 2u64
+        && float::precision_bits<f32>() == 24u64
+        && float::fraction_bits<f32>() == 23u64
+        && float::exponent_bits<f32>() == 8u64
+        && float::min_normal_exponent<f32>() == -126i64
+        && float::max_normal_exponent<f32>() == 127i64
+        && float::min_subnormal_exponent<f32>() == -149i64
+        && float::decimal_digits<f32>() == 6u64
+        && float::roundtrip_decimal_digits<f32>() == 9u64
+        && float::to_bits(float::from_bits(0x00000000u32)) == 0x00000000u32
+        && float::to_bits(float::from_bits(0x00000001u32)) == 0x00000001u32
+        && float::to_bits(float::from_bits(0x80000000u32)) == 0x80000000u32
+        && float::to_bits(float::from_bits(0x80000001u32)) == 0x80000001u32
+        && classify32(0x00000000u32, false, 0u32, 0x0u32)
+        && classify32(0x80000000u32, true, 0u32, 0x0u32)
+        && classify32(0x00000001u32, false, 1u32, 0x0u32)
+        && classify32(0x80000001u32, true, 1u32, 0x0u32)
+        && classify32(0x7F7FFFFFu32, false, 2u32, 0x0u32)
+        && classify32(0xFF7FFFFFu32, true, 2u32, 0x0u32)
+        && classify32(0x7F800000u32, false, 3u32, 0x0u32)
+        && classify32(0xFF800000u32, true, 3u32, 0x0u32)
+        && classify32(0x7FC00000u32, false, 4u32, 0x0u32)
+        && classify32(0xFFC00123u32, true, 4u32, 0x123u32)
+        && classify32(0x7F800123u32, false, 5u32, 0x123u32)
+        && classify32(0xFF800123u32, true, 5u32, 0x123u32)
+        && float::to_bits(float::signaling_nan<f32>(float::Sign::Negative {}, 0x123u32)) == 0xFF800123u32
+        && float::to_bits(float::quiet_nan<f32>(float::Sign::Negative {}, 0x123u32)) == 0xFFC00123u32
+        && float::to_bits(float::quiet<f32>(float::from_bits(0xFF800123u32))) == 0xFFC00123u32
+        && float::to_bits(float::canonicalize_nan<f32>(float::from_bits(0xFF800123u32))) == 0x7FC00000u32
+        && float::to_bits(float::canonicalize_nan<f32>(-0.0f32)) == 0x80000000u32
+        && float::to_bits(float::quiet<f32>(-0.0f32)) == 0x80000000u32
+        && float::to_bits(float::min<f64>()) == 0xFFEFFFFFFFFFFFFFu64
+        && float::to_bits(float::max<f64>()) == 0x7FEFFFFFFFFFFFFFu64
+        && float::to_bits(float::min_positive_normal<f64>()) == 0x0010000000000000u64
+        && float::to_bits(float::min_positive_subnormal<f64>()) == 0x0000000000000001u64
+        && float::to_bits(float::max_subnormal<f64>()) == 0x000FFFFFFFFFFFFFu64
+        && float::to_bits(float::epsilon<f64>()) == 0x3CB0000000000000u64
+        && float::to_bits(float::infinity<f64>()) == 0x7FF0000000000000u64
+        && float::to_bits(float::negative_infinity<f64>()) == 0xFFF0000000000000u64
+        && float::to_bits(float::quiet_nan<f64>()) == 0x7FF8000000000000u64
+        && float::radix<f64>() == 2u64
+        && float::precision_bits<f64>() == 53u64
+        && float::fraction_bits<f64>() == 52u64
+        && float::exponent_bits<f64>() == 11u64
+        && float::min_normal_exponent<f64>() == -1022i64
+        && float::max_normal_exponent<f64>() == 1023i64
+        && float::min_subnormal_exponent<f64>() == -1074i64
+        && float::decimal_digits<f64>() == 15u64
+        && float::roundtrip_decimal_digits<f64>() == 17u64
+        && float::to_bits(float::from_bits(0x0000000000000000u64)) == 0x0000000000000000u64
+        && float::to_bits(float::from_bits(0x0000000000000001u64)) == 0x0000000000000001u64
+        && float::to_bits(float::from_bits(0x8000000000000000u64)) == 0x8000000000000000u64
+        && float::to_bits(float::from_bits(0x8000000000000001u64)) == 0x8000000000000001u64
+        && classify64(0x0000000000000000u64, false, 0u32, 0x0u64)
+        && classify64(0x8000000000000000u64, true, 0u32, 0x0u64)
+        && classify64(0x0000000000000001u64, false, 1u32, 0x0u64)
+        && classify64(0x8000000000000001u64, true, 1u32, 0x0u64)
+        && classify64(0x7FEFFFFFFFFFFFFFu64, false, 2u32, 0x0u64)
+        && classify64(0xFFEFFFFFFFFFFFFFu64, true, 2u32, 0x0u64)
+        && classify64(0x7FF0000000000000u64, false, 3u32, 0x0u64)
+        && classify64(0xFFF0000000000000u64, true, 3u32, 0x0u64)
+        && classify64(0x7FF8000000000000u64, false, 4u32, 0x0u64)
+        && classify64(0xFFF8000000000123u64, true, 4u32, 0x123u64)
+        && classify64(0x7FF0000000000123u64, false, 5u32, 0x123u64)
+        && classify64(0xFFF0000000000123u64, true, 5u32, 0x123u64)
+        && float::to_bits(float::signaling_nan<f64>(float::Sign::Negative {}, 0x123u64)) == 0xFFF0000000000123u64
+        && float::to_bits(float::quiet_nan<f64>(float::Sign::Negative {}, 0x123u64)) == 0xFFF8000000000123u64
+        && float::to_bits(float::quiet<f64>(float::from_bits(0xFFF0000000000123u64))) == 0xFFF8000000000123u64
+        && float::to_bits(float::canonicalize_nan<f64>(float::from_bits(0xFFF0000000000123u64))) == 0x7FF8000000000000u64
+        && float::to_bits(float::canonicalize_nan<f64>(-0.0f64)) == 0x8000000000000000u64
+        && float::to_bits(float::quiet<f64>(-0.0f64)) == 0x8000000000000000u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

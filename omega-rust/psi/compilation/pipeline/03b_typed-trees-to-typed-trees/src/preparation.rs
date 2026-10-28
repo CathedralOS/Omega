@@ -358,8 +358,6 @@ pub fn prepare_typed_trees(
 /// preparation and private constant execution share this ordering; coordinators
 /// must not stamp the canonical program to compensate for an unprepared clone.
 fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let boolean_equalities = validation::static_type_boolean_equalities(program);
-    program.prepare_static_type_contexts(&boolean_equalities);
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts

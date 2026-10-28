@@ -2794,7 +2794,7 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
-        if let (Some(captured), Some(result_presentation)) = (&captured, &result_presentation)
+        if let (Some(captured), Some(_)) = (&captured, &result_presentation)
             && let SelectedCallContract::Concrete(callee, selected_state) = &owner
         {
             equations.extend(self.returned_field_equations(

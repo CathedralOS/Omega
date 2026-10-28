@@ -245,11 +245,19 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 ) -> Result<typed_trees::references::DeclarationSelection, Vec<Diagnostic>> {
     let mut changed_owners = Vec::new();
     loop {
+        // Typed operands select the ordinary callable before result inference
+        // and specialization consume its signature. A nested call may settle
+        // an outer operand in the next round; every form uses this same owner.
+        let named_owners = validation::resolve_named_result_overloads(program)?;
+        let named_changed = !named_owners.is_empty();
+        changed_owners.extend(named_owners);
         crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(program)?;
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
         let unavailable = crate::constructed_results::retain_constructed_result_types(program)?;
-        changed_owners.extend(result_locals::refresh(program, &unavailable)?);
+        let inferred_owners = result_locals::refresh(program, &unavailable)?;
+        let inferred_changed = !inferred_owners.is_empty();
+        changed_owners.extend(inferred_owners);
         let subjects = result_locals::materialize_dispatch_subjects(program);
         if !subjects.is_empty() {
             changed_owners.extend(subjects);
@@ -293,7 +301,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
-            if captures_changed || contextual_changed {
+            if captures_changed || contextual_changed || named_changed || inferred_changed {
                 continue;
             }
             return Ok(typed_trees::references::DeclarationSelection::from_symbols(
@@ -338,11 +346,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 candidate_for_selection(program, &candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
         }
-        changed_owners.extend(result_locals::refresh_generic_call_results(
-            program,
-            &candidates,
-            &selections,
-        )?);
+        let generic_owners =
+            result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
+        let generic_changed = !generic_owners.is_empty();
+        changed_owners.extend(generic_owners);
         let mut diagnostics = Vec::new();
         // A catalog operation selects an installed entry, not a body clone.
         // Its closed tuple may be independent of an enclosing generic API.
@@ -353,7 +360,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &mut selections,
             &mut changed_owners,
         )? || captures_changed
-            || contextual_changed;
+            || contextual_changed
+            || named_changed
+            || inferred_changed
+            || generic_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
             // Open callers keep their symbolic applications. Concrete applications
             // of the same template are independent tuples, never evidence with
