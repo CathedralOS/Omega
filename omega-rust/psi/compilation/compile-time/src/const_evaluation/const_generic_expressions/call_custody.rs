@@ -1026,7 +1026,14 @@ impl<'program> Collector<'program> {
             if selection.kind() == Kind::Call {
                 let selection_target = selection.target();
                 let Some(selected) = selection_target.as_resolved() else {
-                    return Err("constant closure retained an unresolved call selection".into());
+                    return Err(format!(
+                        "constant closure retained an unresolved call selection: occurrence {:?}, source {:?}, owner {}, expression {:?}, call {:?}",
+                        occurrence,
+                        selection.source_span(),
+                        context.machine.name.as_str(),
+                        table.source_span(expression),
+                        table.call_node(expression),
+                    ));
                 };
                 // This inventory and the published custody both name the
                 // original ledger declaration, independently of executable routing.
@@ -1161,12 +1168,34 @@ impl<'program> Collector<'program> {
                     }
                 }
                 let [(authored, reference, entry)] = selections.as_slice() else {
-                    return Err(if selections.is_empty() {
-                        "constant call lost its exact authored target selection"
-                    } else {
-                        "constant call has ambiguous authored target selections"
-                    }
-                    .into());
+                    return Err(format!(
+                        "{}: owner {}, call {:?}, retained {:?}",
+                        if selections.is_empty() {
+                            "constant call lost its exact authored target selection"
+                        } else {
+                            "constant call has ambiguous authored target selections"
+                        },
+                        context.machine.name.as_str(),
+                        call,
+                        table
+                            .authored_selection_occurrences(expression)
+                            .map(|occurrence| {
+                                (
+                                    occurrence,
+                                    program
+                                        .authored_declaration_selections()
+                                        .get(occurrence)
+                                        .map(|selection| {
+                                            (
+                                                selection.kind(),
+                                                selection.source_span(),
+                                                selection.target(),
+                                            )
+                                        }),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    ));
                 };
                 // A trait requirement names no body. A supplying map's row
                 // entry is the call custody executes. A map that does not
