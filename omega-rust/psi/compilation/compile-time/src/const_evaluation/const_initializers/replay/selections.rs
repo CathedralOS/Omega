@@ -164,6 +164,7 @@ pub(super) fn publish(
     let mut expressions = references.expressions.into_iter().collect::<Vec<_>>();
     expressions.sort_unstable_by_key(|expression| expression.arena_index());
     let mut targets = Vec::new();
+    let mut registrations = Vec::new();
     for expression in expressions {
         let ExpressionNode::Call(original) = typed.expression_table.expression(expression) else {
             continue;
@@ -175,24 +176,82 @@ pub(super) fn publish(
                 "replay selection changed its receiving call shape",
             ));
         };
-        if original == produced {
-            continue;
-        }
         let mut expected = original.clone();
         expected.target_symbol = produced.target_symbol;
         if expected != *produced
-            || !typed
-                .symbols
-                .symbols()
-                .nodes()
-                .is_valid(produced.target_symbol)
+            || (original.target_symbol != produced.target_symbol
+                && !typed
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(produced.target_symbol))
         {
             return Err(super::super::failure(
                 typed.expression_table.source_span(expression),
                 "replay call selection changed more than its exact source target",
             ));
         }
-        targets.push((expression, produced.target_symbol));
+        if original.target_symbol != produced.target_symbol {
+            targets.push((expression, produced.target_symbol));
+        }
+        let application = original.authored_machine_application;
+        if !application.is_valid() {
+            continue;
+        }
+        let original_application = typed
+            .expression_table
+            .static_machine_application(application);
+        let produced_application = selected
+            .expression_table
+            .static_machine_application(application);
+        let mut expected_application = original_application.clone();
+        expected_application.registration_operation = produced_application.registration_operation;
+        if expected_application != *produced_application
+            || typed
+                .expression_table
+                .static_machine_application_arguments(application)
+                != selected
+                    .expression_table
+                    .static_machine_application_arguments(application)
+            || typed
+                .expression_table
+                .static_machine_application_selected_machines(application)
+                != selected
+                    .expression_table
+                    .static_machine_application_selected_machines(application)
+            || typed
+                .expression_table
+                .static_machine_application_bindings(application)
+                != selected
+                    .expression_table
+                    .static_machine_application_bindings(application)
+            || typed
+                .expression_table
+                .static_machine_application_lifetimes(application)
+                != selected
+                    .expression_table
+                    .static_machine_application_lifetimes(application)
+        {
+            return Err(super::super::failure(
+                typed.expression_table.source_span(expression),
+                "replay selection changed its receiving source application operands",
+            ));
+        }
+        if original_application.registration_operation
+            != produced_application.registration_operation
+        {
+            let registration = produced_application.registration_operation;
+            if original_application.registration_operation.is_valid()
+                || registration != produced.target_symbol
+                || !typed.symbols.symbols().nodes().is_valid(registration)
+            {
+                return Err(super::super::failure(
+                    typed.expression_table.source_span(expression),
+                    "replay selection changed its receiving source application registration",
+                ));
+            }
+            registrations.push((application, registration));
+        }
     }
     // Selection and its typed call targets publish together. No error path can
     // leave a partially finalized receiver or donate a private probe symbol.
@@ -200,6 +259,12 @@ pub(super) fn publish(
         if let ExpressionNode::Call(call) = typed.expression_table.expression_mut(expression) {
             call.target_symbol = target;
         }
+    }
+    for (application, registration) in registrations {
+        typed
+            .expression_table
+            .static_machine_application_mut(application)
+            .registration_operation = registration;
     }
     typed.retain_authored_declaration_selections(ledger);
     Ok(())

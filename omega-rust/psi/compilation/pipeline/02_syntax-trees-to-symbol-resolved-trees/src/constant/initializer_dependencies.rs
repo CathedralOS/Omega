@@ -1478,7 +1478,21 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             match target {
                                 TransitionTarget::Value(value) => self.expressions.push(*value),
                                 TransitionTarget::Named(target) => {
-                                    self.call(target.symbol, target.source_span)?;
+                                    let path = program
+                                        .tables
+                                        .declarations
+                                        .statement_path_members
+                                        .span_or_empty(target.path);
+                                    let name = path
+                                        .last()
+                                        .ok_or("constant transition lost its callable name")?;
+                                    self.call_dependency(
+                                        target.receiver_symbol,
+                                        target.symbol,
+                                        name.as_str(),
+                                        target.source_span,
+                                        &[],
+                                    )?;
                                     let values = expressions.expression_handles(target.arguments);
                                     if values.len() != target.arguments.len() {
                                         return Err(

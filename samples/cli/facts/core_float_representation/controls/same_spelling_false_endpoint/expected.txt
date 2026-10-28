@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from main
+float::to_bits(max<f32>()) == 0x7f7fffff
