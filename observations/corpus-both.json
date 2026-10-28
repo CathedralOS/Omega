@@ -1,0 +1,2580 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 5034
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_wrapping_index_,facts/nested_machine_private_cyclic_,qualified_field,write_only_field,write_only_qualified,write_only_stored_reference,borrowed_projection,fail/proofs/proof_integer_named_wrapping_operand,fail/slices/wrapping_count_window_cast_needs_lower_bound,fail/core/content_projection_saturating_arithmetic,fail/core/scoped_integer_call_wrapping_actual_requires_formation,fail/core/content_projection_wrapping_arithmetic,fail/proofs/declaration_predicate_saturating,fail/domains/issued_record_wrapping_zero,fail/proofs/declaration_predicate_wrapping_interval,fail/proofs/mathematical_wrapping_capture,fail/proofs/numeric_state_saturating_payload,fail/proofs/numeric_state_wrapping_payload,fail/proofs/declaration_predicate_wrapping,fail/termination/wrapping_subject_unguarded_decrement,fail/proofs/wrapping_zero_product_does_not_cancel_factor,fail/proofs/proof_integer_nested_saturating_value,fail/collections/wrapping_member_decrement_index_unproven,fail/collections/contract_length_wrapping_result_cast_rejected,fail/collections/wrapping_loop_increment_bound,fail/contracts/shift_result_negative_wrapping_count,fail/collections/wrapping_range_index_unproven,fail/domains/interval_membership_wrapping_false,fail/contracts/ensures_wrapping_field_arithmetic_wrong,pass/contracts/ensures_saturating_field_arithmetic_exit,pass/collections/runtime_parameter_computed_selector_wrapping_exit,pass/contracts/ensures_wrapping_field_arithmetic_exit,pass/arithmetic/checked_flag_proof_saturating_cast_fits,pass/arithmetic/runtime_wrapping_mutable_local_exit,pass/arithmetic/runtime_wrapping_operand_truncation_exit,pass/arithmetic/saturating_signed_divide_min_by_neg_one,pass/arithmetic/checked_flag_proof_wrapping_cast_fits,pass/arithmetic/runtime_shl_saturating_exit,pass/modules/selected_constant_array_alias_wrapping,pass/arithmetic/wrapping_signed_divide_min_by_neg_one,pass/expressions/arithmetic_domain_saturating_signed_exit,pass/termination/wrapping_subject_guarded_descent,pass/control_flow/runtime_wrapping_division_reused_inputs_exit,fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction,pass/expressions/arithmetic_domain_wrapping_exit,fail/arithmetic/checked_flag_proof_saturating_cast_overflow,fail/arithmetic/integer_multiple_remainder_wrapping,fail/arithmetic/total_contract_wrapping_division_unguarded,fail/arithmetic/wrapping_target_plain_operands_rejected,fail/arithmetic/checked_flag_proof_wrapping_cast_overflow,fail/arithmetic/wrapping_guard_does_not_bound_original,fail/arithmetic/saturating_shift_count_unproven,pass/float/float_saturating_arithmetic_exit,pass/float/saturating_named_operations_retain_ordered_inputs,pass/formatting/runtime_repeated_wrapping_decimal_format_exit,pass/slices/runtime_saturating_array_element_guard_exit,pass/slices/wrapping_count_window_length,pass/comptime/runtime_const_array_saturating_result_exit,pass/comptime/runtime_const_array_wrapping_result_exit,pass/calls/runtime_wrapping_division_call_span_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 82,
+    "by_status": {
+      "built": 77,
+      "rejected": 3,
+      "checked": 2
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 3,
+    "pinned_off_target_fixtures": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "pass/termination/wrapping_subject_guarded_descent"
+    ],
+    "by_verdict": {
+      "new": 32,
+      "perf_faster": 14
+    }
+  },
+  "oracle_failures": [
+    "pass/borrow/runtime_write_only_qualified_array_element_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native stderr match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrow/runtime_write_only_qualified_array_element_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreter stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}",
+    "pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreter stderr match from completed execution, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 50,
+    "legacy": 0,
+    "unknown_revisions": 2,
+    "oldest": {
+      "revision": "ca117899bfe3",
+      "commits_behind": 1866
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "4",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 18.77,
+      "load1_end": 15.14
+    },
+    "warnings": [
+      "worker counts differ (golden jobs=2, this run jobs=4) \u2014 record and diff at the same OMEGA_CORPUS_JOBS before trusting perf moves",
+      "the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now \u2014 treat perf_faster moves as noise",
+      "this run started on a busy machine (pre-run load 18.77 on 10 cpus); fixtures only look slower \u2014 treat perf_slower moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/arithmetic/checked_flag_proof_saturating_cast_fits",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4972,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/checked_flag_proof_wrapping_cast_fits",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5065,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_shl_saturating_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 24343,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_wrapping_mutable_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 23727,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_wrapping_operand_truncation_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 20149,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/saturating_signed_divide_min_by_neg_one",
+      "tier": "pass",
+      "status": "built",
+      "millis": 20303,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/wrapping_signed_divide_min_by_neg_one",
+      "tier": "pass",
+      "status": "built",
+      "millis": 19652,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1996,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/runtime_wrapping_division_call_span_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 19008,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "stdout": "match",
+        "interpreter-exit": "70",
+        "interpreter-stdout": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/collections/runtime_parameter_computed_selector_wrapping_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4909,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/comptime/runtime_const_array_saturating_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5708,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/comptime/runtime_const_array_wrapping_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5579,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/ensures_saturating_field_arithmetic_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 17481,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/ensures_wrapping_field_arithmetic_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 15376,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 7746,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "partial wrapping division in machine `scale_positive` state `entry` local `__transition_subject#46`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+        "partial wrapping division in machine `digit_positive` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+        "partial wrapping division in machine `digit_positive` state `entry` call argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/drops/borrowed_projection_captures_before_sibling_write_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5255,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/drops/borrowed_projection_earlier_call_capture_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4390,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/drops/borrowed_projection_moved_aggregate_capture_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4158,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/expressions/arithmetic_domain_saturating_signed_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 18823,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/expressions/arithmetic_domain_wrapping_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 18622,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6121,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5934,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4694,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4505,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5212,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5197,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4076,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3915,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3837,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_call_result",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3833,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_const_name",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2528,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_field",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2648,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_local",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2439,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_match_join",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2570,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_machine",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2252,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_state",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2349,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_parameter",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2136,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_target_body",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2212,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2543,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2213,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_disjoint_write_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2452,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2461,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2480,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2549,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2556,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2564,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2097,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_root_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1962,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1943,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_unrelated_builtin_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1960,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_actual_clamp_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2396,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_actual_wrap_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2308,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2317,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2340,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2090,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2090,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2102,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_multiply_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2046,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_nested_policy_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2113,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2101,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2101,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2101,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_saturating_no_overflow_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2165,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_subtract_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2003,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2071,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2079,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1979,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1986,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2004,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2009,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2027,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2022,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2015,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1998,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/float/float_saturating_arithmetic_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 8392,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "77",
+        "interpreter-exit": "77",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/float/saturating_named_operations_retain_ordered_inputs",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3735,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6344,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "stdout": "match",
+        "interpreter-exit": "0",
+        "interpreter-stdout": "match",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/modules/selected_constant_array_alias_wrapping",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 744,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6186,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "70",
+        "interpreter-exit": "70",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/wrapping_count_window_length",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2062,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/termination/measure_borrowed_projection_range",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 739,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/termination/wrapping_subject_guarded_descent",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 172,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `count_down` does not select a declared machine entry or callable requirement",
+        "terminal call `signed_down` does not select a declared machine entry or callable requirement",
+        "terminal call `saturating_down` does not select a declared machine entry or callable requirement",
+        "terminal call `climb` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/arithmetic/checked_flag_proof_saturating_cast_fits",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/checked_flag_proof_saturating_cast_fits",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4972,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/arithmetic/checked_flag_proof_wrapping_cast_fits",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/checked_flag_proof_wrapping_cast_fits",
+        "tier": "pass",
+        "status": "built",
+        "millis": 5065,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_shl_saturating_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/runtime_shl_saturating_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 24343,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_wrapping_mutable_local_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/runtime_wrapping_mutable_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 23727,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_wrapping_operand_truncation_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/runtime_wrapping_operand_truncation_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 20149,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/arithmetic/saturating_signed_divide_min_by_neg_one",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/saturating_signed_divide_min_by_neg_one",
+        "tier": "pass",
+        "status": "built",
+        "millis": 20303,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/arithmetic/wrapping_signed_divide_min_by_neg_one",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/arithmetic/wrapping_signed_divide_min_by_neg_one",
+        "tier": "pass",
+        "status": "built",
+        "millis": 19652,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 1996,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/calls/runtime_wrapping_division_call_span_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/calls/runtime_wrapping_division_call_span_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 19008,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "stdout": "match",
+          "interpreter-exit": "70",
+          "interpreter-stdout": "match",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/collections/runtime_parameter_computed_selector_wrapping_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/collections/runtime_parameter_computed_selector_wrapping_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4909,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/comptime/runtime_const_array_saturating_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/comptime/runtime_const_array_saturating_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 5708,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/comptime/runtime_const_array_wrapping_result_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/comptime/runtime_const_array_wrapping_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 5579,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/contracts/ensures_saturating_field_arithmetic_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/contracts/ensures_saturating_field_arithmetic_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 17481,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/contracts/ensures_wrapping_field_arithmetic_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/contracts/ensures_wrapping_field_arithmetic_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 15376,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 7746,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "partial wrapping division in machine `scale_positive` state `entry` local `__transition_subject#46`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+          "partial wrapping division in machine `digit_positive` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+          "partial wrapping division in machine `digit_positive` state `entry` call argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/expressions/arithmetic_domain_saturating_signed_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/expressions/arithmetic_domain_saturating_signed_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 18823,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/expressions/arithmetic_domain_wrapping_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/expressions/arithmetic_domain_wrapping_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 18622,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_call_result",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_call_result",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3833,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_const_name",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_const_name",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2528,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_field",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_field",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2648,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_local",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_local",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2439,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_match_join",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_match_join",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2570,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_machine",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_other_machine",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2252,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_state",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_other_state",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2349,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_parameter",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_parameter",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2136,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_target_body",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_target_body",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2212,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_nested_policy_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "8843ms -> 2113ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_nested_policy_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 8843,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1dd012d66b41"
+      },
+      "after": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_nested_policy_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2113,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_machine_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "8648ms -> 2101ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 8648,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1dd012d66b41"
+      },
+      "after": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2101,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_state_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "8934ms -> 2101ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 8934,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1dd012d66b41"
+      },
+      "after": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2101,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_parameter_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "8531ms -> 2101ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 8531,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1dd012d66b41"
+      },
+      "after": {
+        "fixture": "pass/facts/nested_machine_wrapping_index_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2101,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_call_result_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10294ms -> 2079ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_call_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10294,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_call_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2079,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_const_name_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10256ms -> 1979ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10256,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1979,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_field_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10192ms -> 1986ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_field_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10192,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_field_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1986,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_local_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10224ms -> 2004ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10224,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2004,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_match_join_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10234ms -> 2009ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_match_join_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10234,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_match_join_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2009,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_other_machine_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10216ms -> 2027ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10216,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2027,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_other_state_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10169ms -> 2022ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10169,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2022,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_parameter_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10224ms -> 2015ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10224,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2015,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_target_body_exit",
+      "verdict": "perf_faster",
+      "reasons": [
+        "10324ms -> 1998ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/facts/qualified_field_capacity_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 10324,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ca117899bfe3+wt"
+      },
+      "after": {
+        "fixture": "pass/facts/qualified_field_capacity_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1998,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/float/saturating_named_operations_retain_ordered_inputs",
+      "verdict": "perf_faster",
+      "reasons": [
+        "8797ms -> 3735ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "pass/float/saturating_named_operations_retain_ordered_inputs",
+        "tier": "pass",
+        "status": "built",
+        "millis": 8797,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "cba4ef8c9ab1"
+      },
+      "after": {
+        "fixture": "pass/float/saturating_named_operations_retain_ordered_inputs",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3735,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 6344,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "stdout": "match",
+          "interpreter-exit": "0",
+          "interpreter-stdout": "match",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/modules/selected_constant_array_alias_wrapping",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/modules/selected_constant_array_alias_wrapping",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 744,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 6186,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "70",
+          "interpreter-exit": "70",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/slices/wrapping_count_window_length",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/slices/wrapping_count_window_length",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2062,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/termination/measure_borrowed_projection_range",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/termination/measure_borrowed_projection_range",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 739,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/termination/wrapping_subject_guarded_descent",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/termination/wrapping_subject_guarded_descent",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 172,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `count_down` does not select a declared machine entry or callable requirement",
+          "terminal call `signed_down` does not select a declared machine entry or callable requirement",
+          "terminal call `saturating_down` does not select a declared machine entry or callable requirement",
+          "terminal call `climb` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

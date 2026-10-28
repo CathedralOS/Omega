@@ -1,0 +1,5 @@
+{
+  "pid": 9318,
+  "command_before": "9318     1 /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega update --project /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/parser-probe --target macos_arm64",
+  "reason": "Optional fresh SDK admission exceeded180s; stopped exact surviving compiler child after shell timeout. No admission/runtime success claimed."
+}

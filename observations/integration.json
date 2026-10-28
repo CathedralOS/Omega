@@ -1,0 +1,8 @@
+{
+  "reason": "Actual GitHub PR498 conflicting state; integrate only because a real merge conflict exists.",
+  "original_candidate": "b7dd6b93124c5912f1f6b9d48b2c522e8819e7a3",
+  "integrated_main": "eacbda4ec3ee458c8a870b54b66161dae55621d2",
+  "integrated_source": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "fixed_base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+  "resolution": "Three prerequisite PR447 files unchanged by numeric repair: retain current upstream indexed graph. Golden splice uses corpus_records and guards all other raw blocks/reasons."
+}

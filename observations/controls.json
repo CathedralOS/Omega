@@ -1,0 +1,151 @@
+[
+  {
+    "name": "actual_clamp",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/actual_clamp/main.omg"
+    ],
+    "sha256": "239d9f6c6435cbd3f9f66b5d43b3db3689ab77e317ac3d5973601da8e3be9999",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "actual_wrap",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/actual_wrap/main.omg"
+    ],
+    "sha256": "0e713ddf3309f7f00db74a3f25c524173e5728d6789c8a989797e58625015064",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "crossing_band",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/crossing_band/main.omg"
+    ],
+    "sha256": "9a4d18a8bf0317339cd1cd64c11cb28d2efb1567258f3a1533d316acc21e9fe8",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_crossing_band` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "name": "exact_child_formation",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/exact_child_formation/main.omg"
+    ],
+    "sha256": "41f3d52791daab154a2e1364c1bfcd73e968078c969916f6a76d75635f3dffe8",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_exact_child_formation` with 2 diagnostic(s)\n  error: exact arithmetic in machine `probe` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `wrapping_index_exact_child_formation`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/exact_child_formation/main.omg:5:50\n  error: exact arithmetic in machine `probe` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `wrapping_index_exact_child_formation`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/exact_child_formation/main.omg:5:50\n"
+  },
+  {
+    "name": "multiply",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/multiply/main.omg"
+    ],
+    "sha256": "5b3d94ecf111f7fe84d33676b149cb79df6d46bb2d030c3053cc5760083588e4",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "nested_policy",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/nested_policy/main.omg"
+    ],
+    "sha256": "088131626f82d3cc2f9fdeb4008c33dd14f597b29550b9d236200588177acb4b",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "overwritten_offset",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/overwritten_offset/main.omg"
+    ],
+    "sha256": "a958960c576747b057386cb5db2e4a06ef2738c2e14c7474d9f8aad87fea64b6",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_overwritten_offset` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "name": "saturating_no_overflow",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/saturating_no_overflow/main.omg"
+    ],
+    "sha256": "4f0a5579b9e3acafe07edf79c72b6dccb55a7b414c474b6268e34acba777e6d0",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "subtract",
+    "invalid": false,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/subtract/main.omg"
+    ],
+    "sha256": "fc808dec8d8398ff92205e501e9747facb72eaef5292eb8af8dcb0d103df3ee8",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "name": "wide_interval",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/wide_interval/main.omg"
+    ],
+    "sha256": "7cc074fecd8849c6f22d763d580dd397838fc00bba30a0576dc219296c826ce4",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_wide_interval` with 1 diagnostic(s)\n  error: cannot prove index `window.index` is within length 512 in read::entry\n"
+  },
+  {
+    "name": "wrapped_guard_original_offset",
+    "invalid": true,
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+      "--check",
+      "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/wrapped_guard_original_offset/main.omg"
+    ],
+    "sha256": "9a8ceab07dc18ad2e67cadca5d891f12823785c40ed2419a8f6e86eaf715097e",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "cannot compile admitted project: checked compilation failed for package `wrapping_index_wrapped_guard_original_offset` with 1 diagnostic(s)\n  error: cannot prove index `window.offset` is within length 512 in read::entry\n"
+  }
+]

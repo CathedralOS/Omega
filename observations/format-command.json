@@ -1,0 +1,20 @@
+{
+  "command": [
+    "rustfmt",
+    "--check",
+    "--edition",
+    "2024",
+    "--config",
+    "skip_children=true",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/integer_operations.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/integer_policy.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/collection_bounds.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates/policy_values.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/scalar/structural_fields.rs"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 0.2376398750000135,
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827"
+}

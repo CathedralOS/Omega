@@ -1,0 +1,2 @@
+package candidate checking failed: checked compilation failed for package `psi_parser_gate` with 1 diagnostic(s)
+  error: failed to resolve /Users/zcanann/Library/Caches/CathedralOS/Omega/source/v1/external-local-sources/local-snapshots/source-v2-ef66499cce68936c83d15fd0022581cd51ea905f56bbec059310580db9fd5ca1/source/harness.omg: captured entry is absent: harness.omg

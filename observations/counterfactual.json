@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+    "run",
+    "--both",
+    "build/private-index-probe/counterfactual/main.omg"
+  ],
+  "sha256": "39306ec3f7ea21449a28ce2e60f652cb4ff64667e4bbe587b776d2990bb5f848",
+  "exit": 255,
+  "stdout": "",
+  "stderr": "native signal 5\ninterp crash: Trap (host presentation agrees)\n"
+}

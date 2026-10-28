@@ -1,0 +1,12 @@
+{
+  "command": [
+    "sh",
+    "tests/product/gate.sh",
+    "parser",
+    "build/wrapping-integration/parser-probe",
+    "tests/psi/parser/test_parser.py"
+  ],
+  "exit": 1,
+  "elapsed_seconds": 20.56862791599997,
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827"
+}

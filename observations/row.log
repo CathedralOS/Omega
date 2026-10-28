@@ -1,0 +1,36 @@
+field True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_field_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+local True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_local_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+field False 0 native exit 0
+interp exit: 0
+local False 0 native exit 0
+interp exit: 0
+parameter True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_parameter_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+parameter False 0 native exit 0
+interp exit: 0
+call_result True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_call_result_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+call_result False 0 native exit 0
+interp exit: 0
+match_join True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_match_join_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+match_join False 0 native exit 0
+interp exit: 0
+const_name True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_const_name_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+const_name False 0 native exit 0
+interp exit: 0
+other_state True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_other_state_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+other_machine True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_other_machine_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+other_state False 0 native exit 0
+interp exit: 0
+other_machine False 0 native exit 0
+interp exit: 0
+target_body False 0 native exit 0
+interp exit: 0
+target_body True 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_target_body_invalid` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "build/wrapping-integration/run-controls.py",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/wrapping-integration/producer/omega",
+    "integrated",
+    "both"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 9.105474375,
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827"
+}

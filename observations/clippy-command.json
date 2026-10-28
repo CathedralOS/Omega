@@ -1,0 +1,15 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--locked",
+    "-p",
+    "validation",
+    "-p",
+    "typed-trees-to-checked-trees",
+    "--no-deps"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 24.166861958999988,
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827"
+}

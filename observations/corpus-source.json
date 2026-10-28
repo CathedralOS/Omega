@@ -1,0 +1,3725 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19322
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_wrapping_index_,facts/nested_machine_private_cyclic_,qualified_field,write_only_field,write_only_qualified,write_only_stored_reference,borrowed_projection,fail/proofs/proof_integer_named_wrapping_operand,fail/slices/wrapping_count_window_cast_needs_lower_bound,fail/core/content_projection_saturating_arithmetic,fail/core/scoped_integer_call_wrapping_actual_requires_formation,fail/core/content_projection_wrapping_arithmetic,fail/proofs/declaration_predicate_saturating,fail/domains/issued_record_wrapping_zero,fail/proofs/declaration_predicate_wrapping_interval,fail/proofs/mathematical_wrapping_capture,fail/proofs/numeric_state_saturating_payload,fail/proofs/numeric_state_wrapping_payload,fail/proofs/declaration_predicate_wrapping,fail/termination/wrapping_subject_unguarded_decrement,fail/proofs/wrapping_zero_product_does_not_cancel_factor,fail/proofs/proof_integer_nested_saturating_value,fail/collections/wrapping_member_decrement_index_unproven,fail/collections/contract_length_wrapping_result_cast_rejected,fail/collections/wrapping_loop_increment_bound,fail/contracts/shift_result_negative_wrapping_count,fail/collections/wrapping_range_index_unproven,fail/domains/interval_membership_wrapping_false,fail/contracts/ensures_wrapping_field_arithmetic_wrong,pass/contracts/ensures_saturating_field_arithmetic_exit,pass/collections/runtime_parameter_computed_selector_wrapping_exit,pass/contracts/ensures_wrapping_field_arithmetic_exit,pass/arithmetic/checked_flag_proof_saturating_cast_fits,pass/arithmetic/runtime_wrapping_mutable_local_exit,pass/arithmetic/runtime_wrapping_operand_truncation_exit,pass/arithmetic/saturating_signed_divide_min_by_neg_one,pass/arithmetic/checked_flag_proof_wrapping_cast_fits,pass/arithmetic/runtime_shl_saturating_exit,pass/modules/selected_constant_array_alias_wrapping,pass/arithmetic/wrapping_signed_divide_min_by_neg_one,pass/expressions/arithmetic_domain_saturating_signed_exit,pass/termination/wrapping_subject_guarded_descent,pass/control_flow/runtime_wrapping_division_reused_inputs_exit,fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction,pass/expressions/arithmetic_domain_wrapping_exit,fail/arithmetic/checked_flag_proof_saturating_cast_overflow,fail/arithmetic/integer_multiple_remainder_wrapping,fail/arithmetic/total_contract_wrapping_division_unguarded,fail/arithmetic/wrapping_target_plain_operands_rejected,fail/arithmetic/checked_flag_proof_wrapping_cast_overflow,fail/arithmetic/wrapping_guard_does_not_bound_original,fail/arithmetic/saturating_shift_count_unproven,pass/float/float_saturating_arithmetic_exit,pass/float/saturating_named_operations_retain_ordered_inputs,pass/formatting/runtime_repeated_wrapping_decimal_format_exit,pass/slices/runtime_saturating_array_element_guard_exit,pass/slices/wrapping_count_window_length,pass/comptime/runtime_const_array_saturating_result_exit,pass/comptime/runtime_const_array_wrapping_result_exit,pass/calls/runtime_wrapping_division_call_span_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 180,
+    "by_status": {
+      "checked": 79,
+      "rejected": 101
+    },
+    "wrong_reason": 1,
+    "wrong_reason_fixtures": [
+      "fail/termination/wrapping_subject_unguarded_decrement"
+    ],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 3,
+    "lost_success_fixtures": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "pass/termination/wrapping_subject_guarded_descent"
+    ],
+    "pinned_off_target": 3,
+    "pinned_off_target_fixtures": [
+      "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "pass/termination/wrapping_subject_guarded_descent"
+    ],
+    "by_verdict": {
+      "moved": 14,
+      "regressed": 2,
+      "new": 19,
+      "perf_slower": 4,
+      "improved": 2
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 161,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 564
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "4",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 10.11,
+      "load1_end": 19.36
+    },
+    "warnings": [
+      "worker counts differ (golden jobs=2, this run jobs=4) \u2014 record and diff at the same OMEGA_CORPUS_JOBS before trusting perf moves",
+      "the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now \u2014 treat perf_faster moves as noise",
+      "this run started on a busy machine (pre-run load 10.11 on 10 cpus); fixtures only look slower \u2014 treat perf_slower moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/arithmetic/checked_flag_proof_saturating_cast_fits",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2132,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/checked_flag_proof_wrapping_cast_fits",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2132,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_shl_saturating_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8475,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_wrapping_mutable_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8450,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/runtime_wrapping_operand_truncation_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6696,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/saturating_signed_divide_min_by_neg_one",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6738,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/arithmetic/wrapping_signed_divide_min_by_neg_one",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6354,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 785,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/runtime_wrapping_division_call_span_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6390,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/collections/runtime_parameter_computed_selector_wrapping_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1878,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/comptime/runtime_const_array_saturating_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2162,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/comptime/runtime_const_array_wrapping_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2247,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/ensures_saturating_field_arithmetic_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6332,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/ensures_wrapping_field_arithmetic_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6808,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3694,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "partial wrapping division in machine `scale_positive` state `entry` local `__transition_subject#46`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+        "partial wrapping division in machine `digit_positive` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+        "partial wrapping division in machine `digit_positive` state `entry` call argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/drops/borrowed_projection_captures_before_sibling_write_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2394,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/drops/borrowed_projection_earlier_call_capture_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3137,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/drops/borrowed_projection_moved_aggregate_capture_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3083,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/expressions/arithmetic_domain_saturating_signed_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8001,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/expressions/arithmetic_domain_wrapping_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7578,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2643,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2611,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2458,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2290,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2805,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2806,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2908,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3423,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_projection_cleanup_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3360,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_call_result",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4520,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_const_name",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3308,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_field",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3112,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_local",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2971,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_match_join",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2714,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_machine",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2725,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_state",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2925,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_parameter",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3002,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_target_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2967,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2470,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2449,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_disjoint_write_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3014,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2846,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2918,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2872,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2380,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2296,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2259,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_root_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2452,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3384,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_private_cyclic_unrelated_builtin_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3326,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_actual_clamp_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3794,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_actual_wrap_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4350,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4750,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4756,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4582,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4693,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4341,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_multiply_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4148,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_nested_policy_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4145,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4399,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4318,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4230,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_saturating_no_overflow_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4180,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_subtract_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4216,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_wrapping_index_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4356,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4464,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4526,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4678,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4226,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4071,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3797,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4585,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4739,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/qualified_field_capacity_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4712,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/float/float_saturating_arithmetic_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 22103,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/float/saturating_named_operations_retain_ordered_inputs",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7731,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 15141,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/modules/selected_constant_array_alias_wrapping",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1343,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 15740,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/wrapping_count_window_length",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3784,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/termination/measure_borrowed_projection_range",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1463,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/termination/wrapping_subject_guarded_descent",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 268,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `count_down` does not select a declared machine entry or callable requirement",
+        "terminal call `signed_down` does not select a declared machine entry or callable requirement",
+        "terminal call `saturating_down` does not select a declared machine entry or callable requirement",
+        "terminal call `climb` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/checked_flag_proof_saturating_cast_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 634,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended",
+        "anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/checked_flag_proof_wrapping_cast_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 556,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended",
+        "anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/integer_multiple_remainder_wrapping",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 751,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Zero` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/saturating_shift_count_unproven",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 264,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's): exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/total_contract_wrapping_division_unguarded",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 379,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "partial wrapping division in machine `invalid` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/wrapping_guard_does_not_bound_original",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 391,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `bounded` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/arithmetic/wrapping_target_plain_operands_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 10170,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).",
+        "store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrow/write_only_field_predicate_dependency",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `test` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrow/write_only_stored_reference_constraint_loss",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 371,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `replace` state `entry` lends `slot.value` of type `i32[in Bounded]` as `&write` to a parameter declared `&write i32`; a write-only subloan requires compatible stored carriers without changing scalar storage constraints or nested reference access",
+        "machine `capture` state `entry` captures `slot.value` of type `i32[in Bounded]` as `&write i32`; a write-only formation must preserve the declared constraint atoms exactly, so a weaker, stronger, or different referee remains rejected",
+        "argument `value` for state `entry` expects `&write i32`, got `member access`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/collections/contract_length_wrapping_result_cast_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1666,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/collections/wrapping_loop_increment_bound",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1269,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `main.index` is within length 4 in fill::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/collections/wrapping_member_decrement_index_unproven",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1092,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `stack.count` is within length 8 in take::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/collections/wrapping_range_index_unproven",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 10141,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `main.i` is within length 5 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/ensures_wrapping_field_arithmetic_wrong",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1015,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from Countdown::arm at statement 1: countdown.remaining - 1 < 8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/shift_result_negative_wrapping_count",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 996,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call shifted from invalid: value >= 0 && value <= 9 && 0 - (31 as i8 ) >= 0 && 0 - (31 as i8 ) < 32 (needs fact `value >= 0 && value <= 9 && count >= 0 && count < 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/content_projection_saturating_arithmetic",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 243,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only",
+        "machine `Owned::content` state `content` casts with `as Nat`, but `Nat` is not a scalar type; non-scalar `as` only erases qualifications from the same data carrier"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/content_projection_wrapping_arithmetic",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 315,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only",
+        "machine `Owned::content` state `content` casts with `as Nat`, but `Nat` is not a scalar type; non-scalar `as` only erases qualifications from the same data carrier"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 12767,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 651,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `where` facts before this consumption point (ch11)",
+        "data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/interval_membership_wrapping_false",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 889,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call keep from main: 11 in u8::Small in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/issued_record_wrapping_zero",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1095,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from issue, state entry, at statement 1: Handle requires Handle::Open"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/write_only_stored_reference_requires_qualification",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1140,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "construction of `Holder` field `cell` is not proven in domain `Cell::Before` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_capture_after_source_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2033,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_declared_index_not_storage",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 961,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Receipt does not establish Receipt::drop clause `receipt.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_destination_write_retires_capture",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1212,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 4: pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_disjunctive_capture",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_earlier_call_false_capture",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1007,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.first does not establish Receipt::drop clause `receipt.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_moved_child_reuse",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 819,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `first.receipt` in machine `main` state `entry` (statement 2) after `first.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first.receipt` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/borrowed_projection_unselected_child_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1814,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2154,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2090,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_field_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2224,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_local_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2059,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2091,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1708,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1600,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from next state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from next state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from next state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from next state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1489,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from through state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1566,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+        "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2114,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1294,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1282,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `holder` is still active (borrowed at statement 4; its last use is at statement 11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1277,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1368,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)",
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1306,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 6)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1313,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 6)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1461,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 7)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1516,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_unissued",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1025,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call observe_cell from entry_start: bare in Cell::Issued in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_alternate_arrival_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 544,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 557,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 508,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 619,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 564,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 586,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_nested_cycle_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 575,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_other_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 628,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 507,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 519,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_overwritten_guard_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 547,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 605,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_parent_guard_only_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 560,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_root_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 522,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_private_cyclic_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 529,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1451,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1451,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_crossing_band_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1297,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_exact_child_formation_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 596,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `probe` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+        "exact arithmetic in machine `probe` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1140,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1408,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1550,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1482,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1579,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_overwritten_offset_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1468,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1302,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1230,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_wide_interval_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1157,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.index` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_wrapping_index_wrapped_guard_original_offset_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1059,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `window.offset` is within length 512 in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 459,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 467,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 488,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 450,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 434,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 378,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 375,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 387,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/qualified_field_capacity_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 358,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value",
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value",
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value",
+        "data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/ownership/linear_qualified_field_observation_after_transfer",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1015,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first",
+        "cannot use `replacement` in machine `reused_replacement` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first",
+        "cannot use `slot.receipt.code` in machine `main` state `entry` (statement 2) after `slot.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `slot.receipt` first"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_predicate_saturating",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 203,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Saturated` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_predicate_wrapping",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 239,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Wrapped` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_predicate_wrapping_interval",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 249,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Wrapped` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/mathematical_wrapping_capture",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 288,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/numeric_state_saturating_payload",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 682,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call zero from wrong: saturated == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/numeric_state_wrapping_payload",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 628,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call positive from wrong: embed(wrapped) > 0 (needs fact `embed(value) > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/proof_integer_named_wrapping_operand",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 216,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `false_wrapping_bridge` cannot prove ensures contract proof fact `below_limit(value)` from the requires contract"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/proof_integer_nested_saturating_value",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 207,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `wrong_saturation` ensures contract proof fact `embed(value + 1 - 1) == 127` is disproved by constant arithmetic"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/wrapping_zero_product_does_not_cancel_factor",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5959,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/slices/wrapping_count_window_cast_needs_lower_bound",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 214,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "Exact integer cast in machine `open` state `entry` from `i32` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion."
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/termination/wrapping_subject_unguarded_decrement",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 234,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "terminal call `drain` does not select a declared machine entry or callable requirement"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2304,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 17"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/borrow/runtime_write_only_qualified_array_element_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 785,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[0] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from indexed at statement 1: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from captured at statement 2: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from field at statement 1: container.entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from finish at statement 1: entries[1] requires [u8; N]::Utf8"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6771,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/control_flow/runtime_wrapping_division_reused_inputs_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 3694,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "partial wrapping division in machine `scale_positive` state `entry` local `__transition_subject#46`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+          "partial wrapping division in machine `digit_positive` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts",
+          "partial wrapping division in machine `digit_positive` state `entry` call argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_call_result",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_call_result",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 4520,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_const_name",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_const_name",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3308,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_field",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_field",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3112,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_local",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_local",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2971,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_match_join",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_match_join",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2714,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_machine",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_other_machine",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2725,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_other_state",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_other_state",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2925,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_parameter",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_parameter",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3002,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/facts/linear_owner_borrowed_projection_target_body",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/facts/linear_owner_borrowed_projection_target_body",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 2967,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+      "verdict": "perf_slower",
+      "reasons": [
+        "7555ms -> 15141ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 7555,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/formatting/runtime_repeated_wrapping_decimal_format_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 15141,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+      "verdict": "perf_slower",
+      "reasons": [
+        "6078ms -> 15740ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6078,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/slices/runtime_saturating_array_element_guard_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 15740,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/slices/wrapping_count_window_length",
+      "verdict": "improved",
+      "reasons": [
+        "status incomplete -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/slices/wrapping_count_window_length",
+        "tier": "pass",
+        "status": "incomplete",
+        "millis": 2017,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "`main` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `main::entry`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/slices/wrapping_count_window_length",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3784,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/termination/measure_borrowed_projection_range",
+      "verdict": "improved",
+      "reasons": [
+        "status rejected -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/termination/measure_borrowed_projection_range",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 2244,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [
+          "machine call cycle: `walk` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {}
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/termination/measure_borrowed_projection_range",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1463,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/termination/wrapping_subject_guarded_descent",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/termination/wrapping_subject_guarded_descent",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1662,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/termination/wrapping_subject_guarded_descent",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 268,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `count_down` does not select a declared machine entry or callable requirement",
+          "terminal call `signed_down` does not select a declared machine entry or callable requirement",
+          "terminal call `saturating_down` does not select a declared machine entry or callable requirement",
+          "terminal call `climb` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {}
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/arithmetic/wrapping_guard_does_not_bound_original",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/arithmetic/wrapping_guard_does_not_bound_original",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1713,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `Values::store` state `bounded` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/arithmetic/wrapping_guard_does_not_bound_original",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 391,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "machine `bounded` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/arithmetic/wrapping_target_plain_operands_rejected",
+      "verdict": "perf_slower",
+      "reasons": [
+        "2759ms -> 10170ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "fail/arithmetic/wrapping_target_plain_operands_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2759,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).",
+          "store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/arithmetic/wrapping_target_plain_operands_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 10170,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).",
+          "store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/collections/wrapping_loop_increment_bound",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/collections/wrapping_loop_increment_bound",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1474,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove index `main.index` is within length 4 in Main::run::fill"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/collections/wrapping_loop_increment_bound",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1269,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove index `main.index` is within length 4 in fill::entry"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/collections/wrapping_range_index_unproven",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/collections/wrapping_range_index_unproven",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2517,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove index `main.i` is within length 5 in Main::main::read"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/collections/wrapping_range_index_unproven",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 10141,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove index `main.i` is within length 5 in read::entry"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+      "verdict": "perf_slower",
+      "reasons": [
+        "4286ms -> 12767ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 4286,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 12767,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1480,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2154,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2060,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2090,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_field_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_field_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1836,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_field_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2224,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_local_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_local_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2045,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_local_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2059,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1982,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2091,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2290,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1708,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from consume state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2286,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from main state next after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1600,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from next state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from next state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from next state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from next state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1970,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1489,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from through state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1553,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1566,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`",
+          "cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_call_result",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_call_result",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2114,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_const_name",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_const_name",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1294,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_field",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_field",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1282,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `holder` is still active (borrowed at statement 4; its last use is at statement 11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_local",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_local",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1277,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_match_join",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_match_join",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1368,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)",
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_other_machine",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_other_machine",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1306,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 6)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_other_state",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_other_state",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1313,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 6)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_parameter",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_parameter",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1461,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 7)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_target_body",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_target_body",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1516,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 5 reads `cells[1].value` while local borrow `buffer` is still active (borrowed at statement 4; its last use is at statement 10)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/facts/linear_owner_borrowed_projection_unissued",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "fail/facts/linear_owner_borrowed_projection_unissued",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1025,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call observe_cell from entry_start: bare in Cell::Issued in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/termination/wrapping_subject_unguarded_decrement",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/termination/wrapping_subject_unguarded_decrement",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1444,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "terminating machine Main::drain: cannot prove strict rank decrease on a recurrent arrival: the transition from `drain` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step",
+          "machine call cycle: `Main::drain` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/termination/wrapping_subject_unguarded_decrement",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 234,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "terminal call `drain` does not select a declared machine entry or callable requirement"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

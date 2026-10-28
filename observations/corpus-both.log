@@ -1,0 +1,45 @@
+corpus_runner: 5034 prior timings loaded
+corpus_runner: 82/82 done, 0 compile(s) in flight
+corpus_gate: pass/borrow/runtime_write_only_qualified_array_element_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native 0, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected native stderr match from completed execution, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/borrow/runtime_write_only_qualified_array_element_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreted 0, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreter stdout match from completed execution, observed rejected {'interpreter': 'unchecked'}
+corpus_gate: pass/control_flow/runtime_wrapping_division_reused_inputs_exit: expected interpreter stderr match from completed execution, observed rejected {'interpreter': 'unchecked'}
++ pass/arithmetic/checked_flag_proof_saturating_cast_fits: new fixture (built)
++ pass/arithmetic/checked_flag_proof_wrapping_cast_fits: new fixture (built)
++ pass/arithmetic/runtime_shl_saturating_exit: new fixture (built)
++ pass/arithmetic/runtime_wrapping_mutable_local_exit: new fixture (built)
++ pass/arithmetic/runtime_wrapping_operand_truncation_exit: new fixture (built)
++ pass/arithmetic/saturating_signed_divide_min_by_neg_one: new fixture (built)
++ pass/arithmetic/wrapping_signed_divide_min_by_neg_one: new fixture (built)
++ pass/borrow/runtime_write_only_qualified_array_element_exit: new fixture (rejected)
++ pass/calls/runtime_wrapping_division_call_span_exit: new fixture (built)
++ pass/collections/runtime_parameter_computed_selector_wrapping_exit: new fixture (built)
++ pass/comptime/runtime_const_array_saturating_result_exit: new fixture (built)
++ pass/comptime/runtime_const_array_wrapping_result_exit: new fixture (built)
++ pass/contracts/ensures_saturating_field_arithmetic_exit: new fixture (built)
++ pass/contracts/ensures_wrapping_field_arithmetic_exit: new fixture (built)
++ pass/control_flow/runtime_wrapping_division_reused_inputs_exit: new fixture (rejected)
++ pass/expressions/arithmetic_domain_saturating_signed_exit: new fixture (built)
++ pass/expressions/arithmetic_domain_wrapping_exit: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_call_result: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_const_name: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_field: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_local: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_match_join: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_other_machine: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_other_state: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_parameter: new fixture (built)
++ pass/facts/linear_owner_borrowed_projection_target_body: new fixture (built)
++ pass/formatting/runtime_repeated_wrapping_decimal_format_exit: new fixture (built)
++ pass/modules/selected_constant_array_alias_wrapping: new fixture (checked)
++ pass/slices/runtime_saturating_array_element_guard_exit: new fixture (built)
++ pass/slices/wrapping_count_window_length: new fixture (built)
++ pass/termination/measure_borrowed_projection_range: new fixture (checked)
++ pass/termination/wrapping_subject_guarded_descent: new fixture (rejected)
+corpus_gate: 8 unmet oracle(s), 32 structural move(s) — 82 fixtures ({'built': 77, 'rejected': 3, 'checked': 2}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 77 (exit codes {'0': 65, '70': 11, '77': 1}), 0 with stdout differing from expected; verdicts {'new': 32, 'perf_faster': 14}
+corpus_gate: golden provenance: 50 rows stamped, 0 legacy (unstamped), 2 revision distance(s) unavailable, oldest stamped row 1866 commits behind HEAD (@ca117899bfe3)
+corpus_gate: measured at jobs=4, golden jobs=2

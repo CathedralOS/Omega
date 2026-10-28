@@ -1,0 +1,112 @@
+{
+  "context": {
+    "parent": "NESTED-MACHINE-UNIFICATION",
+    "base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
+    "starting_source": "4420a05daf5d5c510f187941d659d9f8bc0cf63d",
+    "host": "macOS ARM64",
+    "target": "macos_arm64",
+    "frontier": "Nine guarded Wrapping-index places and six positive controls run BOTH0; all9twins and5negativecontrols refuse. Current complete repair needs focused regression checks, qualification and landing.",
+    "source_scope": "PR447 already merged and remotely verified; new numeric projection remains unfinished. No new ordinary runtime call/review gate.",
+    "actual_producer": "14f266609aa5729eee533c52726a754d5918a86d",
+    "baseline_producer": "485a671a334e1f2b7c553c155172cfdfa6c4d319",
+    "toolchain": "nightly-2026-09-04",
+    "recording": "Pins JSON reports dirty after writing own golden; clean source stamps(no+wt) retained. Later clean523/240records include allnewfixtures. Fourteen inheritedsource failures andtwelve runtime refusals reproduced identically by retainedbaseline485/semantic1e9; broadrawgateskeep exit3, no goldensweakened."
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/language/numeric_values.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/integer_operations.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/integer_policy.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates/policy_values.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/scalar/structural_fields.rs"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Reuse the actual policy result (wrapping reduction or saturation clamp). Keep the completed opaque representative without imposing a new formation gate. Explore captured operands after independently formed premises; a private fork may donate an equation only after all its Exact child computations form. Goal predicates never become premises. Tighten a wrapping interval only when reduction preserves its full width, proving a single modular band rather than comparing endpoints across a wrap boundary. Field endpoint discovery must retain complete selected qualifications while inspecting actual reference shells. Root reference erasure and readable stored reference crossings remain separate; no write-only descriptor read or authority is introduced. Reuse the established Exact-neutral ArithmeticDomain.combine; no new selected-policy field or literal-shape inference is needed.",
+      "passages": [
+        "## Arithmetic and comparisons\n\nAn operation's selected declaration, operand carriers, and arithmetic policy\ndetermine its meaning. Matching a token is insufficient to use builtin arithmetic\nor order laws. A negated guard retains the original operator selection before\nderiving a consequence; integer order complements are not IEEE float laws.\nAn early const-argument normalizer retains an application whose operator\nselection is unresolved rather than folding it with the token's builtin meaning.\nRetention does not establish support for later const evaluation.\n\nEvery Exact operation owes its own representability proof in its actual carrier,\nincluding unsigned values beyond a signed analysis window. A safe final result,\nmathematical substitution, or unknown analysis endpoint cannot excuse an unsafe\nintermediate. Wrapping loop updates need an independent no-wrap proof before\nmonotonicity can be inferred; the proposed descent cannot supply its own premise.\nRuntime signed remainder is not mathematical Euclidean modulo.\n\nThere is no implicit widening: arithmetic in `u8` must fit `u8` under Exact;\nuse an explicit exact conversion to request a wider carrier. Each node produces\nits declared-width policy result before its parent consumes it. Wrapping reduces\nat that node, Saturating clamps there, and Trapping takes its executable failure\nroute there. A proved overflow in an already-landed Trapping operation is still\na runtime trap, not an Exact-style compile error; a demanded semantic-evaluation\nresult separately requires [invocation admission](evaluation.md#invocation-admission).\n\n",
+        "### Overflow policies\n\nExact, Wrapping, Saturating, and Trapping are distinct operation policies.\nWrapping reduces representable-range overflow modulo the selected carrier;\nSaturating clamps it to carrier bounds; Trapping uses the primitive's exact\ncrash predicate. An overflow policy does not invent a result for undefined\noperands such as an integer zero divisor. Any number of value qualifications\nmay compose, but at most one arithmetic policy governs an operation.\n\n"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "finite-policy-fields",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "build/private-index-probe/validate.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "TASKS.md",
+        "samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index",
+        "tests/omega",
+        "tools/qualification.py",
+        "tools/testing.md",
+        "tests/product/gate.sh",
+        "tests/psi/parser"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/producer-3/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/producer-3/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/producer-3.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/runner-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/build-3.jsonl",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/build-3.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/runner-build.jsonl",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/runner-build.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/frozen-row.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/row-baseline-formed.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/row-repaired-3.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/controls-baseline-headers.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/controls-final.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/counterfactual.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/counterfactual/main.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/counterfactual/build.omg",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/pins-source.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/pins-both.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/corpus-source.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/corpus-both.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/baseline-source-selected.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/baseline-source-extra.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/baseline-both-selected.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/baseline-attribution.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/runtime-attribution.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/format.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/clippy.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/parser-admission.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/parser-admission.log",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/validate.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/final-context.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/focused-scope.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/producer-4/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-cyclic/runner-producer.json"
+      ],
+      "producer": {
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/producer-3/omega",
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/producer-3/corpus_runner"
+        ],
+        "revision": "14f266609aa5729eee533c52726a754d5918a86d",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ]
+      },
+      "closure_reason": "Actual bounded numeric observations, exact child formation, qualified structural endpoints and preserved stored-reference authority, nine places, realwrap/clamp/control oracles,523source/240BOTH scope with exact baseline attribution, own29/15pins, library7indexfailuresremoved. No full parent/otherhost closure.",
+      "final": true,
+      "expected_exit": 0,
+      "timeout_seconds": 180
+    }
+  ]
+}

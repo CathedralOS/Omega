@@ -1,0 +1,25 @@
+actual_clamp 0 native exit 0
+interp exit: 0
+actual_wrap 0 native exit 0
+interp exit: 0
+crossing_band 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_crossing_band` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+exact_child_formation 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_exact_child_formation` with 2 diagnostic(s)
+  error: exact arithmetic in machine `probe` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `wrapping_index_exact_child_formation`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/exact_child_formation/main.omg:5:50
+  error: exact arithmetic in machine `probe` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `wrapping_index_exact_child_formation`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/samples/cli/facts/nested_machine_invocation/private_arithmetic/wrapping_index/controls/exact_child_formation/main.omg:5:50
+multiply 0 native exit 0
+interp exit: 0
+nested_policy 0 native exit 0
+interp exit: 0
+overwritten_offset 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_overwritten_offset` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+saturating_no_overflow 0 native exit 0
+interp exit: 0
+subtract 0 native exit 0
+interp exit: 0
+wide_interval 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_wide_interval` with 1 diagnostic(s)
+  error: cannot prove index `window.index` is within length 512 in read::entry
+wrapped_guard_original_offset 1 cannot compile admitted project: checked compilation failed for package `wrapping_index_wrapped_guard_original_offset` with 1 diagnostic(s)
+  error: cannot prove index `window.offset` is within length 512 in read::entry
