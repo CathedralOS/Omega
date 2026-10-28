@@ -123,11 +123,36 @@ fn canonical_instances_replace_source_rows_and_keep_uncalled_inherited_coordinat
 }
 
 #[test]
+fn canonical_projection_preserves_partial_toolchain_plan_custody() {
+    let (mut declaration, module) = fixture();
+    let mut missing = declaration.plan.schema.methods[0].clone();
+    missing.name = "unavailable".into();
+    missing.requirement_identity = declaration
+        .plan
+        .schema
+        .identities
+        .intern("Parent::unavailable");
+    declaration.plan.schema.methods.push(missing);
+    assert!(
+        effects::SelectedProviderPlanFacts::from_selected_plans(vec![declaration.plan.clone()])
+            .is_err()
+    );
+    let selected = effects::SelectedProviderPlanFacts::default()
+        .with_toolchain_settled_plan(declaration.plan.clone())
+        .unwrap();
+    let closed = close_checked_provider_specializations(
+        selected,
+        std::slice::from_ref(&declaration),
+        &module,
+    )
+    .unwrap();
+    assert!(closed.is_toolchain_settled(&declaration.plan));
+    assert_eq!(closed.specialized_requirement_rows().len(), 2);
+}
+
+#[test]
 fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
     let (declaration, module) = fixture();
-    let selected =
-        effects::SelectedProviderPlanFacts::from_selected_plans(vec![declaration.plan.clone()])
-            .unwrap();
     for mismatch in ["owner", "requirement", "body", "duplicate"] {
         let mut changed = module.clone();
         match mismatch {
@@ -146,13 +171,9 @@ fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
                 .provider_candidates
                 .push(changed.provider_candidates[0].clone()),
         }
-        let error = close_checked_provider_specializations(
-            selected.clone(),
-            std::slice::from_ref(&declaration),
-            &changed,
-        )
-        .err()
-        .expect(mismatch);
+        let error = checked_candidate_roster(std::slice::from_ref(&declaration), &changed)
+            .err()
+            .expect(mismatch);
         assert!(
             error.contains(if mismatch == "duplicate" {
                 "duplicate canonical realizations"

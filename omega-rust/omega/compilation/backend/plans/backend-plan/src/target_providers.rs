@@ -43,7 +43,7 @@ impl TerminalTargetProviderSelection {
         plans: Vec<TerminalTargetProviderPlan>,
         artifact: terminal_codec::TerminalArtifactView<'_>,
     ) -> Result<Self, String> {
-        let checked_candidates = checked_candidate_roster(&plans, artifact)?;
+        let checked_candidates = checked_candidate_roster(&plans, artifact.module())?;
         Ok(Self {
             plans,
             assumed_bindings: Vec::new(),
@@ -59,7 +59,7 @@ impl TerminalTargetProviderSelection {
         artifact: terminal_codec::TerminalArtifactView<'_>,
         target: &str,
     ) -> Result<terminal_installation::AdmittedProviderSelections, String> {
-        let expected = checked_candidate_roster(&self.plans, artifact)?;
+        let expected = checked_candidate_roster(&self.plans, artifact.module())?;
         let mut supplied = self.checked_candidates.clone();
         supplied.sort();
         if supplied != expected {
@@ -214,19 +214,31 @@ pub fn matching_folded_constant_dependencies<'plan>(
 
 fn checked_candidate_roster(
     plans: &[TerminalTargetProviderPlan],
-    artifact: terminal_codec::TerminalArtifactView<'_>,
+    module: &terminal_psi::TerminalModule,
 ) -> Result<Vec<terminal_installation::ProviderInstallationSelection>, String> {
-    let mut selections = selected_checked_candidates(plans, artifact.module())?
-        .into_iter()
-        .map(
-            |matched| terminal_installation::ProviderInstallationSelection {
-                boundary: matched.candidate.boundary,
-                candidate: matched.candidate.candidate,
+    effects::SelectedProviderPlanFacts::from_selected_plans(
+        plans.iter().map(|selected| selected.plan.clone()).collect(),
+    )?;
+    let mut selections = Vec::new();
+    for matched in selected_checked_candidates(plans, module)? {
+        if matched.candidates.is_empty() {
+            return Err(format!(
+                "selected provider requirement `{}` has no emitted exact declaration candidate",
+                matched
+                    .selected
+                    .plan
+                    .identity_text(matched.row.requirement_identity),
+            ));
+        }
+        selections.extend(matched.candidates.into_iter().map(|candidate| {
+            terminal_installation::ProviderInstallationSelection {
+                boundary: candidate.boundary,
+                candidate: candidate.candidate,
                 provider_identity: matched.selected.plan.provider_type.clone(),
                 provider_declaration: matched.owner.to_owned(),
-            },
-        )
-        .collect::<Vec<_>>();
+            }
+        }));
+    }
     // Required parent schemas may share exactly one checked coordinate. Only
     // identical choices collapse; competing owners remain distinct for admission.
     selections.sort();
@@ -237,6 +249,9 @@ fn checked_candidate_roster(
 /// Replace source-side checked specialization projections with the canonical
 /// whole-provider associations. Source-only consumers retain their own facts;
 /// native production and reload use this same Terminal-owned join.
+/// Source selection may contain inert whole-program uses absent from Terminal.
+/// They create no closed instances here. Native admission still requires exact
+/// supply for every actual demand; this projection grants no installation.
 pub fn close_checked_provider_specializations(
     selected: effects::SelectedProviderPlanFacts,
     declarations: &[TerminalTargetProviderPlan],
@@ -260,30 +275,33 @@ pub fn close_checked_provider_specializations(
     let mut identities = selected.identities().clone().into_builder();
     for matched in selected_checked_candidates(declarations, module)? {
         let plan = &matched.selected.plan;
-        let candidate = matched.candidate;
-        let text = |identity| {
-            module
-                .identities
-                .text(identity)
-                .filter(|text| !text.is_empty())
-                .ok_or_else(|| {
-                    "canonical provider association has an empty callable identity".to_owned()
-                })
-        };
-        let requirement = text(candidate.requirement_identity)?;
-        let template = plan.identities.text(matched.row.requirement_identity);
-        // Nongeneric rows already name their executable coordinate directly.
-        if requirement == template {
-            continue;
+        for candidate in matched.candidates {
+            let text = |identity| {
+                module
+                    .identities
+                    .text(identity)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| {
+                        "canonical provider association has an empty callable identity".to_owned()
+                    })
+            };
+            let requirement = text(candidate.requirement_identity)?;
+            let template = plan.identities.text(matched.row.requirement_identity);
+            // Nongeneric rows already name their executable coordinate directly.
+            if requirement == template
+                && candidate.candidate_identity == candidate.source_candidate_identity
+            {
+                continue;
+            }
+            rows.push(effects::SelectedRequirementSpecialization {
+                provider_plan_report_identity: plan.report_fingerprint(),
+                selected_requirement_identity: identities.intern(template),
+                selected_machine_identity: identities
+                    .intern(text(candidate.source_candidate_identity)?),
+                requirement_identity: identities.intern(requirement),
+                machine_identity: identities.intern(text(candidate.candidate_identity)?),
+            });
         }
-        rows.push(effects::SelectedRequirementSpecialization {
-            provider_plan_report_identity: plan.report_fingerprint(),
-            selected_requirement_identity: identities.intern(template),
-            selected_machine_identity: identities
-                .intern(text(candidate.source_candidate_identity)?),
-            requirement_identity: identities.intern(requirement),
-            machine_identity: identities.intern(text(candidate.candidate_identity)?),
-        });
     }
     selected.with_specialized_requirement_rows(rows, &identities.build())
 }
@@ -292,16 +310,13 @@ struct SelectedCheckedCandidate<'plan, 'terminal> {
     selected: &'plan TerminalTargetProviderPlan,
     row: &'plan effects::provider_plan::ProviderPlanRow,
     owner: &'plan str,
-    candidate: &'terminal terminal_psi::ProviderCandidateConformance,
+    candidates: Vec<&'terminal terminal_psi::ProviderCandidateConformance>,
 }
 
 fn selected_checked_candidates<'plan, 'terminal>(
     plans: &'plan [TerminalTargetProviderPlan],
     module: &'terminal terminal_psi::TerminalModule,
 ) -> Result<Vec<SelectedCheckedCandidate<'plan, 'terminal>>, String> {
-    effects::SelectedProviderPlanFacts::from_selected_plans(
-        plans.iter().map(|selected| selected.plan.clone()).collect(),
-    )?;
     let mut selections = Vec::new();
     for selected in plans {
         let plan = &selected.plan;
@@ -339,11 +354,6 @@ fn selected_checked_candidates<'plan, 'terminal>(
                             == Some(realization)
                 })
                 .collect::<Vec<_>>();
-            if matching.is_empty() {
-                return Err(format!(
-                    "selected provider requirement `{requirement}` has no emitted exact declaration candidate"
-                ));
-            }
             // A template can supply many distinct closed requirements, never
             // two candidates for the same coordinate under one choosing owner.
             let mut requirements = matching
@@ -356,16 +366,12 @@ fn selected_checked_candidates<'plan, 'terminal>(
                     "selected provider requirement `{requirement}` has duplicate canonical realizations"
                 ));
             }
-            selections.extend(
-                matching
-                    .into_iter()
-                    .map(|candidate| SelectedCheckedCandidate {
-                        selected,
-                        row,
-                        owner,
-                        candidate,
-                    }),
-            );
+            selections.push(SelectedCheckedCandidate {
+                selected,
+                row,
+                owner,
+                candidates: matching,
+            });
         }
     }
     Ok(selections)

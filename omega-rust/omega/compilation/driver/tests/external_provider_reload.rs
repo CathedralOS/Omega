@@ -40,12 +40,17 @@ fn checked_native_inputs_reload_from_canonical_inherited_instances() {
         .providers()
         .selection
         .specialized_requirement_rows();
-    assert_eq!(rows.len(), 3, "two called and one uncalled finite instance");
+    assert_eq!(rows.len(), 4, "three finite instances and inherited spare");
     assert_eq!(
         proposal.providers().checked_adapters.len(),
         5,
         "three echo instances, spare and choose"
     );
+}
+
+#[test]
+fn unused_source_provider_demand_does_not_require_terminal_instances() {
+    reload("tests/omega/pass/providers/uncalled_boundary_provider_exit/main.omg");
 }
 
 fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
