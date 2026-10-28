@@ -11,6 +11,8 @@ use crate::record::PackagePolicyTerminalPermissions;
 use crate::record::PackageReviewDangerousAuthority;
 use crate::record::PackageReviewDangerousAuthoritySlack;
 
+mod native_bindings;
+pub(crate) use native_bindings::PackagePolicyNativeBinding;
 mod boundary_owners;
 mod external;
 mod getters;
@@ -29,6 +31,7 @@ pub struct PackagePolicyBaseline {
     pub(crate) selected_providers: PackagePolicySelectedProviders,
     pub(crate) terminal_permissions: PackagePolicyTerminalPermissions,
     pub(crate) representation: PackagePolicyRepresentation,
+    pub(crate) native_bindings: Vec<PackagePolicyNativeBinding>,
     pub(crate) external_supplies: Vec<PackagePolicyExternalExecutableSupply>,
     pub(crate) dangerous_capabilities: Vec<PackageReviewDangerousAuthority>,
     pub(crate) slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,

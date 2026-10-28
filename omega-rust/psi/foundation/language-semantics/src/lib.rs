@@ -68,3 +68,5 @@ pub use service_reach::{
     ServiceReachTable, SuspensionInterface, SuspensionPlan, SuspensionSummary,
     SynchronousInvocationInterface, SynchronousInvocationPlan,
 };
+
+pub mod native_bindings;

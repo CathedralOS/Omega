@@ -77,11 +77,29 @@ impl CompilationSession {
                         // The program and source custody are common; admission,
                         // accounting and Build receipts belong to this member.
                         application.admission = prepared.built.admission;
-                        application.computed_build_config = std::sync::Arc::new(
-                            source
-                                .computed_build_config
-                                .with_execution_observation(&prepared.built.computed_build_config),
-                        );
+                        let observed = match source
+                            .computed_build_config
+                            .with_execution_observation(&prepared.built.computed_build_config)
+                        {
+                            Ok(observed) => observed,
+                            Err(reason) => {
+                                outcomes.push((
+                                    position,
+                                    owner,
+                                    SelectedCompileOutcome {
+                                        result: Err(CompileFailure::from(vec![
+                                            diagnostics::Diagnostic::error(reason),
+                                        ])),
+                                        independent_components: prepared
+                                            .built
+                                            .computed_build_config
+                                            .independent_components(),
+                                    },
+                                ));
+                                continue;
+                            }
+                        };
+                        application.computed_build_config = std::sync::Arc::new(observed);
                         application.retained_checks.build = prepared.built.retained_build_check;
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);

@@ -151,6 +151,40 @@ impl TypedTrees {
             )
     }
 
+    /// Runtime catalogs contain completed static applications, not open data
+    /// telescopes. Source/effect checking keeps `trait_machine_instances` and
+    /// its full authored roster; publication must not invent an ABI for an
+    /// unused generic member merely because a sibling of its trait is called.
+    /// Machine callback binders keep their existing explicit callback lane.
+    pub fn executable_trait_machine_instances<'program>(
+        &'program self,
+        definition: &'program trait_definition::TraitDefinition,
+    ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        self.trait_machine_instances(definition)
+            .filter(|signature| self.executable_requirement_telescope(signature))
+    }
+
+    pub fn executable_requirement_machine_instances<'program>(
+        &'program self,
+        signature: &'program signature::StateSignature,
+    ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        self.requirement_machine_instances(signature)
+            .filter(|signature| self.executable_requirement_telescope(signature))
+    }
+
+    fn executable_requirement_telescope(&self, signature: &signature::StateSignature) -> bool {
+        self.state_signature_type_parameters(signature)
+            .iter()
+            .all(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    data::TypeParameterKind::Type
+                        | data::TypeParameterKind::Const { .. }
+                        | data::TypeParameterKind::Value { .. }
+                )
+            })
+    }
+
     /// The machine signature keyed `symbol` within `trait_definition`, when declared.
     pub fn trait_machine_signature_by_symbol(
         &self,

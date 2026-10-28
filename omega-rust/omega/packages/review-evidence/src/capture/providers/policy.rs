@@ -1,6 +1,6 @@
 //! Complete selected-provider policy captured from live checked associations.
 
-mod bindings;
+pub(crate) mod bindings;
 mod families;
 mod rows;
 
@@ -104,6 +104,15 @@ fn project_plan(
             &plan.name,
             "provider type",
         )?,
+        None if matches!(
+            retained.selected_by,
+            provider_planning::ProviderSelectionProvenance::NativeBuild
+        ) && !plan.rows.is_empty()
+            && retained
+                .provider
+                .row_realizations
+                .iter()
+                .all(|row| row.native().is_some()) => {}
         None if plan.provider_type_package_identity.is_none()
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),

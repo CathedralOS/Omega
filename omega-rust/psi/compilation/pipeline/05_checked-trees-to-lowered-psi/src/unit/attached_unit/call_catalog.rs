@@ -37,7 +37,7 @@ pub(super) fn discover(
         if let Some((_, signature)) = checked.trait_machine_signature(*boundary) {
             retained_boundary_roots.extend(
                 checked
-                    .requirement_machine_instances(signature)
+                    .executable_requirement_machine_instances(signature)
                     .map(|instance| instance.symbol),
             );
         } else {

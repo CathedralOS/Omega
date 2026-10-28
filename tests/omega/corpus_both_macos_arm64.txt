@@ -291,6 +291,7 @@ pass/build/product_selection_helper_exit built 1003ms exit:0 interpreter-exit:0 
 pass/build/provider_target_value_forwarding_exit built 2937ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
 pass/build/receiver_view_writeback_exit built 4759ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
 pass/build/retained_domain_and_service_rows_exit built 10968ms exit:0 interpreter-exit:0 interpreter:agrees @a27b9f3d3f39
+pass/build/runtime_dependency_private_native_binding_exit built 1288ms exit:0 interpreter-exit:0 interpreter:agrees @e5a0b87130b9
 pass/build/runtime_opaque_by_value_selected_exit built 18387ms exit:72 interpreter-exit:72 interpreter:agrees @35f5679f7d28
 pass/build/runtime_retained_const_application_exit built 1903ms exit:0 interpreter-exit:0 interpreter:agrees @248be7918b27
 pass/build/sibling_module_service_exclusion_exit built 6935ms exit:0 interpreter-exit:0 interpreter:agrees @eca66ed24a79+wt
@@ -4093,6 +4094,7 @@ pass/host/runtime_descriptor_record_array_input_exit built 15464ms exit:0 stdout
 pass/host/runtime_descriptor_record_loan_input_exit built 19575ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @198156d53e16
 pass/host/runtime_descriptor_reference_record_prefix_exit built 13839ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @dd8ff52ae8bf
 pass/host/runtime_descriptor_scalar_input_exit built 1560ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @45d2efab5b7d
+pass/host/runtime_native_scalar_reference_ingress_exit built 1200ms exit:0 interpreter-exit:0 interpreter:agrees @e5a0b87130b9
 pass/host/runtime_returned_scalar_field_reference_sibling_exit built 733ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db430d661cf1+wt
 pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/inline_asm/target_family_instruction_exit built 837ms exit:0 interpreter-exit:0 interpreter:agrees @a8fbfdfa4d11

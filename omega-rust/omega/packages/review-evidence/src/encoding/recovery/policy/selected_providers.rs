@@ -78,6 +78,7 @@ pub(in crate::encoding::recovery) fn row(
         method: reader.string()?,
         requirement: nominal(reader)?,
         realization: reader.option(nominal)?,
+        native_build: reader.option(super::external::producer)?,
         requirement_lifetime_partition: reader.sequence(4, Reader::u32)?,
         binding: bindings::binding(reader)?,
         compiler_intrinsic_execution: reader.option(intrinsic::execution)?,

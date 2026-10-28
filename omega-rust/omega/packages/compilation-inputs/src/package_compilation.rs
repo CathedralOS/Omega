@@ -13,6 +13,13 @@ mod construction;
 mod dependency_graph;
 mod errors;
 mod generated_sources;
+mod native_bindings;
+mod native_evaluation;
+pub use native_bindings::{
+    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingBundle,
+    PackageNativeBindingOrigin,
+};
+pub use native_evaluation::NativeBuildEvaluation;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
@@ -48,6 +55,8 @@ pub struct PackageCompilationTargetInputs {
     purpose: DependencyPurpose,
     dependency_generated_sources:
         BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageGeneratedSourceBundle>,
+    dependency_native_bindings:
+        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageNativeBindingBundle>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
     semantic_role_discovery: bool,
     independent_component_descriptions:
@@ -89,6 +98,7 @@ impl Default for PackageCompilationTargetInputs {
         Self {
             purpose: DependencyPurpose::Product,
             dependency_generated_sources: BTreeMap::new(),
+            dependency_native_bindings: BTreeMap::new(),
             accepted_semantic_bindings: BTreeMap::new(),
             semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
@@ -361,6 +371,7 @@ impl PackageCompilationInputs {
         let PackageCompilationTargetInputs {
             purpose,
             dependency_generated_sources,
+            dependency_native_bindings,
             accepted_semantic_bindings,
             semantic_role_discovery,
             independent_component_descriptions,
@@ -380,6 +391,11 @@ impl PackageCompilationInputs {
         if !dependency_generated_sources.is_empty() {
             inputs = inputs.with_complete_dependency_generated_sources(
                 dependency_generated_sources.into_values().collect(),
+            )?;
+        }
+        if !dependency_native_bindings.is_empty() {
+            inputs = inputs.with_complete_dependency_native_bindings(
+                dependency_native_bindings.into_values().collect(),
             )?;
         }
         inputs = inputs.with_independent_component_descriptions(
