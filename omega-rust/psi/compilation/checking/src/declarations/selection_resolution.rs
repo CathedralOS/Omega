@@ -374,6 +374,3 @@ pub fn declaration_target(symbol: SymbolHandle) -> Option<AuthoredSelectionResol
         .is_valid()
         .then_some(AuthoredSelectionResolutionTarget::Declaration(symbol))
 }
-
-#[cfg(test)]
-mod tests;

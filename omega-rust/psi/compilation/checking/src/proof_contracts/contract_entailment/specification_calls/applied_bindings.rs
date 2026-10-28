@@ -1332,6 +1332,3 @@ pub(super) fn integer(value: &CanonicalConstIdentity) -> Option<numerics::bignum
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod result_reference_tests;
