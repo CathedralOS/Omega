@@ -10,6 +10,40 @@ use language_semantics::numeric_intrinsics::{
     PrimitiveFloatBinaryOperation, PrimitiveIntegerComparisonOperation,
 };
 
+// These are immutable language-version inputs, not a second provider registry.
+// Source custody must match the compiler's closed catalogue in full: shape-only
+// matching would let a changed contract or an added ISA row lend an intrinsic.
+static REQUIREMENT_CATALOGUE: std::sync::LazyLock<[u8; 32]> = std::sync::LazyLock::new(|| {
+    catalogue_digest(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/float_operations.omg"
+    )))
+});
+static ARM64_CATALOGUE: std::sync::LazyLock<[u8; 32]> = std::sync::LazyLock::new(|| {
+    catalogue_digest(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/native/arm64_float.omg"
+    )))
+});
+static X86_CATALOGUE: std::sync::LazyLock<[u8; 32]> = std::sync::LazyLock::new(|| {
+    catalogue_digest(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/native/x86_64_float.omg"
+    )))
+});
+
+fn catalogue_digest(bytes: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).into()
+}
+
+/// Borrow the exact checked public signature after closed-catalogue admission.
+pub struct SealedNumericRequirement<'program> {
+    pub signature: &'program crate::signature::StateSignature,
+    pub parameters: &'program [StateParameter],
+    pub execution: NumericIntrinsic,
+}
+
 pub const fn primitive_numeric_type(primitive: PrimitiveType) -> Option<NumericType> {
     Some(match primitive {
         PrimitiveType::I8 => NumericType::I8,
@@ -34,6 +68,9 @@ impl TypedTrees {
     ) -> Option<NumericIntrinsic> {
         if !symbol.is_valid() {
             return None;
+        }
+        if let Some((owner, requirement)) = self.trait_machine_signature(symbol) {
+            return self.sealed_numeric_requirement(owner, requirement);
         }
         let operator = self.operator_definition_by_symbol(symbol);
         if operator.is_some_and(|operator| !operator.is_boundary) {
@@ -78,6 +115,131 @@ impl TypedTrees {
             self.operator_parameters(operator),
             operator.return_type,
             Some(operator),
+        )
+    }
+
+    pub fn sealed_numeric_requirement_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<SealedNumericRequirement<'_>> {
+        let (owner, signature) = self.trait_machine_signature(symbol)?;
+        Some(SealedNumericRequirement {
+            execution: self.sealed_numeric_requirement(owner, signature)?,
+            parameters: self.state_signature_parameters(signature),
+            signature,
+        })
+    }
+
+    fn numeric_catalogue_source_matches(
+        &self,
+        symbol: symbols::SymbolHandle,
+        expected: &[u8; 32],
+    ) -> bool {
+        let Some(span) = self.symbols.symbol_source_span(symbol) else {
+            return false;
+        };
+        let Some(file) = self.symbols.source_file(span) else {
+            return false;
+        };
+        file.origin == source::SourceOrigin::Toolchain
+            && file.package_identity.is_none()
+            && self
+                .symbols
+                .source_map()
+                .and_then(|sources| sources.content_digest(span.source_id))
+                == Some(*expected)
+    }
+
+    /// The canonical arithmetic contract belongs to an exact Core trait
+    /// declaration. A matching authored name or signature lends no meaning.
+    pub fn sealed_numeric_requirement(
+        &self,
+        owner: &crate::trait_definition::TraitDefinition,
+        requirement: &crate::signature::StateSignature,
+    ) -> Option<NumericIntrinsic> {
+        if !self.numeric_catalogue_source_matches(owner.symbol, &REQUIREMENT_CATALOGUE)
+            || !owner.is_boundary
+            || !owner.is_public
+            || !owner.lifetime_parameters.is_empty()
+            || !self.trait_type_parameters(owner).is_empty()
+            || !requirement.lifetime_parameters.is_empty()
+            || !self.state_signature_type_parameters(requirement).is_empty()
+            || self.symbol_toolchain_relative_path(owner.symbol)?
+                != std::path::Path::new("float_operations.omg")
+            || self.symbol_toolchain_relative_path(requirement.symbol)?
+                != std::path::Path::new("float_operations.omg")
+            || self
+                .normalized_hermetic_symbol_identity(owner.symbol)
+                .ok()?
+                != format!("toolchain::{}", owner.name.as_str())
+        {
+            return None;
+        }
+        let name = requirement.name.as_str();
+        let suffix = name
+            .split('_')
+            .map(|part| {
+                let mut chars = part.chars();
+                chars.next().map_or_else(String::new, |first| {
+                    first.to_uppercase().chain(chars).collect()
+                })
+            })
+            .collect::<String>();
+        let namespace = [
+            "Float", "F32", "F64", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64",
+        ]
+        .into_iter()
+        .find(|namespace| owner.name.as_str() == format!("{namespace}{suffix}"))?;
+        let parameters = self.state_signature_parameters(requirement);
+        if namespace == "Float" {
+            use PrimitiveFloatBinaryOperation as Operation;
+            use language_core::operator_spelling::OperatorSpelling as Spelling;
+            let (operation, spelling, boolean) = match name {
+                "add" => (Operation::Add, Spelling::Add, false),
+                "subtract" => (Operation::Subtract, Spelling::Subtract, false),
+                "multiply" => (Operation::Multiply, Spelling::Multiply, false),
+                "divide" => (Operation::Divide, Spelling::Divide, false),
+                "equal" => (Operation::Equal, Spelling::Equal, true),
+                "not_equal" => (Operation::NotEqual, Spelling::NotEqual, true),
+                "less" => (Operation::Less, Spelling::Less, true),
+                "less_or_equal" => (Operation::LessOrEqual, Spelling::LessEqual, true),
+                "greater" => (Operation::Greater, Spelling::Greater, true),
+                "greater_or_equal" => (Operation::GreaterOrEqual, Spelling::GreaterEqual, true),
+                _ => return None,
+            };
+            if requirement.spelling != Some(spelling) {
+                return None;
+            }
+            let [left, right] = parameters else {
+                return None;
+            };
+            let primitive = self.primitive_type_reference(left.type_reference)?;
+            let format = match primitive {
+                PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
+                PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+                _ => return None,
+            };
+            if self.primitive_type_reference(right.type_reference) != Some(primitive)
+                || self.primitive_type_reference(requirement.return_type)
+                    != Some(if boolean {
+                        PrimitiveType::Bool
+                    } else {
+                        primitive
+                    })
+            {
+                return None;
+            }
+            return Some(NumericIntrinsic::FloatBinary { operation, format });
+        }
+        if requirement.spelling.is_some() {
+            return None;
+        }
+        self.numeric_requirement_execution(
+            namespace,
+            name,
+            parameters,
+            requirement.return_type,
+            None,
         )
     }
 
@@ -173,76 +335,50 @@ impl TypedTrees {
         realization: symbols::SymbolHandle,
         requirement: symbols::SymbolHandle,
     ) -> Option<NumericIntrinsic> {
-        let machine = self.machine_by_symbol(realization)?;
-        (self.sealed_numeric_realization_requirement(machine)? == requirement)
-            .then(|| self.numeric_intrinsic_execution(requirement))
-            .flatten()
+        self.sealed_numeric_realization_descriptor(realization, requirement)
+            .map(|catalogue| catalogue.execution)
     }
 
-    fn sealed_numeric_realization_requirement(
+    pub fn sealed_numeric_realization_descriptor(
         &self,
-        machine: &crate::machine::Machine,
-    ) -> Option<symbols::SymbolHandle> {
-        use language_semantics::MachineSupplyMode;
-        if machine.target_family_interface {
-            let family = self
-                .target_machine_families
-                .iter()
-                .find(|family| family.canonical == machine.symbol)?;
-            if family.members.is_empty() {
-                return None;
-            }
-            let mut requirement = None;
-            let mut targets = Vec::new();
-            for member in &family.members {
-                if targets.contains(&member.target) {
-                    return None;
-                }
-                targets.push(member.target.clone());
-                let body = self.machine_by_symbol(member.machine)?;
-                if body.target_family_interface
-                    || self.machine_authored_target(body) != Some(member.target.as_str())
-                {
-                    return None;
-                }
-                let selected = self.sealed_numeric_realization_requirement(body)?;
-                if requirement.is_some_and(|prior| prior != selected) {
-                    return None;
-                }
-                requirement = Some(selected);
-            }
-            return requirement;
-        }
-        if machine.supply_mode != MachineSupplyMode::Boundary
+        realization: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+    ) -> Option<language_semantics::numeric_intrinsics::SealedNumericRealization> {
+        use language_semantics::numeric_intrinsics::{
+            NumericInstructionSet, SealedNumericRealization,
+        };
+        let machine = self.machine_by_symbol(realization)?;
+        if machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
             || machine.body_is_present
             || !machine.lifetime_parameters.is_empty()
             || !self.machine_type_parameters(machine).is_empty()
+            || machine.attached_data.is_some()
             || machine.target_family_interface
+            || self.machine_authored_target(machine).is_some()
         {
             return None;
         }
-        let target = self.machine_authored_target(machine)?;
-        language_semantics::declaration_selection::ProductTarget::from_canonical_name(target)?;
-        let namespace = format!("core::targets::{target}::float_impl");
-        let expected_source = std::path::PathBuf::from("core/targets")
-            .join(target)
-            .join("float_impl.omg");
-        if self.symbol_toolchain_relative_path(machine.symbol)? != expected_source
-            || self
-                .normalized_hermetic_symbol_identity(machine.symbol)
-                .ok()?
-                != format!(
-                    "toolchain::FloatNativeProvider::{}::{target}",
-                    machine.name.as_str()
-                )
-        {
+        let (namespace, instruction_set, expected_source) =
+            match self.symbol_toolchain_relative_path(realization)?.to_str()? {
+                "native/arm64_float.omg" => (
+                    "core::native::arm64_float",
+                    NumericInstructionSet::Arm64,
+                    &*ARM64_CATALOGUE,
+                ),
+                "native/x86_64_float.omg" => (
+                    "core::native::x86_64_float",
+                    NumericInstructionSet::X86_64,
+                    &*X86_CATALOGUE,
+                ),
+                _ => return None,
+            };
+        if !self.numeric_catalogue_source_matches(realization, expected_source) {
             return None;
         }
-        let provider = self.symbols.symbol_module(machine.symbol);
-        if machine.attached_data.is_some()
-            || !provider.is_valid()
-            || self.symbols.get(provider).kind != symbols::SymbolKind::Module
-            || self.normalized_hermetic_symbol_identity(provider).ok()?
+        let owner = self.symbols.symbol_module(realization);
+        if !owner.is_valid()
+            || self.symbols.get(owner).kind != symbols::SymbolKind::Module
+            || self.normalized_hermetic_symbol_identity(owner).ok()?
                 != format!("toolchain::{namespace}")
         {
             return None;
@@ -253,54 +389,55 @@ impl TypedTrees {
         let [conformance] = self.machine_trait_conformances(machine) else {
             return None;
         };
-        let requirement =
-            match crate::machine::resolve_satisfied_declaration(self, machine, conformance)? {
-                crate::machine::SatisfiedDeclaration::Operator(operator) => {
-                    if !crate::operator::is_sealed_toolchain_float_operator(self, operator)
-                        && (self.symbol_toolchain_relative_path(operator.symbol)?
-                            != std::path::Path::new("core/float_operations.omg")
-                            || !self
-                                .normalized_hermetic_symbol_identity(operator.symbol)
-                                .ok()?
-                                .starts_with("toolchain::"))
-                    {
-                        return None;
+        let crate::machine::SatisfiedDeclaration::Trait {
+            definition,
+            requirement: signature,
+        } = crate::machine::resolve_satisfied_declaration(self, machine, conformance)?
+        else {
+            return None;
+        };
+        if signature.symbol != requirement
+            || !same_numeric_signature(
+                self,
+                self.state_parameters(entry),
+                entry.return_type,
+                self.state_signature_parameters(signature),
+                signature.return_type,
+            )
+        {
+            return None;
+        }
+        let execution = self.sealed_numeric_requirement(definition, signature)?;
+        let leaf = match execution {
+            NumericIntrinsic::Conversion {
+                source,
+                target,
+                domain,
+            } => {
+                let policy = if target.is_float() {
+                    ""
+                } else {
+                    match domain {
+                        numerics::arithmetic::ArithmeticDomain::Exact => "_exact",
+                        numerics::arithmetic::ArithmeticDomain::Trapping => "_trapping",
+                        numerics::arithmetic::ArithmeticDomain::Saturating => "_saturating",
+                        _ => return None,
                     }
-                    if !same_numeric_signature(
-                        self,
-                        self.state_parameters(entry),
-                        entry.return_type,
-                        self.operator_parameters(operator),
-                        operator.return_type,
-                    ) {
-                        return None;
-                    }
-                    operator.symbol
-                }
-                crate::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) => {
-                    if self.symbol_toolchain_relative_path(requirement.symbol)?
-                        != std::path::Path::new("core/float_operations.omg")
-                    {
-                        return None;
-                    }
-                    let [signature] = self.machine_states(requirement) else {
-                        return None;
-                    };
-                    if !same_numeric_signature(
-                        self,
-                        self.state_parameters(entry),
-                        entry.return_type,
-                        self.state_parameters(signature),
-                        signature.return_type,
-                    ) {
-                        return None;
-                    }
-                    requirement.symbol
-                }
-                _ => return None,
-            };
-        self.numeric_intrinsic_execution(requirement)?;
-        Some(requirement)
+                };
+                format!("from_{}_to_{}{policy}", source.name(), target.name())
+            }
+            _ => {
+                let operand = execution.signature()?.operand.name();
+                format!("{}{}", signature.name.as_str(), operand.strip_prefix('f')?)
+            }
+        };
+        if machine.name.as_str() != leaf {
+            return None;
+        }
+        Some(SealedNumericRealization {
+            execution,
+            instruction_set,
+        })
     }
 }
 

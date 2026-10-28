@@ -24,8 +24,7 @@ pub struct NumericRealization {
     pub requirement_identity: TerminalIdentityIndex,
     pub requirement_package: Option<PackageKeyIdentity>,
     pub numeric_intrinsic: language_semantics::numeric_intrinsics::NumericIntrinsic,
-    /// Legacy authored family membership, not a selected deployment target.
-    pub target: Option<String>,
+    pub instruction_set: language_semantics::numeric_intrinsics::NumericInstructionSet,
     pub realization: CheckedMachineDeclaration,
     pub realization_package: Option<PackageKeyIdentity>,
     pub provider: Option<NumericRealizationOwner>,
@@ -39,10 +38,8 @@ impl NumericRealization {
                 .text(identity)
                 .is_some_and(|text| !text.is_empty())
         };
-        if self.target.as_ref().is_some_and(String::is_empty)
-            || self.numeric_intrinsic.signature().is_none()
-        {
-            return Err("external provider has invalid target membership or numeric meaning");
+        if self.numeric_intrinsic.signature().is_none() {
+            return Err("numeric realization has invalid numeric meaning");
         }
         if ![
             self.requirement.identity(),

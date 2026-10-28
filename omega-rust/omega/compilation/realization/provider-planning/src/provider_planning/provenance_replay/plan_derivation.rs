@@ -653,7 +653,7 @@ fn checked_or_catalog_binding(
                 selected_target,
                 target_machine_origins,
             )?;
-            Some((DraftRowBinding::Bound(binding), Some(origin)))
+            Some((DraftRowBinding::Bound(binding), origin))
         }
         _ => None,
     }

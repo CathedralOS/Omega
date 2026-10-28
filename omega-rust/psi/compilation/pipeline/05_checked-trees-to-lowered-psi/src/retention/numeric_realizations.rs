@@ -71,12 +71,13 @@ pub(crate) fn project(
                 _ => vec![satisfied.symbol()],
             };
             for requirement in requirements {
-                let Some(numeric_intrinsic) =
-                    typed.sealed_numeric_realization(machine.symbol, requirement)
+                let Some(catalogue) =
+                    typed.sealed_numeric_realization_descriptor(machine.symbol, requirement)
                 else {
                     continue;
                 };
 
+                let numeric_intrinsic = catalogue.execution;
                 let callable = crate::unit::attached_unit::checked_unit_boundary_identity(
                     checked,
                     requirement,
@@ -124,7 +125,7 @@ pub(crate) fn project(
                     requirement_identity: identities.intern(&callable),
                     requirement_package: checked.symbols.symbol_package_identity(requirement),
                     numeric_intrinsic,
-                    target: typed.machine_authored_target(machine).map(str::to_owned),
+                    instruction_set: catalogue.instruction_set,
                     realization: declarations::identity(
                         identities,
                         checked,

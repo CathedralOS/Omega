@@ -768,15 +768,9 @@ fn runtime_fact_for_parameters(
             // closure and independent declaration identity. Eligibility only
             // opens the existing prefix judgment: it proves neither the
             // predicate nor its formation and termination obligations.
-            if typed_trees::operator::declaration_by_symbol(program, target).is_some_and(
-                |operator| {
-                    typed_trees::operator::is_sealed_toolchain_float_operator(program, operator)
-                        && typed_trees::operator::primitive_float_binary_semantics(
-                            program, operator,
-                        )
-                        .is_some_and(|(operation, _)| operation.is_comparison())
-                },
-            ) {
+            if typed_trees::operator::primitive_float_semantics(program, target)
+                .is_some_and(|(operation, _)| operation.is_comparison())
+            {
                 return true;
             }
             super::structural_judgment::specification_application_candidate(

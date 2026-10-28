@@ -36,7 +36,10 @@ pub use named_calls::{
     selected_named_statement_call_has_no_runtime_receiver,
 };
 pub use operand_signatures::operator_operand_signature;
-pub use primitive_float::{is_sealed_toolchain_float_operator, primitive_float_binary_semantics};
+pub use primitive_float::{
+    canonical_primitive_operator_meanings, is_sealed_toolchain_float_operator,
+    primitive_float_binary_semantics, primitive_float_semantics,
+};
 pub use primitive_integer::{builtin_integer_result_carrier, integer_peer_operand_carrier};
 pub use satisfied_operators::{
     boundary_operator_requirement_identity, resolve_satisfied_boundary_operator_for_conformance,

@@ -603,230 +603,24 @@ pub fn validate_selected_provider_bodies(
             // A normalized named call still owes its token-view signature
             // checks. Only a genuinely untokened requirement has no such view.
         }
-        let matching: Vec<_> = program
-            .operators()
-            .iter()
-            .chain(program.machine_token_bindings())
-            .filter(|operator| operator.symbol == row.requirement)
-            .collect();
-        let [operator] = matching.as_slice() else {
-            return Err("selected build-time requirement is not unique".into());
-        };
-        if !operator.is_boundary
-            || spelled_spelling.is_some_and(|spelling| operator.spelling != Some(spelling))
-        {
-            return Err(
-                "selected build-time provider requirement lost its boundary spelling".into(),
-            );
-        }
-        if !program.operator_type_parameters(operator).is_empty() {
-            return Err(
-                "selected build-time provider requirement is generic; symbolic application coverage is not part of this execution"
-                    .into(),
-            );
-        }
-        if program
-            .signature_contracts
-            .span_or_empty(operator.contracts)
-            .iter()
-            .any(|contract| contract.is_crashes())
-        {
-            return Err(
-                "selected operator crash invocations have no build-time execution support".into(),
-            );
-        }
-        if program.operator_parameters(operator).len() != row.operands.len() {
-            return Err(
-                "selected build-time provider requirement arity differs from retained operands"
-                    .into(),
-            );
-        }
-        let entry_parameters: Vec<_> = program.state_parameters(entry).iter().collect();
-        if entry_parameters.len() != row.operands.len()
-            || program.normalized_type_identity(entry.return_type)
-                != program.normalized_type_identity(operator.return_type)
-            || !program
-                .operator_parameters(operator)
-                .iter()
-                .zip(entry_parameters.iter())
-                .all(|(requirement, parameter)| {
-                    program.normalized_type_identity(requirement.type_reference)
-                        == program.normalized_type_identity(parameter.type_reference)
-                })
-        {
-            return Err(
-                "selected build-time provider entry signature differs from its requirement".into(),
-            );
-        }
-        if machine_requirement.is_some() {
-            continue;
-        }
-        let [namespace, requirement] = program.operator_path_members(operator.name) else {
-            return Err(
-                "selected build-time provider requirement has no exact namespace path".into(),
-            );
-        };
-        let conformances =
-            program
-                .machine_trait_conformances(provider)
-                .iter()
-                .filter(|conformance| {
-                    conformance.name.as_str() == namespace.as_str()
-                    && conformance.requirement.as_ref().map(|name| name.as_str())
-                        == Some(requirement.as_str())
-                    && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                        program, provider, conformance,
-                    ).is_some_and(|resolved| resolved.symbol == operator.symbol)
-                        || typed_trees::operator::resolve_specialized_checked_operator_application(
-                            program,
-                            provider,
-                            namespace.as_str(),
-                            requirement.as_str(),
-                        ).is_some_and(|(resolved, _)| resolved.symbol == operator.symbol))
-                })
-                .count();
-        if conformances != 1 {
-            return Err(
-                "selected build-time provider does not bind its requirement through exactly one checked conformance"
-                    .into(),
-            );
-        }
-    }
-    Ok(())
-}
-
-pub fn validate_selected_operators(
-    program: &TypedTrees,
-    selected: &[SelectedBuildTimeBinaryOperator],
-) -> Result<(), String> {
-    if selected
-        .iter()
-        .any(|operator| operator.has_crash_contract(program))
-    {
-        return Err(
-            "selected operator crash invocations have no build-time execution support".into(),
-        );
-    }
-    let Some(facts) = require_unique_operator_custody(
-        program,
-        selected,
-        "selected build-time operator",
-        |row| (!row.provider.is_zero()).then_some((row.expression, row.origin.machine_symbol())),
-    )?
-    else {
-        return Ok(());
-    };
-    for row in selected.iter() {
-        // All source forms address the same expression in its owning frame.
-        // Count unresolved and cross-arena occurrences too: neither can borrow
-        // another occurrence's supplied execution.
-        let occurrences = facts
-            .uses
-            .iter()
-            .filter(|(_, fact)| {
-                fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            })
-            .map(|(_, fact)| (fact.expression, fact.origin))
-            .chain(
-                facts
-                    .named_uses()
-                    .map(|fact| (fact.expression, fact.origin)),
-            )
-            .chain(
-                facts
-                    .named_requirement_uses()
-                    .map(|fact| (fact.expression, fact.origin)),
-            )
-            .filter(|(expression, origin)| {
-                *expression == row.expression
-                    && origin.machine_symbol() == row.origin.machine_symbol()
-            })
-            .count();
-        if occurrences != 1 {
-            return Err(
-                "selected build-time expression is shared by distinct current origins".into(),
-            );
-        }
-        let mut first_selection = None;
-        let mut multiple_selections = false;
-        facts.for_each_resolved_expression_selection(
-            row.expression,
-            |origin, requirement, policy, _| {
-                if origin == row.origin {
-                    if first_selection.is_none() {
-                        first_selection = Some((requirement, policy));
-                    } else {
-                        multiple_selections = true;
-                    }
-                }
-            },
-        );
-        let Some((requirement, policy)) = first_selection.filter(|_| !multiple_selections) else {
-            return Err("selected build-time operator has no unique current use".into());
-        };
-        if requirement != row.requirement || policy != row.policy {
-            return Err("selected build-time operator differs from current requirement or arithmetic policy".into());
-        }
-        let operands = match program.expression_table.expression(row.expression) {
-            ExpressionNode::Binary(binary) if binary.operator == row.operation => {
-                [binary.left, binary.right]
-            }
-            ExpressionNode::Call(call) => {
-                let [left, right] = program.expression_table.expression_handles(call.arguments)
-                else {
-                    return Err("selected build-time binary requirement has wrong arity".into());
-                };
-                [*left, *right]
-            }
-            _ => return Err("selected build-time binary expression disappeared".into()),
-        };
-        if operands != row.operands {
-            return Err(
-                "selected build-time operation differs from current authored selection".into(),
-            );
-        }
-        let matching: Vec<_> = program
-            .operators()
-            .iter()
-            .chain(program.machine_token_bindings())
-            .filter(|operator| operator.symbol == row.requirement)
-            .collect();
-        let [operator] = matching.as_slice() else {
-            return Err("selected build-time requirement is not unique".into());
-        };
-        if let Some(requirement) = program.machine(row.requirement) {
-            let [entry] = program.machine_states(requirement) else {
-                return Err("selected build-time Float requirement has no unique entry".into());
-            };
-            if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
-                || requirement.body_is_present
-                || requirement.spelling != operator.spelling
-                || entry.parameters != operator.parameters
-                || entry.return_type != operator.return_type
-                || requirement.type_parameters != operator.type_parameters
-                || requirement.contracts != operator.contracts
-            {
-                return Err(
-                    "selected build-time token view differs from its actual requirement".into(),
-                );
-            }
-        }
-        if typed_trees::operator::primitive_float_binary_semantics(program, operator)
+        let requirement = program
+            .sealed_numeric_requirement_by_symbol(row.requirement)
+            .ok_or("selected build-time requirement has no exact Core catalogue signature")?;
+        if typed_trees::operator::primitive_float_semantics(program, row.requirement)
             != Some((row.operation, row.format))
         {
             return Err(
                 "selected build-time operation has no matching sealed Float meaning".into(),
             );
         }
-        let [left, right] = program.operator_parameters(operator) else {
+        let [left, right] = requirement.parameters else {
             return Err("selected build-time binary requirement has wrong arity".into());
         };
         let primitive = match row.format {
             numerics::literals::FloatFormat::F32 => typed_trees::types::PrimitiveType::F32,
             numerics::literals::FloatFormat::F64 => typed_trees::types::PrimitiveType::F64,
         };
-        if !operator.is_boundary
-            || program.primitive_type_reference(left.type_reference) != Some(primitive)
+        if program.primitive_type_reference(left.type_reference) != Some(primitive)
             || program.primitive_type_reference(right.type_reference) != Some(primitive)
         {
             return Err(

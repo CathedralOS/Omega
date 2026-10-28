@@ -198,23 +198,30 @@ pub(crate) fn inferred_compiler_leaf_binding(
     conformance: &checked_trees::typed_trees::machine::TraitConformance,
     selected_target: Option<&str>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    inferred_numeric_compiler_leaf(
+) -> Option<(ProviderBinding, Option<SelectedTargetMachineOrigin>)> {
+    let numeric =
+        typed.sealed_numeric_realization_descriptor(machine.symbol, conformance.requirement_symbol);
+    if let Some(catalogue) = numeric {
+        let target = language_semantics::declaration_selection::ProductTarget::from_canonical_name(
+            selected_target?,
+        )?;
+        if !catalogue.instruction_set.supports(target) {
+            return None;
+        }
+        return Some((
+            ProviderBinding::CompilerIntrinsic {
+                machine: typed.machine_callable_identity_text(machine)?,
+            },
+            None,
+        ));
+    }
+    inferred_hosted_console_compiler_intrinsic(
         typed,
         machine,
         conformance,
         selected_target,
         target_machine_origins,
     )
-    .or_else(|| {
-        inferred_hosted_console_compiler_intrinsic(
-            typed,
-            machine,
-            conformance,
-            selected_target,
-            target_machine_origins,
-        )
-    })
     .or_else(|| {
         inferred_selected_target_compiler_leaf(
             typed,
@@ -224,25 +231,7 @@ pub(crate) fn inferred_compiler_leaf_binding(
             target_machine_origins,
         )
     })
-}
-
-fn inferred_numeric_compiler_leaf(
-    typed: &TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-    conformance: &checked_trees::typed_trees::machine::TraitConformance,
-    selected_target: Option<&str>,
-    target_machine_origins: &[SelectedTargetMachineOrigin],
-) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
-    typed.sealed_numeric_realization(machine.symbol, conformance.requirement_symbol)?;
-    let target = selected_target?;
-    let origin = sole_machine_origin(target_machine_origins, machine.symbol, |origin| {
-        origin.target == target
-    })?;
-    let machine = typed.machine_callable_identity_text(machine)?;
-    Some((
-        ProviderBinding::CompilerIntrinsic { machine },
-        origin.clone(),
-    ))
+    .map(|(binding, origin)| (binding, Some(origin)))
 }
 
 fn exact_catalog_i32_to_unit_signature(

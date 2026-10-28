@@ -484,28 +484,17 @@ fn derived_float_operator_constraints(
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<ConstraintBuffer> {
-    // Only calls spelled like a `Float::<op>` leaf pay declaration resolution; the
-    // name alone admits nothing — `primitive_float_binary_semantics` still
-    // re-validates the sealed namespace, spelling and parameters.
-    if !matches!(
-        call.target.as_str(),
-        "add" | "subtract" | "multiply" | "divide"
-    ) {
-        return None;
-    }
-    let owner = program.machine_holding_state(call.target_symbol)?;
-    if !matches!(
-        owner.spelling,
-        Some(language_core::operator_spelling::OperatorSpelling::Add)
-            | Some(language_core::operator_spelling::OperatorSpelling::Subtract)
-            | Some(language_core::operator_spelling::OperatorSpelling::Multiply)
-            | Some(language_core::operator_spelling::OperatorSpelling::Divide)
-    ) {
-        return None;
-    }
-    let operator = typed_trees::operator::declaration_by_symbol(program, owner.symbol)?;
     let (operation, _format) =
-        typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
+        typed_trees::operator::primitive_float_semantics(program, call.target_symbol)?;
+    if !matches!(
+        operation,
+        BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+    ) {
+        return None;
+    }
     let [left, right] = program.expression_table.expression_handles(call.arguments) else {
         return None;
     };

@@ -464,26 +464,32 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
         spelling,
         operand_types,
         program.expression_table.source_span(expression),
-    );
-    let [candidate] = candidates.as_slice() else {
+    )
+    .into_iter()
+    .map(|candidate| candidate.operator.symbol)
+    .chain(
+        typed_trees::operator::canonical_primitive_operator_meanings(
+            program,
+            spelling,
+            operand_types,
+        )
+        .into_iter()
+        .map(|meaning| meaning.requirement.symbol),
+    )
+    .collect::<Vec<_>>();
+    let [selected] = candidates.as_slice() else {
         return None;
     };
-    let operator = candidate.operator;
     if let Some(call) = program.expression_table.call_node(expression)
-        && !call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
+        && !call_targets_declaration_entry(program, call.target_symbol, *selected)
     {
         return None;
     }
-    if !operator.is_boundary
-        || !matches!(
-            typed_trees::operator::primitive_float_binary_semantics(program, operator),
-            Some((operation, _)) if operation == comparison
-        )
+    if !matches!(typed_trees::operator::primitive_float_semantics(program, *selected), Some((operation, _)) if operation == comparison)
     {
         return None;
     }
-    (crate::proof_contracts::float_projection_bindings::semantic_operations::
-        is_sealed_toolchain_float_operator(program, operator)
+    (true
         && program
             .expression_table
             .authored_selection_occurrences(expression)
@@ -498,12 +504,12 @@ pub(super) fn sealed_float_comparison_declaration_for_operands(
                             AuthoredDeclarationSelectionLateBinding::CheckedOperator,
                     )) => true,
                     Some(AuthoredDeclarationSelectionTarget::Resolved(selection)) => {
-                        selection.selected_symbol() == operator.symbol
+                        selection.selected_symbol() == *selected
                     }
                     _ => false,
                 }
             }))
-    .then_some(operator.symbol)
+    .then_some(*selected)
 }
 
 /// Read the same selected comparison inside a declaration telescope. The
@@ -524,11 +530,8 @@ pub(crate) fn guard_comparison(
                 && call.machine_arguments.is_empty()
                 && call.evidence_arguments.is_empty() =>
         {
-            let operator = program.machine_token_bindings().iter().find(|operator| {
-                call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
-            })?;
             let (operation, _) =
-                typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
+                typed_trees::operator::primitive_float_semantics(program, call.target_symbol)?;
             let [left, right] = program.expression_table.expression_handles(call.arguments) else {
                 return None;
             };

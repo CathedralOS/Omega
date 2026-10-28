@@ -3,6 +3,52 @@
 
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::FloatFormat;
+
+/// Availability of one immutable numeric catalogue realization. This is
+/// target-neutral declaration data, never a provider choice or source modifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NumericInstructionSet {
+    Arm64,
+    X86_64,
+}
+
+impl NumericInstructionSet {
+    pub const fn canonical_tag(self) -> u8 {
+        match self {
+            Self::Arm64 => 0,
+            Self::X86_64 => 1,
+        }
+    }
+
+    pub const fn from_canonical_tag(tag: u8) -> Option<Self> {
+        match tag {
+            0 => Some(Self::Arm64),
+            1 => Some(Self::X86_64),
+            _ => None,
+        }
+    }
+
+    pub const fn supports(self, target: crate::declaration_selection::ProductTarget) -> bool {
+        use crate::declaration_selection::ProductTarget as Target;
+        matches!(
+            (self, target),
+            (Self::Arm64, Target::LinuxArm64 | Target::MacosArm64)
+                | (
+                    Self::X86_64,
+                    Target::LinuxX86_64
+                        | Target::MacosX86_64
+                        | Target::WindowsX86_64
+                        | Target::UefiX86_64
+                )
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SealedNumericRealization {
+    pub execution: NumericIntrinsic,
+    pub instruction_set: NumericInstructionSet,
+}
 use symbols::BuiltinFunction;
 
 macro_rules! tagged_vocabulary {

@@ -470,12 +470,8 @@ impl Predicate<'_> {
             return Some((binary.operator, binary.left, binary.right));
         }
         let call = self.program.expression_table.call_node(expression)?;
-        let (machine, _) = crate::find_machine_by_entry_state(self.program, call.target_symbol)?;
-        let binding = self
-            .program
-            .machine_token_binding_by_symbol(machine.symbol)?;
         let (operator, format) =
-            typed_trees::operator::primitive_float_binary_semantics(self.program, binding)?;
+            typed_trees::operator::primitive_float_semantics(self.program, call.target_symbol)?;
         let expected = match self.primitive {
             PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
             PrimitiveType::F64 => numerics::literals::FloatFormat::F64,

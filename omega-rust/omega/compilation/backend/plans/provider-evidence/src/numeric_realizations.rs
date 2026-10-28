@@ -51,10 +51,10 @@ pub fn matches_numeric_selection(
     identities.text(candidate.requirement_identity)
         == Some(plan.identities.text(row.requirement_identity))
         && candidate.requirement_package == plan.schema.trait_package_identity
-        && candidate
-            .target
-            .as_ref()
-            .is_none_or(|target| *target == plan.target)
+        && language_semantics::declaration_selection::ProductTarget::from_canonical_name(
+            &plan.target,
+        )
+        .is_some_and(|target| candidate.instruction_set.supports(target))
         && identities.text(candidate.realization.callable) == Some(machine)
         && candidate.realization_package == plan.origin_package_identity
         && match &candidate.provider {

@@ -367,11 +367,26 @@ pub fn resolve_satisfied_declaration<'program>(
         let matching = if named.len() == 1 {
             named
         } else {
+            let application = crate::trait_definition::AppliedTraitScope::from_machine_conformance(
+                program,
+                machine,
+                conformance,
+            )?;
+            let actuals = program.state_parameters(entry);
             named
                 .into_iter()
                 .filter(|requirement| {
+                    let formals = program.state_signature_parameters(requirement);
                     program.normalized_result_dispatch_set(requirement.return_type)
                         == implementation_dispatch
+                        && formals.len() == actuals.len()
+                        && formals.iter().zip(actuals).all(|(formal, actual)| {
+                            formal.is_const == actual.is_const
+                                && formal.relevance == actual.relevance
+                                && formal.is_mutable == actual.is_mutable
+                                && application.type_identity(program, formal.type_reference)
+                                    == program.normalized_type_identity(actual.type_reference)
+                        })
                 })
                 .collect()
         };

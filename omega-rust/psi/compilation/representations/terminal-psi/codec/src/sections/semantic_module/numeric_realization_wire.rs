@@ -18,10 +18,7 @@ pub(super) fn encode(
     writer.bytes(&candidate.numeric_intrinsic.canonical_encoding().ok_or(
         CodecError::MalformedStructuralFoundation("invalid numeric realization meaning"),
     )?);
-    writer.boolean(candidate.target.is_some());
-    if let Some(target) = &candidate.target {
-        writer.string("external provider target membership", target)?;
-    }
+    writer.u8(candidate.instruction_set.canonical_tag());
     machine_declaration_wire::encode(writer, &candidate.realization)?;
     encode_package(writer, candidate.realization_package);
     writer.boolean(candidate.provider.is_some());
@@ -44,11 +41,13 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<NumericRealization, Code
         .ok_or(CodecError::MalformedStructuralFoundation(
             "invalid numeric realization meaning",
         ))?;
-    let target = if reader.boolean()? {
-        Some(reader.string("external provider target membership")?)
-    } else {
-        None
-    };
+    let instruction_set =
+        language_semantics::numeric_intrinsics::NumericInstructionSet::from_canonical_tag(
+            reader.u8()?,
+        )
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "unknown numeric catalogue instruction set",
+        ))?;
     let realization = machine_declaration_wire::decode(reader)?;
     let realization_package = decode_package(reader)?;
     let provider = if reader.boolean()? {
@@ -65,7 +64,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<NumericRealization, Code
         requirement_identity,
         requirement_package,
         numeric_intrinsic,
-        target,
+        instruction_set,
         realization,
         realization_package,
         provider,

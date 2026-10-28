@@ -239,7 +239,13 @@ pub fn scoped_operator_application<'program>(
                     crate::value_custody::literals::has_anonymous_numeric_results(program, operand)
                 })
         });
-    let builtin = carriers
+    let canonical = typed_trees::operator::canonical_primitive_operator_meanings(
+        program,
+        spelling,
+        operand_types,
+    );
+    let builtin = canonical.is_empty()
+        && carriers
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             scope.owner,
@@ -261,6 +267,11 @@ pub fn scoped_operator_application<'program>(
                     .map_or_else(SymbolHandle::invalid, |domain| domain.symbol),
             )
         })
+        .chain(
+            canonical
+                .iter()
+                .map(|meaning| (meaning.requirement.symbol, SymbolHandle::invalid())),
+        )
         .collect::<Vec<_>>();
     let (status, selected_symbol) = super::selection::select_scoped_candidates(
         &identities,
@@ -282,6 +293,7 @@ pub fn scoped_operator_application<'program>(
             });
         }
     }
+    candidates.extend(canonical.into_iter().map(ScopedOperatorApplication::Trait));
     ScopedOperatorResolution {
         candidates,
         status,

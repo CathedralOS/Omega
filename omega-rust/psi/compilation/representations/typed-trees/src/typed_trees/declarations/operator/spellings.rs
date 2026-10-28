@@ -244,7 +244,8 @@ pub fn has_builtin_spelled_expression_meaning(
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
         program.expression_table.source_span(expression),
-    ) && !abstract_trait_meaning
+    ) && super::canonical_primitive_operator_meanings(program, spelling, operand_types).is_empty()
+        && !abstract_trait_meaning
         && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         // Raw contracts can select an operator through a lexical implementation
         // bound before specialization publishes a selected implementation.

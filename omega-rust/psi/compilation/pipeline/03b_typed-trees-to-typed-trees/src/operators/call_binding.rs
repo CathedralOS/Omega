@@ -757,6 +757,32 @@ fn selected_call_target(
         return Ok(None);
     };
     let selected = operator_use.selected_operator_symbol;
+    if operator_use.status == CheckedOperatorResolutionStatus::Resolved
+        && let Some((owner, requirement)) = program.trait_machine_signature(selected)
+        && program
+            .sealed_numeric_requirement(owner, requirement)
+            .is_some()
+    {
+        return Ok(Some(SelectedOperatorCall {
+            entry: requirement.symbol,
+            name: requirement.name.clone(),
+            binder: SymbolHandle::invalid(),
+            collection_parameter: program
+                .state_signature_parameters(requirement)
+                .first()
+                .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                    parameter.type_reference
+                }),
+            start_parameter: program
+                .state_signature_parameters(requirement)
+                .get(1)
+                .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                    parameter.type_reference
+                }),
+            dispatch: None,
+            arguments: Box::default(),
+        }));
+    }
     if operator_use.status != CheckedOperatorResolutionStatus::Resolved
         || program.machine_token_binding_by_symbol(selected).is_none()
     {

@@ -142,10 +142,8 @@ impl SelectedBuildTimeBinaryOperator {
         policy: checked_trees::CheckedArithmeticPolicyAdapter,
         provider: checked_trees::CheckedProviderPlanCommitment,
     ) -> Result<Self, String> {
-        let operator = typed_trees::operator::declaration_by_symbol(program, requirement)
-            .ok_or("selected build-time Float requirement disappeared")?;
         let (operation, format) =
-            typed_trees::operator::primitive_float_binary_semantics(program, operator)
+            typed_trees::operator::primitive_float_semantics(program, requirement)
                 .ok_or("selected build-time operation has no matching sealed Float meaning")?;
         let operands = match program.expression_table.expression(expression) {
             typed_trees::expression::ExpressionNode::Binary(binary) => [binary.left, binary.right],
