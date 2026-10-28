@@ -1,0 +1,32 @@
+// Every private arrival supplies an integer from 0 through 255, so exact narrowing to u8 preserves its value.
+data Marks { prefix: u64; marker: u64; suffix: u64; }
+machine probe(value: u32 in Trapping, marks: &mut Marks) -> u64 {
+    transition value >= 1 && value <= 16 { true -> apply(value, &mut marks) false -> (0) }
+    machine apply(value: u32 in Trapping, marks: &mut Marks) -> u64 {
+        marks.marker = 99;
+        let added: u8 = (value + 1) as u8;
+        let subtracted: u8 = (value - 1) as u8;
+        let multiplied: u8 = (value * 16) as u8;
+        let divided: u8 = (value / 2) as u8;
+        let remainder: u8 = (value % 4) as u8;
+        let shifted_left: u8 = (value << 4) as u8;
+        let shifted_right: u8 = (value >> 1) as u8;
+        (added as u64) | ((subtracted as u64) << 8) | ((multiplied as u64) << 16)
+            | ((divided as u64) << 24) | ((remainder as u64) << 32)
+            | ((shifted_left as u64) << 40) | ((shifted_right as u64) << 48)
+    }
+}
+machine main() crashes Trap {
+    let mut first_marks: Marks = Marks { prefix: 11, marker: 0, suffix: 17 };
+    let first: u64 = probe(1, &mut first_marks);
+    let mut second_marks: Marks = Marks { prefix: 11, marker: 0, suffix: 17 };
+    let second: u64 = probe(7, &mut second_marks);
+    let mut last_marks: Marks = Marks { prefix: 11, marker: 0, suffix: 17 };
+    let last: u64 = probe(15, &mut last_marks);
+    let mut outside_marks: Marks = Marks { prefix: 11, marker: 0, suffix: 17 };
+    let outside: u64 = probe(16, &mut outside_marks);
+    let mut zero_marks: Marks = Marks { prefix: 11, marker: 0, suffix: 17 };
+    let zero: u64 = probe(0, &mut zero_marks);
+    transition first == 17596482060290u64 && second == 967583175017992u64 && last == 2234220645715472u64 && outside == 0 && zero == 0 && first_marks.marker == 99 && first_marks.prefix == 11 && first_marks.suffix == 17 && second_marks.marker == 99 && second_marks.prefix == 11 && second_marks.suffix == 17 && last_marks.marker == 99 && last_marks.prefix == 11 && last_marks.suffix == 17 && outside_marks.marker == 0 && outside_marks.prefix == 11 && outside_marks.suffix == 17 && zero_marks.marker == 0 && zero_marks.prefix == 11 && zero_marks.suffix == 17 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

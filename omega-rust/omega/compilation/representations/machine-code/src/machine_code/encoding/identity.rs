@@ -281,8 +281,7 @@ fn encode_row_contents(
     bytes: &[u8],
     footprint: Option<&SelectedFormDecodedFootprint>,
 ) {
-    hasher.u64(bytes.len() as u64);
-    hasher.raw(&bytes);
+    hasher.bytes(bytes);
     let Some(footprint) = footprint else {
         return;
     };

@@ -13,11 +13,10 @@
 use super::super::arithmetic_judgment::LowerBoundQueries;
 use super::super::{BigInt, Engine, Polynomial};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use numerics::arithmetic::ArithmeticDomain;
 use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
-
-mod policy_values;
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
@@ -40,17 +39,25 @@ struct IntegerProjectionRegistrations {
     atoms: usize,
     operations: usize,
     carrier_bounds: usize,
-    policy_values: usize,
     engine: (usize, usize, usize, usize),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OperationFormation {
+    Required,
+    /// The whole value already completed; only its mathematical expansion is
+    /// optional. Required children retain their own formation obligations.
+    CompletedValue,
 }
 
 #[derive(Clone)]
 struct ObservedOperation {
     operator: BinaryOperator,
-    primitives: [PrimitiveType; 2],
+    meaning: [(PrimitiveType, ArithmeticDomain); 2],
     operands: [Polynomial; 2],
     value: Polynomial,
     children: Range<usize>,
+    formation: OperationFormation,
     admitted: bool,
 }
 
@@ -74,7 +81,7 @@ struct IntegerObservations<'program> {
     operations: Vec<ObservedOperation>,
     carrier_bounds: Vec<ObservedCarrierBounds>,
     installed_carrier_bounds: usize,
-    policy_values: Vec<policy_values::ObservedPolicyValue>,
+    next_operation_id: usize,
 }
 
 /// Every retained comparison and operation has been independently admitted.
@@ -91,12 +98,41 @@ impl<'program> PreparedIntegerPremises<'program> {
 }
 
 impl<'program> IntegerObservations<'program> {
+    fn reset_for_goal(&mut self, prepared: &PreparedIntegerPremises<'program>) {
+        let next_operation_id = self.next_operation_id;
+        *self = prepared.for_goal();
+        self.next_operation_id = self.next_operation_id.max(next_operation_id);
+    }
+
+    fn operation_placeholder(&mut self) -> Option<Polynomial> {
+        let identity = self.next_operation_id;
+        self.next_operation_id = identity.checked_add(1)?;
+        Some(Polynomial::atom(format!("\0integer-operation:{identity}")))
+    }
+
+    fn observed_atom(
+        &mut self,
+        value: StructuralTerm,
+        primitive: PrimitiveType,
+    ) -> Option<Polynomial> {
+        let position = if let Some(position) = self.atoms.iter().position(|atom| atom == &value) {
+            position
+        } else {
+            self.atoms.push(value);
+            let position = self.atoms.len() - 1;
+            self.engine.parameter_atoms.push(atom_name(position));
+            position
+        };
+        let value = Polynomial::atom(atom_name(position));
+        self.install_observed_carrier_bounds(primitive, &value)?;
+        Some(value)
+    }
+
     fn projection_registrations(&self) -> IntegerProjectionRegistrations {
         IntegerProjectionRegistrations {
             atoms: self.atoms.len(),
             operations: self.operations.len(),
             carrier_bounds: self.carrier_bounds.len(),
-            policy_values: self.policy_values.len(),
             engine: self.engine.integer_projection_registrations(),
         }
     }
@@ -152,9 +188,9 @@ impl<'program> IntegerObservations<'program> {
     }
 
     fn admitted(&self, operations: Range<usize>) -> bool {
-        self.operations[operations]
-            .iter()
-            .all(|operation| operation.admitted)
+        self.operations[operations].iter().all(|operation| {
+            operation.admitted || operation.formation == OperationFormation::CompletedValue
+        })
     }
 
     /// Positive evidence and tri-valued judgment share this exact proof body.
@@ -200,24 +236,7 @@ impl<'program> IntegerObservations<'program> {
         }
     }
 
-    fn install_premises(
-        &mut self,
-        premises: &mut Vec<(Comparison, Range<usize>)>,
-        judge: &StructuralJudge<'_>,
-    ) -> bool {
-        loop {
-            if !self.admit_formed_premises(premises) {
-                return false;
-            }
-            match self.expand_policy_values(judge) {
-                Some(true) => {}
-                Some(false) => return true,
-                None => return false,
-            }
-        }
-    }
-
-    fn admit_formed_premises(&mut self, premises: &mut Vec<(Comparison, Range<usize>)>) -> bool {
+    fn install_premises(&mut self, premises: &mut Vec<(Comparison, Range<usize>)>) -> bool {
         if self.installed_carrier_bounds < self.carrier_bounds.len() {
             let comparisons = self.carrier_bounds[self.installed_carrier_bounds..]
                 .iter()
@@ -253,23 +272,26 @@ impl<'program> IntegerObservations<'program> {
                     continue;
                 }
                 let [left, right] = &operation.operands;
-                if operation.admitted
-                    || self.engine.integer_operation_lands(
-                        operation.operator,
-                        operation.primitives,
-                        left,
-                        right,
-                        &operation.value,
-                    )
-                {
+                if operation.admitted {
                     changed |= self.engine.install_integer_operation_bounds(
                         operation.operator,
                         left,
                         right,
                         &operation.value,
                     );
-                    changed |= !operation.admitted;
+                } else if self
+                    .engine
+                    .admit_selected_integer_operation(
+                        operation.operator,
+                        operation.meaning,
+                        left,
+                        right,
+                        Some(&operation.value),
+                    )
+                    .is_some()
+                {
                     self.operations[index].admitted = true;
+                    changed = true;
                 }
             }
             if !changed {
@@ -345,7 +367,7 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
-            policy_values: Vec::new(),
+            next_operation_id: 0,
         };
         let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
             return CarrierFit::Unknown;
@@ -379,8 +401,7 @@ impl StructuralJudge<'_> {
         };
         let goal_operations = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
-        if !observations.install_premises(&mut premises, self)
-            || !observations.admitted(goal_operations)
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
         {
             return CarrierFit::Unknown;
         }
@@ -461,7 +482,7 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
-            policy_values: Vec::new(),
+            next_operation_id: 0,
         };
         let mut remaining = 64usize;
         let alternatives =
@@ -471,8 +492,7 @@ impl StructuralJudge<'_> {
         let retained = premises.clone();
         // Only real prefix facts may admit a partial operand. Install the
         // denied question below, after all of its operations have formed.
-        if !observations.install_premises(&mut premises, self)
-            || !observations.admitted(goal_operations)
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
         {
             return None;
         }
@@ -819,20 +839,16 @@ impl StructuralJudge<'_> {
                             work.operations.clear();
                             if work.engine.integer_projection_registrations().1 != base_engine_reg.1
                             {
-                                work = prepared.for_goal();
+                                work.reset_for_goal(&prepared);
                             }
                             return Some(false);
                         }
                     };
                     let (operator, left, right) = comparison;
-                    let goal_only_linear_ops = work.operations.iter().all(|op| {
-                        matches!(
-                            op.operator,
-                            BinaryOperator::Add
-                                | BinaryOperator::Subtract
-                                | BinaryOperator::Multiply
-                        )
-                    });
+                    // Recipe placeholders have no denotation until admission.
+                    // Only operation-free goals may use the prepared engine
+                    // directly, without their own transactional worklist.
+                    let goal_has_no_operations = work.operations.is_empty();
                     if work.engine.integer_projection_registrations().1 == base_engine_reg.1
                         && !work.carrier_bounds[base_bounds..]
                             .iter()
@@ -850,7 +866,7 @@ impl StructuralJudge<'_> {
                             return Some(true);
                         }
                         if operator == BinaryOperator::Equal
-                            && goal_only_linear_ops
+                            && goal_has_no_operations
                             && left
                                 .sub(&right)
                                 .constant_value()
@@ -862,7 +878,7 @@ impl StructuralJudge<'_> {
                         }
                         if !has_premises
                             && operator == BinaryOperator::Equal
-                            && goal_only_linear_ops
+                            && goal_has_no_operations
                             && left != right
                         {
                             work.operations.clear();
@@ -870,7 +886,7 @@ impl StructuralJudge<'_> {
                         }
                         if operator == BinaryOperator::Equal
                             && work.atoms.len() > base_atoms
-                            && goal_only_linear_ops
+                            && goal_has_no_operations
                         {
                             let diff = left.sub(&right);
                             if (base_atoms..work.atoms.len()).any(|index| {
@@ -884,7 +900,7 @@ impl StructuralJudge<'_> {
                                 return Some(false);
                             }
                         }
-                        if work.carrier_bounds.len() == base_bounds && goal_only_linear_ops {
+                        if work.carrier_bounds.len() == base_bounds && goal_has_no_operations {
                             let holds = IntegerObservations::comparison_holds(
                                 &queries_and_contradictory().0,
                                 operator,
@@ -900,14 +916,14 @@ impl StructuralJudge<'_> {
                     let mut observations = work.clone();
                     work.operations.clear();
                     if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
-                        work = prepared.for_goal();
+                        work.reset_for_goal(&prepared);
                     }
                     let operations = 0..observations.operations.len();
                     let goal_has_no_operations = operations.is_empty();
                     let no_rewrites = self.has_no_rewrites();
                     // Only this goal has registered since the sealed premise context.
                     // Even an unavailable projection is discarded with this whole fork.
-                    if !observations.install_premises(&mut Vec::new(), self)
+                    if !observations.install_premises(&mut Vec::new())
                         || !observations.admitted(operations)
                     {
                         return no_rewrites.then_some(false);
@@ -932,11 +948,11 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
-            policy_values: Vec::new(),
+            next_operation_id: 0,
         };
         let mut premises = self.project_observed_integer_premises(&mut observations);
         if !premises.complete
-            || !observations.install_premises(&mut premises.comparisons, self)
+            || !observations.install_premises(&mut premises.comparisons)
             || !premises.comparisons.is_empty()
             || !observations.admitted(0..observations.operations.len())
         {
@@ -974,13 +990,13 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
-            policy_values: Vec::new(),
+            next_operation_id: 0,
         };
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
         let retained = comparisons.clone();
-        if !observations.install_premises(&mut comparisons, self)
+        if !observations.install_premises(&mut comparisons)
             || !observations.admitted(goal_operations)
         {
             return None;
@@ -1139,7 +1155,7 @@ impl StructuralJudge<'_> {
             operations: Vec::new(),
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
-            policy_values: Vec::new(),
+            next_operation_id: 0,
         };
         for capture in view
             .applications
@@ -1172,8 +1188,7 @@ impl StructuralJudge<'_> {
         }
         let goal_operations = 0..observations.operations.len();
         let mut premises = self.observed_integer_premises(&mut observations);
-        if !observations.install_premises(&mut premises, self)
-            || !observations.admitted(goal_operations)
+        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
         {
             return StructuralJudgment::Unknown;
         }
@@ -1320,8 +1335,28 @@ impl StructuralJudge<'_> {
             }
             _ => false,
         };
-        let value = self.resolve(self.completed_value_identity(value.clone()));
+        let completed = self.completed_scalar_observation(value, primitive);
+        let description = self.completed_value_identity(value.clone());
+        // Preserve the authored operation tree until each node has admitted
+        // its own children. General ring resolution may cancel an unsafe node.
+        let value = match description.semantic_value() {
+            StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. } => {
+                description
+            }
+            _ => self.resolve(description),
+        };
         let value = value.semantic_value();
+        if let Some((identity, policy)) = completed.as_ref()
+            && matches!(
+                policy,
+                ArithmeticDomain::Trapping
+                    | ArithmeticDomain::Wrapping
+                    | ArithmeticDomain::Saturating
+            )
+            && !matches!(value, StructuralTerm::ScalarBinary { .. })
+        {
+            return observations.observed_atom(identity.clone(), primitive);
+        }
         if let StructuralTerm::Integer(integer) = value {
             let value = Polynomial::constant(integer.clone());
             // Folding an independently formed operand cannot make it
@@ -1346,7 +1381,8 @@ impl StructuralJudge<'_> {
             left,
             right,
         } = value
-            && Engine::integer_operation_meaning(*operator, *meaning)
+            && (Engine::integer_operation_meaning(*operator, *meaning)
+                || Engine::integer_policy_operation_meaning(*operator, *meaning).is_some())
         {
             if ![left, right]
                 .into_iter()
@@ -1367,41 +1403,40 @@ impl StructuralJudge<'_> {
             // independently of the carrier observing the completed result.
             let left = self.integer_value(left, meaning[0].0, observations, depth + 1)?;
             let right = self.integer_value(right, meaning[1].0, observations, depth + 1)?;
-            let value = observations.engine.selected_integer_binary_value(
-                *operator,
-                *meaning,
-                left.clone(),
-                right.clone(),
-            )?;
+            let policy = Engine::integer_operation_policy(*operator, *meaning)?;
+            let completed = completed.filter(|_| {
+                matches!(
+                    policy,
+                    ArithmeticDomain::Trapping
+                        | ArithmeticDomain::Wrapping
+                        | ArithmeticDomain::Saturating
+                )
+            });
+            let (value, formation) = if let Some((completed, _)) = completed {
+                (
+                    observations.observed_atom(completed, primitive)?,
+                    OperationFormation::CompletedValue,
+                )
+            } else {
+                (
+                    observations.operation_placeholder()?,
+                    OperationFormation::Required,
+                )
+            };
             observations.operations.push(ObservedOperation {
                 operator: *operator,
-                primitives: meaning.map(|(primitive, _)| primitive),
+                meaning: *meaning,
                 operands: [left, right],
                 value: value.clone(),
                 children: start..observations.operations.len(),
+                formation,
                 admitted: false,
             });
             return Some(value);
         }
-        let position =
-            if let Some(position) = observations.atoms.iter().position(|atom| atom == value) {
-                position
-            } else {
-                observations.atoms.push(value.clone());
-                let position = observations.atoms.len() - 1;
-                observations
-                    .engine
-                    .parameter_atoms
-                    .push(atom_name(position));
-                position
-            };
-        let value = Polynomial::atom(atom_name(position));
-        // A complete observed value has its selected operand's carrier. These
-        // intrinsic bounds apply only to opaque leaves, never to a computation
-        // waiting to prove formation or to an anonymous integer literal.
-        observations.install_observed_carrier_bounds(primitive, &value)?;
-        observations.defer_policy_value(position, value.clone());
-        Some(value)
+        // Only an opaque completed leaf receives intrinsic carrier bounds;
+        // an unadmitted recipe has neither a carrier assumption nor an interval.
+        observations.observed_atom(value.clone(), primitive)
     }
 
     fn mathematical_value(
@@ -1412,6 +1447,14 @@ impl StructuralJudge<'_> {
     ) -> Option<Polynomial> {
         if depth >= 64 {
             return None;
+        }
+        if let StructuralTerm::IntegerEmbedding { reference, value } = value.semantic_value() {
+            let (primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+                self.program,
+                *reference,
+                value,
+            )?;
+            return self.integer_value(value, primitive, observations, depth + 1);
         }
         // Keep mathematical arithmetic visible to the polynomial owner. A
         // rewrite such as base + length = end may replace the complete sum

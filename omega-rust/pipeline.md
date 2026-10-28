@@ -273,6 +273,13 @@ the artifact itself, including after reload. There is no late Psi signature quer
 for these adapters. Other checked-source inputs to product coordination remain
 part of the migration; this does not claim the entire driver is source-free.
 
+Entry custody retains declared arguments and physical/semantic calling contracts,
+not synthesized service fields on an application record. Provider roots come from
+actual calls and callback demand. Selected entries, private native derivation
+records and runtime provisions carry no synthetic field-establishment roster;
+older private records reject at their schema boundary. Ordinary provider
+admission, placed-view inputs and physical entry adapters remain independent.
+
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the
 ordinary provider catalog join, which checks agreement with imported and explicit
@@ -326,6 +333,18 @@ invocation's deferred work, not the cached consumer's. Selected Product closure
 evaluates a private copy, rejoins recorded recipe identities and closes queries
 in the actual checked forest; the coordinator no longer copies constant values
 or layout tables between those forests.
+Numeric intrinsic classification has one source-owned decision: the exact
+requirement's token or named catalog row supplies both signature obligations
+and its closed execution identity. Provider planning and selected dispatch use
+that classification; diagnostic strings do not gate support. Package review
+still independently rejoins its supplied candidate to retained selection
+custody. Psi publishes numeric meaning and its exact IEEE format in canonical
+Terminal boundary declarations; native proposal creation consumes that meaning
+and reconciles it with selected-provider custody rather than inferring the format
+from a result or parameter. Portable decoding validates the complete numeric
+signature. This meaning does not select or authorize a provider. Review-only
+products still use checked source custody: moving their complete conformance
+evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not
 yet target-independent constant production or a completed Terminal-only provider
 pipeline; portable deferred recipes remain part of the migration.

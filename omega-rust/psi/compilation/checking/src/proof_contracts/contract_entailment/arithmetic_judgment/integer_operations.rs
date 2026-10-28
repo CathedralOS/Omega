@@ -76,6 +76,9 @@ impl Engine<'_> {
     /// The count is an independently completed integer, including when its
     /// own arithmetic policy is Wrapping. Bitwise AND has no overflow policy;
     /// its children still owe their individually selected formation.
+    /// Exact and Trapping operations share a candidate integer denotation when
+    /// their operands and result fit. Consumers must admit that landing before
+    /// installing any consequence; this does not alter raw policy evaluation.
     pub(in crate::proof_contracts::contract_entailment) fn integer_operation_meaning(
         operator: BinaryOperator,
         meaning: [(PrimitiveType, ArithmeticDomain); 2],
@@ -84,9 +87,11 @@ impl Engine<'_> {
         if builtin_integer_result_carrier(operator, [left, right]).is_none() {
             return false;
         }
+        let preserves_formed_value =
+            |policy| matches!(policy, ArithmeticDomain::Exact | ArithmeticDomain::Trapping);
         match operator {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
-                left_policy == ArithmeticDomain::Exact
+                preserves_formed_value(left_policy)
             }
             BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
                 true
@@ -96,9 +101,36 @@ impl Engine<'_> {
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
             | BinaryOperator::Modulo => {
-                left_policy == ArithmeticDomain::Exact && right_policy == ArithmeticDomain::Exact
+                preserves_formed_value(left_policy) && preserves_formed_value(right_policy)
             }
             _ => false,
+        }
+    }
+
+    /// Selected arithmetic combines operand policies; shifts belong to the
+    /// left value alone. Bitwise values are total regardless of these policies.
+    pub(in crate::proof_contracts::contract_entailment) fn integer_operation_policy(
+        operator: BinaryOperator,
+        meaning: [(PrimitiveType, ArithmeticDomain); 2],
+    ) -> Option<ArithmeticDomain> {
+        let [(_, left), (_, right)] = meaning;
+        match operator {
+            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => Some(left),
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+                Some(left.combine(right))
+            }
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+                if left == ArithmeticDomain::Exact
+                    || right == ArithmeticDomain::Exact
+                    || left == right =>
+            {
+                Some(left.combine(right))
+            }
+            _ => None,
         }
     }
 
@@ -109,20 +141,15 @@ impl Engine<'_> {
         operator: BinaryOperator,
         meaning: [(PrimitiveType, ArithmeticDomain); 2],
     ) -> Option<(PrimitiveType, ArithmeticDomain)> {
-        let [(left, left_policy), (right, right_policy)] = meaning;
-        let policy = left_policy.combine(right_policy);
-        if (left_policy != ArithmeticDomain::Exact
-            && right_policy != ArithmeticDomain::Exact
-            && left_policy != right_policy)
-            || !matches!(
-                policy,
-                ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
-            )
-            || !matches!(
-                operator,
-                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
-            )
-        {
+        let [(left, _), (right, _)] = meaning;
+        let policy = Self::integer_operation_policy(operator, meaning)?;
+        if !matches!(
+            policy,
+            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+        ) || !matches!(
+            operator,
+            BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+        ) {
             return None;
         }
         let primitive = builtin_integer_result_carrier(operator, [left, right])
@@ -171,18 +198,17 @@ impl Engine<'_> {
         left: Polynomial,
         right: Polynomial,
     ) -> Option<Polynomial> {
-        let value = match operator {
+        // Candidate denotation is not admission. In particular quotient and
+        // remainder laws must not enter the engine while this operation's
+        // divisor, child formation or carrier fit is still being proved.
+        match operator {
             BinaryOperator::Add => Some(left.add(&right)),
             BinaryOperator::Subtract => Some(left.sub(&right)),
             BinaryOperator::Multiply => left.checked_mul(&right),
-            BinaryOperator::Divide => self.integer_quotient(left.clone(), right.clone()),
-            BinaryOperator::Modulo => self.integer_remainder(left.clone(), right.clone(), true),
+            BinaryOperator::Divide => self.integer_quotient(left, right),
+            BinaryOperator::Modulo => self.integer_remainder(left, right, true),
             _ => None,
-        }?;
-        if matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo) {
-            self.install_integer_operation_bounds(operator, &left, &right, &value);
         }
-        Some(value)
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn integer_value_lands(
@@ -209,31 +235,28 @@ impl Engine<'_> {
         )
     }
 
-    /// Selected builtin Exact meaning and already formed children belong to the
-    /// caller. These obligations apply before any consequence of this operation
-    /// is installed; result bounds alone do not establish remainder formation.
-    pub(in crate::proof_contracts::contract_entailment) fn integer_operation_lands(
+    /// Only independently available operand facts can justify creating a
+    /// candidate. No result atom or interval exists at this admission cut.
+    fn integer_operation_inputs_land(
         &self,
         operator: BinaryOperator,
         primitives: [PrimitiveType; 2],
+        policy: ArithmeticDomain,
         left: &Polynomial,
         right: &Polynomial,
-        value: &Polynomial,
     ) -> bool {
         let [primitive, right_primitive] = primitives;
-        let Some(result) = builtin_integer_result_carrier(operator, primitives) else {
-            return false;
-        };
-        if !self.integer_value_lands(primitive, left)
+        if builtin_integer_result_carrier(operator, primitives).is_none()
+            || !self.integer_value_lands(primitive, left)
             || !self.integer_value_lands(right_primitive, right)
-            || !self.integer_value_lands(result, value)
         {
             return false;
         }
         if matches!(
             operator,
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-        ) {
+        ) && policy != ArithmeticDomain::Wrapping
+        {
             let Some(bits) =
                 crate::proof_contracts::arithmetic_domains::integer_bit_width(primitive)
             else {
@@ -261,6 +284,7 @@ impl Engine<'_> {
                 return false;
             };
             if minimum < 0
+                && matches!(policy, ArithmeticDomain::Exact | ArithmeticDomain::Trapping)
                 && !positive
                 && !self.prove_at_least(&negative, &BigInt::from_i64(2))
                 && !self.prove_at_least(
@@ -272,6 +296,95 @@ impl Engine<'_> {
             }
         }
         true
+    }
+
+    /// Build and publish one selected operation transactionally. Failed
+    /// operand, definedness or result judgments leave the original engine
+    /// unchanged, including opaque intervals and contradiction state.
+    pub(in crate::proof_contracts::contract_entailment) fn admit_selected_integer_operation(
+        &mut self,
+        operator: BinaryOperator,
+        meaning: [(PrimitiveType, ArithmeticDomain); 2],
+        left: &Polynomial,
+        right: &Polynomial,
+        binding: Option<&Polynomial>,
+    ) -> Option<Polynomial> {
+        let primitives = meaning.map(|(primitive, _)| primitive);
+        let policy = Self::integer_operation_policy(operator, meaning)?;
+        if !self.integer_operation_inputs_land(operator, primitives, policy, left, right) {
+            return None;
+        }
+        let result = builtin_integer_result_carrier(operator, primitives)?;
+        let mut admitted = self.clone();
+        let left_value = admitted.substituted(left);
+        let mut right_value = admitted.substituted(right);
+        if policy == ArithmeticDomain::Wrapping
+            && matches!(
+                operator,
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+            )
+        {
+            let width = crate::proof_contracts::arithmetic_domains::integer_bit_width(result)?;
+            let count_bits =
+                crate::proof_contracts::arithmetic_domains::integer_bit_width(primitives[1])?
+                    as u32;
+            // Every builtin width is a power of two. The low count bits are
+            // Euclidean modulo width for signed and unsigned carrier values,
+            // including a negative signed count. This is language semantics,
+            // never an ISA-mask substitute for an Exact/Saturating count proof.
+            right_value = admitted.integer_bitwise(
+                BinaryOperator::BitwiseAnd,
+                right_value,
+                Polynomial::constant(BigInt::from_i64(width - 1)),
+                count_bits,
+                primitives[1].is_signed_integer(),
+            )?;
+        }
+        let effective_right = right_value.clone();
+        let value = if Self::integer_operation_meaning(operator, meaning) {
+            admitted.selected_integer_binary_value(operator, meaning, left_value, right_value)?
+        } else {
+            // Source formation can carry an explicitly selected Wrapping or
+            // Saturating operation. Preserve that policy's actual value; this
+            // does not make its unbounded candidate an Exact recipe.
+            if !matches!(
+                policy,
+                ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+            ) {
+                return None;
+            }
+            let candidate = match operator {
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
+                    let bits =
+                        crate::proof_contracts::arithmetic_domains::integer_bit_width(result)?
+                            as u32;
+                    if operator == BinaryOperator::ShiftLeft {
+                        admitted.integer_shift_left(left_value, right_value, bits)?
+                    } else {
+                        admitted.integer_shift_right(left_value, right_value, bits)?
+                    }
+                }
+                _ => admitted.integer_binary_value(operator, left_value, right_value)?,
+            };
+            admitted.integer_policy_value(result, policy, candidate)?
+        };
+        if !admitted.integer_value_lands(result, &value) {
+            return None;
+        }
+        // Shift consequences refer to the reduced count, not a discarded
+        // positive multiple of width whose actual shift is zero.
+        admitted.install_integer_operation_bounds(operator, left, &effective_right, &value);
+        if let Some(binding) = binding
+            && !admitted.install_hypotheses(vec![(
+                BinaryOperator::Equal,
+                binding.clone(),
+                value.clone(),
+            )])
+        {
+            return None;
+        }
+        *self = admitted;
+        Some(value)
     }
 
     /// Correlated consequences of an independently admitted integer operation.
@@ -323,5 +436,143 @@ impl Engine<'_> {
             return true;
         }
         false
+    }
+}
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+
+    fn constant(value: i64) -> Polynomial {
+        Polynomial::constant(BigInt::from_i64(value))
+    }
+
+    #[test]
+    fn exact_peers_preserve_combined_finite_policy() {
+        let program = typed_trees::TypedTrees::default();
+        for (policy, expected) in [
+            (ArithmeticDomain::Wrapping, 4),
+            (ArithmeticDomain::Saturating, 255),
+        ] {
+            for policies in [
+                [ArithmeticDomain::Exact, policy],
+                [policy, ArithmeticDomain::Exact],
+            ] {
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let result = engine
+                    .admit_selected_integer_operation(
+                        BinaryOperator::Add,
+                        policies.map(|policy| (PrimitiveType::U8, policy)),
+                        &constant(250),
+                        &constant(10),
+                        None,
+                    )
+                    .expect("Exact is neutral in the selected finite policy");
+                assert_eq!(result.constant_value(), Some(BigInt::from_i64(expected)));
+            }
+        }
+        assert_eq!(
+            Engine::integer_operation_policy(
+                BinaryOperator::Add,
+                [
+                    (PrimitiveType::U8, ArithmeticDomain::Wrapping),
+                    (PrimitiveType::U8, ArithmeticDomain::Saturating)
+                ],
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn signed_quotient_overflow_follows_selected_policy() {
+        let program = typed_trees::TypedTrees::default();
+        for (policy, quotient) in [
+            (ArithmeticDomain::Exact, None),
+            (ArithmeticDomain::Trapping, None),
+            (ArithmeticDomain::Wrapping, Some(-128)),
+            (ArithmeticDomain::Saturating, Some(127)),
+        ] {
+            for (operator, expected) in [
+                (BinaryOperator::Divide, quotient),
+                (BinaryOperator::Modulo, quotient.map(|_| 0)),
+            ] {
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let result = engine.admit_selected_integer_operation(
+                    operator,
+                    [(PrimitiveType::I8, policy); 2],
+                    &constant(-128),
+                    &constant(-1),
+                    None,
+                );
+                assert_eq!(
+                    result.and_then(|value| value.constant_value()),
+                    expected.map(BigInt::from_i64)
+                );
+            }
+            let mut engine = Engine::for_explicit_bindings(&program);
+            let before = engine.integer_projection_registrations();
+            assert!(
+                engine
+                    .admit_selected_integer_operation(
+                        BinaryOperator::Modulo,
+                        [(PrimitiveType::I8, policy); 2],
+                        &constant(7),
+                        &constant(0),
+                        None,
+                    )
+                    .is_none()
+            );
+            assert_eq!(before, engine.integer_projection_registrations());
+        }
+    }
+
+    #[test]
+    fn wrapping_shifts_reduce_signed_counts_without_false_descent() {
+        let program = typed_trees::TypedTrees::default();
+        for (operator, value, count, expected) in [
+            (BinaryOperator::ShiftLeft, 1, 8, 1),
+            (BinaryOperator::ShiftLeft, 1, -1, 128),
+            (BinaryOperator::ShiftRight, 7, 8, 7),
+        ] {
+            let mut engine = Engine::for_explicit_bindings(&program);
+            let result = engine
+                .admit_selected_integer_operation(
+                    operator,
+                    [
+                        (PrimitiveType::U8, ArithmeticDomain::Wrapping),
+                        (PrimitiveType::I8, ArithmeticDomain::Exact),
+                    ],
+                    &constant(value),
+                    &constant(count),
+                    None,
+                )
+                .expect("wrapping count has a defined Euclidean reduction");
+            assert_eq!(result.constant_value(), Some(BigInt::from_i64(expected)));
+            if operator == BinaryOperator::ShiftRight {
+                assert!(
+                    !engine.prove_at_least(&constant(value).sub(&result), &BigInt::from_i64(1))
+                );
+            }
+        }
+        for policy in [
+            ArithmeticDomain::Exact,
+            ArithmeticDomain::Trapping,
+            ArithmeticDomain::Saturating,
+        ] {
+            let mut engine = Engine::for_explicit_bindings(&program);
+            assert!(
+                engine
+                    .admit_selected_integer_operation(
+                        BinaryOperator::ShiftLeft,
+                        [
+                            (PrimitiveType::U8, policy),
+                            (PrimitiveType::I8, ArithmeticDomain::Wrapping)
+                        ],
+                        &constant(1),
+                        &constant(8),
+                        None,
+                    )
+                    .is_none()
+            );
+        }
     }
 }

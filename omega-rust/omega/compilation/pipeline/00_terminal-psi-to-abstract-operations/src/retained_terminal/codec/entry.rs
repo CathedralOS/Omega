@@ -1,17 +1,64 @@
 //! Declaration-only entry recovery. Runtime loans and backing never enter this record.
-use super::records::record_fields;
 use super::value::{
     RecordError, RecordReader, RecordValue, RecordWriter, write_text, write_values,
 };
 use program_entry_plan::*;
-use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
+use terminal_psi::TerminalIdentityTable;
+
+#[cfg(test)]
+mod tests {
+    use super::super::value::RecordLimits;
+    use super::*;
+
+    #[test]
+    fn entry_record_round_trip_preserves_declaration_without_synthetic_fields() {
+        let mut identities = TerminalIdentityTable::default().into_builder();
+        let callable = identities.intern("fixture::start");
+        let source = SelectedProgramEntrySignature::from_checked_declaration(
+            target::TargetProfile::host().program_entry_slot(),
+            "fixture::start".to_owned(),
+            "start".to_owned(),
+            "start".to_owned(),
+            callable,
+            Vec::new(),
+            identities.build(),
+        )
+        .expect("free hosted entry signature");
+        let entry = crate::NativeProgramEntrySettlement::new(&source, None);
+        let mut output = RecordWriter::new(RecordLimits::default());
+        EntryRecord::write_borrowed(entry, &mut output).expect("entry encoding");
+        let bytes = output.finish();
+        let mut input =
+            RecordReader::new(&bytes, RecordLimits::default()).expect("bounded entry bytes");
+        let recovered = EntryRecord::read(&mut input).expect("entry decoding");
+        input.finish().expect("complete entry consumption");
+        assert_eq!(recovered.source, source);
+        assert!(recovered.semantic.is_none());
+        assert!(recovered.physical.is_none());
+        assert!(recovered.storage.is_none());
+        assert!(recovered.checked.is_none());
+        assert!(!recovered.physical_adapter_requested);
+        let mut output = RecordWriter::new(RecordLimits::default());
+        EntryRecord::write_borrowed(recovered.borrowed(), &mut output)
+            .expect("recovered entry encoding");
+        assert_eq!(output.finish(), bytes);
+
+        for length in 0..bytes.len() {
+            let mut input = RecordReader::new(&bytes[..length], RecordLimits::default())
+                .expect("bounded truncated input");
+            assert!(
+                EntryRecord::read(&mut input).is_err(),
+                "accepted prefix {length}"
+            );
+        }
+    }
+}
 
 pub(super) struct EntryRecord {
     pub source: SelectedProgramEntrySignature,
     pub semantic: Option<calling_conventions::BoundaryCallingApplication>,
     pub physical: Option<calling_conventions::BoundaryCallingApplication>,
     pub storage: Option<SelectedProgramStorageEntryPlan>,
-    pub fused: Vec<ProgramEntryFusedServiceEstablishment>,
     pub checked: Option<terminal_psi::CheckedProgramEntryTerminalReceipt>,
     pub physical_adapter_requested: bool,
 }
@@ -23,7 +70,6 @@ impl EntryRecord {
             semantic_calling_application: self.semantic.as_ref(),
             physical_calling_application: self.physical.as_ref(),
             storage_entry: self.storage.as_ref(),
-            fused_service_establishments: &self.fused,
             checked_entry: self.checked.as_ref(),
             physical_adapter: None,
         }
@@ -36,10 +82,6 @@ impl EntryRecord {
         write_optional_ref(entry.semantic_calling_application(), output)?;
         write_optional_ref(entry.physical_calling_application(), output)?;
         write_optional_ref(entry.storage_entry(), output)?;
-        output.sequence(entry.fused_service_establishments().len())?;
-        for row in entry.fused_service_establishments() {
-            FusedRecord::from(row).write(output)?;
-        }
         write_optional_ref(entry.checked_entry, output)?;
         entry.physical_adapter().is_some().write(output)
     }
@@ -48,30 +90,11 @@ impl EntryRecord {
         let semantic = RecordValue::read(input)?;
         let physical = RecordValue::read(input)?;
         let storage = RecordValue::read(input)?;
-        let records = Vec::<FusedRecord>::read(input)?;
-        let mut identities = source.identities().clone().into_builder();
-        let mut fused = Vec::with_capacity(records.len());
-        input.allocate(
-            records
-                .len()
-                .saturating_mul(std::mem::size_of::<ProgramEntryFusedServiceEstablishment>()),
-        )?;
-        for record in records {
-            fused.push(
-                record
-                    .recover(source.identities(), &mut identities)
-                    .map_err(|reason| input.error(reason))?,
-            );
-        }
-        if identities.build() != *source.identities() {
-            return Err(input.error("Fused establishment changed its entry identity table"));
-        }
         Ok(Self {
             source,
             semantic,
             physical,
             storage,
-            fused,
             checked: RecordValue::read(input)?,
             physical_adapter_requested: RecordValue::read(input)?,
         })
@@ -261,106 +284,5 @@ impl RecordValue for SelectedProgramStorageEntryPlan {
                 .with_physical_contract(physical)
                 .map_err(|reason| input.error(reason.to_string())),
         }
-    }
-}
-
-#[derive(PartialEq, Eq)]
-struct FusedRecord {
-    source_signature: [u8; 32],
-    target: target::TargetProfile,
-    receiver: TerminalIdentityIndex,
-    attachment: TerminalIdentityIndex,
-    field: TerminalIdentityIndex,
-    path: Vec<TerminalIdentityIndex>,
-    carrier: TerminalIdentityIndex,
-    carrier_base: TerminalIdentityIndex,
-    requirement: TerminalIdentityIndex,
-    schema: effects::provider_plan::ServiceSchemaDigest,
-    provider: effects::provider_plan::ProviderPlanDigest,
-    application: usize,
-    receiving: Vec<ProgramEntryReceivingRequirement>,
-}
-record_fields!(FusedRecord {
-    source_signature,
-    target,
-    receiver,
-    attachment,
-    field,
-    path,
-    carrier,
-    carrier_base,
-    requirement,
-    schema,
-    provider,
-    application,
-    receiving
-});
-record_fields!(ProgramEntryReceivingRequirement {
-    source_requirement,
-    requirement,
-    candidate,
-    provider_declaration,
-    receiving_application,
-    receiving_regions
-});
-
-impl From<&ProgramEntryFusedServiceEstablishment> for FusedRecord {
-    fn from(row: &ProgramEntryFusedServiceEstablishment) -> Self {
-        Self {
-            source_signature: row.source_signature_identity().bytes(),
-            target: row.target_slot().owner,
-            receiver: row.receiver_type_identity(),
-            attachment: row.attachment_type_identity(),
-            field: row.field_identity(),
-            path: row.field_path().to_vec(),
-            carrier: row.carrier_type_identity(),
-            carrier_base: row.carrier_base_identity(),
-            requirement: row.requirement_identity(),
-            schema: row.service_schema_digest(),
-            provider: row.selected_provider_plan_digest(),
-            application: row.receiver_application_index(),
-            receiving: row.receiving_requirements().to_vec(),
-        }
-    }
-}
-impl FusedRecord {
-    fn recover(
-        self,
-        table: &TerminalIdentityTable,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    ) -> Result<ProgramEntryFusedServiceEstablishment, String> {
-        let text = |identity| {
-            table
-                .text(identity)
-                .filter(|text| !text.is_empty())
-                .map(str::to_owned)
-                .ok_or_else(|| {
-                    "Fused establishment has an absent or out-of-range identity".to_owned()
-                })
-        };
-        let recovered = ProgramEntryFusedServiceEstablishment::new(
-            ProgramEntrySignatureIdentity::from_bytes(self.source_signature),
-            self.target.program_entry_slot(),
-            self.receiver,
-            text(self.attachment)?,
-            text(self.field)?,
-            self.path
-                .iter()
-                .map(|identity| text(*identity))
-                .collect::<Result<Vec<_>, _>>()?,
-            text(self.carrier)?,
-            text(self.carrier_base)?,
-            text(self.requirement)?,
-            self.schema,
-            self.provider,
-            self.application,
-            self.receiving.clone(),
-            identities,
-        )
-        .map_err(str::to_owned)?;
-        if FusedRecord::from(&recovered) != self {
-            return Err("Fused establishment changed its retained coordinates".to_owned());
-        }
-        Ok(recovered)
     }
 }

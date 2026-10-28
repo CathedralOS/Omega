@@ -76,10 +76,8 @@ pub fn artifact_identity(
         hasher.raw(&action.new_offset.to_le_bytes());
         hasher.raw(&action.old_displacement.to_le_bytes());
         hasher.raw(&action.new_displacement.to_le_bytes());
-        hasher.u64(action.old_bytes.len() as u64);
-        hasher.raw(&action.old_bytes);
-        hasher.u64(action.new_bytes.len() as u64);
-        hasher.raw(&action.new_bytes);
+        hasher.bytes(&action.old_bytes);
+        hasher.bytes(&action.new_bytes);
     }
     encode_functions(&mut hasher, functions);
     X86BranchRelaxationIdentity::from_bytes(hasher.finish())
@@ -114,8 +112,7 @@ fn encode_functions(
                     row.alternative,
                 );
                 hasher.raw(&row.offset.to_le_bytes());
-                hasher.u64(row.bytes.len() as u64);
-                hasher.raw(&row.bytes);
+                hasher.bytes(&row.bytes);
                 match row.branch.as_deref() {
                     None => hasher.byte(0),
                     Some(crate::ResolvedBranchEvidence::Conditional(branch)) => {

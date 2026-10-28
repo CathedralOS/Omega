@@ -2,9 +2,7 @@
 
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    Block, StructuralArgument, StructuralParameterDeclaration, TerminalMachine, Terminator,
-};
+use terminal_psi::{Block, StructuralParameterDeclaration, TerminalMachine};
 
 /// Qualification metadata does not add descriptor words. Only element views
 /// carry universal child rows; byte descriptors retain their whole predicates.
@@ -287,15 +285,15 @@ pub fn projection_before_edge<'edge>(
             path: &[],
         });
     };
-    if reaches_by_case(predecessor, block) {
+    if crate::control_graph::reaches_by_case(predecessor, block) {
         return None;
     }
     let mut forwarded = None;
-    for (target, arguments) in forwarded_bindings(predecessor) {
-        if target != block {
+    for binding in crate::control_graph::forwarded_bindings(predecessor) {
+        if binding.target != block {
             continue;
         }
-        let argument = arguments.get(position as usize)?;
+        let argument = binding.structural_arguments.get(position as usize)?;
         let projection = terminal_psi::OperationProjection {
             root: argument.place,
             path: &argument.path,
@@ -306,13 +304,6 @@ pub fn projection_before_edge<'edge>(
         forwarded = Some(projection);
     }
     forwarded
-}
-
-/// Whether `predecessor` reaches `block` by a structural-case edge, which
-/// declares payload fields instead of forwarding the block's parameters.
-fn reaches_by_case(predecessor: &Block, block: BlockId) -> bool {
-    matches!(&predecessor.terminator, Terminator::StructuralCase { cases, .. }
-        if cases.iter().any(|successor| successor.target == block))
 }
 
 /// Candidate names of the storage at a use, grouped by predecessor block.
@@ -349,36 +340,14 @@ pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -
             continue;
         }
         for predecessor in &machine.blocks {
-            let reaches = reaches_by_case(predecessor, block)
-                || forwarded_bindings(predecessor)
+            let reaches = crate::control_graph::reaches_by_case(predecessor, block)
+                || crate::control_graph::forwarded_bindings(predecessor)
                     .iter()
-                    .any(|(target, _)| *target == block);
+                    .any(|binding| binding.target == block);
             if reaches && let Some(before) = root_before_edge(machine, block, predecessor, root) {
                 pending.push((predecessor.id, before));
             }
         }
     }
     StorageNames { behind }
-}
-
-/// Each edge out of `predecessor` that forwards the target block's structural
-/// parameters, as the target and its positional bindings. A structural-case
-/// edge is absent: it declares payload fields instead of forwarding them.
-fn forwarded_bindings(predecessor: &Block) -> Vec<(BlockId, &[StructuralArgument])> {
-    match &predecessor.terminator {
-        Terminator::Jump {
-            target,
-            structural_arguments,
-            ..
-        } => vec![(*target, structural_arguments.as_slice())],
-        Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|successor| (successor.target, successor.structural_arguments.as_slice()))
-            .collect(),
-        _ => Vec::new(),
-    }
 }

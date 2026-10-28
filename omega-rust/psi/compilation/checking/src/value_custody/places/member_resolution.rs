@@ -3,7 +3,7 @@
 //! qualified fields inside the selected case so borrow and Terminal consumers
 //! see the same Case/Field path; never repair a conflicting retained identity.
 
-use super::declared_symbols::first_valid_name_path_symbol;
+use super::declared_symbols::{data_member_symbol_by_name, first_valid_name_path_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -991,36 +991,4 @@ pub fn symbol_type_symbol(
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     symbol_type_position(program, symbol).map(|position| position_leaf_symbol(program, position))
-}
-
-/// Member or payload field a name resolves to inside a data definition —
-/// fields and variants share the namespace.
-fn data_member_symbol_by_name(
-    program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-    member_name: &str,
-) -> Option<SymbolHandle> {
-    for member in program.data_members(data) {
-        match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
-                return Some(field.symbol);
-            }
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == member_name =>
-            {
-                return Some(variant.symbol);
-            }
-            typed_trees::data::DataMember::Variant(variant) => {
-                if let Some(field) = program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.name.as_str() == member_name)
-                {
-                    return Some(field.symbol);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }

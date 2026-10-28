@@ -1,7 +1,8 @@
-use super::operator_validation::{type_reference_is_array, type_reference_is_text_carrier};
+use super::operator_validation::type_reference_is_text_carrier;
 use super::value_classification::{
     ValueClass, concrete_data_type_name, value_class, value_concrete_data_name,
 };
+use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -29,7 +30,7 @@ pub(super) fn value_shape_is_array(
         }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             crate::value_custody::places::declared_place_type(program, machine, state, value)
-                .map(|type_reference| type_reference_is_array(program, type_reference))
+                .map(|type_reference| type_reference_is_collection(program, type_reference))
         }
         _ => None,
     }
@@ -74,7 +75,7 @@ pub(crate) fn report_array_scalar_shape_mismatch(
     let Some(value_is_array) = value_shape_is_array(program, machine, state, value) else {
         return false;
     };
-    if value_is_array == type_reference_is_array(program, target_type) {
+    if value_is_array == type_reference_is_collection(program, target_type) {
         return false;
     }
     diagnostics.push(Diagnostic::error(if value_is_array {

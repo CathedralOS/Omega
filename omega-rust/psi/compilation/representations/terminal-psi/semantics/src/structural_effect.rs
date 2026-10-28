@@ -335,8 +335,16 @@ macro_rules! structural_effect_rows {
             ];
         }
 
-        const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
-            matches!(tag, $( OperationSemanticTag::$tag )|+)
+        crate::semantic_rows::operation_semantic_cohort! {
+            rows: StructuralEffectSemanticRow,
+            tags: STRUCTURAL_EFFECT_TAGS,
+            is_tag: is_structural_effect_tag,
+            exact_row: exact_structural_effect_semantic_row_in,
+            reject_unexpected: reject_unexpected_structural_effect_rows,
+            missing: MissingStructuralEffectRow,
+            duplicate: DuplicateStructuralEffectRow,
+            unexpected: UnexpectedStructuralEffectRow,
+            $( $tag ),+
         }
     };
     (@count $( $variant:ident )+) => {
@@ -386,23 +394,6 @@ structural_effect_rows! {
     EstablishNativeCodeLayout => (Structural, ExactRecord, EstablishNativeCodeLayout, None, AddsOwnedPlace),
 }
 
-pub fn exact_structural_effect_semantic_row_in(
-    tag: OperationSemanticTag,
-    rows: &[StructuralEffectSemanticRow],
-) -> Result<Option<&StructuralEffectSemanticRow>, OperationSemanticError> {
-    if !is_structural_effect_tag(tag) {
-        return Ok(None);
-    }
-    crate::semantic_rows::exactly_one_row_for_tag(
-        rows,
-        tag,
-        |row| row.tag,
-        OperationSemanticError::MissingStructuralEffectRow,
-        OperationSemanticError::DuplicateStructuralEffectRow,
-    )
-    .map(Some)
-}
-
 pub fn structural_effect_semantic_row(
     operation: &OperationKind,
 ) -> Result<Option<&'static StructuralEffectSemanticRow>, OperationSemanticError> {
@@ -416,52 +407,8 @@ pub fn structural_effect_semantic_row(
 pub fn validate_structural_effect_semantic_rows(
     rows: &[StructuralEffectSemanticRow],
 ) -> Result<(), OperationSemanticError> {
-    for row in rows {
-        if !is_structural_effect_tag(row.tag) {
-            return Err(OperationSemanticError::UnexpectedStructuralEffectRow(
-                row.tag,
-            ));
-        }
-    }
-    for tag in [
-        OperationSemanticTag::EstablishPlacedReference,
-        OperationSemanticTag::EstablishReference,
-        OperationSemanticTag::ReleaseReference,
-        OperationSemanticTag::EstablishPrimitiveLocal,
-        OperationSemanticTag::PrimitiveScalarRead,
-        OperationSemanticTag::StorageAddress,
-        OperationSemanticTag::StructuralCaseMembership,
-        OperationSemanticTag::WriteOnlyPrimitiveStore,
-        OperationSemanticTag::StructuralScalarFieldStore,
-        OperationSemanticTag::StructuralByteSequenceFieldStore,
-        OperationSemanticTag::StructuralByteViewFieldStore,
-        OperationSemanticTag::ByteSequenceStore,
-        OperationSemanticTag::StructuralByteSequenceFieldLength,
-        OperationSemanticTag::StructuralByteSequenceFieldByteStore,
-        OperationSemanticTag::StructuralByteSequenceFieldRead,
-        OperationSemanticTag::EstablishScalarCase,
-        OperationSemanticTag::EstablishStructuralCase,
-        OperationSemanticTag::EstablishScalarArray,
-        OperationSemanticTag::EstablishByteSequenceLiteral,
-        OperationSemanticTag::ByteSequenceLength,
-        OperationSemanticTag::ByteSequenceRead,
-        OperationSemanticTag::ByteSequenceWrite,
-        OperationSemanticTag::ByteSequenceSubslice,
-        OperationSemanticTag::ByteSequencePredicate,
-        OperationSemanticTag::ByteSequenceEqual,
-        OperationSemanticTag::EstablishElementView,
-        OperationSemanticTag::EstablishMutableElementView,
-        OperationSemanticTag::ElementViewLength,
-        OperationSemanticTag::ElementViewRead,
-        OperationSemanticTag::ElementViewSubslice,
-        OperationSemanticTag::ElementViewWrite,
-        OperationSemanticTag::BooleanStructuralField,
-        OperationSemanticTag::ScalarStructuralField,
-        OperationSemanticTag::PortWrite,
-        OperationSemanticTag::EstablishTrivialAffineLocal,
-        OperationSemanticTag::EstablishStructuralArray,
-        OperationSemanticTag::EstablishRecord,
-    ] {
+    reject_unexpected_structural_effect_rows(rows)?;
+    for tag in STRUCTURAL_EFFECT_TAGS {
         let row = exact_structural_effect_semantic_row_in(tag, rows)?
             .expect("the requested tag belongs to the structural/effect cohort");
         validate_structural_effect_schema(tag, row.schema)?;

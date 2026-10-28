@@ -8,7 +8,7 @@
 //! provider custody, `settlement_identity.rs` names settlements, and `hashing.rs`
 //! encodes every identity.
 
-mod evidence;
+pub(crate) mod evidence;
 mod foreign_calls;
 pub(crate) mod hashing;
 mod hosted_builtins;

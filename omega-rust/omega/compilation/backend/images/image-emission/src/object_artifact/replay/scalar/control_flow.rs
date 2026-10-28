@@ -11,6 +11,7 @@ use machine_code::{
 use semantic_vocabulary::MachineId;
 use target::Architecture;
 
+use crate::order::strictly_increasing;
 use crate::{ObjectError, ObjectScalarStack};
 
 /// Recover the current physical graph from exact semantic edge intervals.
@@ -255,10 +256,7 @@ pub(crate) fn validate_stack(
     validate_topology(architecture, machine, bytes, blocks)?;
     if evidence.cleanup_preservation.is_some()
         || evidence.stack_alignment != 16
-        || evidence
-            .mutations
-            .windows(2)
-            .any(|pair| pair[0].offset >= pair[1].offset)
+        || !strictly_increasing(&evidence.mutations, |row| row.offset)
     {
         return Err(ObjectError::InvalidScalarStackEvidence { machine, offset: 0 });
     }
