@@ -513,7 +513,7 @@ narrows realization only.
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/{boundary_application_settlement.rs,provider_admission/compiler_builtins.rs}`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
   - Convert the remaining install-phase joins in `execution_settlement.rs`
-    (selected dispatch, task activation, component progress, intrinsic review,
+    (selected dispatch, component progress, intrinsic review,
     fused entry establishments, and deferred constant recipes for
     arrays/const-generics) from typed/checked records to canonical Terminal Psi
     plus target Build rows, and replace provisional completion-role nomination

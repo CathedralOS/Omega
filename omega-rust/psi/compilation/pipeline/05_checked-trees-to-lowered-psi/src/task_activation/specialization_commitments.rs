@@ -1,9 +1,9 @@
 //! Exact task machine contracts and specialization commitments.
 
-use crate::task_plans::start_selections::{TaskStartSelection, unique_task_activation_target};
+use crate::task_activation::start_selections::{TaskStartSelection, unique_task_activation_target};
 use checked_trees::typed_trees::type_identity::TypeIdentityRequest;
 use diagnostics::Diagnostic;
-use task_plans::{TaskSpecializationCommitment, TaskStartOperation};
+use terminal_psi::TerminalTaskStartOperation as TaskStartOperation;
 
 pub(crate) fn exact_task_machine_contract<'program>(
     check_facts: &'program checked_trees::CheckFacts,
@@ -36,7 +36,7 @@ pub(crate) fn task_specialization_commitment<'program>(
     target_entry: &checked_trees::state::State,
     target_contract: &checked_trees::MachineContractPlan,
     requirement_identity: &str,
-) -> Result<TaskSpecializationCommitment, Vec<Diagnostic>> {
+) -> Result<[u8; 32], Vec<Diagnostic>> {
     let requirement_owner = typed
         .trait_definition_by_symbol(selection.requirement_owner)
         .ok_or_else(|| {
@@ -137,7 +137,7 @@ impl ExactSpecializationEncoder {
     }
 
     fn string(&mut self, value: &str) {
-        self.0.string(value);
+        self.0.bytes(value.as_bytes());
     }
 
     fn bytes(&mut self, value: &[u8]) {
@@ -145,7 +145,10 @@ impl ExactSpecializationEncoder {
     }
 
     fn strings(&mut self, values: &[String]) {
-        self.0.strings(values);
+        self.length(values.len());
+        for value in values {
+            self.string(value);
+        }
     }
 
     fn digest(&mut self, value: [u8; 32]) {
@@ -163,7 +166,13 @@ impl ExactSpecializationEncoder {
     }
 
     fn optional_string(&mut self, value: Option<&str>) {
-        self.0.optional_string(value);
+        match value {
+            Some(value) => {
+                self.byte(1);
+                self.string(value);
+            }
+            None => self.byte(0),
+        }
     }
 
     fn target_machine_specialization<'program>(
@@ -291,8 +300,8 @@ impl ExactSpecializationEncoder {
         self.string(&typed.package_qualified_type_identity_text(state.return_type));
     }
 
-    fn finish(self) -> TaskSpecializationCommitment {
-        TaskSpecializationCommitment::from_digest(self.0.finish().into())
+    fn finish(self) -> [u8; 32] {
+        self.0.finish().into()
     }
 }
 

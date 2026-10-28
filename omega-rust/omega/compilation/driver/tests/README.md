@@ -175,6 +175,13 @@ producer and reloads its canonical artifact. Debug companions
 must retain the same program identity; changing that identity must reject at
 external ingress. This tests inspection without requiring a native program entry.
 
+`task-activation-controls` requires source-authored start and try-start demands
+with suspension storage. It compares complete native activation plans from the
+retained and reloaded artifacts under the fixture's selected providers, rejects
+absent providers on both routes, and exercises malformed task root, entry,
+callee, specialization and truncated-wire controls at external ingress. This
+establishes static activation planning, not task-executor runtime support.
+
 `dynamic-image-controls` selects an existing Source-produced image-view fixture.
 It round-trips its isolated literal-returning dynamic row, then requires exact
 canonical refusals for mutable/write-only public regions and an Invocation-origin

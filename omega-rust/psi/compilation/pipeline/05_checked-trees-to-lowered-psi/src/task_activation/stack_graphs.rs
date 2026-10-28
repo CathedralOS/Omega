@@ -31,21 +31,33 @@ use super::carry_crossings::{exact_activation_wide_carry, validate_activation_ca
 use checked_trees::SuspensionCrossingStorage;
 use diagnostics::Diagnostic;
 use language_semantics::{CarryPolicy, MachineSupplyMode};
-use layout::TypeLayout;
 use symbols::SymbolHandle;
-use target::NativeTarget;
-use task_plans::{
-    StackCallContribution, TaskStackFrameId, TaskStackFrameSummary, UnresolvedCallKind,
-    UnresolvedCallSite, ValidatedTaskStackFrameSummary, task_stack_frame_validation_identity,
-    validate_task_stack_frame_summary,
+use terminal_psi::{
+    TerminalIdentityTableBuilder, TerminalTaskFrameCall, TerminalTaskUnresolvedCall,
+    TerminalTaskUnresolvedCallKind as UnresolvedCallKind,
 };
+use typed_trees::types::TypeReferenceHandle;
+
+pub(crate) struct TaskFrameState {
+    pub(crate) state: terminal_psi::TerminalIdentityIndex,
+    pub(crate) resident: Vec<TypeReferenceHandle>,
+    pub(crate) crossing_arguments: Vec<Vec<TypeReferenceHandle>>,
+}
+pub(crate) struct TaskFrame {
+    pub(crate) identity: u64,
+    pub(crate) machine_callable_identity: terminal_psi::TerminalIdentityIndex,
+    pub(crate) entry: terminal_psi::TerminalIdentityIndex,
+    pub(crate) states: Vec<TaskFrameState>,
+    pub(crate) calls: Vec<TerminalTaskFrameCall>,
+    pub(crate) unresolved_calls: Vec<TerminalTaskUnresolvedCall>,
+}
 
 /// The reachable checked call graph of one task activation, expressed as the
-/// validated frame summaries `compose_task_stack_demand` consumes, plus the
-/// suspension crossings reached inside that graph.
+/// portable state/call obligations plus the suspension crossings reached inside
+/// that graph. Omega supplies geometry and composes the physical stack bound.
 pub(crate) struct TaskCallGraph<'program> {
-    pub(crate) root: TaskStackFrameId,
-    pub(crate) frames: Vec<ValidatedTaskStackFrameSummary>,
+    pub(crate) root: u64,
+    pub(crate) frames: Vec<TaskFrame>,
     /// Canonical crossing rows whose `(machine, state)` belongs to a reachable
     /// frame, including crossings inside nested checked callees.
     pub(crate) crossings: Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
@@ -54,14 +66,12 @@ pub(crate) struct TaskCallGraph<'program> {
 }
 
 /// Derive the reachable same-stack call graph of the activation entered at
-/// `(root_machine, root_entry)`. The returned summaries are individually
-/// validated; graph-level closure, reachability and acyclicity are sealed by
-/// `compose_task_stack_demand`.
+/// `(root_machine, root_entry)`. Source coordinates are checked here;
+/// source-free native realization seals physical frame and stack composition.
 pub(crate) fn task_call_graph<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
     check_facts: &'program checked_trees::CheckFacts,
-    target: NativeTarget,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    identities: &mut TerminalIdentityTableBuilder,
     root_machine: &'program checked_trees::machine::Machine,
     root_entry: &'program checked_trees::state::State,
 ) -> Result<TaskCallGraph<'program>, Vec<Diagnostic>> {
@@ -84,17 +94,13 @@ pub(crate) fn task_call_graph<'program>(
         let summary = task_frame_summary(
             typed,
             check_facts,
-            target,
-            opaque_representation_selections,
+            identities,
             machine,
             entry,
             &mut pending,
             &mut crossings,
         )?;
-        frames.push(
-            validate_task_stack_frame_summary(summary)
-                .map_err(|error| vec![Diagnostic::error(error.to_string())])?,
-        );
+        frames.push(summary);
     }
     Ok(TaskCallGraph {
         root,
@@ -131,76 +137,38 @@ pub(crate) fn exact_frame_target<'program>(
     Ok((machine, state))
 }
 
-/// Build one frame's summary: its resident extent and its checked call edges.
+/// Build one frame's obligations: its resident types and checked call edges.
 /// Callee frames discovered through checked calls are pushed onto `pending`
 /// so the traversal covers the complete reachable graph.
 fn task_frame_summary<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
     check_facts: &'program checked_trees::CheckFacts,
-    target: NativeTarget,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    identities: &mut TerminalIdentityTableBuilder,
     machine: &'program checked_trees::machine::Machine,
     entry: &'program checked_trees::state::State,
     pending: &mut Vec<SymbolHandle>,
     reachable_crossings: &mut Vec<&'program checked_trees::SuspensionCrossingCarryFact>,
-) -> Result<TaskStackFrameSummary, Vec<Diagnostic>> {
+) -> Result<TaskFrame, Vec<Diagnostic>> {
     let frame = frame_identity(typed, machine, entry)?;
     let states = frame_state_closure(typed, machine, entry)?;
 
-    // Every frame keeps an explicit resume-state word so a parked live chain
-    // retains where each caller resumes, even when the machine stores nothing.
-    let state_word = TypeLayout {
-        size: target.pointer_size,
-        alignment: target.pointer_alignment,
-    };
-    let mut base_size = 0usize;
-    let mut base_alignment = 1usize;
-    append_layout(&mut base_size, &mut base_alignment, state_word)?;
-    base_size = align_to(base_size, base_alignment)?;
-
-    let mut local_bytes = base_size;
-    let mut local_alignment = base_alignment;
+    let mut resident_states = Vec::new();
     for state in &states {
-        let mut size = base_size;
-        let mut alignment = base_alignment;
-        for parameter in typed
+        let mut resident = typed
             .state_parameters(state)
             .iter()
             .filter(|parameter| !parameter.relevance.is_erased())
-        {
-            append_layout(
-                &mut size,
-                &mut alignment,
-                frame_value_layout(
-                    typed,
-                    target,
-                    opaque_representation_selections,
-                    parameter.type_reference,
-                )?,
-            )?;
-        }
+            .map(|parameter| parameter.type_reference)
+            .collect::<Vec<_>>();
         for statement in typed.statement_table.statements(state.statement_nodes) {
-            let Some(local) = statement.as_local_data() else {
-                continue;
-            };
-            if local.relevance.is_erased() {
-                continue;
+            if let Some(local) = statement.as_local_data()
+                && !local.relevance.is_erased()
+            {
+                resident.push(local.type_reference);
             }
-            append_layout(
-                &mut size,
-                &mut alignment,
-                frame_value_layout(
-                    typed,
-                    target,
-                    opaque_representation_selections,
-                    local.type_reference,
-                )?,
-            )?;
         }
-        // Only one crossing can be parked at a time, so staged call-argument
-        // demand composes by maximum across this state's crossings.
-        let mut state_peak = align_to(size, alignment)?;
         let mut crossing_coordinates = Vec::new();
+        let mut crossing_arguments = Vec::new();
         for crossing in check_facts
             .carry
             .suspension_crossings
@@ -216,27 +184,20 @@ fn task_frame_summary<'program>(
             }
             crossing_coordinates.push(coordinate);
             reachable_crossings.push(crossing);
-            let mut crossing_size = size;
-            let mut crossing_alignment = alignment;
-            for live in &crossing.live_values {
-                if live.storage != SuspensionCrossingStorage::CallArgument {
-                    continue;
-                }
-                append_layout(
-                    &mut crossing_size,
-                    &mut crossing_alignment,
-                    frame_value_layout(
-                        typed,
-                        target,
-                        opaque_representation_selections,
-                        live.type_reference,
-                    )?,
-                )?;
-            }
-            state_peak = state_peak.max(align_to(crossing_size, crossing_alignment)?);
+            crossing_arguments.push(
+                crossing
+                    .live_values
+                    .iter()
+                    .filter(|live| live.storage == SuspensionCrossingStorage::CallArgument)
+                    .map(|live| live.type_reference)
+                    .collect(),
+            );
         }
-        local_bytes = local_bytes.max(state_peak);
-        local_alignment = local_alignment.max(alignment);
+        resident_states.push(TaskFrameState {
+            state: identities.intern(state.name.as_str()),
+            resident,
+            crossing_arguments,
+        });
     }
 
     let mut calls = Vec::new();
@@ -296,11 +257,15 @@ fn task_frame_summary<'program>(
                 // pretend their same-stack demand is zero; record the site so
                 // the composed demand publishes as partial until provider
                 // admission covers it.
-                unresolved_calls.push(UnresolvedCallSite {
-                    frame,
-                    state: state.name.as_str().into(),
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
+                unresolved_calls.push(TerminalTaskUnresolvedCall {
+                    state: identities.intern(state.name.as_str()),
+                    statement_index: u32::try_from(call.statement_index).map_err(|_| {
+                        vec![Diagnostic::error(
+                            "task call statement coordinate exceeds u32",
+                        )]
+                    })?,
+                    call_ordinal: u32::try_from(call.call_ordinal)
+                        .map_err(|_| vec![Diagnostic::error("task call ordinal exceeds u32")])?,
                     kind: UnresolvedCallKind::UnresolvedTarget,
                 });
                 continue;
@@ -310,36 +275,34 @@ fn task_frame_summary<'program>(
                 // resolve to a machine state but not to a checked body this
                 // stack can bound. Same accountability: the site is
                 // unresolved until provider admission binds its demand.
-                unresolved_calls.push(UnresolvedCallSite {
-                    frame,
-                    state: state.name.as_str().into(),
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
+                unresolved_calls.push(TerminalTaskUnresolvedCall {
+                    state: identities.intern(state.name.as_str()),
+                    statement_index: u32::try_from(call.statement_index).map_err(|_| {
+                        vec![Diagnostic::error(
+                            "task call statement coordinate exceeds u32",
+                        )]
+                    })?,
+                    call_ordinal: u32::try_from(call.call_ordinal)
+                        .map_err(|_| vec![Diagnostic::error("task call ordinal exceeds u32")])?,
                     kind: UnresolvedCallKind::NonCheckedSupply,
                 });
                 continue;
             }
             let callee = frame_identity(typed, callee_machine, callee_entry)?;
-            calls.push(StackCallContribution::Checked { callee });
+            calls.push(TerminalTaskFrameCall { callee });
             pending.push(callee_entry.symbol);
         }
     }
 
-    Ok(TaskStackFrameSummary {
-        frame,
-        local_bytes: u64::try_from(local_bytes)
-            .map_err(|_| vec![Diagnostic::error("task WCSU frame size exceeds u64")])?,
-        alignment: u64::try_from(local_alignment)
-            .map_err(|_| vec![Diagnostic::error("task WCSU frame alignment exceeds u64")])?,
-        validation: task_stack_frame_validation_identity(
-            frame,
-            u64::try_from(local_bytes)
-                .map_err(|_| vec![Diagnostic::error("task WCSU frame size exceeds u64")])?,
-            u64::try_from(local_alignment)
-                .map_err(|_| vec![Diagnostic::error("task WCSU frame alignment exceeds u64")])?,
-            &calls,
-            &unresolved_calls,
+    Ok(TaskFrame {
+        identity: frame,
+        machine_callable_identity: identities.intern(
+            &typed
+                .machine_callable_identity_text(machine)
+                .ok_or_else(|| vec![Diagnostic::error("task frame lacks its callable identity")])?,
         ),
+        entry: identities.intern(entry.name.as_str()),
+        states: resident_states,
         calls,
         unresolved_calls,
     })
@@ -438,7 +401,7 @@ fn frame_identity<'program>(
     typed: &'program checked_trees::typed_trees::TypedTrees,
     machine: &'program checked_trees::machine::Machine,
     entry: &'program checked_trees::state::State,
-) -> Result<TaskStackFrameId, Vec<Diagnostic>> {
+) -> Result<u64, Vec<Diagnostic>> {
     let callable = typed
         .machine_callable_identity_text(machine)
         .ok_or_else(|| {
@@ -447,52 +410,9 @@ fn frame_identity<'program>(
                 machine.name
             ))]
         })?;
-    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.byte(0x57);
     hash.string_terminated(callable.as_str());
     hash.string_terminated(entry.name.as_str());
-    super::normalized_id(
-        hash.finish_or(1),
-        TaskStackFrameId::from_normalized_identity,
-    )
-}
-
-fn frame_value_layout<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
-    target: NativeTarget,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
-) -> Result<TypeLayout, Vec<Diagnostic>> {
-    layout::layout_type_reference(
-        typed,
-        target,
-        opaque_representation_selections,
-        type_reference,
-    )
-    .map_err(|error| vec![error])
-}
-
-fn append_layout(
-    size: &mut usize,
-    alignment: &mut usize,
-    layout: TypeLayout,
-) -> Result<(), Vec<Diagnostic>> {
-    let field_alignment = layout.alignment.max(1);
-    *size = align_to(*size, field_alignment)?;
-    *size = size
-        .checked_add(layout.size)
-        .ok_or_else(|| vec![Diagnostic::error("task WCSU frame layout size overflow")])?;
-    *alignment = (*alignment).max(field_alignment);
-    Ok(())
-}
-
-fn align_to(value: usize, alignment: usize) -> Result<usize, Vec<Diagnostic>> {
-    value
-        .checked_add(alignment.saturating_sub(1))
-        .map(|rounded| rounded / alignment * alignment)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "task WCSU frame layout alignment overflow",
-            )]
-        })
+    Ok(hash.finish_or(1))
 }

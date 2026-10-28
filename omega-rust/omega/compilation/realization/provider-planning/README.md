@@ -1,6 +1,6 @@
 # Provider planning
 
-Omega realization owns provider selection and its calling, component and task
+Omega realization owns provider selection and its calling and component
 plans here, beside selected execution settlement. Exact provider-grant resolution
 belongs to [backend provider evidence](../../backend/plans/provider-evidence/src/provider_grants.rs),
 not compiler trust-report reconstruction.

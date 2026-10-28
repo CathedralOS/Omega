@@ -265,8 +265,10 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "optimization-core",
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1685,7 +1687,6 @@ dependencies = [
  "source-audit",
  "symbols",
  "target",
- "task-plans",
  "terminal-codec",
  "terminal-psi",
 ]
@@ -1954,7 +1955,6 @@ dependencies = [
  "source",
  "symbols",
  "target",
- "task-plans",
  "terminal-psi",
  "trust-model",
  "typed-trees",
@@ -2323,11 +2323,14 @@ dependencies = [
 name = "task-plans"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "effects",
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
  "source-audit",
- "symbols",
+ "target",
  "terminal-psi",
 ]
 

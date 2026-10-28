@@ -10,6 +10,7 @@ autotests = false
 
 
 [dependencies]
+task-plans = { path = "../backend/runtime/task-plans" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
@@ -72,7 +73,6 @@ access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
-task-plans = { path = "../backend/runtime/task-plans" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }

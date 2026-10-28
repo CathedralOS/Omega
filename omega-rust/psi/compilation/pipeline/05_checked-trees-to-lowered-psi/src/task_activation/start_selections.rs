@@ -1,10 +1,11 @@
 //! Task start selections and activation targets.
 
-use crate::{fnv1a::Fnv1a, task_plans::entry_report_fingerprint};
+use super::entry_report_fingerprint;
 use checked_trees::typed_trees::static_applications::StaticMachineBindingValue;
 use diagnostics::Diagnostic;
+use semantic_vocabulary::Fnv1a;
 use symbols::JoinedPath;
-use task_plans::TaskStartOperation;
+use terminal_psi::TerminalTaskStartOperation as TaskStartOperation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct TaskStartSelection {

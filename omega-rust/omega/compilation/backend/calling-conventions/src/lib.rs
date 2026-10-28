@@ -24,6 +24,7 @@ mod fnv1a;
 mod host_operations;
 mod hosts;
 mod plans;
+pub mod terminal_layout;
 
 pub use aggregate_layout::{
     ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,

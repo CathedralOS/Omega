@@ -7,8 +7,8 @@ derives and checks every authored generic operator candidate and finite boundary
 family without provider selection.
 
 [execution_settlement.rs](src/execution_settlement.rs) is the post-checking
-entrance. It rejoins accepted host bindings and constructs task-activation
-plans. The compiler supplies inputs and
+entrance. It rejoins accepted host bindings. Task activation instead consumes
+portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
 The optional checked-tree interpreter calls
 [checked_interpreter_dispatch.rs](src/checked_interpreter_dispatch.rs) immediately
