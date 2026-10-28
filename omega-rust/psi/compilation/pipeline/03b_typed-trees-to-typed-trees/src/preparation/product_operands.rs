@@ -465,6 +465,35 @@ impl Lower<'_> {
             }
             return Ok(selected);
         }
+        // Unexecuted generic helpers still owe source formation. Their
+        // original lexical binders are not top-level Product declarations;
+        // reached environments substitute them through the same lowerer.
+        if let Some(machine) = self
+            .program
+            .machine_declaration_for_lexical_scope(self.author)
+        {
+            let (parameters, _) = self
+                .program
+                .machine_type_reference_scope(machine, |left, right| left.name == right.name);
+            let mut matching = parameters
+                .iter()
+                .filter(|parameter| {
+                    parameter.name.as_str() == path
+                        && name.declaration.is_none_or(|declaration| {
+                            self.program
+                                .symbols
+                                .symbol_provenance_source_span(parameter.symbol)
+                                == Some(self.program.symbols.rejoin_product_occurrence(declaration))
+                        })
+                })
+                .map(|parameter| parameter.symbol);
+            if let Some(parameter) = matching.next() {
+                if matching.next().is_some() {
+                    return Err(self.error("designated static input has ambiguous lexical binders"));
+                }
+                return Ok(parameter);
+            }
+        }
         // Inert Product operands may intentionally precede ordinary name
         // resolution. Rejoin compiler atoms with the ordinary source-scoped
         // type resolver, including data declarations so a same-spelled package
