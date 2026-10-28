@@ -93,68 +93,34 @@ pub(crate) fn validate_value_position_calls(
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let executes = true;
+    let mut context = ScanContext {
+        program,
+        machine,
+        state,
+        symbols,
+        writable_roots,
+        boundary_operator_applications,
+        diagnostics,
+        formation_obligations,
+    };
     match statement {
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                assignment.value,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-            scan_assignment_target_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                assignment.target,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
+            context.scan(assignment.value, value_environment, executes);
+            context.scan_target(assignment.target, value_environment, executes);
         }
         StatementNode::Call(call) => {
             // Statement-position call arguments may themselves be value calls.
             for argument in program.statement_table.expression_handles(call.arguments) {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    writable_roots,
-                    value_environment,
-                    *argument,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
-                );
+                context.scan(*argument, value_environment, executes);
             }
         }
         StatementNode::Expression(expression) => {
-            scan_expression_calls_at_position(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
+            context.scan_at(
                 *expression,
                 CallExpressionUse::Statement,
+                value_environment,
                 executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
             );
         }
         StatementNode::LocalData(local_data) => {
@@ -166,36 +132,12 @@ pub(crate) fn validate_value_position_calls(
                 prior_statements: writable_roots.statements,
                 context: "local type bound",
             }
-            .type_reference(local_data.type_reference, diagnostics);
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                local_data.initial_value,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
+            .type_reference(local_data.type_reference, context.diagnostics);
+            context.scan(local_data.initial_value, value_environment, executes);
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    writable_roots,
-                    value_environment,
-                    guard,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
-                );
+                context.scan(guard, value_environment, executes);
             }
             for target_handle in transition.targets() {
                 let target = program.statement_table.transition_target(target_handle);
@@ -210,41 +152,25 @@ pub(crate) fn validate_value_position_calls(
                             .iter()
                             .enumerate()
                         {
-                            scan_expression_calls(
-                                program,
-                                machine,
-                                state,
-                                symbols,
-                                writable_roots,
+                            context.scan(
+                                *argument,
                                 transition_values
                                     .for_target(target_handle)
                                     .get(argument_index)
                                     .unwrap_or(value_environment),
-                                *argument,
                                 executes,
-                                boundary_operator_applications,
-                                diagnostics,
-                                formation_obligations,
                             );
                         }
                     }
                     TransitionTargetNode::Value(expression) => {
-                        scan_expression_calls_at_position(
-                            program,
-                            machine,
-                            state,
-                            symbols,
-                            writable_roots,
+                        context.scan_at(
+                            *expression,
+                            CallExpressionUse::TerminalResult,
                             transition_values
                                 .for_target(target_handle)
                                 .first()
                                 .unwrap_or(value_environment),
-                            *expression,
-                            CallExpressionUse::TerminalResult,
                             executes,
-                            boundary_operator_applications,
-                            diagnostics,
-                            formation_obligations,
                         );
                     }
                     TransitionTargetNode::Terminal => {}
@@ -252,80 +178,6 @@ pub(crate) fn validate_value_position_calls(
             }
         }
     }
-}
-
-/// Recursively scan `expression` for `ExpressionNode::Call` nodes and
-/// validate machine-call type-parameter bounds for each one found.
-#[allow(clippy::too_many_arguments)]
-fn scan_expression_calls(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    symbols: &TopLevelSymbols<'_>,
-    writable_roots: &WritableRoots<'_, '_>,
-    value_environment: &ValueEnvironment,
-    expression: ExpressionHandle,
-    executes: bool,
-    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
-    diagnostics: &mut Vec<Diagnostic>,
-    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-) {
-    scan_expression_calls_at_position(
-        program,
-        machine,
-        state,
-        symbols,
-        writable_roots,
-        value_environment,
-        expression,
-        CallExpressionUse::Value,
-        executes,
-        boundary_operator_applications,
-        diagnostics,
-        formation_obligations,
-    );
-}
-
-/// An assignment target is scanned for the calls inside it -- `self.rows[self
-/// .index()] = v` performs one -- but the target itself is not a read.
-/// `value_custody::places` already reports an unknown direct or nested field
-/// on a target, with the verb that belongs to a write, so reporting it here
-/// too produced two diagnostics for one typo and called the write a read.
-/// Operands below the target are ordinary reads and keep the read reports.
-#[allow(clippy::too_many_arguments)]
-fn scan_assignment_target_calls(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    symbols: &TopLevelSymbols<'_>,
-    writable_roots: &WritableRoots<'_, '_>,
-    value_environment: &ValueEnvironment,
-    expression: ExpressionHandle,
-    executes: bool,
-    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
-    diagnostics: &mut Vec<Diagnostic>,
-    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-) {
-    let mut target_diagnostics = Vec::new();
-    scan_expression_calls(
-        program,
-        machine,
-        state,
-        symbols,
-        writable_roots,
-        value_environment,
-        expression,
-        executes,
-        boundary_operator_applications,
-        &mut target_diagnostics,
-        formation_obligations,
-    );
-    let read_reports = unknown_field_read_reports(program, machine, state, expression);
-    diagnostics.extend(
-        target_diagnostics
-            .into_iter()
-            .filter(|diagnostic| !read_reports.contains(&diagnostic.message)),
-    );
 }
 
 /// The unknown-field READ messages this walker would raise for `expression`
@@ -367,254 +219,303 @@ fn unknown_field_read_reports(
     reports
 }
 
-/// Only the direct expression statement may discard Unit. Recursive operands
-/// remain value uses even if a malformed tree reuses that statement's handle.
-#[allow(clippy::too_many_arguments)]
-fn scan_expression_calls_at_position(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    symbols: &TopLevelSymbols<'_>,
-    writable_roots: &WritableRoots<'_, '_>,
-    value_environment: &ValueEnvironment,
-    expression: ExpressionHandle,
-    expression_use: CallExpressionUse,
-    executes: bool,
-    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
-    diagnostics: &mut Vec<Diagnostic>,
-    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    // Unknown-field READ: a direct `self.<field>` read of a nonexistent field (a typo)
-    // gets a clear error instead of silently passing type-check. Mirrors the
-    // assignment-target write check (places.rs): scoped to a direct `self.<field>`
-    // against the machine's top-level data fields, versioned data excluded. Nested
-    // `self.a.b` (checked at `a` when the recursion reaches the receiver) and non-self
-    // members are left alone. The recursion continues afterward.
-    if let Some(field_name) =
-        crate::value_custody::places::direct_self_field_member(program, expression)
-        && let Some(data) = crate::value_custody::places::machine_attached_data(program, machine)
-        && !data_declares_field(program, data, field_name)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` reads `self.{field_name}`, but data `{}` has no field \
-             `{field_name}` (check the spelling of the field name)",
-            machine.name.as_str(),
-            state.name.as_str(),
-            data.name.as_str()
-        )));
-    }
-    // Unknown data-typed local/parameter member READ, plus nested `self` reads:
-    // `task.continuation`, `self.o.inner.nonexistent` (final missing), and
-    // `self.o.bogus.value` (intermediate missing) must not become silent ZII
-    // reads. The walker reports only a provably-missing member on a
-    // provably-plain container -- versioned containers (fields in wire version
-    // blocks), contained-machine/owned-data roots, and non-data hops all skip.
-    // The recursion below may revisit the same missing hop, so an identical
-    // message is deduplicated rather than reported per level.
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Member(_) | ExpressionNode::Name(_)
-    ) && let Some((container, member)) = crate::value_custody::places::first_unknown_nested_field(
-        program,
-        machine,
-        Some(state),
-        expression,
+struct ScanContext<'a> {
+    program: &'a (dyn crate::CheckingInput + 'a),
+    machine: &'a Machine,
+    state: &'a State,
+    symbols: &'a TopLevelSymbols<'a>,
+    writable_roots: &'a WritableRoots<'a, 'a>,
+    boundary_operator_applications: &'a mut Vec<crate::ValidatedBoundaryOperatorApplication>,
+    diagnostics: &'a mut Vec<Diagnostic>,
+    formation_obligations: &'a mut Vec<checked_trees::IntegerRangeObligation>,
+}
+
+impl ScanContext<'_> {
+    /// A value-position call: the position every nested operand keeps unless a
+    /// statement or terminal owner names it.
+    fn scan(
+        &mut self,
+        expression: ExpressionHandle,
+        value_environment: &ValueEnvironment,
+        executes: bool,
     ) {
-        let message = format!(
-            "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
-             has no field `{member}` (check the spelling of the field name)",
-            machine.name.as_str(),
-            state.name.as_str(),
+        self.scan_at(
+            expression,
+            CallExpressionUse::Value,
+            value_environment,
+            executes,
         );
-        if !diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains(&message))
-        {
-            diagnostics.push(Diagnostic::error(message));
-        }
     }
-    // Member / index access on a PRIMITIVE receiver. A number or bool has no fields,
-    // no `.len`, and is not indexable, so `x.field` / `x.len` / `x[0]` on an `i32`
-    // local silently reads a ZII 0 -- reject any such access. `String` is the one
-    // exception, and only for MEMBER access: text carries a `.len` view, so `s.len`
-    // is legal. An UNRESOLVED receiver or a struct / array / slice receiver is
-    // left alone (those accesses are separate).
-    let primitive_access = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => Some((
-            member.receiver,
-            format!("member `{}`", member.member.as_str()),
-        )),
-        ExpressionNode::Indexed(indexed) => Some((indexed.collection, "an index".to_owned())),
-        _ => None,
-    };
-    if let Some((receiver, access)) = primitive_access
-        && let Some(receiver_type) = crate::value_custody::places::declared_place_type(
-            program,
-            machine,
-            Some(state),
-            receiver,
-        )
-        && let Some(primitive) = program.primitive_type_reference(receiver_type)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
-             scalar has no members or elements",
-            machine.name.as_str(),
-            state.name.as_str(),
-            primitive.name(),
-        )));
-    }
-    // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
-    // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
-    // as 0/garbage. Reject it when it is none of the legal bare-name forms. The scope
-    // is the current state; retained foreign binding identities cannot be
-    // replaced by a coincidentally matching spelling. Qualified paths check
-    // their root too, so member access cannot hide an implicit capture.
-    if let Some(path) = program.expression_table.name_path_node(expression)
-        && let Some(first) = program
-            .expression_table
-            .name_path_members(path.members)
-            .first()
-    {
-        let name = first.as_str();
-        let root = if path.head_symbol.is_valid() {
-            path.head_symbol
-        } else {
-            path.symbol
+
+    /// An assignment target is scanned for the calls inside it -- `self.rows[self
+    /// .index()] = v` performs one -- but the target itself is not a read.
+    /// `value_custody::places` already reports an unknown direct or nested field
+    /// on a target, with the verb that belongs to a write, so reporting it here
+    /// too produced two diagnostics for one typo and called the write a read.
+    /// Operands below the target are ordinary reads and keep the read reports.
+    fn scan_target(
+        &mut self,
+        expression: ExpressionHandle,
+        value_environment: &ValueEnvironment,
+        executes: bool,
+    ) {
+        let mut target_diagnostics = Vec::new();
+        let mut nested = ScanContext {
+            program: self.program,
+            machine: self.machine,
+            state: self.state,
+            symbols: self.symbols,
+            writable_roots: self.writable_roots,
+            boundary_operator_applications: &mut *self.boundary_operator_applications,
+            diagnostics: &mut target_diagnostics,
+            formation_obligations: &mut *self.formation_obligations,
         };
-        let bare_identity_matches = program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-            || !path.head_symbol.is_valid()
-            || path.head_symbol == path.symbol;
-        if language_semantics::const_value::boolean_literal_spelling(name).is_none()
-            && (!bare_identity_matches
-                || !crate::value_custody::locals::state_value_root_is_known(
-                    program,
-                    machine,
-                    state,
-                    writable_roots.statements,
-                    symbols,
-                    root,
-                    name,
-                ))
+        nested.scan(expression, value_environment, executes);
+        let read_reports =
+            unknown_field_read_reports(self.program, self.machine, self.state, expression);
+        self.diagnostics.extend(
+            target_diagnostics
+                .into_iter()
+                .filter(|diagnostic| !read_reports.contains(&diagnostic.message)),
+        );
+    }
+
+    /// Only the direct expression statement may discard Unit. Recursive operands
+    /// remain value uses even if a malformed tree reuses that statement's handle.
+    fn scan_at(
+        &mut self,
+        expression: ExpressionHandle,
+        expression_use: CallExpressionUse,
+        value_environment: &ValueEnvironment,
+        executes: bool,
+    ) {
+        let program = self.program;
+        let machine = self.machine;
+        let state = self.state;
+        let symbols = self.symbols;
+        let writable_roots = self.writable_roots;
+
+        if !expression.is_valid() {
+            return;
+        }
+        // Unknown-field READ: a direct `self.<field>` read of a nonexistent field (a typo)
+        // gets a clear error instead of silently passing type-check. Mirrors the
+        // assignment-target write check (places.rs): scoped to a direct `self.<field>`
+        // against the machine's top-level data fields, versioned data excluded. Nested
+        // `self.a.b` (checked at `a` when the recursion reaches the receiver) and non-self
+        // members are left alone. The recursion continues afterward.
+        if let Some(field_name) =
+            crate::value_custody::places::direct_self_field_member(program, expression)
+            && let Some(data) =
+                crate::value_custody::places::machine_attached_data(program, machine)
+            && !data_declares_field(program, data, field_name)
         {
-            diagnostics.push(Diagnostic::error(format!(
+            self.diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` reads `self.{field_name}`, but data `{}` has no field \
+             `{field_name}` (check the spelling of the field name)",
+                machine.name.as_str(),
+                state.name.as_str(),
+                data.name.as_str()
+            )));
+        }
+        // Unknown data-typed local/parameter member READ, plus nested `self` reads:
+        // `task.continuation`, `self.o.inner.nonexistent` (final missing), and
+        // `self.o.bogus.value` (intermediate missing) must not become silent ZII
+        // reads. The walker reports only a provably-missing member on a
+        // provably-plain container -- versioned containers (fields in wire version
+        // blocks), contained-machine/owned-data roots, and non-data hops all skip.
+        // The recursion below may revisit the same missing hop, so an identical
+        // message is deduplicated rather than reported per level.
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(_) | ExpressionNode::Name(_)
+        ) && let Some((container, member)) =
+            crate::value_custody::places::first_unknown_nested_field(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )
+        {
+            let message = format!(
+                "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
+             has no field `{member}` (check the spelling of the field name)",
+                machine.name.as_str(),
+                state.name.as_str(),
+            );
+            if !self
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(&message))
+            {
+                self.diagnostics.push(Diagnostic::error(message));
+            }
+        }
+        // Member / index access on a PRIMITIVE receiver. A number or bool has no fields,
+        // no `.len`, and is not indexable, so `x.field` / `x.len` / `x[0]` on an `i32`
+        // local silently reads a ZII 0 -- reject any such access. `String` is the one
+        // exception, and only for MEMBER access: text carries a `.len` view, so `s.len`
+        // is legal. An UNRESOLVED receiver or a struct / array / slice receiver is
+        // left alone (those accesses are separate).
+        let primitive_access = match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => Some((
+                member.receiver,
+                format!("member `{}`", member.member.as_str()),
+            )),
+            ExpressionNode::Indexed(indexed) => Some((indexed.collection, "an index".to_owned())),
+            _ => None,
+        };
+        if let Some((receiver, access)) = primitive_access
+            && let Some(receiver_type) = crate::value_custody::places::declared_place_type(
+                program,
+                machine,
+                Some(state),
+                receiver,
+            )
+            && let Some(primitive) = program.primitive_type_reference(receiver_type)
+        {
+            self.diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
+             scalar has no members or elements",
+                machine.name.as_str(),
+                state.name.as_str(),
+                primitive.name(),
+            )));
+        }
+        // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
+        // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
+        // as 0/garbage. Reject it when it is none of the legal bare-name forms. The scope
+        // is the current state; retained foreign binding identities cannot be
+        // replaced by a coincidentally matching spelling. Qualified paths check
+        // their root too, so member access cannot hide an implicit capture.
+        if let Some(path) = program.expression_table.name_path_node(expression)
+            && let Some(first) = program
+                .expression_table
+                .name_path_members(path.members)
+                .first()
+        {
+            let name = first.as_str();
+            let root = if path.head_symbol.is_valid() {
+                path.head_symbol
+            } else {
+                path.symbol
+            };
+            let bare_identity_matches = program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+                || !path.head_symbol.is_valid()
+                || path.head_symbol == path.symbol;
+            if language_semantics::const_value::boolean_literal_spelling(name).is_none()
+                && (!bare_identity_matches
+                    || !crate::value_custody::locals::state_value_root_is_known(
+                        program,
+                        machine,
+                        state,
+                        writable_roots.statements,
+                        symbols,
+                        root,
+                        name,
+                    ))
+            {
+                self.diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}` uses `{name}`, which is not a declared local, parameter, field, or type in this state (check the spelling)",
                 machine.name.as_str(), state.name.as_str(),
             )));
-        }
-        // Static paths cannot continue through a runtime binding. Dot fields
-        // remain Member expressions; synthesized runtime Names have one member.
-        // Reuse the exact root reconstructed above, including a retained leaf
-        // when the head is absent, so malformed custody cannot hide the binding.
-        if program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            > 1
-            && crate::value_custody::locals::state_binding_type(
-                program,
-                state,
-                writable_roots.statements,
-                root,
-            )
-            .is_some()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
+            }
+            // Static paths cannot continue through a runtime binding. Dot fields
+            // remain Member expressions; synthesized runtime Names have one member.
+            // Reuse the exact root reconstructed above, including a retained leaf
+            // when the head is absent, so malformed custody cannot hide the binding.
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                > 1
+                && crate::value_custody::locals::state_binding_type(
+                    program,
+                    state,
+                    writable_roots.statements,
+                    root,
+                )
+                .is_some()
+            {
+                self.diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
                  use `.` to select a field or callable through a value",
-                machine.name.as_str(),
-                state.name.as_str(),
-            )));
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
+            }
         }
-    }
-    // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
-    // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
-    // substituted const resolves to a valid symbol before this stage; an
-    // unresolved `Scope::tail` -- a bogus case (`Signal::Blue`) or a typo -- keeps BOTH the
-    // head and leaf symbols invalid and would silently read 0 (ZII) in value
-    // position (native AND interpreter agree, so the differential cannot catch
-    // it). Reject exactly that shape: both symbols unresolved.
-    if let Some(path) = program.expression_table.name_path_node(expression)
-        && let [scope, tail] = program.expression_table.name_path_members(path.members)
-        && !path.head_symbol.is_valid()
-        && !path.symbol.is_valid()
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` uses `{}::{}`, which resolves to no case or \
+        // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
+        // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
+        // substituted const resolves to a valid symbol before this stage; an
+        // unresolved `Scope::tail` -- a bogus case (`Signal::Blue`) or a typo -- keeps BOTH the
+        // head and leaf symbols invalid and would silently read 0 (ZII) in value
+        // position (native AND interpreter agree, so the differential cannot catch
+        // it). Reject exactly that shape: both symbols unresolved.
+        if let Some(path) = program.expression_table.name_path_node(expression)
+            && let [scope, tail] = program.expression_table.name_path_members(path.members)
+            && !path.head_symbol.is_valid()
+            && !path.symbol.is_valid()
+        {
+            self.diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` uses `{}::{}`, which resolves to no case or \
              constant -- it would silently read 0 (ZII). Check the spelling and \
              ensure the declaration is imported",
-            machine.name.as_str(),
-            state.name.as_str(),
-            scope.as_str(),
-            tail.as_str(),
-        )));
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(_) => {}
-        ExpressionNode::Match(dispatch) => {
-            crate::value_custody::expression_types::validate_match_dispatch(
-                program,
-                machine,
-                state,
-                expression,
-                dispatch,
-                diagnostics,
-            );
-            let environments =
-                crate::proof_contracts::arithmetic_domains::dispatch_arm_environments(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                    dispatch,
-                    value_environment,
-                );
-            let mut scan = |value, executes, environment: &ValueEnvironment| {
-                scan_expression_calls(
+                machine.name.as_str(),
+                state.name.as_str(),
+                scope.as_str(),
+                tail.as_str(),
+            )));
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::Match(dispatch) => {
+                crate::value_custody::expression_types::validate_match_dispatch(
                     program,
                     machine,
                     state,
-                    symbols,
-                    writable_roots,
-                    environment,
-                    value,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
-                )
-            };
-            scan(dispatch.subject, executes, value_environment);
-            let mut remaining_executes = executes;
-            let mut boolean_values = [false; 2];
-            for (arm, environment) in program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .iter()
-                .zip(&environments)
-            {
-                let selected = match arm.pattern {
-                    typed_trees::expression::MatchPattern::Destructure(_) => {
-                        for operand in program.expression_table.match_pattern_operands(arm.pattern)
-                        {
-                            scan(operand, remaining_executes, environment);
+                    expression,
+                    dispatch,
+                    self.diagnostics,
+                );
+                let environments =
+                    crate::proof_contracts::arithmetic_domains::dispatch_arm_environments(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                        dispatch,
+                        value_environment,
+                    );
+                self.scan(dispatch.subject, value_environment, executes);
+                let mut remaining_executes = executes;
+                let mut boolean_values = [false; 2];
+                for (arm, environment) in program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .zip(&environments)
+                {
+                    let selected = match arm.pattern {
+                        typed_trees::expression::MatchPattern::Destructure(_) => {
+                            for operand in
+                                program.expression_table.match_pattern_operands(arm.pattern)
+                            {
+                                self.scan(operand, environment, remaining_executes);
+                            }
+                            None
                         }
-                        None
-                    }
-                    typed_trees::expression::MatchPattern::Wildcard => Some(true),
-                    typed_trees::expression::MatchPattern::Value(pattern) => {
-                        scan(pattern, remaining_executes, value_environment);
-                        if let Some(value) = program.expression_table.boolean_node(pattern) {
-                            boolean_values[usize::from(*value)] = true;
-                        }
-                        match (
+                        typed_trees::expression::MatchPattern::Wildcard => Some(true),
+                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                            self.scan(pattern, value_environment, remaining_executes);
+                            if let Some(value) = program.expression_table.boolean_node(pattern) {
+                                boolean_values[usize::from(*value)] = true;
+                            }
+                            match (
                             program.expression_table.expression(dispatch.subject),
                             program.expression_table.expression(pattern),
                         ) {
@@ -633,89 +534,77 @@ fn scan_expression_calls_at_position(
                                 )
                             }
                         }
+                        }
+                    };
+                    self.scan(
+                        arm.value,
+                        environment,
+                        remaining_executes && selected != Some(false),
+                    );
+                    if selected == Some(true) || boolean_values == [true, true] {
+                        remaining_executes = false;
                     }
-                };
-                scan(
-                    arm.value,
-                    remaining_executes && selected != Some(false),
-                    environment,
-                );
-                if selected == Some(true) || boolean_values == [true, true] {
-                    remaining_executes = false;
                 }
             }
-        }
-        ExpressionNode::Atomic(_) => {
-            let Some(operands) =
-                crate::value_custody::atomic_operations::atomic_value_operands(program, expression)
-            else {
-                diagnostics.push(Diagnostic::error(format!(
+            ExpressionNode::Atomic(_) => {
+                let Some(operands) = crate::value_custody::atomic_operations::atomic_value_operands(
+                    program, expression,
+                ) else {
+                    self.diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}` has an invalid atomic operation carrier: cannot identify its evaluated operands",
                     machine.name.as_str(),
                     state.name.as_str(),
                 )));
-                return;
-            };
-            for operand in operands {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    writable_roots,
-                    value_environment,
-                    operand,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
-                );
+                    return;
+                };
+                for operand in operands {
+                    self.scan(operand, value_environment, executes);
+                }
             }
-        }
-        ExpressionNode::Call(call) => {
-            let call = call.clone();
-            if executes
-                && call.exact_coercion_target.is_valid()
-                && let [operand] = program.expression_table.expression_handles(call.arguments)
-            {
-                crate::value_custody::expression_types::validate_exact_float_coercion(
-                    program,
-                    machine,
-                    state,
-                    *operand,
-                    call.exact_coercion_target,
-                    value_environment,
-                    diagnostics,
-                );
-            }
-            if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, &call) {
-                crate::proof_contracts::arithmetic_domains::validate_total_specification_arithmetic(
+            ExpressionNode::Call(call) => {
+                let call = call.clone();
+                if executes
+                    && call.exact_coercion_target.is_valid()
+                    && let [operand] = program.expression_table.expression_handles(call.arguments)
+                {
+                    crate::value_custody::expression_types::validate_exact_float_coercion(
+                        program,
+                        machine,
+                        state,
+                        *operand,
+                        call.exact_coercion_target,
+                        value_environment,
+                        self.diagnostics,
+                    );
+                }
+                if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, &call) {
+                    crate::proof_contracts::arithmetic_domains::validate_total_specification_arithmetic(
                     program,
                     machine,
                     Some(state),
                     expression,
                     value_environment,
                     "`embed` source in a proof body",
-                    diagnostics,
+                    self.diagnostics,
                 );
-            }
-            validate_expression_call_bounds(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                expression,
-                &call,
-                expression_use,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-            // Recurse into the receiver and arguments (nested calls).
-            if call.receiver.is_valid()
+                }
+                validate_expression_call_bounds(
+                    program,
+                    machine,
+                    state,
+                    symbols,
+                    writable_roots,
+                    value_environment,
+                    expression,
+                    &call,
+                    expression_use,
+                    executes,
+                    self.boundary_operator_applications,
+                    self.diagnostics,
+                    self.formation_obligations,
+                );
+                // Recurse into the receiver and arguments (nested calls).
+                if call.receiver.is_valid()
                 && !is_declaration_namespace(program, call.receiver)
                 && !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(program, &call)
                 && !crate::machine_calls::calls::generic_requirement::expression_conformance_receiver(
@@ -725,311 +614,147 @@ fn scan_expression_calls_at_position(
                 )
                 .is_valid()
             {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    writable_roots,
-                    value_environment,
-                    call.receiver,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-
-    formation_obligations,
-);
+                self.scan(call.receiver, value_environment, executes);
             }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    symbols,
-                    writable_roots,
-                    value_environment,
-                    *argument,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
-                );
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    self.scan(*argument, value_environment, executes);
+                }
             }
-        }
-        ExpressionNode::Binary(binary) => {
-            // Every binary-operand TYPE check (operator applied to operands it is
-            // not defined for) lives behind one dispatcher.
-            crate::value_custody::expression_types::validate_binary_operand_types(
-                program,
-                machine,
-                Some(state),
-                expression,
-                binary.operator,
-                binary.left,
-                binary.right,
-                diagnostics,
-                formation_obligations,
-            );
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                binary.left,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-            let right_environment =
-                crate::proof_contracts::arithmetic_domains::short_circuit_operand_environment(
+            ExpressionNode::Binary(binary) => {
+                // Every binary-operand TYPE check (operator applied to operands it is
+                // not defined for) lives behind one dispatcher.
+                crate::value_custody::expression_types::validate_binary_operand_types(
                     program,
                     machine,
                     Some(state),
                     expression,
-                    value_environment,
+                    binary.operator,
+                    binary.left,
+                    binary.right,
+                    self.diagnostics,
+                    self.formation_obligations,
                 );
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                right_environment.as_ref().unwrap_or(value_environment),
-                binary.right,
-                executes
-                    && !matches!(
-                        (
-                            binary.operator,
-                            program.expression_table.expression(binary.left)
+                self.scan(binary.left, value_environment, executes);
+                let right_environment =
+                    crate::proof_contracts::arithmetic_domains::short_circuit_operand_environment(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                        value_environment,
+                    );
+                self.scan(
+                    binary.right,
+                    right_environment.as_ref().unwrap_or(value_environment),
+                    executes
+                        && !matches!(
+                            (
+                                binary.operator,
+                                program.expression_table.expression(binary.left)
+                            ),
+                            (BinaryOperator::And, ExpressionNode::Boolean(false))
+                                | (BinaryOperator::Or, ExpressionNode::Boolean(true))
                         ),
-                        (BinaryOperator::And, ExpressionNode::Boolean(false))
-                            | (BinaryOperator::Or, ExpressionNode::Boolean(true))
-                    ),
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        ExpressionNode::Cast(cast) => {
-            crate::value_custody::locals::StateValueScope {
-                program,
-                machine,
-                state,
-                symbols,
-                prior_statements: writable_roots.statements,
-                context: "cast type bound",
-            }
-            .type_reference(cast.target_type, diagnostics);
-            // All cast TARGET/SOURCE type validation lives behind one dispatcher.
-            crate::value_custody::expression_types::validate_cast_types(
-                program,
-                machine,
-                Some(state),
-                cast,
-                value_environment,
-                diagnostics,
-            );
-            if executes {
-                crate::proof_contracts::arithmetic_domains::validate_range_cast_at_use(
-                    program,
-                    machine,
-                    state,
-                    expression,
-                    value_environment,
-                    diagnostics,
                 );
             }
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                cast.value,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        ExpressionNode::Indexed(indexed) => {
-            crate::value_custody::expression_types::report_non_integer_index(
-                program,
-                machine,
-                state,
-                indexed,
-                diagnostics,
-            );
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                indexed.collection,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                indexed.index,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        ExpressionNode::Member(member) => {
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                member.receiver,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        ExpressionNode::Borrow(inner) => {
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                inner.target,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        ExpressionNode::Unary(unary) => {
-            match unary.operator {
-                typed_trees::expression::UnaryOperator::BitwiseNot => {
-                    crate::value_custody::expression_types::report_non_integer_bitwise_not(
-                        program,
-                        machine,
-                        Some(state),
-                        unary.operand,
-                        diagnostics,
-                    );
-                }
-                typed_trees::expression::UnaryOperator::LogicalNot => {
-                    crate::value_custody::expression_types::report_non_bool_logical_not(
-                        program,
-                        machine,
-                        Some(state),
-                        unary.operand,
-                        diagnostics,
-                    );
-                }
-            }
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                unary.operand,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
-            let elements = *elements;
-            for element in program.expression_table.expression_handles(elements) {
-                scan_expression_calls(
+            ExpressionNode::Cast(cast) => {
+                crate::value_custody::locals::StateValueScope {
                     program,
                     machine,
                     state,
                     symbols,
-                    writable_roots,
+                    prior_statements: writable_roots.statements,
+                    context: "cast type bound",
+                }
+                .type_reference(cast.target_type, self.diagnostics);
+                // All cast TARGET/SOURCE type validation lives behind one dispatcher.
+                crate::value_custody::expression_types::validate_cast_types(
+                    program,
+                    machine,
+                    Some(state),
+                    cast,
                     value_environment,
-                    *element,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
+                    self.diagnostics,
                 );
+                if executes {
+                    crate::proof_contracts::arithmetic_domains::validate_range_cast_at_use(
+                        program,
+                        machine,
+                        state,
+                        expression,
+                        value_environment,
+                        self.diagnostics,
+                    );
+                }
+                self.scan(cast.value, value_environment, executes);
             }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            let fields = literal.fields;
-            for field in program.expression_table.struct_fields(fields) {
-                scan_expression_calls(
+            ExpressionNode::Indexed(indexed) => {
+                crate::value_custody::expression_types::report_non_integer_index(
                     program,
                     machine,
                     state,
-                    symbols,
-                    writable_roots,
-                    value_environment,
-                    field.value,
-                    executes,
-                    boundary_operator_applications,
-                    diagnostics,
-                    formation_obligations,
+                    indexed,
+                    self.diagnostics,
                 );
+                self.scan(indexed.collection, value_environment, executes);
+                self.scan(indexed.index, value_environment, executes);
             }
-        }
-        ExpressionNode::Range(range) => {
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                range.start,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-            scan_expression_calls(
-                program,
-                machine,
-                state,
-                symbols,
-                writable_roots,
-                value_environment,
-                range.end,
-                executes,
-                boundary_operator_applications,
-                diagnostics,
-                formation_obligations,
-            );
-        }
-        typed_trees::executable_leaf_expression_pattern!() => {}
-        ExpressionNode::ZeroValue(type_reference) => {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` uses `zero_value<{}>()` in executable code; \
+            ExpressionNode::Member(member) => {
+                self.scan(member.receiver, value_environment, executes);
+            }
+            ExpressionNode::Borrow(inner) => {
+                self.scan(inner.target, value_environment, executes);
+            }
+            ExpressionNode::Unary(unary) => {
+                match unary.operator {
+                    typed_trees::expression::UnaryOperator::BitwiseNot => {
+                        crate::value_custody::expression_types::report_non_integer_bitwise_not(
+                            program,
+                            machine,
+                            Some(state),
+                            unary.operand,
+                            self.diagnostics,
+                        );
+                    }
+                    typed_trees::expression::UnaryOperator::LogicalNot => {
+                        crate::value_custody::expression_types::report_non_bool_logical_not(
+                            program,
+                            machine,
+                            Some(state),
+                            unary.operand,
+                            self.diagnostics,
+                        );
+                    }
+                }
+                self.scan(unary.operand, value_environment, executes);
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                let elements = *elements;
+                for element in program.expression_table.expression_handles(elements) {
+                    self.scan(*element, value_environment, executes);
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                let fields = literal.fields;
+                for field in program.expression_table.struct_fields(fields) {
+                    self.scan(field.value, value_environment, executes);
+                }
+            }
+            ExpressionNode::Range(range) => {
+                self.scan(range.start, value_environment, executes);
+                self.scan(range.end, value_environment, executes);
+            }
+            typed_trees::executable_leaf_expression_pattern!() => {}
+            ExpressionNode::ZeroValue(type_reference) => {
+                self.diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` uses `zero_value<{}>()` in executable code; \
                  `zero_value<T>()` is a proof-only representation observation and may \
                  appear only in contracts",
-                machine.name.as_str(),
-                state.name.as_str(),
-                program.display_type_reference(*type_reference),
-            )));
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                    program.display_type_reference(*type_reference),
+                )));
+            }
         }
     }
 }
