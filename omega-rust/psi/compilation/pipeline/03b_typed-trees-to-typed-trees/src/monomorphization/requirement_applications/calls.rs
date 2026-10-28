@@ -83,7 +83,7 @@ fn inferred_method_arguments(
     // Rechecking a joined Product can observe an already closed receiving
     // target. Its zero-parameter signature cannot replace this invocation's
     // original method telescope or its independently applied outer scope.
-    let receiver = receiver_scope(program, machine, state, position, call);
+    let receiver = || receiver_scope(program, machine, state, position, call);
     let (template, scope) =
         source_scope(program, machine.symbol, target, receiver, application).ok()??;
     let (_, declared_signature) = program.trait_machine_signature(template)?;
@@ -179,6 +179,9 @@ fn receiver_scope<'p>(
     position: usize,
     call: StaticArgumentCall<'_>,
 ) -> Option<AppliedTraitScope<'p>> {
+    if matches!(call, StaticArgumentCall::Expression(_, call) if !call.receiver.is_valid()) {
+        return None;
+    }
     let (symbol, reference) = match call {
         StaticArgumentCall::Statement(call) => (
             call.receiver_symbol,
@@ -200,8 +203,8 @@ fn receiver_scope<'p>(
     validation::qualified_trait_scope(program, machine.symbol, symbol, reference)
 }
 
-fn instance(
-    program: &TypedTrees,
+fn instance<'p>(
+    program: &'p TypedTrees,
     lexical_owner: SymbolHandle,
     target: SymbolHandle,
     receiver: impl FnOnce() -> Option<AppliedTraitScope<'p>>,
@@ -519,13 +522,15 @@ pub(super) fn invocation_tuples<'p>(
                     add(
                         machine.symbol,
                         call.target_symbol,
-                        receiver_scope(
-                            program,
-                            machine,
-                            state,
-                            position,
-                            StaticArgumentCall::Statement(call),
-                        ),
+                        &|| {
+                            receiver_scope(
+                                program,
+                                machine,
+                                state,
+                                position,
+                                StaticArgumentCall::Statement(call),
+                            )
+                        },
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
                         occurrence(
@@ -549,13 +554,15 @@ pub(super) fn invocation_tuples<'p>(
                         add(
                             machine.symbol,
                             call.target_symbol,
-                            receiver_scope(
-                                program,
-                                machine,
-                                state,
-                                position,
-                                StaticArgumentCall::Expression(expression, call),
-                            ),
+                            &|| {
+                                receiver_scope(
+                                    program,
+                                    machine,
+                                    state,
+                                    position,
+                                    StaticArgumentCall::Expression(expression, call),
+                                )
+                            },
                             call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),
                             occurrence(
