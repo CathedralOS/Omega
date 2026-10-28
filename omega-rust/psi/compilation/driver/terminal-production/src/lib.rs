@@ -21,8 +21,7 @@ mod terminal_production;
 
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
-    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
 };
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
