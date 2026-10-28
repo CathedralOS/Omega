@@ -43,9 +43,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
             });
         }
         let source = source_parameters.get(parameter.position as usize)?;
-        if crate::checks::contracts::exclusive_referent_type(program, source.type_reference)
-            .is_valid()
-        {
+        if parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow {
             // This is the declaration's descendant/default roster, before any
             // arrival or authored requires facts augment a parameter. Its
             // normal duty is distinct from an additional root qualification.

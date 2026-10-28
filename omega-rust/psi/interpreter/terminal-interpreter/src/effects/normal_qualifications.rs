@@ -12,10 +12,37 @@ use terminal_psi::{StructuralAccess, StructuralPathQualification, StructuralPath
 #[derive(Debug, Clone)]
 pub(crate) struct CapturedNormalQualification {
     pub(crate) path: Vec<StructuralPathSegment>,
-    /// None is a proved inactive case, never an unknown pointer.
-    subject: Option<StructuralRuntimePlace>,
+    subject: CapturedQualificationSubject,
     carrier: StructuralTypeId,
     domain: StructuralDomainId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CapturedQualificationSubject {
+    Active(StructuralRuntimePlace),
+    /// An inactive payload has no address or membership. Its implication is
+    /// scoped by the actual discriminator home and the untouched case suffix.
+    Inactive {
+        guard: StructuralRuntimePlace,
+        guard_carrier: StructuralTypeId,
+        suffix: Vec<StructuralPathSegment>,
+    },
+}
+
+enum NormalQualificationSubject {
+    Active(TerminalStructuralValue),
+    Inactive(CapturedQualificationSubject),
+}
+
+impl NormalQualificationSubject {
+    fn captured(&self) -> CapturedQualificationSubject {
+        match self {
+            Self::Active(value) => {
+                CapturedQualificationSubject::Active(StructuralRuntimePlace::from(value))
+            }
+            Self::Inactive(subject) => subject.clone(),
+        }
+    }
 }
 
 impl TerminalExecution<'_> {
@@ -62,17 +89,17 @@ impl TerminalExecution<'_> {
                 continue;
             }
             let subject = self.normal_qualification_subject(owner, &row.path)?;
-            if subject.as_ref().is_some_and(|subject| {
-                subject.structural_type != domain.carrier
-                    || !subject.qualifications.contains(&row.domain)
-            }) {
+            if let NormalQualificationSubject::Active(value) = &subject
+                && (value.structural_type != domain.carrier
+                    || !value.qualifications.contains(&row.domain))
+            {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "normal host preservation lacks the exact original input membership",
                 ));
             }
             captured.push(CapturedNormalQualification {
                 path: row.path.clone(),
-                subject: subject.as_ref().map(StructuralRuntimePlace::from),
+                subject: subject.captured(),
                 carrier,
                 domain: row.domain,
             });
@@ -90,14 +117,17 @@ impl TerminalExecution<'_> {
         if self.normal_qualification_is_intrinsic(value, path, domain) {
             return Ok(true);
         }
-        let Some(subject) = self.normal_qualification_subject(value, path)? else {
-            return Ok(true);
-        };
-        Ok(captured.iter().any(|row| {
-            row.domain == domain
-                && row.carrier == subject.structural_type
-                && row.subject.as_ref() == Some(&StructuralRuntimePlace::from(&subject))
-        }))
+        let subject = self.normal_qualification_subject(value, path)?;
+        let carrier = terminal_semantics::qualification_path_carrier(
+            self.program.structural_types().values(),
+            value.structural_type,
+            path,
+        )
+        .ok_or_else(malformed)?;
+        let subject = subject.captured();
+        Ok(captured
+            .iter()
+            .any(|row| row.domain == domain && row.carrier == carrier && row.subject == subject))
     }
 
     /// New active routed payloads need establishment, not the old inactive
@@ -112,7 +142,10 @@ impl TerminalExecution<'_> {
             semantic_vocabulary::StructuralCaseId,
         )],
     ) -> Result<(), TerminalInterpretError> {
-        for row in captured.iter().filter(|row| row.subject.is_none()) {
+        for row in captured
+            .iter()
+            .filter(|row| matches!(row.subject, CapturedQualificationSubject::Inactive { .. }))
+        {
             for (position, segment) in row.path.iter().enumerate() {
                 let StructuralPathSegment::Case(expected) = segment else {
                     continue;
@@ -169,7 +202,7 @@ impl TerminalExecution<'_> {
         &self,
         value: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
-    ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
+    ) -> Result<NormalQualificationSubject, TerminalInterpretError> {
         for (position, segment) in path.iter().enumerate() {
             match segment {
                 StructuralPathSegment::AllElements => {
@@ -194,17 +227,23 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     if actual.case != *expected {
-                        return Ok(None);
+                        return Ok(NormalQualificationSubject::Inactive(
+                            CapturedQualificationSubject::Inactive {
+                                guard: StructuralRuntimePlace::from(&carrier),
+                                guard_carrier: carrier.structural_type,
+                                suffix: path[position..].to_vec(),
+                            },
+                        ));
                     }
                 }
                 _ => {}
             }
         }
         if path.is_empty() {
-            return Ok(Some(value.clone()));
+            return Ok(NormalQualificationSubject::Active(value.clone()));
         }
         self.resolve_reference_storage_projection(value, path, StructuralAccess::SharedBorrow)?
-            .map(|projection| Some(projection.value))
+            .map(|projection| NormalQualificationSubject::Active(projection.value))
             .ok_or_else(malformed)
     }
 }
