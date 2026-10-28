@@ -81,10 +81,77 @@ impl MachineOverloadIndex {
 }
 
 #[derive(Clone, Copy)]
-struct CallOwner {
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    source_span: SourceSpan,
+enum CallOwner {
+    State {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        source_span: SourceSpan,
+    },
+    Declaration {
+        symbol: SymbolHandle,
+        source_span: SourceSpan,
+    },
+}
+
+impl CallOwner {
+    fn symbol(self) -> SymbolHandle {
+        match self {
+            Self::State { machine, .. } => machine,
+            Self::Declaration { symbol, .. } => symbol,
+        }
+    }
+
+    fn source_span(self) -> SourceSpan {
+        match self {
+            Self::State { source_span, .. } | Self::Declaration { source_span, .. } => source_span,
+        }
+    }
+
+    fn operand_type(
+        self,
+        program: &dyn crate::CheckingInput,
+        argument: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        match self {
+            Self::State { machine, state, .. } => crate::expression_result_type_reference(
+                program,
+                program.machine(machine)?,
+                program.state_by_symbol(state)?,
+                argument,
+            ),
+            Self::Declaration { symbol, .. } => {
+                crate::parameter_expression_result_type_reference(program, symbol, &[], argument)
+            }
+        }
+    }
+
+    fn type_arguments(
+        self,
+        program: &dyn crate::CheckingInput,
+        callee: &typed_trees::machine::Machine,
+        entry: &typed_trees::state::State,
+        operands: CallOperands<'_>,
+    ) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+        match self {
+            Self::State { machine, state, .. } => crate::call_type_arguments(
+                program,
+                program.machine(machine)?,
+                Some(program.state_by_symbol(state)?),
+                callee,
+                entry,
+                operands.static_arguments,
+                operands.arguments,
+            ),
+            Self::Declaration { symbol, .. } => super::calls::declaration_call_type_arguments(
+                program,
+                symbol,
+                callee,
+                entry,
+                operands.static_arguments,
+                operands.arguments,
+            ),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -107,7 +174,7 @@ fn expression_owners(program: &dyn crate::CheckingInput) -> HashMap<u32, CallOwn
             continue;
         };
         for (ordinal, state) in program.machine_states(machine).iter().enumerate() {
-            let owner = CallOwner {
+            let owner = CallOwner::State {
                 machine: machine.symbol,
                 state: state.symbol,
                 source_span,
@@ -137,6 +204,28 @@ fn expression_owners(program: &dyn crate::CheckingInput) -> HashMap<u32, CallOwn
                 ) {
                     record_expression_owner(program, root, owner, &mut owners);
                 }
+            }
+        }
+    }
+    // Pending canonical values retain both source recipes. They are declaration
+    // work, not machine bodies; keep their exact owner when selecting operands.
+    for declaration in program.const_declarations() {
+        let Some(source_span) = program
+            .symbols
+            .symbol_provenance_source_span(declaration.symbol)
+        else {
+            continue;
+        };
+        let owner = CallOwner::Declaration {
+            symbol: declaration.symbol,
+            source_span,
+        };
+        for root in [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ] {
+            if program.expression_table.expression_is_valid(root) {
+                record_expression_owner(program, root, owner, &mut owners);
             }
         }
     }
@@ -194,7 +283,7 @@ pub fn resolve_named_result_overloads(
                 expression_owners.get(&handle.arena_index()).copied(),
                 expression_owners
                     .get(&handle.arena_index())
-                    .map(|owner| owner.source_span)
+                    .map(|owner| owner.source_span())
                     .unwrap_or_else(|| program.expression_table.source_span(handle)),
                 expected,
                 &mut diagnostics,
@@ -218,7 +307,7 @@ pub fn resolve_named_result_overloads(
                     program,
                     &machine_overloads,
                     call,
-                    Some(CallOwner {
+                    Some(CallOwner::State {
                         machine: machine.symbol,
                         state: state.symbol,
                         source_span: call.source_span,
@@ -299,7 +388,7 @@ pub fn resolve_named_result_overloads(
         if call.target_symbol != selected {
             call.target_symbol = selected;
             if let Some(owner) = expression_owners.get(&handle.arena_index()) {
-                changed_owners.push(owner.machine);
+                changed_owners.push(owner.symbol());
             }
         }
         let application = call.authored_machine_application;
@@ -310,7 +399,7 @@ pub fn resolve_named_result_overloads(
             if !retained.registration_operation.is_valid() {
                 retained.registration_operation = selected;
                 if let Some(owner) = expression_owners.get(&handle.arena_index()) {
-                    changed_owners.push(owner.machine);
+                    changed_owners.push(owner.symbol());
                 }
             }
         }
@@ -486,7 +575,7 @@ fn selected_transition_call_symbols(
                         program,
                         name.as_str(),
                         CallOperands {
-                            owner: Some(CallOwner {
+                            owner: Some(CallOwner::State {
                                 machine: machine.symbol,
                                 state: state.symbol,
                                 source_span: *source_span,
@@ -992,8 +1081,6 @@ fn named_machine_overload_family_symbol(
     });
     if distinct_parameters {
         let owner = operands.owner?;
-        let caller = program.machine(owner.machine)?;
-        let caller_state = program.state_by_symbol(owner.state)?;
         overloads.retain(|(target, _)| {
             let Some((callee, entry)) = crate::find_state(program, *target) else {
                 return false;
@@ -1002,27 +1089,14 @@ fn named_machine_overload_family_symbol(
             if parameters.len() != operands.arguments.len() {
                 return false;
             }
-            let Some(substitutions) = crate::call_type_arguments(
-                program,
-                caller,
-                Some(caller_state),
-                callee,
-                entry,
-                operands.static_arguments,
-                operands.arguments,
-            ) else {
+            let Some(substitutions) = owner.type_arguments(program, callee, entry, operands) else {
                 return false;
             };
             parameters
                 .iter()
                 .zip(operands.arguments)
                 .all(|(parameter, argument)| {
-                    match crate::expression_result_type_reference(
-                        program,
-                        caller,
-                        caller_state,
-                        *argument,
-                    ) {
+                    match owner.operand_type(program, *argument) {
                         Some(actual) => {
                             crate::value_custody::expression_types::completed_call_operand_matches(
                                 program,
@@ -1035,7 +1109,7 @@ fn named_machine_overload_family_symbol(
                             crate::value_custody::literals::has_anonymous_numeric_results(program, *argument)
                                 && crate::value_custody::expression_types::argument_matches_call_carrier(
                                 program,
-                                owner.machine,
+                                owner.symbol(),
                                 *argument,
                                 parameter.type_reference,
                                 &substitutions,

@@ -59,6 +59,21 @@ pub(super) fn build_owner_environment_index(
     for (reached, environment) in super::environments::data_type_environments(program) {
         index.add_all(reached, || environment);
     }
+    // Initializer recipes have an exact declaration owner, even when their
+    // execution is deferred. This records lexical custody, not checked facts.
+    for declaration in program.const_declarations() {
+        let reached = [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ]
+        .into_iter()
+        .filter(|root| program.expression_table.expression_is_valid(*root))
+        .flat_map(|root| super::reachable_expressions(program, root));
+        index.add_all(reached, || TypeEnvironment {
+            owner: declaration.symbol,
+            ..Default::default()
+        });
+    }
     index_ranking_environments(program, &mut index);
     index_executable_environments(program, &mut index);
     index
