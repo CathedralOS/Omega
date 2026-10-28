@@ -8,6 +8,19 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/borrows/nested_machine_unit_output_completed_operand_exit built 6686ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/borrows/nested_machine_unit_output_local_destination_exit built 6582ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/borrows/nested_machine_unit_output_long_cycle_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/borrows/nested_machine_unit_output_ordinary_forward_exit built 4823ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_call_result_exit built 4324ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_const_name_exit built 4287ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_field_exit built 4169ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_local_exit built 4043ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_match_join_exit built 4083ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_other_machine_exit built 4084ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_other_state_exit built 4102ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_parameter_exit built 4116ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/facts/nested_machine_unit_output_slot_target_body_exit built 4030ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/arithmetic/affine_difference_weighted_exit built 3969ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 7965ms exit:112 interpreter-exit:112 interpreter:agrees @97705f5a651d
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
@@ -5185,16 +5198,3 @@ pass/facts/checked_asm_countdown_through_other_machine_exit built 1029ms exit:0 
 pass/facts/checked_asm_countdown_through_other_state_exit built 973ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ba3ff5913689
 pass/facts/checked_asm_countdown_through_parameter_exit built 996ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ba3ff5913689
 pass/facts/checked_asm_countdown_through_target_body_exit built 1663ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ba3ff5913689
-pass/borrows/nested_machine_unit_output_completed_operand_exit built 6686ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/borrows/nested_machine_unit_output_local_destination_exit built 6582ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/borrows/nested_machine_unit_output_long_cycle_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/borrows/nested_machine_unit_output_ordinary_forward_exit built 4823ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_call_result_exit built 4324ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_const_name_exit built 4287ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_field_exit built 4169ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_local_exit built 4043ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_match_join_exit built 4083ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_other_machine_exit built 4084ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_other_state_exit built 4102ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_parameter_exit built 4116ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
-pass/facts/nested_machine_unit_output_slot_target_body_exit built 4030ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
