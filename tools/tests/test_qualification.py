@@ -170,14 +170,14 @@ class QualificationTests(unittest.TestCase):
                         return_value=subprocess.CompletedProcess([], status, output, b"")):
                     with self.assertRaises(qualification.RecoveryError):
                         qualification.source_inputs(self.repository, self.base, ["src"])
-    def test_summary_run_preserves_full_evidence_and_failed_exit(self):
+    def test_default_summary_run_preserves_full_evidence_and_failed_exit(self):
         def execute():
             output = io.StringIO()
             revision = qualification.load(self.state)["revision"]
             with mock.patch("sys.stdout", output):
                 status = qualification.main(["run", "--repository", str(self.repository),
                     "--state", str(self.state), "--revision", str(revision),
-                    "--check", "values", "--summary-output"])
+                    "--check", "values"])
             return status, json.loads(output.getvalue())
         status, summary = execute()
         self.assertEqual(status, 0)
@@ -212,6 +212,29 @@ class QualificationTests(unittest.TestCase):
                 "--state", str(self.state), "--revision", str(revision - 1),
                 "--check", "values", "--summary-output"]), 1)
         self.assertEqual(qualification.load(self.state)["revision"], revision)
+
+    def test_status_defaults_to_bounded_summary_and_full_output_preserves_history(self):
+        configuration = copy.deepcopy(self.config)
+        configuration["context"]["captured_resource_description"] = "resource metadata " * 65536
+        qualification.amend(self.state, 0, configuration, "large retained context")
+        original = self.state.read_bytes()
+        responses = []
+        for flags in ([], ["--summary-output"], ["--full-output"]):
+            output = io.StringIO()
+            with mock.patch("sys.stdout", output):
+                status = qualification.main(["status", "--repository", str(self.repository),
+                                             "--state", str(self.state), *flags])
+            self.assertEqual(status, 0)
+            self.assertEqual(self.state.read_bytes(), original)
+            responses.append(output.getvalue())
+        self.assertEqual(responses[0], responses[1])
+        self.assertLess(len(responses[0].encode("utf-8")), 8192)
+        summary = json.loads(responses[0])
+        self.assertEqual(summary["schema"], "omega-qualification-summary-v1")
+        self.assertEqual(summary["state"], str(self.state.resolve()))
+        self.assertEqual(summary["revision"], qualification.load(self.state)["revision"])
+        self.assertGreater(len(responses[2]), 1024 * 1024)
+        self.assertEqual(json.loads(responses[2]), qualification.load(self.state))
 
     def test_snapshot_preserves_normal_utf8_encoding_refusals(self):
         text = self.state.read_text(encoding="utf-8")
