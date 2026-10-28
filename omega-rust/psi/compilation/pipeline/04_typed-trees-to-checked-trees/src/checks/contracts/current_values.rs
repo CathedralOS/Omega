@@ -18,7 +18,7 @@ pub(crate) fn proves_exit<'program>(
         Option<(
             &'program typed_trees::machine::Machine,
             CurrentScalarValues<'program>,
-            ExpressionHandle,
+            Option<ExpressionHandle>,
         )>,
     >,
 ) -> bool {
@@ -41,16 +41,21 @@ pub(crate) fn proves_exit<'program>(
                 Some(StatementNode::Expression(expression))
                     if !exit.transition_target.is_valid() =>
                 {
-                    *expression
+                    Some(*expression)
                 }
                 Some(StatementNode::Transition(_)) if exit.transition_target.is_valid() => {
-                    let typed_trees::statement::TransitionTargetNode::Value(expression) = program
+                    match program
                         .statement_table
                         .transition_target(exit.transition_target)
-                    else {
-                        return None;
-                    };
-                    *expression
+                    {
+                        typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                            Some(*expression)
+                        }
+                        // Normal unit completion has no result operand, but
+                        // its current borrowed storage still owes guarantees.
+                        typed_trees::statement::TransitionTargetNode::Terminal => None,
+                        typed_trees::statement::TransitionTargetNode::Named { .. } => return None,
+                    }
                 }
                 _ => return None,
             };
@@ -66,10 +71,12 @@ pub(crate) fn proves_exit<'program>(
             // current referents after the returned operation has completed.
             // Retire its may-writes before consuming prefix scalar values;
             // exact result/post-storage captures have their own proof owner.
-            values.invalidate_operand_writes(
-                frames.map(|frames| frames.expression_write_frame(machine, returned)),
-            );
-            values.prepare_exit_return(returned);
+            if let Some(returned) = returned {
+                values.invalidate_operand_writes(
+                    frames.map(|frames| frames.expression_write_frame(machine, returned)),
+                );
+                values.prepare_exit_return(returned);
+            }
             Some((machine, values, returned))
         })
         .as_ref()
