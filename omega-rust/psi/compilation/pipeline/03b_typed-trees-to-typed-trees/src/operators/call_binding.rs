@@ -401,30 +401,7 @@ pub(crate) fn bind_selected_operator_calls(
             ExpressionHandle::invalid()
         };
         *program.expression_table.expression_mut(expression) =
-            ExpressionNode::Call(TableCallExpression {
- authored_call_selection: None,
- authored_call_binding: None,
-                authored_machine_application: Default::default(),
-                requirement_application: Default::default(),
-                exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
-                receiver,
-                target_symbol: target.entry,
-                static_machine_parameter: SymbolHandle::invalid(),
-                target: target.name,
-                static_requirement_dispatch: target.dispatch,
-                machine_arguments: target.arguments,
-                quotient_operation: None,
-                private_layout_operation: None,
-                layout_query: None,
-                    native_code_layout: None,
-                    build_selection: Default::default(),
-                arguments,
-                evidence_arguments: Box::default(),
-                operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
-                    origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                    ..Default::default()
-                },
-            });
+            ExpressionNode::Call(synthesized_operator_call(receiver, target, arguments));
     }
     if diagnostics.is_empty() {
         Ok(bound_count)
@@ -554,33 +531,12 @@ fn rewrite_match_equality(
         } else {
             ExpressionHandle::invalid()
         };
-        let call = program
-            .expression_table
-            .insert(ExpressionNode::Call(TableCallExpression {
-            authored_call_selection: None,
-            authored_call_binding: None,
-            authored_machine_application: Default::default(),
-            requirement_application: Default::default(),
-            exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
-            receiver,
-            target_symbol: target.entry,
-            static_machine_parameter: SymbolHandle::invalid(),
-            target: target.name,
-            static_requirement_dispatch: target.dispatch,
-            machine_arguments: target.arguments,
-            quotient_operation: None,
-            private_layout_operation: None,
-            layout_query: None,
-            native_code_layout: None,
-            build_selection: Default::default(),
-            arguments,
-            evidence_arguments: Box::default(),
-            operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
-                origin:
-                    language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                ..Default::default()
-            },
-        }));
+        let call =
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(synthesized_operator_call(
+                    receiver, target, arguments,
+                )));
         let truth = program
             .expression_table
             .insert(ExpressionNode::Boolean(true));
@@ -627,6 +583,37 @@ struct SelectedOperatorCall {
     start_parameter: TypeReferenceHandle,
     dispatch: Option<StaticRequirementDispatch>,
     arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
+}
+
+fn synthesized_operator_call(
+    receiver: ExpressionHandle,
+    target: SelectedOperatorCall,
+    arguments: arena::HandleSpan<ExpressionHandle>,
+) -> TableCallExpression {
+    TableCallExpression {
+        authored_call_selection: None,
+        authored_call_binding: None,
+        authored_machine_application: Default::default(),
+        requirement_application: Default::default(),
+        exact_coercion_target: TypeReferenceHandle::invalid(),
+        receiver,
+        target_symbol: target.entry,
+        static_machine_parameter: SymbolHandle::invalid(),
+        target: target.name,
+        static_requirement_dispatch: target.dispatch,
+        machine_arguments: target.arguments,
+        quotient_operation: None,
+        private_layout_operation: None,
+        layout_query: None,
+        native_code_layout: None,
+        build_selection: Default::default(),
+        arguments,
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
+            origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            ..Default::default()
+        },
+    }
 }
 
 fn selected_call_target(
