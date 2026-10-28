@@ -1,0 +1,12 @@
+[package]
+name = "encoded-scalar-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "encoded_scalar_plan"
+path = "src/lib.rs"
+
+[features]
+test-support = []

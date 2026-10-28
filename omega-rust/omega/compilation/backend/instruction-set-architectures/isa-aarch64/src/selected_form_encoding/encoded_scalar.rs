@@ -4,69 +4,19 @@
 
 use super::selected_forms::request_registers;
 use super::{Aarch64SelectedFormEncodingError as Error, ValidatedAarch64SelectedFormEncoding};
+use encoded_scalar_plan::{Step, plan};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
     SelectedInstructionKind,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Word {
-    Zero(u8),
-    Copy(u8, u8),
-    ByteCount(u8, u8),
-    SubOne(u8),
-    AddOne(u8),
-    LoadByte(u8, u8, u8),
-    StoreByte(u8, u8, u8),
-    SignByte(u8),
-    ShiftLeft8(u8),
-    ShiftRight8(u8),
-    Or(u8, u8),
-    Compare(u8, u8),
-    TestSigned(u8, usize),
-    ZeroBranch(u8, usize),
-    LessBranch(usize),
-    Branch(usize),
+fn codec_plan(load: bool, registers: [u8; 6]) -> Vec<Step> {
+    let [_, _, cursor, count, _, _] = registers;
+    plan(load, registers, Step::Compare(cursor, count))
 }
 
-fn plan(load: bool, registers: [u8; 6]) -> Vec<Word> {
-    if load {
-        let [address, codec, cursor, count, byte, result] = registers;
-        vec![
-            Word::ByteCount(count, codec),
-            Word::Copy(cursor, count),
-            Word::Zero(byte),
-            Word::Zero(result),
-            Word::SubOne(cursor),
-            Word::LoadByte(result, address, cursor),
-            Word::TestSigned(codec, 8),
-            Word::SignByte(result),
-            Word::ZeroBranch(cursor, 15),
-            Word::SubOne(cursor),
-            Word::ShiftLeft8(result),
-            Word::LoadByte(byte, address, cursor),
-            Word::Or(result, byte),
-            Word::ZeroBranch(cursor, 15),
-            Word::Branch(9),
-            Word::Compare(cursor, count),
-        ]
-    } else {
-        let [address, codec, value, cursor, count, payload] = registers;
-        vec![
-            Word::Zero(cursor),
-            Word::ByteCount(count, codec),
-            Word::Copy(payload, value),
-            Word::StoreByte(payload, address, cursor),
-            Word::ShiftRight8(payload),
-            Word::AddOne(cursor),
-            Word::Compare(cursor, count),
-            Word::LessBranch(3),
-        ]
-    }
-}
-
-fn encode_word(word: Word, position: usize) -> Result<u32, Error> {
+fn encode_word(word: Step, position: usize) -> Result<u32, Error> {
     let relative = |target: usize, bits: u32| -> Result<u32, Error> {
         let displacement = target as i64 - position as i64;
         let bound = 1i64 << (bits - 1);
@@ -76,49 +26,49 @@ fn encode_word(word: Word, position: usize) -> Result<u32, Error> {
         Ok((displacement as u32) & ((1 << bits) - 1))
     };
     Ok(match word {
-        Word::Zero(destination) => 0xd280_0000 | u32::from(destination),
-        Word::Copy(destination, source) => {
+        Step::Zero(destination) => 0xd280_0000 | u32::from(destination),
+        Step::Copy(destination, source) => {
             0xaa00_03e0 | (u32::from(source) << 16) | u32::from(destination)
         }
-        Word::ByteCount(destination, source) => {
+        Step::ByteCount(destination, source) => {
             0xd340_1c00 | (u32::from(source) << 5) | u32::from(destination)
         }
-        Word::SubOne(register) => 0xd100_0400 | (u32::from(register) << 5) | u32::from(register),
-        Word::AddOne(register) => 0x9100_0400 | (u32::from(register) << 5) | u32::from(register),
-        Word::LoadByte(destination, base, index) => {
+        Step::SubOne(register) => 0xd100_0400 | (u32::from(register) << 5) | u32::from(register),
+        Step::AddOne(register) => 0x9100_0400 | (u32::from(register) << 5) | u32::from(register),
+        Step::LoadByte(destination, base, index) => {
             0x3860_6800 | (u32::from(index) << 16) | (u32::from(base) << 5) | u32::from(destination)
         }
-        Word::StoreByte(source, base, index) => {
+        Step::StoreByte(source, base, index) => {
             0x3820_6800 | (u32::from(index) << 16) | (u32::from(base) << 5) | u32::from(source)
         }
-        Word::SignByte(register) => 0x9340_1c00 | (u32::from(register) << 5) | u32::from(register),
-        Word::ShiftLeft8(register) => {
+        Step::SignByte(register) => 0x9340_1c00 | (u32::from(register) << 5) | u32::from(register),
+        Step::ShiftLeft8(register) => {
             0xd378_dc00 | (u32::from(register) << 5) | u32::from(register)
         }
-        Word::ShiftRight8(register) => {
+        Step::ShiftRight8(register) => {
             0xd348_fc00 | (u32::from(register) << 5) | u32::from(register)
         }
-        Word::Or(destination, source) => {
+        Step::Or(destination, source) => {
             0xaa00_0000
                 | (u32::from(source) << 16)
                 | (u32::from(destination) << 5)
                 | u32::from(destination)
         }
-        Word::Compare(left, right) => {
+        Step::Compare(left, right) => {
             0xeb00_001f | (u32::from(right) << 16) | (u32::from(left) << 5)
         }
-        Word::TestSigned(register, target) => {
+        Step::TestSigned(register, target) => {
             0x3640_0000 | (relative(target, 14)? << 5) | u32::from(register)
         }
-        Word::ZeroBranch(register, target) => {
+        Step::ZeroBranch(register, target) => {
             0xb400_0000 | (relative(target, 19)? << 5) | u32::from(register)
         }
-        Word::LessBranch(target) => 0x5400_0003 | (relative(target, 19)? << 5),
-        Word::Branch(target) => 0x1400_0000 | relative(target, 26)?,
+        Step::LessBranch(target) => 0x5400_0003 | (relative(target, 19)? << 5),
+        Step::Branch(target) => 0x1400_0000 | relative(target, 26)?,
     })
 }
 
-fn decode_word(encoded: u32, position: usize) -> Result<Word, Error> {
+fn decode_word(encoded: u32, position: usize) -> Result<Step, Error> {
     let destination = (encoded & 31) as u8;
     let source = ((encoded >> 5) & 31) as u8;
     let other = ((encoded >> 16) & 31) as u8;
@@ -128,57 +78,57 @@ fn decode_word(encoded: u32, position: usize) -> Result<Word, Error> {
             .map_err(|_| Error::MalformedEncoding)
     };
     if encoded & 0xffff_ffe0 == 0xd280_0000 {
-        return Ok(Word::Zero(destination));
+        return Ok(Step::Zero(destination));
     }
     if encoded & 0xffe0_ffe0 == 0xaa00_03e0 {
-        return Ok(Word::Copy(destination, other));
+        return Ok(Step::Copy(destination, other));
     }
     if encoded & 0xffff_fc00 == 0xd340_1c00 {
-        return Ok(Word::ByteCount(destination, source));
+        return Ok(Step::ByteCount(destination, source));
     }
     if encoded & 0xffff_fc00 == 0xd100_0400 && destination == source {
-        return Ok(Word::SubOne(destination));
+        return Ok(Step::SubOne(destination));
     }
     if encoded & 0xffff_fc00 == 0x9100_0400 && destination == source {
-        return Ok(Word::AddOne(destination));
+        return Ok(Step::AddOne(destination));
     }
     if encoded & 0xffe0_fc00 == 0x3860_6800 {
-        return Ok(Word::LoadByte(destination, source, other));
+        return Ok(Step::LoadByte(destination, source, other));
     }
     if encoded & 0xffe0_fc00 == 0x3820_6800 {
-        return Ok(Word::StoreByte(destination, source, other));
+        return Ok(Step::StoreByte(destination, source, other));
     }
     if destination == source {
         match encoded & 0xffff_fc00 {
-            0x9340_1c00 => return Ok(Word::SignByte(destination)),
-            0xd378_dc00 => return Ok(Word::ShiftLeft8(destination)),
-            0xd348_fc00 => return Ok(Word::ShiftRight8(destination)),
+            0x9340_1c00 => return Ok(Step::SignByte(destination)),
+            0xd378_dc00 => return Ok(Step::ShiftLeft8(destination)),
+            0xd348_fc00 => return Ok(Step::ShiftRight8(destination)),
             _ => {}
         }
     }
     if encoded & 0xffe0_fc00 == 0xaa00_0000 && destination == source {
-        return Ok(Word::Or(destination, other));
+        return Ok(Step::Or(destination, other));
     }
     if encoded & 0xffe0_fc1f == 0xeb00_001f {
-        return Ok(Word::Compare(source, other));
+        return Ok(Step::Compare(source, other));
     }
     if encoded & 0xfff8_0000 == 0x3640_0000 {
-        return Ok(Word::TestSigned(
+        return Ok(Step::TestSigned(
             destination,
             target((encoded >> 5) & 0x3fff, 14)?,
         ));
     }
     if encoded & 0xff00_0000 == 0xb400_0000 {
-        return Ok(Word::ZeroBranch(
+        return Ok(Step::ZeroBranch(
             destination,
             target((encoded >> 5) & 0x7ffff, 19)?,
         ));
     }
     if encoded & 0xff00_001f == 0x5400_0003 {
-        return Ok(Word::LessBranch(target((encoded >> 5) & 0x7ffff, 19)?));
+        return Ok(Step::LessBranch(target((encoded >> 5) & 0x7ffff, 19)?));
     }
     if encoded & 0xfc00_0000 == 0x1400_0000 {
-        return Ok(Word::Branch(target(encoded & 0x03ff_ffff, 26)?));
+        return Ok(Step::Branch(target(encoded & 0x03ff_ffff, 26)?));
     }
     Err(Error::MalformedEncoding)
 }
@@ -214,7 +164,7 @@ pub(super) fn encode(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Error> {
     let (load, registers) = request(physical, kind, alternative, operands)?;
     let mut bytes = Vec::new();
-    for (position, word) in plan(load, registers).into_iter().enumerate() {
+    for (position, word) in codec_plan(load, registers).into_iter().enumerate() {
         bytes.extend(encode_word(word, position)?.to_le_bytes());
     }
     validate(physical, kind, alternative, operands, &bytes)
@@ -237,7 +187,7 @@ pub(super) fn validate(
         .enumerate()
         .map(|(position, word)| decode_word(u32::from_le_bytes(*word), position))
         .collect::<Result<Vec<_>, _>>()?;
-    if decoded != plan(load, registers) {
+    if decoded != codec_plan(load, registers) {
         return Err(Error::EncodedFormMismatch);
     }
     let inputs = if load { 2 } else { 3 };
@@ -265,6 +215,7 @@ mod tests {
     use super::*;
     use crate::selected_form_encoding::selected_forms::resolve_registers;
     use crate::test_support::reject_every_bit_flip;
+    use encoded_scalar_plan::replay;
 
     fn operands(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 6] {
         ["x0", "x1", "x2", "x3", "x4", "x5"]
@@ -272,65 +223,16 @@ mod tests {
     }
 
     fn execute(bytes: &[u8], state: &mut [u64; 32], memory: &mut [u8]) -> Vec<usize> {
-        let mut position = 0;
-        let mut less = false;
-        let mut accesses = Vec::new();
-        for _ in 0..128 {
-            if position == bytes.len() / 4 {
-                return accesses;
-            }
-            let word: [u8; 4] = bytes[position * 4..position * 4 + 4].try_into().unwrap();
-            let instruction = decode_word(u32::from_le_bytes(word), position).unwrap();
-            let next = position + 1;
-            position = next;
-            match instruction {
-                Word::Zero(destination) => state[destination as usize] = 0,
-                Word::Copy(destination, source) => {
-                    state[destination as usize] = state[source as usize]
-                }
-                Word::ByteCount(destination, source) => {
-                    state[destination as usize] = state[source as usize] & 255
-                }
-                Word::SubOne(register) => state[register as usize] -= 1,
-                Word::AddOne(register) => state[register as usize] += 1,
-                Word::LoadByte(destination, base, offset) => {
-                    let address = (state[base as usize] + state[offset as usize]) as usize;
-                    accesses.push(address);
-                    state[destination as usize] = u64::from(memory[address]);
-                }
-                Word::StoreByte(source, base, offset) => {
-                    let address = (state[base as usize] + state[offset as usize]) as usize;
-                    accesses.push(address);
-                    memory[address] = state[source as usize] as u8;
-                }
-                Word::SignByte(register) => {
-                    state[register as usize] = state[register as usize] as i8 as i64 as u64
-                }
-                Word::ShiftLeft8(register) => state[register as usize] <<= 8,
-                Word::ShiftRight8(register) => state[register as usize] >>= 8,
-                Word::Or(destination, source) => {
-                    state[destination as usize] |= state[source as usize]
-                }
-                Word::Compare(left, right) => less = state[left as usize] < state[right as usize],
-                Word::TestSigned(register, target) => {
-                    if state[register as usize] & 256 == 0 {
-                        position = target;
-                    }
-                }
-                Word::ZeroBranch(register, target) => {
-                    if state[register as usize] == 0 {
-                        position = target;
-                    }
-                }
-                Word::LessBranch(target) => {
-                    if less {
-                        position = target;
-                    }
-                }
-                Word::Branch(target) => position = target,
-            }
-        }
-        panic!("codec loop did not terminate");
+        replay::execute(
+            bytes,
+            bytes.len() / 4,
+            |bytes, position| {
+                let word: [u8; 4] = bytes[position * 4..position * 4 + 4].try_into().unwrap();
+                (decode_word(u32::from_le_bytes(word), position).unwrap(), 1)
+            },
+            state,
+            memory,
+        )
     }
 
     #[test]

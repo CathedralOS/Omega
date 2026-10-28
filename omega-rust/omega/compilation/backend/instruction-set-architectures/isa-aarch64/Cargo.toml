@@ -9,6 +9,7 @@ name = "isa_aarch64"
 path = "src/lib.rs"
 
 [dependencies]
+encoded-scalar-plan = { path = "../encoded-scalar-plan" }
 calling-conventions = { path = "../../calling-conventions" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 register-model = { path = "../../register-model" }
@@ -20,6 +21,7 @@ layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 
 [dev-dependencies]
+encoded-scalar-plan = { path = "../encoded-scalar-plan", features = ["test-support"] }
 function-identity = { path = "../../../../foundation/function-identity" }
 symbols = { path = "../../../../../psi/foundation/symbols" }
 optimization-core = { path = "../../../../foundation/optimization-core" }

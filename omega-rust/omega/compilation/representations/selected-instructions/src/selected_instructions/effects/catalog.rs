@@ -760,6 +760,23 @@ impl MachineEncodedEffects {
         }
     }
 
+    /// A supervisor entry's effect row: the matched kernel-call constraint
+    /// supplies every operand and implicit-unit custody, entry may fault
+    /// architecturally, and control transfers to the kernel.
+    pub fn supervisor_call_v1(row: &register_model::RegisterInstructionConstraint) -> Self {
+        Self {
+            external_operand_reads: row.operand_reads(),
+            external_operand_writes: row.operand_writes(),
+            implicit_unit_uses: row.implicit_uses.clone(),
+            implicit_unit_defs: row.implicit_defs.clone(),
+            implicit_unit_clobbers: row.clobbers.clone(),
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: MachineEncodedControlEffect::SupervisorCallV1,
+        }
+    }
+
     /// A crash alternative's effect row: like a branch it records its site
     /// and transfers control; no caller-owned value or storage is returned
     /// or cleaned up.
