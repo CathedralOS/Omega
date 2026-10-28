@@ -798,7 +798,7 @@ pub(super) fn realized_requirement_state(
         .map(|dispatch| dispatch.realization_state)
 }
 
-fn static_call_receiver_for_target(
+pub(super) fn static_call_receiver_for_target(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     target: symbols::SymbolHandle,
@@ -829,7 +829,7 @@ fn static_call_receiver_for_target(
     program.call_has_no_runtime_receiver_for_target(&selected)
 }
 
-fn structural_call_target_in_frame(
+pub(super) fn structural_call_target_in_frame(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     frame: Option<(

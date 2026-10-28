@@ -2293,7 +2293,7 @@ impl<'program> StructuralJudge<'program> {
     /// the same current-storage observation environment for every operand.
     fn specification_call_candidate(
         &self,
-        lexical_owner: SymbolHandle,
+        target: SymbolHandle,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
         if !self.specification_terms {
@@ -2302,7 +2302,7 @@ impl<'program> StructuralJudge<'program> {
         let candidate = specification_application_candidate(
             self.program,
             self.machine_symbol,
-            super::structural_terms::structural_call_target(self.program, lexical_owner, call),
+            target,
             &call.machine_arguments,
             self.frame_resolver(),
         );
@@ -2633,22 +2633,30 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
+                // Choose the public semantic overload once under this exact
+                // declaration telescope. Eligibility and the resulting term
+                // retain that same nominal owner, including unbound source
+                // calls with several integer-carrier catalog overloads.
+                let frame = scope
+                    .map(|(machine, state, _)| (machine.symbol, program.state_parameters(state)))
+                    .or_else(|| self.declaration_scope())?;
+                let source_target = super::structural_terms::structural_call_target_in_frame(
+                    program,
+                    call,
+                    Some(frame),
+                );
                 let refusal = if self.runtime_body_values
                     && !normal_returns::call_has_mathematical_denotation(
-                        program,
-                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
-                        call,
+                        program, frame.0, frame.1, call,
                     )
-                    && !self.specification_call_candidate(
-                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
-                        call,
-                    ) {
+                    && !self.specification_call_candidate(source_target, call)
+                {
                     Some("value-identity")
                 } else if call.receiver.is_valid()
-                    && !super::structural_terms::static_call_receiver(
+                    && !super::structural_terms::static_call_receiver_for_target(
                         program,
-                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
                         call,
+                        source_target,
                     )
                 {
                     Some("runtime-receiver")
@@ -2724,18 +2732,7 @@ impl<'program> StructuralJudge<'program> {
                 Some(StructuralTerm::Application {
                     result_type,
                     target: realization.clone().unwrap_or_else(|| {
-                        selected_target.map_or_else(
-                            || {
-                                super::structural_terms::structural_call_target(
-                                    program,
-                                    scope.map_or(self.machine_symbol, |(machine, _, _)| {
-                                        machine.symbol
-                                    }),
-                                    call,
-                                )
-                            },
-                            |selected| selected.symbol,
-                        )
+                        selected_target.map_or_else(|| source_target, |selected| selected.symbol)
                     }),
                     selections: if realization.is_some() {
                         Vec::new()

@@ -60,7 +60,12 @@ impl<'program> StructuralJudge<'program> {
         };
         let classification = crate::proof_only_classification(program);
         if classification.is_proof_machine(program, callee)
-            || call_has_mathematical_denotation(program, scope.0.symbol, call)
+            || call_has_mathematical_denotation(
+                program,
+                scope.0.symbol,
+                program.state_parameters(scope.1),
+                call,
+            )
             || entry.symbol == scope.1.symbol
             || self.body_invocations.contains(&entry.symbol)
             || !is_subordinate_machine(program, self.machine_symbol, callee.symbol)

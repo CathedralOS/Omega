@@ -546,7 +546,9 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             } else {
                                 let mut check_judge = active_paths[idx].judge.clone();
                                 if !check_judge.hypotheses_contradictory {
-                                    active_paths[idx].established_guarantees.intake(&mut check_judge);
+                                    active_paths[idx]
+                                        .established_guarantees
+                                        .intake(&mut check_judge);
                                 }
                                 check_judge.hypotheses_contradictory
                                     || phase_profile::scope("05.num.visit.2_contra", || {
@@ -1536,9 +1538,9 @@ fn recognize_structural_state_leaves_from<'a>(
                         (invocation, state, result_type),
                     )?;
                     if outcomes.len() > 1
-                        && outcomes.iter().all(|outcome| {
-                            outcome.has_no_new_effects_or_guarantees_since(&judge)
-                        })
+                        && outcomes
+                            .iter()
+                            .all(|outcome| outcome.has_no_new_effects_or_guarantees_since(&judge))
                     {
                         let judge_refs: Vec<_> = outcomes.iter().collect();
                         let rejoined = judge.rejoin_pure_outcomes(&judge_refs, Some(*expression));
@@ -2247,10 +2249,11 @@ fn terminal_body_transfer<'program>(
                 return None;
             };
             let super::specification_calls::SelectedCallContract::Concrete(callee, entry) =
-                super::specification_calls::selected_call_contract(
+                super::specification_calls::selected_call_contract_for_parameters(
                     program,
-                    invocation.symbol,
                     call,
+                    invocation.symbol,
+                    program.state_parameters(state),
                 )?
             else {
                 return None;
@@ -2272,6 +2275,7 @@ fn terminal_body_transfer<'program>(
                 && super::structural_judgment::normal_returns::call_has_mathematical_denotation(
                     program,
                     invocation.symbol,
+                    program.state_parameters(state),
                     call,
                 )
                 && !is_subordinate_machine(program, proof_root.symbol, callee.symbol)
