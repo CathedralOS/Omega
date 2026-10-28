@@ -57,26 +57,7 @@ pub(super) fn solve<'program>(
             symbols,
             inference,
             include_shared,
-        );
-        eprintln!(
-            "ORIGIN EQUATION owner={} state={} result={:?}",
-            owner.name,
-            state.name,
-            equation.as_ref().map(|e| (
-                e.direct.as_ref().map(|d| (
-                    d.moves.clone(),
-                    d.references
-                        .iter()
-                        .map(|leaf| (&leaf.local_suffix, &leaf.origin))
-                        .collect::<Vec<_>>()
-                )),
-                e.edges
-                    .iter()
-                    .map(|edge| edge.target.symbol)
-                    .collect::<Vec<_>>()
-            ))
-        );
-        let equation = equation?;
+        )?;
         for edge in &equation.edges {
             if !states
                 .iter()
