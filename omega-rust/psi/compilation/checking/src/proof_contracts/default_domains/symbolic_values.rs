@@ -187,6 +187,24 @@ pub(super) fn fold(
             }
         }
         ExpressionNode::Binary(binary) => {
+            // A tag classifier is not an integer value, including in a zero
+            // valuation. The captured structural predicate owner judges it.
+            if binary.operator == BinaryOperator::CaseMembership
+                || program
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                    .any(|occurrence| {
+                        program
+                            .authored_declaration_selections()
+                            .get(occurrence)
+                            .is_some_and(|selection| {
+                                selection.kind()
+                                    == typed_trees::AuthoredDeclarationSelectionKind::CaseMembership
+                            })
+                    })
+            {
+                return None;
+            }
             if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
                 && mentions_float(program, definition, expression)
             {

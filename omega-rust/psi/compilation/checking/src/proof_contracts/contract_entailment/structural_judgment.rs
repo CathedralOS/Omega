@@ -416,6 +416,26 @@ struct StaticObservations<'scope> {
     body_parameters: &'scope [typed_trees::data::TypeParameter],
 }
 
+/// Admission belongs to one completed owned snapshot, inside its Match scope.
+/// A source name or equal reconstructed value cannot recover this receipt.
+#[derive(Clone)]
+struct CompletedNominalCapture {
+    anchor: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+}
+
+impl CompletedNominalCapture {
+    fn same_admission(&self, other: &Self) -> bool {
+        self.anchor == other.anchor
+            && self.reference == other.reference
+            && self
+                .value
+                .observation_identity_key()
+                .is_some_and(|key| other.value.observation_identity_key().as_ref() == Some(&key))
+    }
+}
+
 pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
@@ -434,6 +454,7 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    completed_nominal_captures: Arc<Vec<CompletedNominalCapture>>,
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
@@ -508,6 +529,7 @@ impl Clone for StructuralJudge<'_> {
             body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            completed_nominal_captures: Arc::clone(&self.completed_nominal_captures),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
@@ -563,6 +585,16 @@ impl<'program> StructuralJudge<'program> {
             && self.captured_result_equations.len() == base.captured_result_equations.len()
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
+            && (Arc::ptr_eq(
+                &self.completed_nominal_captures,
+                &base.completed_nominal_captures,
+            ) || (self.completed_nominal_captures.len()
+                == base.completed_nominal_captures.len()
+                && self
+                    .completed_nominal_captures
+                    .iter()
+                    .zip(base.completed_nominal_captures.iter())
+                    .all(|(current, original)| current.same_admission(original))))
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()
     }
@@ -774,6 +806,28 @@ impl<'program> StructuralJudge<'program> {
             }
             rejoined.normal_results = Arc::new(intersected);
         }
+        rejoined.completed_nominal_captures = Arc::new(
+            first
+                .completed_nominal_captures
+                .iter()
+                .filter(|row| {
+                    let Some(key) = row.value.observation_identity_key() else {
+                        return false;
+                    };
+                    outcomes.iter().all(|judge| {
+                        judge.completed_nominal_captures.iter().any(|other| {
+                            other.anchor == row.anchor
+                                && other.reference == row.reference
+                                && other.value.observation_identity_key().as_ref() == Some(&key)
+                        })
+                    }) && rejoined.normal_results.iter().any(|(anchor, value)| {
+                        *anchor == row.anchor
+                            && value.observation_identity_key().as_ref() == Some(&key)
+                    })
+                })
+                .cloned()
+                .collect(),
+        );
         rejoined
     }
 
@@ -906,6 +960,7 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            completed_nominal_captures: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
@@ -1228,6 +1283,25 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// A branch assumption is available only after its source operand was
+    /// independently formed. This supplies truth under that scoped path; it
+    /// never admits a pending nominal value or imports its default domain.
+    pub(super) fn intake_formed_condition(&mut self, fact: ExpressionHandle, holds: bool) {
+        if holds {
+            self.intake(self.program, fact);
+        }
+        if self
+            .declaration_expression_type(fact)
+            .and_then(|reference| self.program.primitive_type_reference(reference))
+            != Some(typed_trees::types::PrimitiveType::Bool)
+        {
+            return;
+        }
+        if let Some(term) = self.declaration_term(fact) {
+            self.intake_equation(term, value_predicates::boolean_term(holds), 0);
+        }
+    }
+
     /// A preserved runtime prefix may retain a selected Boolean predicate as
     /// truth. Entry hypotheses alone do not license this transport: the path
     /// owner must first keep their subjects through every preceding effect.
@@ -1317,6 +1391,13 @@ impl<'program> StructuralJudge<'program> {
             .or_else(|| self.boolean_equality_operand(&right, &left))
         {
             self.intake_equation(operand, truth, depth + 1);
+            return;
+        }
+        if let Some((left, right)) = self
+            .identity_equality_operands(&left, &right)
+            .or_else(|| self.identity_equality_operands(&right, &left))
+        {
+            self.intake_equation(left, right, depth + 1);
             return;
         }
         match (&left, &right) {
@@ -2335,6 +2416,22 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value.clone());
         }
+        if let ExpressionNode::SavedSubject(saved) =
+            self.program.expression_table.expression(expression)
+            && self
+                .program
+                .expression_table
+                .contains_value_capture(saved.capture)
+            && matches!(
+                self.program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            )
+        {
+            return self.completed_match_subject(saved);
+        }
         if let Some(value) = self.completed_descriptor_place(scope, expression, environment) {
             return Some(value);
         }
@@ -2587,16 +2684,21 @@ impl<'program> StructuralJudge<'program> {
                 self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
-                super::structural_terms::constructor_literal_term(program, literal, |_, field| {
-                    let field = field?;
-                    self.callee_term(
-                        field.value,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )
-                })
+                super::structural_terms::constructor_literal_term(
+                    program,
+                    expression,
+                    literal,
+                    |_, field| {
+                        let field = field?;
+                        self.callee_term(
+                            field.value,
+                            environment,
+                            static_observations,
+                            scope,
+                            depth + 1,
+                        )
+                    },
+                )
             }
             ExpressionNode::Unary(unary) => super::structural_terms::logical_not_term_in_scope(
                 program,
@@ -3152,6 +3254,11 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         comparison: &typed_trees::expression::TableBinaryExpression,
     ) -> bool {
+        if !self.runtime_body_values {
+            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
+                self.program, &self.declaration_parameters, expression, comparison,
+            );
+        }
         self.program
             .machine(self.machine_symbol)
             .is_some_and(|machine| {
@@ -3338,7 +3445,7 @@ impl<'program> StructuralJudge<'program> {
         ));
     }
 
-    fn judge_case(
+    pub(super) fn judge_case(
         &self,
         subject: StructuralTerm,
         data_symbol: SymbolHandle,

@@ -1464,6 +1464,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
         ExpressionNode::StructLiteral(literal) => {
             super::super::structural_terms::constructor_literal_term(
                 program,
+                expression,
                 literal,
                 |_, field| {
                     let field = field?;
