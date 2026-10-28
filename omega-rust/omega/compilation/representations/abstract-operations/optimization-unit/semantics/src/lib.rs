@@ -126,74 +126,56 @@ pub fn structural_place_backing_access<'types>(
         .map(|source| source.backing_access(types))
 }
 
+macro_rules! structural_write_preserves {
+    ($name:ident, $roster:path) => {
+        pub fn $name(
+            function: &optimization_unit::PsiOptimizationFunction,
+            place: semantic_vocabulary::PlaceId,
+            path: &[terminal_psi::StructuralPathSegment],
+            types: &[terminal_psi::StructuralTypeDeclaration],
+            domains: &[terminal_psi::StructuralDomainDeclaration],
+            identities: &terminal_psi::TerminalIdentityTable,
+        ) -> bool {
+            unit_validation::operation_contracts::structural_source_contract(function, place)
+                .is_some_and(|source| {
+                    let (whole, projected) = source.selected_qualifications(&[]);
+                    $roster(
+                        types.iter(),
+                        domains.iter(),
+                        identities,
+                        &whole,
+                        &projected,
+                        path,
+                    ) && terminal_semantics::store_preserves_content(
+                        types.iter(),
+                        domains.iter(),
+                        identities,
+                        source.structural_type,
+                        place,
+                        function.content_entry_claims.iter(),
+                        path,
+                    )
+                })
+        }
+    };
+}
+
 /// Check a write against the current root's complete membership roster. The
 /// path stays in the original carrier's coordinates, including every Referent
 /// crossing and the selected typed field; peeling a referent must not forget
 /// its enclosing predicates. This supplies no storage or live-loan authority.
-pub fn structural_write_preserves_memberships(
-    function: &optimization_unit::PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    types: &[terminal_psi::StructuralTypeDeclaration],
-    domains: &[terminal_psi::StructuralDomainDeclaration],
-    identities: &terminal_psi::TerminalIdentityTable,
-) -> bool {
-    unit_validation::operation_contracts::structural_source_contract(function, place).is_some_and(
-        |source| {
-            let (whole, projected) = source.selected_qualifications(&[]);
-            terminal_semantics::store_preserves_qualifications(
-                types.iter(),
-                domains.iter(),
-                identities,
-                &whole,
-                &projected,
-                path,
-            ) && terminal_semantics::store_preserves_content(
-                types.iter(),
-                domains.iter(),
-                identities,
-                source.structural_type,
-                place,
-                function.content_entry_claims.iter(),
-                path,
-            )
-        },
-    )
-}
+structural_write_preserves!(
+    structural_write_preserves_memberships,
+    terminal_semantics::store_preserves_qualifications
+);
 
 /// A checked scalar mutation may expire incoming predicate facts. Its exact
 /// root still owes both carried domain Content and independent entry claims;
 /// source checking, not a declaration roster, owns later predicate consumption.
-pub fn structural_write_preserves_content(
-    function: &optimization_unit::PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    types: &[terminal_psi::StructuralTypeDeclaration],
-    domains: &[terminal_psi::StructuralDomainDeclaration],
-    identities: &terminal_psi::TerminalIdentityTable,
-) -> bool {
-    unit_validation::operation_contracts::structural_source_contract(function, place).is_some_and(
-        |source| {
-            let (whole, projected) = source.selected_qualifications(&[]);
-            terminal_semantics::store_preserves_domain_content(
-                types.iter(),
-                domains.iter(),
-                identities,
-                &whole,
-                &projected,
-                path,
-            ) && terminal_semantics::store_preserves_content(
-                types.iter(),
-                domains.iter(),
-                identities,
-                source.structural_type,
-                place,
-                function.content_entry_claims.iter(),
-                path,
-            )
-        },
-    )
-}
+structural_write_preserves!(
+    structural_write_preserves_content,
+    terminal_semantics::store_preserves_domain_content
+);
 
 /// Declaration-side owned or exclusive storage for whole-referent restoration.
 /// Producer-derived view access follows its actual backing contract; an owned
