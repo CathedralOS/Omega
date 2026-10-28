@@ -152,6 +152,24 @@ pub(crate) fn validate_scalar_stack(
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut depth = 0_u32;
     let mut peak = 0_u32;
+    // Both decoders replay one call site: claim, validate, record, size it.
+    let mut replay_call = |offset: usize, depth: u32| {
+        let call = call_sites
+            .remove(&offset)
+            .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
+        let validated = scalar_call_stack_at(
+            architecture,
+            machine,
+            bytes,
+            call,
+            evidence,
+            depth,
+            scalar_affine_cleanup,
+        )?;
+        let caller_live_bytes = validated.caller_live_bytes;
+        validated_calls.push(validated);
+        Ok(caller_live_bytes)
+    };
     match architecture {
         Architecture::X86_64 => {
             let mut decoder =
@@ -172,20 +190,7 @@ pub(crate) fn validate_scalar_stack(
                     continue;
                 }
                 if instruction.mnemonic() == iced_x86::Mnemonic::Call {
-                    let call = call_sites
-                        .remove(&offset)
-                        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    let validated = scalar_call_stack_at(
-                        architecture,
-                        machine,
-                        bytes,
-                        call,
-                        evidence,
-                        depth,
-                        scalar_affine_cleanup,
-                    )?;
-                    peak = peak.max(validated.caller_live_bytes);
-                    validated_calls.push(validated);
+                    peak = peak.max(replay_call(offset, depth)?);
                     continue;
                 }
                 if instruction.flow_control() != iced_x86::FlowControl::Next {
@@ -248,20 +253,7 @@ pub(crate) fn validate_scalar_stack(
                     return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
                 }
                 if encoded == 0x9400_0000 {
-                    let call = call_sites
-                        .remove(&offset)
-                        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    let validated = scalar_call_stack_at(
-                        architecture,
-                        machine,
-                        bytes,
-                        call,
-                        evidence,
-                        depth,
-                        scalar_affine_cleanup,
-                    )?;
-                    peak = peak.max(validated.caller_live_bytes);
-                    validated_calls.push(validated);
+                    peak = peak.max(replay_call(offset, depth)?);
                     continue;
                 }
                 if aarch64_control_flow_instruction(encoded) {
