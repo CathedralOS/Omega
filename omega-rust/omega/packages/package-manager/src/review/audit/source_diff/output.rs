@@ -43,21 +43,6 @@ impl BoundedOutput {
         self.push(&value.to_string())
     }
 
-    pub(super) fn push_hex(&mut self, bytes: &[u8]) -> Result<(), PackageSourcePatchError> {
-        const DIGITS: &[u8; 16] = b"0123456789abcdef";
-        for byte in bytes {
-            let encoded = [
-                DIGITS[usize::from(byte >> 4)] as char,
-                DIGITS[usize::from(byte & 0x0f)] as char,
-            ];
-            for digit in encoded {
-                let mut buffer = [0_u8; 4];
-                self.push(digit.encode_utf8(&mut buffer))?;
-            }
-        }
-        Ok(())
-    }
-
     pub(super) fn push_escaped(&mut self, bytes: &[u8]) -> Result<(), PackageSourcePatchError> {
         const DIGITS: &[u8; 16] = b"0123456789abcdef";
         for byte in bytes {
