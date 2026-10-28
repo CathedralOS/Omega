@@ -119,9 +119,16 @@ pub(crate) fn instantiate_requirement_applications(
             )
             .map_err(|message| vec![Diagnostic::error(message)])?;
             if arguments.len() != parameters.len() {
-                return Err(vec![Diagnostic::error(
-                    "static method application requires its complete invocation telescope",
-                )]);
+                let mut diagnostic = Diagnostic::error(format!(
+                    "static method application requires its complete invocation telescope for `{}` (found {}, expected {})",
+                    program.symbols.display_path(requirement, "::"),
+                    arguments.len(),
+                    parameters.len(),
+                ));
+                if let Some(span) = program.symbols.symbol_source_span(invocation.owner) {
+                    diagnostic = diagnostic.with_source_span(span);
+                }
+                return Err(vec![diagnostic]);
             }
             // A symbolic call checks the authored universal schema. It does
             // not demand an executable instance until its own tuple closes.

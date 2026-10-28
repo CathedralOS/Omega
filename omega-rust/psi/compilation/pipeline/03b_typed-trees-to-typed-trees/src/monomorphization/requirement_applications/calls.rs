@@ -65,7 +65,7 @@ fn inferred_method_arguments(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    position: usize,
+    _position: usize,
     call: StaticArgumentCall<'_>,
 ) -> Option<Vec<StaticMachineArgument>> {
     let (target, runtime_arguments) = match call {
@@ -114,12 +114,13 @@ fn inferred_method_arguments(
         .iter()
         .zip(runtime_arguments)
     {
-        let actual = validation::expression_type_reference_in_state(
-            program,
-            state.symbol,
-            position,
-            *actual,
-        )?;
+        let Some(actual) =
+            validation::expression_result_type_reference(program, machine, state, *actual)
+        else {
+            // Another argument can supply this tuple. Unavailable result types
+            // are not evidence for a binding and do not block independent ones.
+            continue;
+        };
         validation::infer_call_type_arguments(
             program,
             parameters,
