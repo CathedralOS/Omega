@@ -303,9 +303,16 @@ Private checking-only coordinates remain invocation-local, never portable owners
 The selected row no longer duplicates numeric execution identity: review and
 native settlement consume the checked meaning through the shared source-free
 external-satisfaction join. Host/placement authority remains independent.
-Exact source schema association, earlier typed constant/comparison evaluation
+Psi also retains the requirement's exact schema, method and owner coordinates.
+Numeric settlement checks these against the selected whole plan through the
+same source-free join; early typed Build planning adapts the source-owned view
+to that shared check. Eligibility is retained independently of numeric meaning,
+so absent meaning cannot fall through into another execution category.
+Earlier typed constant/comparison evaluation, general review call coordinates
 and direct-leaf execution records remain migration work; this does not claim
-that selected dispatch as a whole is source-free.
+that selected dispatch as a whole is source-free. Retaining current declarations
+does not reinstate retired standalone boundary requirements or source `via`
+bindings; their language migration remains separately owned.
 
 The source-producing operation returns each Terminal application with its exact
 Build provider companion. It closes those proposals against the emitted demand

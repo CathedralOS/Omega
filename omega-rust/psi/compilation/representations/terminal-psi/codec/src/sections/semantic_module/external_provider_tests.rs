@@ -15,6 +15,11 @@ fn module() -> TerminalModule {
         requirement_identity: TerminalIdentityIndex(3),
         requirement_package: None,
         numeric_intrinsic: module.boundary_machines[0].numeric_intrinsic,
+        requirement_schema: Some(ExternalRequirementSchema {
+            identity: TerminalIdentityIndex(3),
+            method: TerminalIdentityIndex(4),
+            owner: TerminalIdentityIndex(3),
+        }),
         target: Some("macos_arm64".into()),
         realization: CheckedMachineDeclaration {
             machine: NominalDeclarationIdentity::new(TerminalIdentityIndex(4)),
