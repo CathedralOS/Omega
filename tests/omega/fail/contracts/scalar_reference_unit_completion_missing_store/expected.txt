@@ -1,2 +1,2 @@
-cannot prove ensures contract for exit
+cannot prove ensures contract
 output == 0

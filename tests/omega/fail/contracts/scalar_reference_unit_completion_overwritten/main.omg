@@ -8,15 +8,15 @@ machine zero(output: &mut u32) ensures output == 0 {
         transition { _ -> {} }
     }
 }
-machine initialize(output: &write u32) ensures output == 0 {
+machine zero_implicit(output: &mut u32) ensures output == 0 {
     output = 0;
 }
 machine observe_zero(value: u32) requires value == 0 {}
 machine main() crashes Trap {
     let mut changed: u32 = 99;
-    let mut initialized: u32;
+    let mut initialized: u32 = 99;
     zero(&mut changed);
-    initialize(&write initialized);
+    zero_implicit(&mut initialized);
     observe_zero(changed);
     observe_zero(initialized);
     transition changed == 0 && initialized == 0 { true -> {} false -> bad() }
