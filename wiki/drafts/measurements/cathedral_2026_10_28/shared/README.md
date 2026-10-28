@@ -125,3 +125,10 @@ it is not an optimization commit and must not be presented as newly authored UI
 work. Publication to remote/main is not performed. The claim attempt timed out;
 a subsequent successful registry read contained no matching ticket
 `8441669af77246ac96925521fa4683dc`, so no registered claim or release is asserted.
+
+Local implementation commits: Omega `cfec2168c0fb7934d1b73f0bc8ead875740633d6`
+and Cathedral `0737c5da1c1af2384b75edf407900b279a182a4e` (on the separately
+identified frozen-input baseline). After a whitespace-only adapter cleanup, the
+actual builder was rerun and its receipt refreshed; every export and packaged
+output hash still matches the native-tested build. The Cathedral implementation
+patch is retained here for the paired change.
