@@ -59,8 +59,8 @@ pub fn project_package_review(
     {
         return Err(Error::IdentityMismatch);
     }
-    if build_handoff.package() != package
-        || build_handoff.source_consumption_commitment() != source_consumption_commitment
+    if build_handoff.package() != Some(package)
+        || build_handoff.source_consumption_commitment() != Some(source_consumption_commitment)
     {
         return Err(Error::IdentityMismatch);
     }

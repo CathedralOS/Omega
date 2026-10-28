@@ -21,7 +21,7 @@ pub mod retained_native_bindings;
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
-pub use build_handoffs::PackageBuildHandoff;
+pub use build_handoffs::{PackageBuildHandoff, PackageBuildSource};
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;

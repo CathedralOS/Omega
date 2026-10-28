@@ -23,7 +23,9 @@
 //! commands, not a dependency on either application's orchestration.
 
 mod anonymous_owner;
+mod build_handoff_inventory;
 pub use anonymous_owner::AnonymousSourceCapture;
+pub use build_handoff_inventory::BuildHandoffInventory;
 pub use package_source::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 mod canonical_fs;
@@ -53,9 +55,9 @@ pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use package_compilation::{
     CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
-    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
-    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
-    PackageDependencyClosure, PackageSourceBinding,
+    PackageBuildSource, PackageCompilationInputError, PackageCompilationInputs,
+    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyAcquisition,
+    PackageDependencyBinding, PackageDependencyClosure, PackageSourceBinding,
 };
 #[doc(hidden)]
 pub use package_compilation::{
