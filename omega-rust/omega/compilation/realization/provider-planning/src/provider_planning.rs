@@ -16,8 +16,8 @@
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
-pub(crate) mod direct_boundary_leaves;
-mod external_binding_rows;
+pub(crate) mod direct_boundary_inputs;
+pub(crate) mod external_binding_rows;
 mod external_requirements;
 mod independent_components;
 mod installation_reach;
@@ -67,7 +67,7 @@ use installation_reach::derive_selected_installation_reach_resolutions;
 pub fn bind_selected_provider_plan_facts(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
     root_grants: &[String],

@@ -21,7 +21,7 @@ pub use authored::collect_product_root_grants;
 pub fn reject_package_non_provider_grants(
     typed: &TypedTrees,
     root_grants: &[String],
-    provider_plans: &[effects::provider_plan::ProviderPlan],
+    provider_plans: &[&effects::provider_plan::ProviderPlan],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let provider_grants = crate::resolve_selected_provider_grants(

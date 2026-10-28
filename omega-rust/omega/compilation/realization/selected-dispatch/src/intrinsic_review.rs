@@ -346,71 +346,73 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     Ok(resolved)
 }
 
-/// Consume one hosted-exit row against each supplied consumer binding. The
-/// Close leaf execution under its original satisfaction row and the separately
-/// accepted public selection. No leaf plan pretends to have the public digest.
-pub(crate) fn close_direct_boundary_candidates(
+/// Construct complete target-call supplies after their host bindings settle.
+/// Original source rows remain borrowed from planning; no projected plan is
+/// reused as a public admission identity and no later pass fills execution.
+pub(crate) fn produce_direct_boundary_leaves(
     checked: &CheckedTrees,
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
-    candidates: &mut [provider_planning::DirectBoundaryCandidate],
+    candidates: &[provider_planning::ProviderPlanCandidate],
     target: Option<&str>,
     bindings: &[ResolvedAcceptedSemanticBinding],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+    let mut leaves = Vec::new();
     for candidate in candidates {
-        let backend_plan::DirectBoundaryExecution::Intrinsic(execution) =
-            &mut candidate.leaf.execution
-        else {
-            continue;
-        };
-        let source = &candidate.source;
-        let [row] = source.plan.rows.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "direct boundary candidate lost its single original row",
-            )]);
-        };
-        let accepted = |role| {
-            let binding = bindings.iter().find(|binding| binding.role() == role)?;
-            let public = selected.iter().find(|provider| {
-                provider.provider.schema.symbol() == binding.declaration_symbol()
-                    && Some(provider.plan.identity_digest())
-                        == binding.accepted().selected_provider_plan_digest()
-            })?;
-            Some(crate::compiler_intrinsic::AcceptedRowBinding {
-                accepted: binding.accepted(),
-                declaration_symbol: Some(binding.declaration_symbol()),
-                public_plan: Some(&public.plan),
-            })
-        };
-        *execution = match crate::compiler_intrinsic::row_execution_identity(
-            checked,
-            crate::NumericProviderSelection {
-                candidate: external_providers,
-                custody: external_providers,
-                provider: source.provenance.provider_type,
-            },
-            &source.plan,
-            source.provenance.schema,
-            row,
-            source.provenance.row_requirements[0],
-            source.provenance.row_realizations[0]
-                .authored()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "direct intrinsic leaf lost its authored realization",
-                    )]
-                })?,
-            target,
-            accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
-            accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
-        {
-            Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => Some(identity),
-            _ => None,
-        };
+        for input in candidate.direct_boundaries() {
+            let execution = match &input.mechanism {
+                provider_planning::DirectBoundaryMechanism::Foreign(binding) => {
+                    backend_plan::DirectBoundaryExecution::Foreign(binding.clone())
+                }
+                provider_planning::DirectBoundaryMechanism::Intrinsic => {
+                    let source = candidate
+                        .direct_source(input)
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                    let accepted = |role| {
+                        let binding = bindings.iter().find(|binding| binding.role() == role)?;
+                        let public = selected.iter().find(|provider| {
+                            provider.provider.schema.symbol() == binding.declaration_symbol()
+                                && Some(provider.plan.identity_digest())
+                                    == binding.accepted().selected_provider_plan_digest()
+                        })?;
+                        Some(crate::compiler_intrinsic::AcceptedRowBinding {
+                            accepted: binding.accepted(),
+                            declaration_symbol: Some(binding.declaration_symbol()),
+                            public_plan: Some(&public.plan),
+                        })
+                    };
+                    let identity = crate::compiler_intrinsic::row_execution_identity(
+                        checked,
+                        crate::NumericProviderSelection {
+                            candidate: external_providers,
+                            custody: external_providers,
+                            provider: source.provider,
+                        },
+                        source.plan, source.schema, source.row,
+                        source.requirement, source.realization, target,
+                        accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
+                        accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
+                    ).map_err(|diagnostic| vec![diagnostic])?;
+                    let closed = match identity {
+                        Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => {
+                            Some(identity)
+                        }
+                        _ => None,
+                    };
+                    backend_plan::DirectBoundaryExecution::Intrinsic(closed)
+                }
+            };
+            let leaf = input
+                .finish(candidate.plan(), execution)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            // Close every original row before coalescing equal supplies. This
+            // cannot hide a refusal; trust still owns the complete candidates.
+            if !leaves.contains(&leaf) {
+                leaves.push(leaf);
+            }
+        }
     }
-    Ok(())
+    Ok(leaves)
 }
 
 /// Console and canonical ProcessExit roles are independent: a row can consume

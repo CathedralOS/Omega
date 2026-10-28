@@ -18,7 +18,7 @@ pub(super) fn retain_completions(
     checked: &CheckedTrees,
     selected: &mut [crate::SelectedProviderReviewProvenance],
     target: Option<&str>,
-    candidates: &[crate::DerivedProviderPlan],
+    candidates: &[&crate::DerivedProviderPlan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for provider in selected {
         let mut rows = Vec::with_capacity(provider.plan.rows.len());
@@ -123,7 +123,7 @@ pub(super) fn checked_completion(
     machine: SymbolHandle,
     requirement: SymbolHandle,
     target: Option<&str>,
-    candidates: &[crate::DerivedProviderPlan],
+    candidates: &[&crate::DerivedProviderPlan],
 ) -> Result<Vec<SymbolHandle>, String> {
     let mut review = CompletionReview {
         checked,
@@ -143,7 +143,7 @@ struct CompletionReview<'a> {
     checked: &'a CheckedTrees,
     requirement: SymbolHandle,
     target: Option<&'a str>,
-    candidates: &'a [crate::DerivedProviderPlan],
+    candidates: &'a [&'a crate::DerivedProviderPlan],
     active: Vec<(SymbolHandle, SymbolHandle)>,
 }
 

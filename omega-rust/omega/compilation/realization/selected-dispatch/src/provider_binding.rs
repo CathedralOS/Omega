@@ -26,7 +26,7 @@ pub struct ProviderBindingRequest<'a> {
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub boundary_calling_plan_realizations:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    pub provider_plans: &'a [effects::provider_plan::ProviderPlan],
+    pub provider_plans: &'a [&'a effects::provider_plan::ProviderPlan],
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: &'a [provider_planning::SelectedProviderReviewProvenance],

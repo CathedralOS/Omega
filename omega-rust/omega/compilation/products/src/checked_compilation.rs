@@ -210,7 +210,12 @@ impl CheckedCompilation {
             &self.typed,
             self,
             &self.build().config.root_grant_selectors(),
-            &self.providers().provider_plans,
+            &self
+                .providers()
+                .provider_candidates
+                .iter()
+                .map(provider_planning::ProviderPlanCandidate::plan)
+                .collect::<Vec<_>>(),
             &self.execution().selected_provider_plan_facts,
             &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
