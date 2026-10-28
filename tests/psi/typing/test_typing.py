@@ -481,7 +481,7 @@ def main() -> None:
         b"    read(q)\n"
         b"}",
         ((b"read(p)", "u32"), (b"read(q)", "u32")),
-        adaptations=((b"p!4", "lent"), (b"q!2", "")),
+        adaptations=((b"p!4", "lent"), (b"q!2", "lent")),
     )
     accepted(
         program,
