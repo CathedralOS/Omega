@@ -5,6 +5,22 @@ use semantic_vocabulary::BlockId;
 use std::collections::BTreeMap;
 use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
 
+fn structural_bindings(
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    arguments: &[terminal_psi::StructuralArgument],
+) -> Vec<abstract_operations::AbstractStructuralBinding> {
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(
+            |(parameter, argument)| abstract_operations::AbstractStructuralBinding {
+                parameter: parameter.place,
+                argument: argument.clone(),
+            },
+        )
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_terminator(
     module: &terminal_psi::TerminalModule,
@@ -59,17 +75,10 @@ pub(super) fn lower_terminator(
             operations.push(AbstractOperation::Jump {
                 psi_edge: *edge,
                 target: *target,
-                structural_bindings: target_block
-                    .structural_parameters
-                    .iter()
-                    .zip(structural_arguments)
-                    .map(
-                        |(parameter, argument)| abstract_operations::AbstractStructuralBinding {
-                            parameter: parameter.place,
-                            argument: argument.clone(),
-                        },
-                    )
-                    .collect(),
+                structural_bindings: structural_bindings(
+                    &target_block.structural_parameters,
+                    structural_arguments,
+                ),
                 bindings: target_block
                     .parameters
                     .iter()
@@ -106,17 +115,10 @@ pub(super) fn lower_terminator(
                 Ok(AbstractSuccessor {
                     psi_edge: successor.edge,
                     target: successor.target,
-                    structural_bindings: target_block
-                        .structural_parameters
-                        .iter()
-                        .zip(&successor.structural_arguments)
-                        .map(|(parameter, argument)| {
-                            abstract_operations::AbstractStructuralBinding {
-                                parameter: parameter.place,
-                                argument: argument.clone(),
-                            }
-                        })
-                        .collect(),
+                    structural_bindings: structural_bindings(
+                        &target_block.structural_parameters,
+                        &successor.structural_arguments,
+                    ),
                     bindings: target_block
                         .parameters
                         .iter()
@@ -162,17 +164,10 @@ pub(super) fn lower_terminator(
                         psi_edge: successor.edge,
                         target: successor.target,
                         case: successor.case,
-                        structural_bindings: target_block
-                            .structural_parameters
-                            .iter()
-                            .zip(&successor.structural_arguments)
-                            .map(|(parameter, argument)| {
-                                abstract_operations::AbstractStructuralBinding {
-                                    parameter: parameter.place,
-                                    argument: argument.clone(),
-                                }
-                            })
-                            .collect(),
+                        structural_bindings: structural_bindings(
+                            &target_block.structural_parameters,
+                            &successor.structural_arguments,
+                        ),
                         payloads: target_block
                             .parameters
                             .iter()
