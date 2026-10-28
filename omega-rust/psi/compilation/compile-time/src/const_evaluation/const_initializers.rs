@@ -71,6 +71,7 @@ mod target_observations;
 
 pub(crate) use invocations::CheckedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
+pub(crate) use target_observations::retain_entries as retain_deferred_entries;
 pub(crate) use target_observations::settle as settle_target_observations;
 
 /// Dependency identity is independent of pending syntax work. A predecessor

@@ -1,0 +1,14 @@
+// Expected exit: 0.
+// A deferred initializer keeps its entire expression and exact declaration
+// while a later-declared dependency becomes ready. Helper results have ordinary
+// u64 types; exact constant evaluation, not runtime return ranges, admits + 1.
+data Cell { code: u64; tag: u64; }
+const ANSWER: u64 = identity(RAW) + 1u64;
+const RAW: u64 = size_of<Cell>();
+machine identity(value: u64) -> u64 { value }
+machine main() crashes Trap {
+    let answer: u64 = ANSWER;
+    let remainder: u64 = answer - 17u64;
+    transition remainder == 0u64 { true -> {} _ -> bad() }
+    machine bad() { crash Trap; }
+}
