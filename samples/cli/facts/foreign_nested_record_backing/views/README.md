@@ -56,8 +56,8 @@ regressions of the shared retention operation.
 | Soundness boundaries | Missing mint and live-loan controls reject. Additional input-only root qualifications and stale scalar facts cannot be restored from the declared child contract. |
 | Psi 05–07 | Current completion facts must become loan-completion qualifications and Terminal access on the actual restored storage. Old scalar 37 remains distinct from new value 73. |
 | Omega 00–02 | The C pointer-to-array ABI, exact record/array geometry, admitted provider and ordinary call plans remain unchanged; routed supply is semantic preservation, not C byte equality. |
-| Omega 03–06 | Guards check original pointer writes, values surviving calls, selected routing and untouched neighbors. Actual native execution is required after the repair. |
-| Omega 07–09 and emission | All nine authored zero exits require actual native/Terminal agreement on matching hosts. Current strengthened-row runtime acceptance is pending. |
+| Omega 03–06 | Guards check original pointer writes, values surviving calls, selected routing and untouched neighbors. The retained public runs observe the original caller storage and all canaries after completion. |
+| Omega 07–09 and emission | All nine authored zero exits require actual native/Terminal agreement on matching hosts. macOS public execution and independent native custody replay pass; matching Windows and Linux observations remain pending. |
 
 The [foreign-storage contract](../../../../../wiki/spec/build/foreign_storage.md#outbound-custody),
 [mutable declared-field duties](../../../../../wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
@@ -71,7 +71,23 @@ completion. The local case loses three Buffer child memberships and the qualifie
 Buffer/caller observations. All nine live-loan twins still reject for their
 intended read. Baseline compiler, sources, diagnostics and independent preflight
 are retained under `/Users/zcanann/Omega-build/retained-routed-handback-2026-10-28/`.
-No repaired execution is claimed yet.
+At optimized producer `030fde8a16e`, all 62 retained public native/Terminal
+pairs pass on macOS, including this strengthened row. Eleven direct invalid
+controls retain their intended refusal. The fixed-base checking comparison
+recovers the nine strengthened positives and preserves the other 78 outcomes;
+one stale package review was retained and retried after refreshing only its
+ignored acceptance state. Four additional replacement/weaker-formal controls
+preserve their intended pass/reject split.
+
+The independent native custody audit exposed a separate interference error:
+a provider output’s validity anchor was mistaken for its pointee. Producer
+`796a65b12e4` authenticates the captured spatial ancestry before testing that
+anchor’s interference; its lifetime debt remains live. All nine pinned
+positives and the generic borrowed-root control then execute at native 0 and
+Terminal 0 under that audit. The earlier public/checking observations retain
+their actual producer; this audit-only repair leaves those consumers unchanged.
+Matching-host Windows and Linux qualification is in progress. These scoped
+results do not close the parent’s remaining codecs and ABI lanes.
 
 Historical predicate-only acceptance remains separate: producer `1d92ab9b09e`
 passed ten corpus and ten public native/Terminal pairs plus ten intended rejects
