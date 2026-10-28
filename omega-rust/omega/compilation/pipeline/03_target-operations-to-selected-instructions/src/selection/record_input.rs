@@ -8,6 +8,27 @@ use terminal_psi::{
     find_structural_type,
 };
 
+/// Entry parameters plus parameters of every non-entry block, in declaration
+/// order. Callers still decide which place and access they accept.
+pub(super) fn declared_parameters<'source>(
+    source: &'source LegalizedScalarFunction,
+) -> Option<impl Iterator<Item = &'source terminal_psi::StructuralParameterDeclaration> + 'source> {
+    let signature = source.structural.as_ref()?;
+    Some(
+        signature
+            .parameters
+            .iter()
+            .map(|parameter| &parameter.semantic)
+            .chain(
+                source
+                    .blocks
+                    .iter()
+                    .filter(|block| block.id != source.entry_block)
+                    .flat_map(|block| &block.structural_parameters),
+            ),
+    )
+}
+
 pub(super) fn fields(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
@@ -151,19 +172,8 @@ pub(super) fn structural_operand_shape(
             {
                 return None;
             }
-            let signature = source.structural.as_ref()?;
-            let mut parameters = signature
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.semantic)
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
-                )
-                .filter(|parameter| parameter.place == argument.place);
+            let mut parameters =
+                declared_parameters(source)?.filter(|parameter| parameter.place == argument.place);
             let child_type = if let Some(parameter) = parameters.next() {
                 if parameters.next().is_some()
                     || parameter.access != terminal_psi::StructuralAccess::Owned
@@ -255,18 +265,7 @@ pub(super) fn structural_operand_shape(
             {
                 return None;
             }
-            let signature = source.structural.as_ref()?;
-            let parameters = signature
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.semantic)
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
-                );
+            let parameters = declared_parameters(source)?;
             let mut matches = parameters
                 .filter(|parameter| parameter.place == argument.place)
                 .map(|parameter| {
@@ -379,18 +378,8 @@ pub(super) fn projected_operand(
         return None;
     }
     let signature = source.structural.as_ref()?;
-    let mut parameters = signature
-        .parameters
-        .iter()
-        .map(|parameter| &parameter.semantic)
-        .chain(
-            source
-                .blocks
-                .iter()
-                .filter(|block| block.id != source.entry_block)
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .filter(|parameter| parameter.place == argument.place);
+    let mut parameters =
+        declared_parameters(source)?.filter(|parameter| parameter.place == argument.place);
     // Claims and root/projected memberships stay on the exact checked operand
     // and result. This query resolves its physical type and displacement; none
     // of that semantic custody adds bytes or grants another transfer.
