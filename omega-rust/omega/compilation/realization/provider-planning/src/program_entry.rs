@@ -450,7 +450,6 @@ pub struct SelectedCompilerProgramEntry {
     declaration: SelectedEntryDeclaration,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
     physical_adapter: Option<symbols::SymbolHandle>,
-    fused_service_establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
 }
 
 impl SelectedCompilerProgramEntry {
@@ -462,7 +461,6 @@ impl SelectedCompilerProgramEntry {
             declaration,
             calling_plans,
             physical_adapter: None,
-            fused_service_establishments: Vec::new(),
         }
     }
 
@@ -538,12 +536,6 @@ impl SelectedCompilerProgramEntry {
         &self.declaration.signature
     }
 
-    /// Replaces the source signature's identity table after late minting —
-    /// bound fused service establishments intern their rows into it.
-    pub fn set_source_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
-        self.declaration.signature.set_identities(identities);
-    }
-
     pub const fn machine_symbol(&self) -> symbols::SymbolHandle {
         self.declaration.machine
     }
@@ -554,23 +546,6 @@ impl SelectedCompilerProgramEntry {
 
     pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
         self.calling_plans.as_ref()
-    }
-
-    pub fn fused_service_establishments(
-        &self,
-    ) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
-        &self.fused_service_establishments
-    }
-
-    pub fn bind_fused_service_establishments(
-        &mut self,
-        establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
-    ) -> Result<(), &'static str> {
-        if !establishments.is_empty() {
-            return Err("ProgramEntry cannot synthesize application record service fields");
-        }
-        self.fused_service_establishments.clear();
-        Ok(())
     }
 }
 

@@ -16,7 +16,7 @@ use crate::float_semantics::FloatFormat;
 
 /// The overflow behaviour of a primitive's arithmetic. `Exact` is the implicit
 /// default (no `in <Domain>` suffix); the others are opt-in via the suffix.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ArithmeticDomain {
     /// Overflow is a proof obligation (the default; not represented as a
     /// constraint -- the ABSENCE of a domain constraint means exact).

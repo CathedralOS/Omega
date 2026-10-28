@@ -7,9 +7,9 @@ data Holder { padding: u64; view: &[Entry]; }
 machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]
 ensures result.len == Count { &items[..] }
 machine require_four(length: u64) -> u64 requires length == 4 { length }
-machine observe(holders: &[Holder; 2], owner: u64, selected: u64, original: addr) -> bool
-requires owner < 2 && selected < holders[owner].view.len
-{ address_of(&holders[owner].view[selected].value) == original }
+machine observe(holders: &[Holder; 2], owner: u64, extent: u64) -> bool
+requires owner < 2 && extent == 4
+{ holders[owner].view.len == extent }
 machine success() {}
 machine failure() crashes Trap { crash Trap; }
 machine forbidden(items: &write [Holder; 2]) -> u64 { items.len }
@@ -20,8 +20,7 @@ machine main() crashes Trap {
     let right: &[Entry] = whole_view<Entry, 4>(&second);
     let mut holders: [Holder; 2] = [Holder { padding: 17, view: left }, Holder { padding: 19, view: right }];
     let measured: u64 = forbidden(&write holders);
-    let original: addr = address_of(&second[2].value);
-    transition measured == 2 && observe(&holders, 1, 2, original) {
+    transition measured == 2 && observe(&holders, 1, 4) {
         true -> success()
         false -> failure()
     }

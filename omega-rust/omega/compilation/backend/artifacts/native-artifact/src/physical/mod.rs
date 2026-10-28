@@ -986,6 +986,24 @@ pub(crate) fn native_byte_span(offset: usize, byte_count: usize) -> NativeByteSp
     NativeByteSpan::from_replayed_parts(offset, byte_count)
 }
 
+/// The one Terminal operation `machine` declares at `operation`: every
+/// physical derivation that rejoins an occurrence to its emitted operation
+/// reads that join here instead of re-walking both rosters per arm.
+pub(crate) fn sole_terminal_operation(
+    module: &terminal_psi::TerminalModule,
+    machine: MachineId,
+    operation: OperationId,
+) -> Option<&terminal_psi::Operation> {
+    let mut matching = module
+        .machine(machine)?
+        .operations()
+        .filter(|row| row.id == operation);
+    let (Some(operation), None) = (matching.next(), matching.next()) else {
+        return None;
+    };
+    Some(operation)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn normalized_foreign_call_relocation(
     locator_identity: [u8; 32],

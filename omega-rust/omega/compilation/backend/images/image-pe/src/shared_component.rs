@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageSection, FinalImageSymbolHandle};
 use object_file::SymbolKind;
 
+use crate::bytes::{write_u16_at, write_u32_at};
 use crate::constants::TEXT_RVA;
 use crate::{PeImageKind, emit_pe_x86_64};
 
@@ -154,30 +155,22 @@ pub(crate) fn export_directory_bytes(
     let dll_name_at = bytes.len();
     bytes.extend_from_slice(COMPONENT_DIRECTORY_NAME);
 
-    let functions_rva = directory_rva
-        .checked_add(u32::try_from(functions_at).expect("export header fits"))
-        .ok_or_else(|| Diagnostic::error("PE export function table RVA overflows"))?;
-    let names_rva = directory_rva
-        .checked_add(u32::try_from(names_at).expect("export header fits"))
-        .ok_or_else(|| Diagnostic::error("PE export name table RVA overflows"))?;
-    let ordinals_rva = directory_rva
-        .checked_add(u32::try_from(ordinals_at).expect("export header fits"))
-        .ok_or_else(|| Diagnostic::error("PE export ordinal table RVA overflows"))?;
-    let dll_name_rva = directory_rva
-        .checked_add(u32::try_from(dll_name_at).expect("export name fits"))
-        .ok_or_else(|| Diagnostic::error("PE export directory name RVA overflows"))?;
+    let functions_rva = directory_rva_of(directory_rva, functions_at)?;
+    let names_rva = directory_rva_of(directory_rva, names_at)?;
+    let ordinals_rva = directory_rva_of(directory_rva, ordinals_at)?;
+    let dll_name_rva = directory_rva_of(directory_rva, dll_name_at)?;
 
-    put_u32(&mut bytes, 0, 0);
-    put_u32(&mut bytes, 4, 0);
-    put_u16(&mut bytes, 8, 0);
-    put_u16(&mut bytes, 10, 0);
-    put_u32(&mut bytes, 12, dll_name_rva);
-    put_u32(&mut bytes, 16, 1);
-    put_u32(&mut bytes, 20, count);
-    put_u32(&mut bytes, 24, count);
-    put_u32(&mut bytes, 28, functions_rva);
-    put_u32(&mut bytes, 32, names_rva);
-    put_u32(&mut bytes, 36, ordinals_rva);
+    write_u32_at(&mut bytes, 0, 0);
+    write_u32_at(&mut bytes, 4, 0);
+    write_u16_at(&mut bytes, 8, 0);
+    write_u16_at(&mut bytes, 10, 0);
+    write_u32_at(&mut bytes, 12, dll_name_rva);
+    write_u32_at(&mut bytes, 16, 1);
+    write_u32_at(&mut bytes, 20, count);
+    write_u32_at(&mut bytes, 24, count);
+    write_u32_at(&mut bytes, 28, functions_rva);
+    write_u32_at(&mut bytes, 32, names_rva);
+    write_u32_at(&mut bytes, 36, ordinals_rva);
 
     for (sorted, &index) in order.iter().enumerate() {
         let symbol = image.symbol_table.symbols.get(exports[index].symbol);
@@ -187,35 +180,31 @@ pub(crate) fn export_directory_bytes(
                     .map_err(|_| Diagnostic::error("component export offset exceeds a PE RVA"))?,
             )
             .ok_or_else(|| Diagnostic::error("component export RVA overflows"))?;
-        let at = functions_at + sorted * 4;
-        bytes[at..at + 4].copy_from_slice(&function_rva.to_le_bytes());
-        let name_rva = directory_rva
-            .checked_add(u32::try_from(name_offsets[sorted]).expect("export name fits"))
-            .ok_or_else(|| Diagnostic::error("PE export name RVA overflows"))?;
-        let name_at = names_at + sorted * 4;
-        bytes[name_at..name_at + 4].copy_from_slice(&name_rva.to_le_bytes());
-        let ordinal_at = ordinals_at + sorted * 2;
-        bytes[ordinal_at..ordinal_at + 2].copy_from_slice(
-            &u16::try_from(sorted)
-                .expect("export count fits")
-                .to_le_bytes(),
+        write_u32_at(&mut bytes, functions_at + sorted * 4, function_rva);
+        let name_rva = directory_rva_of(directory_rva, name_offsets[sorted])?;
+        write_u32_at(&mut bytes, names_at + sorted * 4, name_rva);
+        write_u16_at(
+            &mut bytes,
+            ordinals_at + sorted * 2,
+            u16::try_from(sorted).expect("export count fits"),
         );
     }
-    let _ = directory_rva
-        .checked_add(
-            u32::try_from(bytes.len())
-                .map_err(|_| Diagnostic::error("PE export directory size overflows"))?,
-        )
-        .ok_or_else(|| Diagnostic::error("PE export directory end overflows"))?;
+    directory_rva_of(directory_rva, bytes.len())?;
     Ok(bytes)
 }
 
-fn put_u16(bytes: &mut [u8], offset: usize, value: u16) {
-    bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
-}
-
-fn put_u32(bytes: &mut [u8], offset: usize, value: u32) {
-    bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+/// A directory-relative offset becomes an RVA by adding it to the directory's
+/// own base. Every table the export directory names — the function, name and
+/// ordinal tables, the module label, and the directory's own end — is addressed
+/// this way, so the overflow rejection has one home.
+pub(crate) fn directory_rva_of(directory_rva: u32, offset: usize) -> Result<u32, Diagnostic> {
+    directory_rva
+        .checked_add(
+            u32::try_from(offset).map_err(|_| {
+                Diagnostic::error("PE export directory offset exceeds a 32-bit RVA")
+            })?,
+        )
+        .ok_or_else(|| Diagnostic::error("PE export directory RVA overflows"))
 }
 
 fn failure(

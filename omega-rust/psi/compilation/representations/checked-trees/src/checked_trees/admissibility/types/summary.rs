@@ -79,26 +79,13 @@ impl AcceptanceSummary {
     }
 
     pub const fn is_accepted(self) -> bool {
+        // `with_checks` derives the verdict from these same seven checks, so
+        // the verdict is the one owner of their conjunction.
         matches!(self.verdict, AcceptanceVerdict::Accepted)
-            && self.borrow.is_satisfied()
-            && self.proof.is_satisfied()
-            && self.service_reach.is_satisfied()
-            && self.suspension.is_satisfied()
-            && self.blocking.is_satisfied()
-            && self.boundaries.is_satisfied()
-            && self.termination.is_satisfied()
     }
 
-    pub const fn checks(self) -> [AcceptanceCheck; 7] {
-        [
-            self.borrow,
-            self.proof,
-            self.service_reach,
-            self.suspension,
-            self.blocking,
-            self.boundaries,
-            self.termination,
-        ]
+    pub fn checks(self) -> [AcceptanceCheck; 7] {
+        AcceptanceDimension::ALL.map(|dimension| self.check(dimension))
     }
 
     pub const fn check(self, dimension: AcceptanceDimension) -> AcceptanceCheck {

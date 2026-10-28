@@ -23,6 +23,7 @@ use super::conditional_regions::collect_conditional_tree_regions;
 use super::conditional_stack::replay_scalar_conditional_region;
 use super::division_stack::decode_exact_x86_instruction;
 use super::stack_mutation::claimed_mutations_and_call_sites;
+use crate::order::strictly_increasing;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
 #[allow(clippy::too_many_arguments)]
@@ -51,18 +52,11 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
     };
     if decisions.is_empty()
         || joins.len() != decisions.len()
-        || decisions
-            .windows(2)
-            .any(|pair| pair[0].branch_offset >= pair[1].branch_offset)
-        || joins
-            .windows(2)
-            .any(|pair| pair[0].join_offset >= pair[1].join_offset)
+        || !strictly_increasing(&decisions, |row| row.branch_offset)
+        || !strictly_increasing(&joins, |row| row.join_offset)
         || merge_offset >= bytes.len()
         || evidence.cleanup_preservation.is_none()
-        || evidence
-            .mutations
-            .windows(2)
-            .any(|pair| pair[0].offset >= pair[1].offset)
+        || !strictly_increasing(&evidence.mutations, |row| row.offset)
     {
         return Err(invalid());
     }
@@ -120,10 +114,7 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
     }
     let mut structural_types = std::collections::BTreeMap::new();
     if shared_cleanup.structural_types.is_empty()
-        || shared_cleanup
-            .structural_types
-            .windows(2)
-            .any(|pair| pair[0].id >= pair[1].id)
+        || !strictly_increasing(&shared_cleanup.structural_types, |row| row.id)
         || shared_cleanup.structural_types.iter().any(|declaration| {
             structural_types
                 .insert(declaration.id, declaration)

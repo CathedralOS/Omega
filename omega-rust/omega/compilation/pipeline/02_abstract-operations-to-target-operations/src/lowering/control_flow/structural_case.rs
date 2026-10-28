@@ -172,12 +172,7 @@ fn case_projection(
         )?;
     // The operation owns selectors on both sides of every pointer load. Keep
     // them in authored region order; offsets belong to the final region only.
-    let mut runs = regions
-        .pointer_slots
-        .into_iter()
-        .flat_map(|slot| slot.indices)
-        .collect::<Vec<_>>();
-    runs.extend(leaf_runs);
+    let runs = regions.selector_runs(leaf_runs);
     let declaration = types.get(&identity).ok_or_else(invalid)?;
     // A mixed shape's tag sits at the same carrier offset as a sum's: its
     // common fields follow the tag, so the case ordinal alone selects.

@@ -106,29 +106,23 @@ pub(crate) fn encode_machine(
     encode_service_ceiling(writer, &machine.declared_service_reach)?;
     encode_service_ceiling(writer, &machine.published_service_ceiling)?;
     super::reach_application_wire::encode(writer, machine.closed_reach_application.as_ref())?;
-    writer.len("content entry claims", machine.content_entry_claims.len())?;
-    for binding in &machine.content_entry_claims {
-        encode_content_entry_claim(writer, binding)?;
-    }
-    writer.len(
+    writer.counted(
+        "content entry claims",
+        &machine.content_entry_claims,
+        encode_content_entry_claim,
+    )?;
+    writer.counted(
         "content identity reshuffles",
-        machine.content_identity_reshuffles.len(),
+        &machine.content_identity_reshuffles,
+        encode_content_identity_reshuffle,
     )?;
-    for reshuffle in &machine.content_identity_reshuffles {
-        encode_content_identity_reshuffle(writer, reshuffle)?;
-    }
-    writer.len(
+    writer.counted(
         "content partition compositions",
-        machine.content_partition_compositions.len(),
+        &machine.content_partition_compositions,
+        encode_content_partition_composition,
     )?;
-    for composition in &machine.content_partition_compositions {
-        encode_content_partition_composition(writer, composition)?;
-    }
     writer.id(machine.entry);
-    writer.len("blocks", machine.blocks.len())?;
-    for block in &machine.blocks {
-        super::block_wire::encode_block(writer, block)?;
-    }
+    writer.counted("blocks", &machine.blocks, super::block_wire::encode_block)?;
     encode_contract(writer, &machine.contract)
 }
 

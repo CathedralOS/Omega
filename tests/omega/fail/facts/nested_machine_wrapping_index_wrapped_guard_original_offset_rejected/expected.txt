@@ -1,0 +1,1 @@
+cannot prove index `window.offset` is within length 512 in read::entry

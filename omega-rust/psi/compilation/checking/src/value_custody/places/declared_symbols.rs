@@ -178,25 +178,38 @@ pub fn structural_member_identity(
 }
 
 /// The field or variant member `member_name` declares on `data`, by symbol.
+///
+/// Fields and cases share one member namespace, and a case's payload fields
+/// join it under that case: `record.field`, `Case` and `Case.field` are the
+/// three spellings a member path can reach, so one lookup answers all three.
 pub fn data_member_symbol_by_name(
     program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
+    for member in program.data_members(data) {
+        match member {
             typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
-                Some(field.symbol)
+                return Some(field.symbol);
             }
             typed_trees::data::DataMember::Variant(variant)
                 if variant.name.as_str() == member_name =>
             {
-                Some(variant.symbol)
+                return Some(variant.symbol);
             }
-            _ => None,
-        })
+            typed_trees::data::DataMember::Variant(variant) => {
+                if let Some(field) = program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name.as_str() == member_name)
+                {
+                    return Some(field.symbol);
+                }
+            }
+            typed_trees::data::DataMember::Field(_) => {}
+        }
+    }
+    None
 }
 
 /// Data definition a type reference names, through reference and constraint

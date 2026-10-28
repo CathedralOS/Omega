@@ -42,18 +42,9 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let mut paths = validation::field_domains::declared_result_field_domain_paths(
+    let mut paths = validation::field_domains::declared_result_field_domain_identities(
         program,
         result_domain_type(program, entry.return_type),
-    )
-    .into_iter()
-    .filter(|(_, domain_symbol, _)| value_provable_domain(program, *domain_symbol))
-    .collect::<Vec<_>>();
-    paths.extend(
-        validation::field_domains::declared_owned_field_domain_identities(
-            program,
-            result_domain_type(program, entry.return_type),
-        ),
     );
     if program
         .primitive_type_reference(entry.return_type)

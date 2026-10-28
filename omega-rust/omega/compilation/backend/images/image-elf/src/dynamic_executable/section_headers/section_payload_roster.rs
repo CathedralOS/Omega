@@ -307,27 +307,13 @@ fn dynamic_target_section(target: ElfDynamicAddressTarget) -> u32 {
     crate::dynamic_executable::load_placement::resolved_dynamic_table::target_section_index(target)
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfIndexedSectionPayloadPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.section_headers, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_payload_roster_compatibility_fingerprint
-                == non_authoritative_payload_roster_compatibility_fingerprint(
-                    &candidate.section_headers,
-                    &candidate.contents,
-                )
-        },
-        "ELF indexed payload-roster compatibility fingerprint does not replay",
-        |candidate| ValidatedElfIndexedSectionPayloadPlan {
-            section_headers: candidate.section_headers,
-            contents: candidate.contents,
-            non_authoritative_payload_roster_compatibility_fingerprint: candidate
-                .non_authoritative_payload_roster_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: section_headers,
+    contents: contents,
+    validated: ValidatedElfIndexedSectionPayloadPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_payload_roster_compatibility_fingerprint,
+    message: "ELF indexed payload-roster compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -468,12 +454,9 @@ fn non_authoritative_payload_roster_compatibility_fingerprint(
     section_headers: &ValidatedElfSectionHeaderTableTemplate,
     contents: &ElfIndexedSectionPayloadContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-indexed-section-payloads.v1");
-    hash.bytes(
-        &section_headers
-            .non_authoritative_template_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-indexed-section-payloads.v1",
+        section_headers.non_authoritative_template_compatibility_fingerprint(),
     );
     for row in &contents.rows {
         hash.bytes(&row.index.to_le_bytes());

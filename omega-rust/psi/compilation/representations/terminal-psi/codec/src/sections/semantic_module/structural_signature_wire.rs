@@ -52,6 +52,13 @@ pub(crate) fn encode_boundary_machine(
             terminal_psi::CheckedBoundaryExecution::PlacementView => 3,
         });
     }
+    writer.boolean(declaration.numeric_intrinsic.is_some());
+    if let Some(meaning) = declaration.numeric_intrinsic {
+        let Some(bytes) = meaning.canonical_encoding() else {
+            return crate::codec_error::malformed("unsupported numeric intrinsic meaning");
+        };
+        writer.bytes(&bytes);
+    }
     writer.u32(declaration.identity.0);
     writer.u32(declaration.owner.identity().0);
     writer.u8(match declaration.role {
@@ -258,10 +265,7 @@ pub(crate) fn encode_service_ceiling(
     writer: &mut Writer,
     services: &[ServiceId],
 ) -> Result<(), CodecError> {
-    writer.len("published service ceiling", services.len())?;
-    for service in services {
-        writer.id(*service);
-    }
+    writer.ids("published service ceiling", services)?;
     Ok(())
 }
 
@@ -285,6 +289,21 @@ pub(crate) fn decode_boundary_machine(
                     tag => return Err(CodecError::InvalidTag("checked boundary execution", tag)),
                 },
             })
+        } else {
+            None
+        },
+        numeric_intrinsic: if reader.boolean()? {
+            let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
+            Some(
+                language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+                    bytes,
+                )
+                .ok_or_else(|| {
+                    CodecError::MalformedStructuralFoundation(
+                        "invalid numeric intrinsic meaning".into(),
+                    )
+                })?,
+            )
         } else {
             None
         },
@@ -707,13 +726,7 @@ pub(super) fn encode_call_result(
             writer.u8(2);
             writer.id(result.structural_type);
             encode_multiplicity(writer, result.multiplicity);
-            writer.len(
-                "boundary result qualifications",
-                result.qualifications.len(),
-            )?;
-            for qualification in &result.qualifications {
-                writer.id(*qualification);
-            }
+            writer.ids("boundary result qualifications", &result.qualifications)?;
             encode_projected_qualifications(writer, &result.projected_qualifications)?;
         }
     }

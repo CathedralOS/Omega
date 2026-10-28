@@ -1,5 +1,5 @@
 use super::calling::{encode_placement, encode_shape};
-use super::encoding::{encode_ids, encode_len};
+use super::encoding::{encode_ids, encode_len, encode_option};
 use super::scalar::encode_scalar_type;
 use semantic_vocabulary::{IeeeFloatFormat, StructuralPlaceKind};
 use terminal_psi::{
@@ -209,7 +209,9 @@ pub(super) fn encode_target_structural_argument(
     encode_shape(bytes, argument.shape);
     crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
     optimization_core::encode_option_u64(bytes, argument.fixed_array_length);
-    encode_option_u32(bytes, argument.element_stride);
+    encode_option(bytes, argument.element_stride, |bytes, stride| {
+        crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes())
+    });
     match &argument.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);
@@ -557,16 +559,6 @@ pub(super) fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
         StructuralAccess::MutableBorrow => 3,
         StructuralAccess::WriteOnlyBorrow => 4,
     });
-}
-
-pub(super) fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
-    match value {
-        Some(value) => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
 }
 
 pub(super) fn encode_string(bytes: &mut Vec<u8>, value: &str) {

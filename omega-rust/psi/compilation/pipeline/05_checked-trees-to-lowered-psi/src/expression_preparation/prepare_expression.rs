@@ -772,17 +772,7 @@ impl<'a> PreparedExpressionContext<'a> {
     else {
         return Ok(None);
     };
-        if matches!(carrier, ViewCarrier::Elements { .. })
-            && !matches!(
-                home.access,
-                terminal_psi::StructuralAccess::Owned
-                    | terminal_psi::reading_borrow_pair_pattern!()
-            )
-        {
-            return unsupported("element length observation requires readable storage");
-        }
-        let byte_metadata_access = if home.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-        {
+        let metadata_access = if home.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             terminal_psi::StructuralAccess::WriteOnlyBorrow
         } else {
             terminal_psi::StructuralAccess::SharedBorrow
@@ -867,14 +857,14 @@ impl<'a> PreparedExpressionContext<'a> {
                 LoweredDirectExpression::ByteSequenceLength {
                     source,
                     path,
-                    access: byte_metadata_access,
+                    access: metadata_access,
                     scalar_type,
                 }
             }
             (ViewCarrier::Elements { .. }, None) => LoweredDirectExpression::ElementViewLength {
                 source,
                 path,
-                access: terminal_psi::StructuralAccess::SharedBorrow,
+                access: metadata_access,
                 scalar_type,
             },
             _ => return unsupported("length observation has an inconsistent sequence endpoint"),

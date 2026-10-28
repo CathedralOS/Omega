@@ -4,6 +4,7 @@
 //! values are normalized only after the event; no extra memory read is allowed.
 use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -110,15 +111,13 @@ pub(super) fn emit(
         SelectedInstructionKind::AtomicAccess { form },
         constraint,
         &registers,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: values
+        operation_provenance(
+            row,
+            values
                 .into_iter()
                 .chain(row.result.map(|result| result.value))
                 .collect(),
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        ),
     )?;
     if let (Some(raw), Some(result)) = (raw, row.result) {
         let normalization =

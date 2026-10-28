@@ -206,6 +206,29 @@ fn package_review_retains_products_not_checked_compiler_state() {
 }
 
 #[test]
+fn entry_custody_has_no_synthetic_service_fields() {
+    for source in [
+        include_str!("../../realization/provider-planning/src/program_entry.rs"),
+        include_str!(
+            "../../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/model.rs"
+        ),
+        include_str!(
+            "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec/entry.rs"
+        ),
+        include_str!("../../backend/artifacts/native-artifact/src/runtime_provisions.rs"),
+    ] {
+        for retired in [
+            "ProgramEntryFusedServiceEstablishment",
+            "ProgramEntryReceivingRequirement",
+            "fused_service_establishments",
+            "fused_service_boundary_slots",
+        ] {
+            assert!(!source.contains(retired), "entry custody retains {retired}");
+        }
+    }
+}
+
+#[test]
 fn entry_storage_has_no_provisional_field_mode() {
     for source in [
         include_str!("../../products/src/compile_request/checked.rs"),
@@ -537,10 +560,35 @@ fn product_batch_carries_work_instead_of_empty_outcome_slots() {
 }
 
 #[test]
+fn product_installation_does_not_prepare_reference_interpreter_dispatch() {
+    let settlement =
+        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs");
+    for reference_work in [
+        "CheckedInterpreterDispatch",
+        "prepare_checked_interpreter_dispatch",
+        "settle_selected_execution_dispatch",
+        "pub dispatch:",
+    ] {
+        assert!(
+            !settlement.contains(reference_work),
+            "ordinary Product installation retains reference-only work: {reference_work}"
+        );
+    }
+    let reference =
+        include_str!("../../realization/selected-dispatch/src/checked_interpreter_dispatch.rs");
+    assert!(reference.contains("settle_selected_boundary_adapter_dispatch("));
+    assert!(reference.contains("float_comparisons::selected_executions("));
+    let corpus = include_str!("../tests/corpus_runner.rs");
+    assert!(corpus.contains("selected_dispatch::prepare_checked_interpreter_dispatch("));
+}
+
+#[test]
 fn selected_execution_does_not_copy_checked_programs() {
     for source in [
         include_str!("../../realization/selected-dispatch/src/selected_dispatch.rs"),
-        include_str!("../../realization/selected-dispatch/src/boundary_dispatch.rs"),
+        include_str!(
+            "../../realization/selected-dispatch/src/checked_interpreter_dispatch/boundary_dispatch.rs"
+        ),
     ] {
         assert!(!source.contains("Arc::make_mut"));
     }

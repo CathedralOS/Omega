@@ -151,6 +151,7 @@ pub(crate) fn lower_declarations(
             domain_ids,
         )?;
         declarations.push(BoundaryMachineDeclaration {
+            numeric_intrinsic: checked.typed.numeric_intrinsic_execution(plan.machine),
             scalar_domain_requirements,
             normal_qualifications,
             declaration: crate::machine_lowering::declarations::boundary_identity(

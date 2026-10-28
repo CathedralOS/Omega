@@ -275,7 +275,13 @@ fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machi
     false
 }
 
-fn unit_type(program: &dyn crate::CheckingInput, mut reference: TypeReferenceHandle) -> bool {
+/// Whether a declared result type denotes no value: `Unit` seen through any
+/// number of refinement shells. A refinement annotates a carrier and adds no
+/// value of its own, so the shells are erased before the check.
+pub(crate) fn unit_type(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Unit => return true,

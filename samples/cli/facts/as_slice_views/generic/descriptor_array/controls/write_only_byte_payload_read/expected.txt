@@ -1,0 +1,2 @@
+reads field `view` from write-only parameter `home`
+write-only projection never grants observation

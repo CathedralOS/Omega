@@ -12,34 +12,51 @@ use register_model::{
     RegisterOperandConstraint, RegisterViewId,
 };
 
+/// One instruction constraint row for catalog admission: `variant` picks the
+/// constraint key and `accesses` gives each operand's access in position
+/// order. Every row is a positional one in class 0 with no view, tie or early
+/// clobber, which is the shape the catalog's non-scalar arms require.
+fn instruction_constraint(
+    variant: u32,
+    accesses: &[RegisterOperandAccess],
+) -> RegisterInstructionConstraint {
+    RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey::instruction(variant),
+        operands: accesses
+            .iter()
+            .enumerate()
+            .map(|(operand, access)| operand_row(operand as u16, *access))
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    }
+}
+
+/// One operand of an `instruction_constraint` roster.
+fn operand_row(operand: u16, access: RegisterOperandAccess) -> RegisterOperandConstraint {
+    RegisterOperandConstraint {
+        operand,
+        access,
+        class: RegisterClassId(0),
+        fixed_view: None,
+        tied_to: None,
+        early_clobber: false,
+    }
+}
+
 #[test]
 fn float_conversion_policy_traps_require_the_exact_control_surface() {
     use crate::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
         IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
     };
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 42,
-        },
-        operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Def]
-            .into_iter()
-            .enumerate()
-            .map(|(operand, access)| RegisterOperandConstraint {
-                operand: operand as u16,
-                access,
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: false,
-            })
-            .collect(),
-        implicit_uses: vec![],
-        implicit_defs: vec![],
-        clobbers: vec![register_model::RegisterUnitId(1)],
-    };
+    let mut constraint = instruction_constraint(
+        42,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
+    );
+    constraint.clobbers = vec![register_model::RegisterUnitId(1)];
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
     encoded.implicit_unit_clobbers = constraint.clobbers.clone();
     encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
@@ -104,30 +121,20 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
 
 #[test]
 fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 42,
-        },
-        operands: (0..5)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: if operand < 3 {
-                    RegisterOperandAccess::Use
-                } else {
-                    RegisterOperandAccess::Def
-                },
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 3,
-            })
-            .collect(),
-        implicit_uses: vec![],
-        implicit_defs: vec![],
-        clobbers: vec![register_model::RegisterUnitId(0)],
-    };
+    let mut constraint = instruction_constraint(
+        42,
+        &[
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Def,
+            RegisterOperandAccess::Def,
+        ],
+    );
+    for row in constraint.operands.iter_mut().skip(3) {
+        row.early_clobber = true;
+    }
+    constraint.clobbers = vec![register_model::RegisterUnitId(0)];
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1, 2], vec![3, 4]);
     encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
         source_pointer_operand: 0,
@@ -198,30 +205,18 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
 
 #[test]
 fn zero_fill_catalog_requires_dynamic_operands_and_early_clobber_cursor() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 43,
-        },
-        operands: (0..3)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: if operand < 2 {
-                    RegisterOperandAccess::Use
-                } else {
-                    RegisterOperandAccess::Def
-                },
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 2,
-            })
-            .collect(),
-        implicit_uses: vec![],
-        implicit_defs: vec![],
-        clobbers: vec![register_model::RegisterUnitId(0)],
-    };
+    let mut constraint = instruction_constraint(
+        43,
+        &[
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Use,
+            RegisterOperandAccess::Def,
+        ],
+    );
+    for row in constraint.operands.iter_mut().skip(2) {
+        row.early_clobber = true;
+    }
+    constraint.clobbers = vec![register_model::RegisterUnitId(0)];
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]);
     encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
         destination_pointer_operand: 0,
@@ -292,28 +287,10 @@ fn zero_fill_catalog_requires_dynamic_operands_and_early_clobber_cursor() {
 
 #[test]
 fn pointer_load_catalog_requires_the_semantic_exact_width() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 32,
-        },
-        operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Def]
-            .into_iter()
-            .enumerate()
-            .map(|(operand, access)| RegisterOperandConstraint {
-                operand: operand as u16,
-                access,
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: false,
-            })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint = instruction_constraint(
+        32,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
+    );
     for (semantic, byte_count) in [
         (MachineSemanticKind::LoadPacked3, 3),
         (MachineSemanticKind::LoadPacked5, 5),
@@ -391,24 +368,7 @@ fn pointer_load_catalog_requires_the_semantic_exact_width() {
 
 #[test]
 fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 31,
-        },
-        operands: vec![RegisterOperandConstraint {
-            operand: 0,
-            access: RegisterOperandAccess::Use,
-            class: RegisterClassId(0),
-            fixed_view: None,
-            tied_to: None,
-            early_clobber: false,
-        }],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint = instruction_constraint(31, &[RegisterOperandAccess::Use]);
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], Vec::new());
     encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {
         stack_pointer: RegisterViewId(7),
@@ -464,17 +424,7 @@ fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
 
 #[test]
 fn control_flow_rows_pin_their_encoded_control_shape() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 7,
-        },
-        operands: Vec::new(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint = instruction_constraint(7, &[]);
     let declaration = |semantic, control| {
         let mut encoded = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
         encoded.control = control;
@@ -558,24 +508,8 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
 #[test]
 fn returns_and_calls_reject_each_others_stack_effects() {
     let stack_pointer = RegisterViewId(5);
-    let constraint = |variant, access: RegisterOperandAccess| RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant,
-        },
-        operands: vec![RegisterOperandConstraint {
-            operand: 0,
-            access,
-            class: RegisterClassId(0),
-            fixed_view: None,
-            tied_to: None,
-            early_clobber: false,
-        }],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint =
+        |variant, access: RegisterOperandAccess| instruction_constraint(variant, &[access]);
     let declaration = |semantic, key, barrier, reads, writes, memory, stack, control| {
         let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
         encoded.memory = memory;
@@ -788,32 +722,14 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
 
 #[test]
 fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 13,
-        },
-        operands: [
+    let constraint = instruction_constraint(
+        13,
+        &[
             RegisterOperandAccess::Use,
             RegisterOperandAccess::Use,
             RegisterOperandAccess::Def,
-        ]
-        .into_iter()
-        .enumerate()
-        .map(|(operand, access)| RegisterOperandConstraint {
-            operand: operand as u16,
-            access,
-            class: RegisterClassId(0),
-            fixed_view: None,
-            tied_to: None,
-            early_clobber: false,
-        })
-        .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+        ],
+    );
     let mut indexed = MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]);
     indexed.memory = MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
         pointer_operand: 0,
@@ -909,24 +825,8 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
         .is_err()
     );
     // Store64 owns the frame-storage write on its single value operand.
-    let store_constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 29,
-        },
-        operands: vec![RegisterOperandConstraint {
-            operand: 0,
-            access: RegisterOperandAccess::Use,
-            class: RegisterClassId(0),
-            fixed_view: None,
-            tied_to: None,
-            early_clobber: false,
-        }],
-        implicit_uses: vec![register_model::RegisterUnitId(9)],
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let mut store_constraint = instruction_constraint(29, &[RegisterOperandAccess::Use]);
+    store_constraint.implicit_uses = vec![register_model::RegisterUnitId(9)];
     let mut frame_store = MachineEncodedEffects::fallthrough_v1(vec![0], Vec::new());
     frame_store.memory = MachineEncodedMemoryEffect::WriteFrameStorageV1 {
         stack_pointer: RegisterViewId(5),
@@ -947,28 +847,10 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     .unwrap();
     // AddressOffset keeps an internally consistent operand contract of its
     // own; it still cannot borrow the frame-storage footprint.
-    let offset_constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 31,
-        },
-        operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Def]
-            .into_iter()
-            .enumerate()
-            .map(|(operand, access)| RegisterOperandConstraint {
-                operand: operand as u16,
-                access,
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: false,
-            })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let offset_constraint = instruction_constraint(
+        31,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Def],
+    );
     let mut borrowed = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
     borrowed.memory = frame_store.memory;
     borrowed.trap = frame_store.trap;
@@ -989,28 +871,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
 
 #[test]
 fn encoded_rows_restate_the_contracted_operand_custody() {
-    let constraint = |variant, accesses: &[RegisterOperandAccess]| RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant,
-        },
-        operands: accesses
-            .iter()
-            .enumerate()
-            .map(|(operand, access)| RegisterOperandConstraint {
-                operand: operand as u16,
-                access: *access,
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: false,
-            })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint = instruction_constraint;
     let declaration = |semantic, key, applicability, reads: Vec<u16>, writes: Vec<u16>| {
         MachineEffectDeclaration {
             semantic,
@@ -1220,28 +1081,11 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
                       uses: &[u16],
                       defs: &[u16],
                       clobbers: &[u16]| {
-        RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key: RegisterConstraintKey {
-                family: RegisterConstraintFamily::Instruction,
-                variant,
-            },
-            operands: accesses
-                .iter()
-                .enumerate()
-                .map(|(operand, access)| RegisterOperandConstraint {
-                    operand: operand as u16,
-                    access: *access,
-                    class: RegisterClassId(0),
-                    fixed_view: None,
-                    tied_to: None,
-                    early_clobber: false,
-                })
-                .collect(),
-            implicit_uses: uses.iter().map(|id| unit(*id)).collect(),
-            implicit_defs: defs.iter().map(|id| unit(*id)).collect(),
-            clobbers: clobbers.iter().map(|id| unit(*id)).collect(),
-        }
+        let mut row = instruction_constraint(variant, accesses);
+        row.implicit_uses = uses.iter().map(|id| unit(*id)).collect();
+        row.implicit_defs = defs.iter().map(|id| unit(*id)).collect();
+        row.clobbers = clobbers.iter().map(|id| unit(*id)).collect();
+        row
     };
     let declaration = |semantic, key, encoded| MachineEffectDeclaration {
         semantic,
@@ -1357,28 +1201,7 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
 
 #[test]
 fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
-    let constraint = |variant, accesses: &[RegisterOperandAccess]| RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant,
-        },
-        operands: accesses
-            .iter()
-            .enumerate()
-            .map(|(operand, access)| RegisterOperandConstraint {
-                operand: operand as u16,
-                access: *access,
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: false,
-            })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint = instruction_constraint;
     let declaration =
         |semantic, key, memory, trap, barrier, call, encoded| MachineEffectDeclaration {
             semantic,
@@ -1589,28 +1412,10 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
 
 #[test]
 fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
-    let constraint = RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 17,
-        },
-        operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Use]
-            .into_iter()
-            .enumerate()
-            .map(|(operand, access)| RegisterOperandConstraint {
-                operand: operand as u16,
-                access,
-                class: RegisterClassId(0),
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: false,
-            })
-            .collect(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-    };
+    let constraint = instruction_constraint(
+        17,
+        &[RegisterOperandAccess::Use, RegisterOperandAccess::Use],
+    );
     let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0, 1], Vec::new());
     encoded.control = MachineEncodedControlEffect::HostedExitOrTrapV1;
     encoded.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1;

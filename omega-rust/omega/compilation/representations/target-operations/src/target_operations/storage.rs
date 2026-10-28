@@ -1,11 +1,10 @@
 //! Required durable homes, primitive store sources and ABI parameter locations.
 
-use crate::TargetStructuralArgumentSource;
+use crate::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
 use calling_conventions::MachineRegister;
 use calling_conventions::{ConventionalSumLayout, ValueShape};
 use semantic_vocabulary::{
-    BlockId, IeeeFloatValue, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
-    StructuralDomainId, StructuralTypeId, ValueId,
+    BlockId, OperationId, PlaceId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
@@ -163,62 +162,12 @@ impl TargetStructuralHomeRequirement {
     }
 }
 
-/// Exact source of one whole-root primitive replacement. This is distinct
-/// from scalar-call arguments: admitting a store literal must not silently
-/// widen any call ABI or foreign-boundary vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TargetUnitWriteOnlyPrimitiveStoreSource {
-    /// Exact SSA value captured by the receiving control-flow block.
-    BlockParameter(crate::TargetScalarBlockValue),
-    Parameter {
-        parameter_index: u32,
-        source_value: ValueId,
-        scalar_type: ScalarType,
-    },
-    IntegerImmediate {
-        defining_operation: OperationId,
-        source_value: ValueId,
-        scalar_type: IntegerType,
-        value: IntegerValue,
-    },
-    BooleanImmediate {
-        defining_operation: OperationId,
-        source_value: ValueId,
-        value: bool,
-    },
-    IeeeFloatImmediate {
-        defining_operation: OperationId,
-        source_value: ValueId,
-        value: IeeeFloatValue,
-    },
-    /// One exact preceding scalar call result, read from the durable home
-    /// assigned for that producer in this Unit body.
-    Home(TargetUnitScalarHomeRequirement),
-}
-
-impl TargetUnitWriteOnlyPrimitiveStoreSource {
-    pub const fn source_value(self) -> ValueId {
-        match self {
-            Self::Parameter { source_value, .. }
-            | Self::IntegerImmediate { source_value, .. }
-            | Self::BooleanImmediate { source_value, .. }
-            | Self::IeeeFloatImmediate { source_value, .. } => source_value,
-            Self::Home(home) => home.source_value,
-            Self::BlockParameter(value) => value.value,
-        }
-    }
-
-    pub const fn scalar_type(self) -> ScalarType {
-        match self {
-            Self::Parameter { scalar_type, .. } => scalar_type,
-            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
-            Self::BooleanImmediate { .. } => ScalarType::Boolean,
-            Self::IeeeFloatImmediate { value, .. } => ScalarType::IeeeFloat(value.format()),
-            Self::Home(home) => home.scalar_type,
-            Self::BlockParameter(value) => value.scalar_type,
-        }
-    }
-}
+/// Exact source of one whole-root primitive replacement. The store literal and
+/// the ordered call argument are one closed scalar-source roster, so this names
+/// that owner instead of spelling the same six variants and the same two
+/// queries twice. Admission still decides what a store may consume: sharing the
+/// vocabulary cannot widen a call ABI or a foreign-boundary argument.
+pub type TargetUnitWriteOnlyPrimitiveStoreSource = TargetUnitScalarArgumentSource;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarParameterLocation {

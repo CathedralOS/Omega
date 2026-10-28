@@ -791,6 +791,21 @@ fn interpret_checked_fixture(
             "checked fixture has no selected ProgramEntry",
         );
     };
+    let dispatch = match selected_dispatch::prepare_checked_interpreter_dispatch(
+        checked.execution(),
+        &checked.providers().boundary_calling_plan_realizations,
+    ) {
+        Ok(dispatch) => dispatch,
+        Err(errors) => {
+            return terminal_execution::Observation {
+                facts: vec!["interpreter:declined".to_owned()],
+                diagnostics: errors
+                    .iter()
+                    .map(|error| host_free_diagnostic_text(&error.message))
+                    .collect(),
+            };
+        }
+    };
     let mut input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -834,8 +849,8 @@ fn interpret_checked_fixture(
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
         &input_bytes,
         checked_interpreter::InterpretOptions {
-            boundary_adapters: &checked.execution().dispatch.boundary_adapters,
-            float_comparisons: &checked.execution().dispatch.float_comparisons,
+            boundary_adapters: &dispatch.boundary_adapters,
+            float_comparisons: &dispatch.float_comparisons,
             machine_bodies: &machine_bodies,
             x86_flags,
             ..checked_interpreter::InterpretOptions::default()

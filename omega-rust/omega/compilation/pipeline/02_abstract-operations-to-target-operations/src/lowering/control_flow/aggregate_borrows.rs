@@ -97,7 +97,7 @@ pub(super) fn argument(
         .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
     {
         let (selected, shape, offset) =
-            crate::lowering::structural_layout::resolve_structural_field_path(
+            crate::lowering::structural_layout::resolve_structural_projection_path(
                 root_type,
                 &argument.path,
                 types,

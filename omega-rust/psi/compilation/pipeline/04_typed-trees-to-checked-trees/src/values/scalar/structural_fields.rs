@@ -257,6 +257,9 @@ pub(crate) fn predicate_parameter_type(
     // Formal entry is already the referent namespace, including &write.
     // Erasing that presentation forms no descriptor load or readable grant;
     // proof-only postconditions still need its exact initialized type.
+    // The cursor peels constraints only to discover descriptor crossings.
+    // The selected endpoint keeps its complete qualifications and policy.
+    let mut endpoint = reference;
     let mut visited = Vec::new();
     loop {
         if !program
@@ -271,12 +274,15 @@ pub(crate) fn predicate_parameter_type(
         // Reference shape to erase or cross through a physical Referent step.
         // Descriptor reads, bounds and loan authority remain with the consumer.
         if validation::stored_view_shell(program, reference, &[]).is_some() {
-            return Some(reference);
+            return Some(endpoint);
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            _ => return Some(reference),
+            TypeReferenceNode::Reference { referee, .. } => {
+                reference = *referee;
+                endpoint = reference;
+            }
+            _ => return Some(endpoint),
         }
     }
 }
@@ -288,6 +294,9 @@ pub(crate) fn predicate_referent_path(
     mut reference: TypeReferenceHandle,
     path: &mut Vec<CheckedStructuralPredicatePathSegment>,
 ) -> Option<TypeReferenceHandle> {
+    // The cursor peels constraints only to discover descriptor crossings.
+    // The selected endpoint keeps its complete qualifications and policy.
+    let mut endpoint = reference;
     let mut visited = Vec::new();
     loop {
         if visited.contains(&reference) {
@@ -298,7 +307,7 @@ pub(crate) fn predicate_referent_path(
         // Reference shape to erase or cross through a physical Referent step.
         // Descriptor reads, bounds and loan authority remain with the consumer.
         if validation::stored_view_shell(program, reference, &[]).is_some() {
-            return Some(reference);
+            return Some(endpoint);
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
@@ -307,9 +316,10 @@ pub(crate) fn predicate_referent_path(
             } if *access != language_core::ReferenceAccess::WriteOnly => {
                 path.push(CheckedStructuralPredicatePathSegment::Referent);
                 reference = *referee;
+                endpoint = reference;
             }
             TypeReferenceNode::Reference { .. } => return None,
-            _ => return Some(reference),
+            _ => return Some(endpoint),
         }
     }
 }

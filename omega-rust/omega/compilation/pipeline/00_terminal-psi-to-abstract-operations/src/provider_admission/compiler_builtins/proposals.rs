@@ -10,7 +10,7 @@
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderPlan, ServiceSchema};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// The source-free part of one retained provider review. The complete plan is
 /// compared before its row-aligned execution identities can supply a proposal.
@@ -20,44 +20,6 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
     /// callable's selection coordinate. Ordinary plans use their own schema.
     pub semantic_schema: &'a ServiceSchema,
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
-}
-
-/// The boundary's IEEE format: prefer its result, otherwise its first IEEE
-/// operand. Classification returns Bool, not the classified carrier, so
-/// format-free builtin identities cannot infer their format from results alone.
-/// This is only a proposal; admission independently checks the complete
-/// signature, rejecting mixed carriers or a substituted result.
-fn boundary_float_formats(
-    identities: &terminal_psi::TerminalIdentityTable,
-    boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-) -> BTreeMap<String, semantic_vocabulary::IeeeFloatFormat> {
-    boundaries
-        .iter()
-        .filter_map(|boundary| {
-            let format = match boundary.result {
-                terminal_psi::BoundaryMachineResult::Scalar(
-                    semantic_vocabulary::QualifiedScalarType {
-                        scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(format),
-                        ..
-                    },
-                ) => Some(format),
-                _ => boundary
-                    .scalar_parameters
-                    .iter()
-                    .find_map(|parameter| match parameter {
-                        semantic_vocabulary::ScalarType::IeeeFloat(format) => Some(*format),
-                        _ => None,
-                    }),
-            }?;
-            Some((
-                identities
-                    .text(boundary.identity)
-                    .unwrap_or_default()
-                    .to_string(),
-                format,
-            ))
-        })
-        .collect()
 }
 
 struct SelectedIntrinsicRow<'a> {
@@ -79,7 +41,6 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
-    let float_formats = boundary_float_formats(identities, boundaries);
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected provider plans are not aligned with compiler-intrinsic settlement provenance",
@@ -155,17 +116,23 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
+        if let Err(reason) =
+            reconcile_numeric_meaning(boundary.numeric_intrinsic, selected_row.execution)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "Terminal boundary `{requirement}` {reason}"
+            )));
+            continue;
+        }
+        let format = boundary
+            .numeric_intrinsic
+            .and_then(|meaning| meaning.builtin_format());
         let settlement = match selected_row.execution {
             None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
-            Some(execution) => {
-                match compiler_builtin_execution(execution, float_formats.get(requirement).copied())
-                {
-                    Some(execution) => {
-                        super::TerminalCompilerBuiltinSettlement::Execution(execution)
-                    }
-                    None => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
-                }
-            }
+            Some(execution) => match compiler_builtin_execution(execution, format) {
+                Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution(execution),
+                None => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
+            },
         };
         evidence.push(super::TerminalCompilerBuiltinProposal::new(
             selected_row.requirement_identity.to_owned(),
@@ -220,8 +187,8 @@ fn nearest_arithmetic(
 }
 
 /// The native realization of one selected intrinsic identity, if the local
-/// catalog has one. `boundary_format` is the called boundary's IEEE
-/// format, which the format-free builtin identities need; admission rejoins
+/// catalog has one. `boundary_format` is the Psi-published IEEE
+/// format, which the format-free custody identities need; admission rejoins
 /// the complete boundary signature independently.
 fn compiler_builtin_execution(
     identity: CompilerIntrinsicExecutionIdentity,
@@ -619,4 +586,75 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. } => return None,
     };
     Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
+}
+
+/// Portable meaning never replaces selected-provider custody. In particular,
+/// a forged numeric boundary cannot turn an unsupported selected row into an
+/// executable provider, and a numeric provider cannot omit its portable meaning.
+fn reconcile_numeric_meaning(
+    meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    selected: Option<CompilerIntrinsicExecutionIdentity>,
+) -> Result<(), &'static str> {
+    use CompilerIntrinsicExecutionIdentity as Execution;
+    let selected_numeric = matches!(
+        selected,
+        Some(
+            Execution::PrimitiveFloatBinary { .. }
+                | Execution::PrimitiveIntegerComparison { .. }
+                | Execution::NamedFloatNegation(_)
+                | Execution::NamedFloatConversion { .. }
+        )
+    ) || matches!(selected, Some(Execution::BuiltinFunction(function)) if function.is_float_family());
+    match (meaning, selected, selected_numeric) {
+        (Some(meaning), Some(execution), _)
+            if meaning.signature().is_some() && Execution::from(meaning) == execution =>
+        {
+            Ok(())
+        }
+        (None, _, false) => Ok(()),
+        _ => Err("numeric meaning disagrees with selected provider custody"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use language_semantics::numeric_intrinsics::NumericIntrinsic;
+
+    #[test]
+    fn portable_numeric_meaning_cannot_authorize_or_replace_provider_custody() {
+        let meaning = NumericIntrinsic::from_canonical_encoding([0, 5, 1, 0]).unwrap();
+        let selected = CompilerIntrinsicExecutionIdentity::from(meaning);
+        assert!(reconcile_numeric_meaning(Some(meaning), Some(selected)).is_ok());
+        assert!(reconcile_numeric_meaning(Some(meaning), None).is_err());
+        assert!(reconcile_numeric_meaning(None, Some(selected)).is_err());
+        let other = NumericIntrinsic::from_canonical_encoding([0, 6, 1, 0]).unwrap();
+        assert!(reconcile_numeric_meaning(Some(other), Some(selected)).is_err());
+        assert!(
+            reconcile_numeric_meaning(
+                Some(meaning),
+                Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
+            )
+            .is_err()
+        );
+        assert!(
+            reconcile_numeric_meaning(
+                None,
+                Some(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32)
+            )
+            .is_ok()
+        );
+        assert!(reconcile_numeric_meaning(None, None).is_ok());
+        let format = meaning.builtin_format().unwrap();
+        assert_eq!(format, semantic_vocabulary::IeeeFloatFormat::Binary64);
+        assert!(matches!(
+            compiler_builtin_execution(selected, Some(format)),
+            Some(
+                target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: target_operations::IeeeFloatArithmeticOperation::IsNan,
+                    format: semantic_vocabulary::IeeeFloatFormat::Binary64,
+                }
+            )
+        ));
+    }
 }

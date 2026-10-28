@@ -5,6 +5,83 @@ requirements. A format package publishes its selected [layout plan](plans.md),
 codec requirements, realizations, and trust evidence. Bodies may be authored
 or generated from a validated plan; neither origin bypasses conformance checks.
 
+Named decision: `standard-fallible-representation-conversions`, settled
+2026-10-27. Core defines the common conversion requirements; a representation
+package supplies their explicitly selected ordinary implementations. A C
+policy may ship in core or std; protobuf and other formats may be independently
+authored packages. Their names are not compiler built-ins. Fixed-memory layout
+and variable-length wire encoding have distinct consuming capabilities even
+when both expose a library family such as `CLayout<T>` or `ProtoLayout<T>`.
+
+## Representation conversions
+
+The standard ordinary trait `TryFrom<Source, Destination, Error>` supplies a
+checked conversion returning `Result<Destination, Error>`. Both endpoints are
+explicit complete types; there is no implicit `Self`, data subject or search
+for a visible implementation. Full-conversion representation families provide
+selected conversions to and from their semantic T under their stated resource
+and value preconditions. To/Into-style helpers delegate to that same selected
+implementation rather than defining a competing conversion map.
+
+The standard ordinary `Representation` trait groups those exact selected
+conversion applications and their agreement laws, with error and resource
+contracts explicit. A named implementation supplies this map; the storage data
+type does not itself satisfy the trait. Fixed geometry alone does not satisfy
+Representation or authorize a decoder. Generic callers require the selected
+map and its public guarantees instead of inferring conversion from a layout
+name or the existence of a plan machine.
+
+Buffers, allocator state, work sponsorship and output custody are explicit
+inputs. A buffered or allocating conversion carries them in its explicit
+source request or uses the corresponding explicitly parameterized codec
+requirement; the simple source-to-result form does not grant an ambient
+allocator, hidden capture environment or host-service access. Failure retains
+or disposes of borrowed/owned inputs under the declared custody contract and
+never exposes an unestablished destination as a valid value. In-place failure
+and partially written output obey the particular codec's documented contract.
+
+The common interface is fallible because a generic caller cannot assume
+success. A selected conversion may additionally expose an infallible `From`
+convenience only when totality is established for every admitted input under
+its complete preconditions. It delegates to the same implementation; the
+compiler may eliminate a proved-unreachable error path, never assume one away.
+There is no silent layout coercion at a call or foreign boundary.
+
+A full conversion contract requires actual coverage, not just signatures:
+supported values encode successfully with sufficient declared resources; valid
+representations decode to established values; malformed or nonrepresentable
+inputs fail; and the selected round-trip or preservation law holds. Returning
+Unsupported for every input does not implement such a contract. Geometry-only,
+sparse, read-only and write-only policies remain usable under their actual
+capabilities without claiming complete bidirectional conversion.
+
+The representation author supplies generic reading/materialization and
+writing/encoding rules once. [Typed reflection](../language/reflection.md)
+and ordinary specialization elaborate the authorized fields, active cases and
+exact callback selections for each supported T. Cross-representation adapters
+compose through semantic T instead of requiring a separately authored adapter
+for every pair. Optimizations may remove intermediate storage only while
+preserving behavior, custody, effects and failure contracts. Unsupported members
+reject with their exact field/case and missing operation; no member is silently
+skipped. Semantic field changes, historical migrations and custom normalization
+still require explicit selected rules. Generated source text, macros, a
+format-specific derive operation and spelling-based proof rules are not the
+mechanism, and specialization alone establishes no new trust classification.
+
+Raw bytes are not automatically an established T. A representation carrier's
+physical geometry and its current value-validity facts remain separate;
+checked construction/conversion establishes the latter before an API relies
+on them. Exclusive byte writes and deferred establishment use the existing
+invariant-window and restoration rules. Layout names mint neither backing nor
+authority. Variable-length representations need explicit encoded extent and
+owned or borrowed storage, with their ordinary lifetime and allocation
+obligations; they do not become fixed-size or addressable C records.
+
+If ProtoLayout names protobuf, its library must implement and document protobuf's
+actual field-number, wire-type, presence, unknown-member and compatibility rules.
+The compact-binary policy below is a different format, not a protobuf synonym.
+No arbitrary community format is installed or implemented by this ratification.
+
 ## Agreement and trust
 
 A concrete codec conformance proves its public agreement requirements,
@@ -46,11 +123,13 @@ they cannot fabricate stronger validity or replace executable conversion.
 
 ## Policy selection and durability
 
-A bare codec call may use the exact policy already named by the destination's
-declared policy domain. Otherwise the call names the policy explicitly.
+A codec call uses the exact implementation already selected by its
+representation application or names the implementation explicitly. Domain
+qualification does not choose storage geometry or encoding policy.
 Adding an unrelated import or conformance cannot change candidate meaning;
 third-party conformances are callable by name, not visible-conformance search.
-Selection through generics remains implementation work.
+Generic selection, reflection specialization and library-authored realizations
+remain implementation work; the requirements above are the accepted contract.
 
 Durability and self-description are properties of the normalized plan and its
 consuming API contract, not semantic domains on arbitrary bytes. A durable

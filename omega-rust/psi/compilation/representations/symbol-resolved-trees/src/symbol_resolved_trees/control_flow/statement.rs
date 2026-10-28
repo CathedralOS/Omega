@@ -487,45 +487,34 @@ impl StatementTable {
     ) -> StatementHandle {
         self.insert_tree_from_source(
             statement,
-            crate::expression::ExpressionSource::Table(source_expressions),
+            &StatementTransplant {
+                source_expressions: crate::expression::ExpressionSource::Table(source_expressions),
+                source_expression_table: crate::expression::ExpressionSource::Table(
+                    source_expression_table,
+                ),
+                source_child_type_references,
+                source_constraints,
+                source_statement_path_members,
+                copy_expression_handles,
+            },
             expressions,
             type_references,
-            source_child_type_references,
-            source_constraints,
-            crate::expression::ExpressionSource::Table(source_expression_table),
-            source_statement_path_members,
-            copy_expression_handles,
         )
     }
 
     pub(crate) fn insert_tree_from_source(
         &mut self,
         statement: &Statement,
-        source_expressions: crate::expression::ExpressionSource<'_>,
+        transplant: &StatementTransplant<'_>,
         expressions: &mut crate::expression::ExpressionTable,
         type_references: &mut crate::types::TypeReferenceTable,
-        source_child_type_references: &Arena<crate::types::TypeReference>,
-        source_constraints: &Arena<crate::types::TypeConstraint>,
-        source_expression_table: crate::expression::ExpressionSource<'_>,
-        source_statement_path_members: &Arena<DiagnosticName>,
-        copy_expression_handles: bool,
     ) -> StatementHandle {
         match statement {
             Statement::Assembly(handle) => self.insert(StatementNode::Assembly(*handle)),
             Statement::RootBinding(binding) => {
-                let receiver = expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    binding.receiver,
-                    copy_expression_handles,
-                );
+                let receiver = transplant.expression(expressions, binding.receiver);
                 let implementation_operand = if binding.implementation_operand.is_valid() {
-                    expression_handle_from_tree(
-                        source_expressions,
-                        expressions,
-                        binding.implementation_operand,
-                        copy_expression_handles,
-                    )
+                    transplant.expression(expressions, binding.implementation_operand)
                 } else {
                     crate::expression::ExpressionHandle::invalid()
                 };
@@ -536,41 +525,24 @@ impl StatementTable {
                 }))
             }
             Statement::AssemblyFact(fact) => {
-                let expression = expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    fact.expression,
-                    copy_expression_handles,
-                );
+                let expression = transplant.expression(expressions, fact.expression);
                 self.insert(StatementNode::AssemblyFact(TableAssemblyFact {
                     kind: fact.kind,
                     expression,
                 }))
             }
             Statement::Assignment(assignment) => {
-                let target = expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    assignment.target,
-                    copy_expression_handles,
-                );
-                let value = expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    assignment.value,
-                    copy_expression_handles,
-                );
+                let target = transplant.expression(expressions, assignment.target);
+                let value = transplant.expression(expressions, assignment.value);
                 self.insert(StatementNode::Assignment(TableAssignment { target, value }))
             }
             Statement::Call(call) => {
-                let arguments = self.insert_expression_handle_span_from_trees(
-                    source_expressions,
-                    call.arguments,
-                    expressions,
-                    copy_expression_handles,
-                );
+                let arguments =
+                    self.transplant_expression_span(transplant, call.arguments, expressions);
                 let receiver = self.insert_name_path_members(
-                    source_statement_path_members.span_or_empty(call.receiver),
+                    transplant
+                        .source_statement_path_members
+                        .span_or_empty(call.receiver),
                 );
                 self.insert(StatementNode::Call(TableCall {
                     receiver_root_symbol: call.receiver_root_symbol,
@@ -587,12 +559,7 @@ impl StatementTable {
                 }))
             }
             Statement::ProofOutputBindingStatement(package) => {
-                let call = expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    package.call,
-                    copy_expression_handles,
-                );
+                let call = transplant.expression(expressions, package.call);
                 self.insert(StatementNode::ProofOutputBindingStatement(
                     ProofOutputBindingStatement {
                         machine_symbol: package.machine_symbol,
@@ -604,29 +571,17 @@ impl StatementTable {
                 ))
             }
             Statement::Expression(expression) => {
-                let expression = expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    *expression,
-                    copy_expression_handles,
-                );
+                let expression = transplant.expression(expressions, *expression);
                 self.insert(StatementNode::Expression(expression))
             }
             Statement::LocalData(local_data) => {
-                let type_reference = type_references.insert_tree_from_source(
-                    &local_data.type_reference,
+                let type_reference = transplant.type_reference(
+                    type_references,
                     expressions,
-                    source_child_type_references,
-                    source_constraints,
-                    source_expression_table,
+                    &local_data.type_reference,
                 );
                 let initial_value = if local_data.initial_value.is_valid() {
-                    expression_handle_from_tree(
-                        source_expressions,
-                        expressions,
-                        local_data.initial_value,
-                        copy_expression_handles,
-                    )
+                    transplant.expression(expressions, local_data.initial_value)
                 } else {
                     crate::expression::ExpressionHandle::invalid()
                 };
@@ -643,35 +598,19 @@ impl StatementTable {
                 }))
             }
             Statement::Transition(transition) => {
-                let target = self.insert_transition_target_tree(
-                    &transition.target,
-                    source_expressions,
-                    expressions,
-                    source_statement_path_members,
-                    copy_expression_handles,
-                );
+                let target =
+                    self.insert_transition_target_tree(&transition.target, transplant, expressions);
                 let continuation = transition
                     .continuation
                     .as_ref()
                     .map(|target| {
-                        self.insert_transition_target_tree(
-                            target,
-                            source_expressions,
-                            expressions,
-                            source_statement_path_members,
-                            copy_expression_handles,
-                        )
+                        self.insert_transition_target_tree(target, transplant, expressions)
                     })
                     .unwrap_or_else(TransitionTargetHandle::invalid);
                 let guard = match &transition.guard {
                     TransitionGuard::Always => TransitionGuardNode::Always,
                     TransitionGuard::When(expression) => {
-                        TransitionGuardNode::When(expression_handle_from_tree(
-                            source_expressions,
-                            expressions,
-                            *expression,
-                            copy_expression_handles,
-                        ))
+                        TransitionGuardNode::When(transplant.expression(expressions, *expression))
                     }
                 };
                 let proof_selectors = self.nodes.outcome_proof_selectors.insert_many(
@@ -696,14 +635,14 @@ impl StatementTable {
         }
     }
 
-    fn insert_expression_handle_span_from_trees(
+    fn transplant_expression_span(
         &mut self,
-        source_expressions: crate::expression::ExpressionSource<'_>,
+        transplant: &StatementTransplant<'_>,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         expressions: &mut crate::expression::ExpressionTable,
-        copy_expression_handles: bool,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        let count = source_expressions
+        let count = transplant
+            .source_expressions
             .table(expressions)
             .expression_handles(arguments)
             .len();
@@ -714,15 +653,11 @@ impl StatementTable {
         );
 
         for offset in 0..count {
-            let argument = source_expressions
+            let argument = transplant
+                .source_expressions
                 .table(expressions)
                 .expression_handles(arguments)[offset];
-            let argument = expression_handle_from_tree(
-                source_expressions,
-                expressions,
-                argument,
-                copy_expression_handles,
-            );
+            let argument = transplant.expression(expressions, argument);
             self.set_expression_handle_at_offset(
                 span,
                 offset
@@ -747,39 +682,33 @@ impl StatementTable {
     fn insert_transition_target_tree(
         &mut self,
         target: &TransitionTarget,
-        source_expressions: crate::expression::ExpressionSource<'_>,
+        transplant: &StatementTransplant<'_>,
         expressions: &mut crate::expression::ExpressionTable,
-        source_statement_path_members: &Arena<DiagnosticName>,
-        copy_expression_handles: bool,
     ) -> TransitionTargetHandle {
         let target = match target {
             TransitionTarget::Named(named) => TransitionTargetNode::Named {
                 operational_acknowledgement: named.operational_acknowledgement,
                 path: TableNamePath {
                     members: self.insert_name_path_members(
-                        source_statement_path_members.span_or_empty(named.path),
+                        transplant
+                            .source_statement_path_members
+                            .span_or_empty(named.path),
                     ),
                     receiver_symbol: named.receiver_symbol,
                     head_symbol: named.head_symbol,
                     symbol: named.symbol,
                 },
-                arguments: self.insert_expression_handle_span_from_trees(
-                    source_expressions,
+                arguments: self.transplant_expression_span(
+                    transplant,
                     named.arguments,
                     expressions,
-                    copy_expression_handles,
                 ),
                 evidence_arguments: named.evidence_arguments.clone(),
                 source_span: named.source_span,
                 authored_call_selection: named.authored_call_selection,
             },
             TransitionTarget::Value(expression) => {
-                TransitionTargetNode::Value(expression_handle_from_tree(
-                    source_expressions,
-                    expressions,
-                    *expression,
-                    copy_expression_handles,
-                ))
+                TransitionTargetNode::Value(transplant.expression(expressions, *expression))
             }
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
@@ -788,16 +717,49 @@ impl StatementTable {
     }
 }
 
-fn expression_handle_from_tree(
-    source_expressions: crate::expression::ExpressionSource<'_>,
-    expressions: &mut crate::expression::ExpressionTable,
-    expression: crate::expression::ExpressionHandle,
-    copy_expression_handles: bool,
-) -> crate::expression::ExpressionHandle {
-    if copy_expression_handles {
-        source_expressions.copy_into(expressions, expression)
-    } else {
-        expression
+/// The source coordinates and destination policy of one tree-to-table statement
+/// transplant: which table a copied expression reads, which expression table
+/// type payloads copy from, the source type-reference and constraint rows, the
+/// source path-member roster, and whether expression handles are copied at all.
+/// The walker used to thread these as separate parameters through every arm and
+/// every nested call.
+pub(crate) struct StatementTransplant<'tree> {
+    pub(crate) source_expressions: crate::expression::ExpressionSource<'tree>,
+    pub(crate) source_expression_table: crate::expression::ExpressionSource<'tree>,
+    pub(crate) source_child_type_references: &'tree Arena<crate::types::TypeReference>,
+    pub(crate) source_constraints: &'tree Arena<crate::types::TypeConstraint>,
+    pub(crate) source_statement_path_members: &'tree Arena<DiagnosticName>,
+    pub(crate) copy_expression_handles: bool,
+}
+
+impl StatementTransplant<'_> {
+    /// One expression handle: copy its subtree beside the original, or keep the
+    /// handle as the caller already owns the rows.
+    fn expression(
+        &self,
+        expressions: &mut crate::expression::ExpressionTable,
+        expression: crate::expression::ExpressionHandle,
+    ) -> crate::expression::ExpressionHandle {
+        if self.copy_expression_handles {
+            self.source_expressions.copy_into(expressions, expression)
+        } else {
+            expression
+        }
+    }
+
+    fn type_reference(
+        &self,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+        type_reference: &crate::types::TypeReference,
+    ) -> crate::types::TypeReferenceHandle {
+        type_references.insert_tree_from_source(
+            type_reference,
+            expressions,
+            self.source_child_type_references,
+            self.source_constraints,
+            self.source_expression_table,
+        )
     }
 }
 

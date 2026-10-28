@@ -66,44 +66,28 @@ pub(super) fn endpoint_lands_under(
     endpoint: ExpressionHandle,
     polynomial: &Polynomial,
 ) -> bool {
-    if let Some(Some(reference)) =
-        super::meanings::admitted_carrier(program, machine, state, endpoint, 0)
-        && exact_integer_parameter(program, reference).is_none()
+    let Some(carrier) = super::meanings::admitted_carrier(program, machine, state, endpoint, 0)
+    else {
+        return false;
+    };
+    if carrier.is_some_and(|reference| exact_integer_parameter(program, reference).is_none()) {
+        return false;
+    }
+    let mut admitted = engine.clone();
+    if formed_expression_value(&mut admitted, program, machine, state, endpoint, None, 0).is_none()
     {
         return false;
     }
-    integer_expression_lands_under(engine, program, machine, state, endpoint, polynomial)
-}
-
-/// A completed integer value retains its carrier independently of its policy.
-/// Strict normalization admits each selected operation before reaching here;
-/// this shared formation walk still checks every intermediate. Endpoints add
-/// their separate Exact restriction, whereas a shift count may use any policy.
-fn integer_expression_lands_under(
-    engine: &mut Engine<'_>,
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    endpoint: ExpressionHandle,
-    polynomial: &Polynomial,
-) -> bool {
-    if !operations_land_under(engine, program, machine, state, endpoint, None) {
-        return false;
+    if let Some(reference) = carrier {
+        let Some(primitive) = super::integer_parameter(program, reference) else {
+            return false;
+        };
+        if !integer_value_lands(&admitted, primitive, polynomial) {
+            return false;
+        }
     }
-    let carrier = match super::meanings::admitted_carrier(program, machine, state, endpoint, 0) {
-        // An anonymous endpoint is a closed value and already landed. A
-        // typed-literal operation such as `255u8 + 1u8` reaches here too;
-        // `operations_land_under` has already judged its own carrier.
-        Some(None) => return true,
-        Some(Some(reference)) => reference,
-        // A non-builtin endpoint never reaches normalization; the template
-        // admission rejected it before this judgment ran.
-        None => return false,
-    };
-    let Some(primitive) = super::integer_parameter(program, carrier) else {
-        return false;
-    };
-    integer_value_lands(engine, primitive, polynomial)
+    *engine = admitted;
+    true
 }
 
 /// Arrival equality of a normalized endpoint does not preserve formation:
@@ -155,146 +139,257 @@ fn operations_land_under(
     node: ExpressionHandle,
     arrival: Option<&BTreeMap<String, Polynomial>>,
 ) -> bool {
-    if program
-        .closed_integer_value_in(node, machine.symbol)
-        .is_some()
-    {
-        return true;
-    }
-    let binary = match program.expression_table.expression(node) {
-        ExpressionNode::Atomic(atomic) => {
-            return operations_land_under(engine, program, machine, state, atomic.value, arrival);
-        }
-        ExpressionNode::Binary(binary) if super::dependency_binary(binary.operator) => binary,
-        _ => return true,
-    };
-    // Denotation and result representability alone cannot form division:
-    // cancellation can erase its result, but cannot erase a zero divisor.
-    if matches!(
-        binary.operator,
-        BinaryOperator::Divide | BinaryOperator::Modulo
-    ) {
-        let Some(divisor) = operation_value(engine, binary.right, arrival) else {
-            return false;
-        };
-        let divisor = engine.substituted(&divisor);
-        if !engine.prove_at_least(&divisor, &BigInt::from_i64(1))
-            && !engine.prove_at_least(&Polynomial::default().sub(&divisor), &BigInt::from_i64(1))
-        {
-            return false;
-        }
-    }
-    let left = operand_primitive(program, machine, state, binary.left);
-    let right = operand_primitive(program, machine, state, binary.right);
-    // A shift's count is an independent integer operand: it never
-    // selects or disputes the result carrier, which is the shifted value's
-    // own primitive.
-    let shifting = matches!(
-        binary.operator,
-        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-    );
-    if !shifting
-        && let (Some(left), Some(right)) = (left, right)
-        && left != right
-    {
+    if super::meanings::admitted_carrier(program, machine, state, node, 0).is_none() {
         return false;
     }
-    let primitive = if shifting { left } else { left.or(right) };
-    if shifting {
-        // F8's count ruling at an endpoint: an exact `value << count` or
-        // `value >> count` owes a provably in-width count under the same
-        // hypotheses, like a nonzero divisor. Result membership alone
-        // cannot establish count validity, and an anonymous shifted value
-        // selects no width at all.
-        let Some(width) =
-            primitive.and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
-        else {
-            return false;
-        };
-        let Some(count) = operation_value(engine, binary.right, arrival) else {
-            return false;
-        };
-        let count = engine.substituted(&count);
-        if !engine.prove_at_least(&count, &BigInt::zero())
-            || !engine.prove_at_least(
-                &Polynomial::constant(BigInt::from_i64(width - 1)).sub(&count),
-                &BigInt::zero(),
-            )
-        {
-            return false;
-        }
+    let mut admitted = engine.clone();
+    if formed_expression_value(&mut admitted, program, machine, state, node, arrival, 0).is_none() {
+        return false;
     }
-    if let Some(primitive) = primitive {
-        let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
-            return false;
-        };
-        // An anonymous operand carries no range of its own; its folded value
-        // must land in the operation carrier directly. A typed operand is
-        // already a value of the carrier the primitive agreement established.
-        for operand in [binary.left, binary.right] {
-            if let Some(value) = program.closed_integer_value_in(operand, machine.symbol)
-                && value.primitive.is_none()
-                && (value.value < minimum || value.value > maximum)
-            {
-                return false;
-            }
-        }
-        // Exact signed remainder shares division's quotient-formation
-        // obligation: MIN % -1 is invalid even though its remainder is zero.
-        // A variable divisor must independently exclude -1 or the dividend
-        // must exclude MIN; bounding only the remainder would miss overflow.
-        if binary.operator == BinaryOperator::Modulo && minimum.is_negative() {
-            let Some(divisor) = operation_value(engine, binary.right, arrival) else {
-                return false;
-            };
-            let divisor = engine.substituted(&divisor);
-            if !engine.prove_at_least(&divisor, &BigInt::from_i64(1))
-                && !engine
-                    .prove_at_least(&Polynomial::default().sub(&divisor), &BigInt::from_i64(2))
-            {
-                let Some(dividend) = operation_value(engine, binary.left, arrival) else {
-                    return false;
-                };
-                let above_minimum =
-                    engine.substituted(&dividend.sub(&Polynomial::constant(minimum.clone())));
-                if !engine.prove_at_least(&above_minimum, &BigInt::from_i64(1)) {
-                    return false;
-                }
-            }
-        }
-        let Some(result) = operation_value(engine, node, arrival) else {
-            return false;
-        };
-        let lower = engine.substituted(&result.sub(&Polynomial::constant(minimum)));
-        let upper = engine.substituted(&Polynomial::constant(maximum).sub(&result));
-        if !engine.prove_at_least(&lower, &BigInt::zero())
-            || !engine.prove_at_least(&upper, &BigInt::zero())
-        {
-            return false;
-        }
-    }
-    operations_land_under(engine, program, machine, state, binary.left, arrival)
-        && operations_land_under(engine, program, machine, state, binary.right, arrival)
+    *engine = admitted;
+    true
 }
 
-/// The exact primitive `node`'s own value or selected operation carries. A
-/// closed operand keeps its landing's carrier -- `1u8` is a `u8` even where a
-/// bare literal would stay anonymous -- and an unclosed operand reads the
-/// exact parameter of its builtin meaning. Anonymous-natural coordinates and
-/// proof-level nodes carry none.
-fn operand_primitive(
+/// Executable formation includes all integer bitwise operations, even when
+/// the ranking dependency collector does not use their mathematical shape.
+fn formation_binary(operator: BinaryOperator) -> bool {
+    super::dependency_binary(operator)
+        || matches!(
+            operator,
+            BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
+        )
+}
+
+/// Return a formed value in the arrival's namespace. Children finish before
+/// their parent's candidate is created, including children hidden under a
+/// conversion, projection or call. Cancellation cannot remove a child debt.
+fn formed_expression_value(
+    engine: &mut Engine<'_>,
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     node: ExpressionHandle,
-) -> Option<PrimitiveType> {
-    if let Some(value) = program.closed_integer_value_in(node, machine.symbol) {
-        return value.primitive;
+    arrival: Option<&BTreeMap<String, Polynomial>>,
+    depth: usize,
+) -> Option<Polynomial> {
+    if depth >= 128 {
+        return None;
     }
-    match super::meanings::admitted_carrier(program, machine, state, node, 0) {
-        Some(Some(reference)) => exact_integer_parameter(program, reference),
-        _ => None,
+    if super::super::proof_integer::anonymous_integer_value(program, node).is_some() {
+        return operation_value(engine, node, arrival);
     }
+    let expression = program.expression_table.expression(node);
+    match expression {
+        ExpressionNode::Atomic(atomic) => {
+            return formed_expression_value(
+                engine,
+                program,
+                machine,
+                state,
+                atomic.value,
+                arrival,
+                depth + 1,
+            );
+        }
+        ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
+            let value = formed_expression_value(
+                engine,
+                program,
+                machine,
+                state,
+                cast.value,
+                arrival,
+                depth + 1,
+            )?;
+            let primitive = program.primitive_type_reference(cast.target_type)?;
+            if !primitive.is_fixed_integer() || !engine.integer_value_lands(primitive, &value) {
+                return None;
+            }
+            return Some(value);
+        }
+        ExpressionNode::Binary(binary) if formation_binary(binary.operator) => {
+            let left = formed_expression_value(
+                engine,
+                program,
+                machine,
+                state,
+                binary.left,
+                arrival,
+                depth + 1,
+            )?;
+            let right = formed_expression_value(
+                engine,
+                program,
+                machine,
+                state,
+                binary.right,
+                arrival,
+                depth + 1,
+            )?;
+            let references = [binary.left, binary.right].map(|operand| {
+                if program
+                    .closed_integer_value_in(operand, machine.symbol)
+                    .is_some_and(|value| value.primitive.is_none())
+                {
+                    return None;
+                }
+                crate::proof_contracts::bound_expression_meaning::operand_type(
+                    program,
+                    machine,
+                    Some(state),
+                    crate::expression_traversal::unwrapped(program, operand),
+                )
+            });
+            let primitives = references.map(|reference| {
+                reference.and_then(|reference| program.primitive_type_reference(reference))
+            });
+            if let Some(left_primitive) = primitives[0].or(primitives[1]) {
+                // A known runtime carrier is never an unbounded mathematical
+                // coordinate. Addr/count arithmetic uses the same result
+                // table and model-bound formation as every other finite node.
+                if primitives.iter().flatten().any(|primitive| {
+                    !primitive.is_fixed_integer() && *primitive != PrimitiveType::Addr
+                }) {
+                    return None;
+                }
+                let right_primitive = primitives[1].unwrap_or(left_primitive);
+                let policies = references.map(|reference| {
+                    reference
+                        .map(|reference| program.arithmetic_domain_for_type_reference(reference))
+                });
+                let left_policy = policies[0]
+                    .or(policies[1])
+                    .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
+                let right_policy = policies[1].unwrap_or({
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                    ) {
+                        numerics::arithmetic::ArithmeticDomain::Exact
+                    } else {
+                        left_policy
+                    }
+                });
+                return engine.admit_selected_integer_operation(
+                    binary.operator,
+                    [
+                        (left_primitive, left_policy),
+                        (right_primitive, right_policy),
+                    ],
+                    &left,
+                    &right,
+                    None,
+                );
+            }
+            // Carrier-less mathematical division still owes definedness. Its
+            // unbounded result has no finite landing obligation to invent.
+            if matches!(
+                binary.operator,
+                BinaryOperator::Divide | BinaryOperator::Modulo
+            ) {
+                let divisor = engine.substituted(&right);
+                if !engine.prove_at_least(&divisor, &BigInt::from_i64(1))
+                    && !engine
+                        .prove_at_least(&Polynomial::default().sub(&divisor), &BigInt::from_i64(1))
+                {
+                    return None;
+                }
+            }
+            return match binary.operator {
+                BinaryOperator::Add => Some(left.add(&right)),
+                BinaryOperator::Subtract => Some(left.sub(&right)),
+                BinaryOperator::Multiply => left.checked_mul(&right),
+                // The selected proof-Integer owner uses truncating integer
+                // quotient/remainder, with no finite carrier to invent. Its
+                // operands are already mapped and its divisor proved nonzero.
+                BinaryOperator::Divide | BinaryOperator::Modulo
+                    if super::super::proof_integer::proof_integer_expression(program, node) =>
+                {
+                    let mut admitted = engine.clone();
+                    let value = admitted.integer_binary_value(
+                        binary.operator,
+                        left.clone(),
+                        right.clone(),
+                    )?;
+                    admitted.install_integer_operation_bounds(
+                        binary.operator,
+                        &left,
+                        &right,
+                        &value,
+                    );
+                    *engine = admitted;
+                    Some(value)
+                }
+                _ => None,
+            };
+        }
+        _ => {}
+    }
+    let mut children = Vec::new();
+    crate::expression_traversal::executable_children(program, expression, |child| {
+        if child.is_valid() {
+            children.push(child);
+        }
+    });
+    let has_executable_children = !children.is_empty();
+    for child in children {
+        form_nested_operations(engine, program, machine, state, child, arrival, depth + 1)?;
+    }
+    // A captured scalar binding does not replay a parent subtree. Map it
+    // before consulting any current-state arithmetic consequence.
+    if let Some(value) = engine.strict_occurrence_value(node) {
+        return match arrival {
+            Some(arrival) => super::inductive_judgment::apply_argument_map(&value, arrival),
+            None => Some(value),
+        };
+    }
+    if arrival.is_some() && has_executable_children {
+        // Without a retained completed scalar, replaying any non-arithmetic
+        // parent could reopen its children in the source namespace.
+        return None;
+    }
+    operation_value(engine, node, arrival)
+}
+
+fn form_nested_operations(
+    engine: &mut Engine<'_>,
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    node: ExpressionHandle,
+    arrival: Option<&BTreeMap<String, Polynomial>>,
+    depth: usize,
+) -> Option<()> {
+    if depth >= 128 {
+        return None;
+    }
+    let expression = program.expression_table.expression(node);
+    let carrier = super::meanings::admitted_carrier(program, machine, state, node, 0);
+    if matches!(expression, ExpressionNode::Binary(binary) if formation_binary(binary.operator))
+        && (carrier
+            .flatten()
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .is_some_and(|primitive| {
+                primitive.is_fixed_integer() || primitive == PrimitiveType::Addr
+            })
+            || super::super::proof_integer::proof_integer_expression(program, node)
+            || super::super::proof_integer::anonymous_integer_value(program, node).is_some())
+        || matches!(expression, ExpressionNode::Cast(cast) if !cast.form.is_recast() && program.primitive_type_reference(cast.target_type).is_some_and(|primitive| primitive.is_fixed_integer()))
+    {
+        carrier?;
+        return formed_expression_value(engine, program, machine, state, node, arrival, depth + 1)
+            .map(|_| ());
+    }
+    let mut children = Vec::new();
+    crate::expression_traversal::executable_children(program, expression, |child| {
+        if child.is_valid() {
+            children.push(child);
+        }
+    });
+    for child in children {
+        form_nested_operations(engine, program, machine, state, child, arrival, depth + 1)?;
+    }
+    Some(())
 }
 
 /// One `u64` field reached from a state formal through an exact chain of
@@ -551,6 +646,20 @@ fn completed_source_value(
     source: &super::super::completed_values::CompletedValueSource,
     suffix: &[facts::PlaceSegment],
 ) -> Option<Polynomial> {
+    let mut admitted = engine.clone();
+    let value = completed_source_value_in(program, machine, state, &mut admitted, source, suffix)?;
+    *engine = admitted;
+    Some(value)
+}
+
+fn completed_source_value_in(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    engine: &mut Engine<'_>,
+    source: &super::super::completed_values::CompletedValueSource,
+    suffix: &[facts::PlaceSegment],
+) -> Option<Polynomial> {
     use super::super::completed_values::CompletedValueSource;
     match source {
         CompletedValueSource::Parameter { symbol, path } => {
@@ -570,13 +679,8 @@ fn completed_source_value(
                 .then(|| coordinate.value())
         }
         CompletedValueSource::Expression(source) if suffix.is_empty() => {
-            super::meanings::install_nonpolynomial_terms(
-                program, machine, state, engine, *source, 0,
-            )?;
             super::meanings::admitted_carrier(program, machine, state, *source, 0)?;
-            let value = engine.normalize(*source)?;
-            integer_expression_lands_under(engine, program, machine, state, *source, &value)
-                .then_some(value)
+            formed_expression_value(engine, program, machine, state, *source, None, 0)
         }
         CompletedValueSource::Integer(integer) if suffix.is_empty() => {
             Some(Polynomial::constant(integer.clone()))
@@ -590,25 +694,9 @@ fn completed_source_value(
                 return None;
             }
             let [left, right] = operands.as_ref();
-            let left = completed_source_value(program, machine, state, engine, left, &[])?;
-            let right = completed_source_value(program, machine, state, engine, right, &[])?;
-            let value = engine.selected_integer_binary_value(
-                *operator,
-                *meaning,
-                left.clone(),
-                right.clone(),
-            )?;
-            if !engine.integer_operation_lands(
-                *operator,
-                meaning.map(|(primitive, _)| primitive),
-                &left,
-                &right,
-                &value,
-            ) {
-                return None;
-            }
-            engine.install_integer_operation_bounds(*operator, &left, &right, &value);
-            Some(value)
+            let left = completed_source_value_in(program, machine, state, engine, left, &[])?;
+            let right = completed_source_value_in(program, machine, state, engine, right, &[])?;
+            engine.admit_selected_integer_operation(*operator, *meaning, &left, &right, None)
         }
         _ => None,
     }

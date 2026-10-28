@@ -1,0 +1,22 @@
+// Every private arrival supplies an integer from 0 through 255, so exact narrowing to u8 preserves its value.
+// Expected exit: 0
+data Note { value: u8; tag: u64; }
+const FIRST: i32 = 7;
+const SECOND: i32 = 231;
+machine probe(select: bool) -> Note {
+    transition select {
+        true -> apply(FIRST, select)
+        false -> apply(SECOND, select)
+    }
+    machine apply(value: i32, select: bool) -> Note {
+        let result: u8 = value as u8;
+        let tag: u64 = match select { true -> 11, false -> 13 };
+        Note { value: result, tag: tag }
+    }
+}
+machine main() crashes Trap {
+    let first: Note = probe(true);
+    let second: Note = probe(false);
+    transition first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

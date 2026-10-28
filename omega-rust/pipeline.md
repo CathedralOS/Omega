@@ -174,8 +174,8 @@ the ordinary entry, calling-plan and provider producers against the embedded
 canonical artifact; it never deserializes a validated wrapper. Receiving policy,
 live backing, host bindings and resource charges remain current invocation
 inputs. Same-invocation consumers borrow the produced object directly; encoding
-happens only when component persistence was requested. Checked source graphs
-remain a separate reuse requirement.
+happens only when component persistence was requested. Source/check retention
+uses the separate coupled graph described below.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
@@ -186,9 +186,27 @@ typing and pending evaluations paired while the consumer adds fresh declarations
 Source membership, imports, aliases and declaration authority must still match.
 Anonymous Build-to-Product sealing admits a new source instance and issues its
 exact correspondence; executed descriptions keep their original records and
-Product lookup consumes that correspondence. Retention transfers no checking
-judgment, executed Build return or evaluation charge. Cross-invocation package
-and Terminal product persistence remain separate work.
+Product lookup consumes that correspondence. The correspondence alone transfers
+no checking judgment, executed Build return or evaluation charge.
+
+Compiler-private source retention stores the complete coupled source/check graph:
+source preparation and parsed frontiers, declaration/state/expression coordinates,
+pending source completions, their original accounting, and exact-program checking
+judgments. The application requests disk retention for a compiler invocation;
+short-lived in-memory sessions use the same pipeline without publishing records.
+The compiler/library identity selects a private format namespace. Fresh source
+and dependency observations, full preparation admission, and fresh declaration
+selection authority must match before a retained judgment is used. Recorded
+authority is comparison data, never a restored grant; invocation resources and
+Build admission are reacquired. Invalid, truncated or obsolete records are
+optional misses. Terminal values inside the graph use the canonical Terminal
+codec and rejoin companion receipts through their original producers.
+
+This implements cross-invocation exact-program reuse. It does not admit checked
+dependency judgments into a different consumer from body hashes: cross-consumer
+reuse still needs complete producer-dependency context admission. In-memory
+shared declaration pages, local flow facts and conservative unknown-input
+fallback retain their existing ownership.
 
 | Input → output | Owner |
 | --- | --- |
@@ -273,6 +291,13 @@ the artifact itself, including after reload. There is no late Psi signature quer
 for these adapters. Other checked-source inputs to product coordination remain
 part of the migration; this does not claim the entire driver is source-free.
 
+Entry custody retains declared arguments and physical/semantic calling contracts,
+not synthesized service fields on an application record. Provider roots come from
+actual calls and callback demand. Selected entries, private native derivation
+records and runtime provisions carry no synthetic field-establishment roster;
+older private records reject at their schema boundary. Ordinary provider
+admission, placed-view inputs and physical entry adapters remain independent.
+
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the
 ordinary provider catalog join, which checks agreement with imported and explicit
@@ -326,6 +351,18 @@ invocation's deferred work, not the cached consumer's. Selected Product closure
 evaluates a private copy, rejoins recorded recipe identities and closes queries
 in the actual checked forest; the coordinator no longer copies constant values
 or layout tables between those forests.
+Numeric intrinsic classification has one source-owned decision: the exact
+requirement's token or named catalog row supplies both signature obligations
+and its closed execution identity. Provider planning and selected dispatch use
+that classification; diagnostic strings do not gate support. Package review
+still independently rejoins its supplied candidate to retained selection
+custody. Psi publishes numeric meaning and its exact IEEE format in canonical
+Terminal boundary declarations; native proposal creation consumes that meaning
+and reconciles it with selected-provider custody rather than inferring the format
+from a result or parameter. Portable decoding validates the complete numeric
+signature. This meaning does not select or authorize a provider. Review-only
+products still use checked source custody: moving their complete conformance
+evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not
 yet target-independent constant production or a completed Terminal-only provider
 pipeline; portable deferred recipes remain part of the migration.
@@ -612,7 +649,16 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns provider choices and calling, component and task planning.
+owns provider choices and calling and component planning.
+Psi projects checked task activation requirements, exact specialization and
+carry evidence, and the reachable frame graph into Terminal Psi. State-resident
+storage and staged arguments at each suspension crossing remain separate
+alternatives. Native proposal construction joins those demands to exact selected
+runtime plans and target geometry without reopening source. Checking-only stops
+request that same portable projection without executable body lowering and use
+the same source-free join. Instruction lowering and task storage share the
+backend calling-conventions geometry owner. This closes static activation
+planning; it does not implement a task executor.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement.
 It imports no Psi transform: the source coordinator owns stage requests and
@@ -620,9 +666,17 @@ supplies operator selections. Adapter dispatch reads the canonical backing
 through a Product declaration/occurrence selection instead of cloning and
 pruning a separate program. Build copies remain outside that selected frontier.
 Provider grants resolve through backend provider evidence.
-Product adapter dispatch and selected float executions live beside the checked
-program in `SelectedExecution`; they never copy or mutate checked Psi. The
-reference checked interpreter receives those explicit execution bindings.
+Optional x86 FMA admission consumes demanded Terminal builtin proposals at
+native provider admission. Checked source retains no separate FMA association
+list: an operation in an unselected target body creates no deployment demand
+for the selected body. Exact profile and feature admission remain required for
+each realized FMA, and its ordinary target-operation record carries that custody.
+The optional reference checked interpreter prepares adapter dispatch and selected
+float executions at its own entrance. `SelectedExecution` retains no reference
+dispatch table, and ordinary Product installation does not scan source to prepare
+an engine it will not run. Terminal/native provider admission consumes canonical
+demand and selected rows independently. Reference preparation never copies or
+mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
 target independently admits the unoptimized composition and retains its own

@@ -129,6 +129,7 @@ fn scalar_boundary_result_retains_membership_and_rejects_detached_types() {
     let result = module.machines[0].result.scalar().unwrap().value_type();
     let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        numeric_intrinsic: None,
         normal_qualifications: Vec::new(),
         scalar_domain_requirements: Vec::new(),
         declaration: None,

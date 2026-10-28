@@ -997,6 +997,12 @@ impl TerminalExecution<'_> {
         } else if self.owned_source_for(
             place,
             value.structural_type,
+            StructuralMultiplicity::Linear,
+        ) {
+            StructuralMultiplicity::Linear
+        } else if self.owned_source_for(
+            place,
+            value.structural_type,
             StructuralMultiplicity::Affine,
         ) {
             StructuralMultiplicity::Affine
@@ -1014,10 +1020,12 @@ impl TerminalExecution<'_> {
                 .live_affine_frontier
                 .iter()
                 .all(|entry| entry.place != place),
-            StructuralMultiplicity::Affine => self
+            // The loan leaves either owner's debt in place. Carrier access
+            // independently authenticates the exact live frontier or claim
+            // before the selected descriptor lends its referent.
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear => self
                 .reference_carrier_access(place, value.structural_type, &argument.path)
                 .is_ok_and(|access| crate::reference::access_covers(access, requested)),
-            _ => false,
         }
     }
 

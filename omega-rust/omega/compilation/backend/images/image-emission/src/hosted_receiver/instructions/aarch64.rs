@@ -2,7 +2,7 @@
 //! Address pairs, byte stores, argument occurrences, branch destinations, the
 //! exact semantic call and the original normal-return observations are replayed.
 
-use super::super::{HostedReceiverPartitions, invalid};
+use super::super::{HostedReceiverPartitions, invalid, recipe_index_for_runtime_position};
 use diagnostics::Diagnostic;
 
 pub(in crate::hosted_receiver) fn validate(
@@ -69,10 +69,7 @@ pub(in crate::hosted_receiver) fn validate(
         if ordinal >= 8 {
             return Err(fail());
         }
-        let selected = recipes
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
-            .ok_or_else(fail)?;
+        let selected = recipe_index_for_runtime_position(recipes, ordinal).ok_or_else(fail)?;
         reader.address(ordinal as u32, originals[selected])?;
     }
     let pc = reader.pc()?;

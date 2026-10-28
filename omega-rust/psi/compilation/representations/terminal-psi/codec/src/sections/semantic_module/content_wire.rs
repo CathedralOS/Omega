@@ -50,10 +50,7 @@ pub(crate) fn encode_content_partition_composition(
         encode_structural_place_kind(writer, place.kind);
     }
     encode_content_conservation(writer, &composition.source)?;
-    writer.len("partition input claims", composition.input_claims.len())?;
-    for claim in &composition.input_claims {
-        writer.id(*claim);
-    }
+    writer.ids("partition input claims", &composition.input_claims)?;
     writer.len(
         "partition place substitutions",
         composition.substitutions.len(),

@@ -540,11 +540,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     for operand in &instruction.operands {
         crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
-        bytes.push(match operand.access {
-            RegisterOperandAccess::Use => 0,
-            RegisterOperandAccess::Def => 1,
-            RegisterOperandAccess::UseDef => 2,
-        });
+        bytes.push(operand.access.access_tag());
         crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         encode_option_u16(bytes, operand.fixed_view.map(|view| view.0));
         encode_option_u16(bytes, operand.tied_to);

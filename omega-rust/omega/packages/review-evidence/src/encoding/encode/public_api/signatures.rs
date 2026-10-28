@@ -116,10 +116,7 @@ pub(in crate::encoding::encode) fn type_parameter(
         };
         Ok(())
     })?;
-    encoder.field("bounds", |encoder| {
-        encode_data_properties(encoder, parameter.bounds);
-        Ok(())
-    })?;
+    encoder.field_by("bounds", parameter.bounds, encode_data_properties)?;
     Ok(())
 }
 
@@ -130,9 +127,10 @@ pub(in crate::encoding) fn machine_contract(
     encoder.nested(|encoder| match contract {
         PackagePolicyMachineParameterContract::Structural(signature) => {
             encoder.tag("structural", 0);
-            encoder.field("lifetime_parameter_count", |encoder| {
-                encoder.usize(signature.lifetime_parameter_count)
-            })?;
+            encoder.usize_field(
+                "lifetime_parameter_count",
+                signature.lifetime_parameter_count,
+            )?;
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&signature.type_parameters, type_parameter)
             })?;

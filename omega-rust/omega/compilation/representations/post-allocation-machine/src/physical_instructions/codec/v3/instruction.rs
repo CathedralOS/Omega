@@ -14,21 +14,9 @@ use super::super::{
 
 pub(super) fn decode_instruction(
     cursor: &mut effect_codec::Cursor<'_>,
-    allow_i64_less_than: bool,
-    allow_scalar_call: bool,
-    allow_jump: bool,
 ) -> Result<PostAllocationMachineInstruction, PostAllocationMachineDecodeError> {
     let instruction = SelectedInstructionId(u32_field(cursor)?);
-    let alternative = if allow_jump {
-        effect_codec::decode_alternative(cursor)
-    } else if allow_scalar_call {
-        effect_codec::decode_alternative_without_jump(cursor)
-    } else if allow_i64_less_than {
-        effect_codec::decode_alternative_without_scalar_call(cursor)
-    } else {
-        effect_codec::decode_alternative_legacy(cursor)
-    }
-    .map_err(map_field_error)?;
+    let alternative = effect_codec::decode_alternative(cursor).map_err(map_field_error)?;
     let operand_count = length(cursor)?;
     let mut operands = Vec::with_capacity(operand_count.min(cursor.remaining()));
     for _ in 0..operand_count {

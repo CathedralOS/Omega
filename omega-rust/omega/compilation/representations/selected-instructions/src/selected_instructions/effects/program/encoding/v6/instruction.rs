@@ -529,24 +529,6 @@ pub fn decode_alternative(
     decode_alternative_for_version(cursor, true, true, true)
 }
 
-pub fn decode_alternative_legacy(
-    cursor: &mut Cursor<'_>,
-) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, false, false, false)
-}
-
-pub fn decode_alternative_without_jump(
-    cursor: &mut Cursor<'_>,
-) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, true, true, false)
-}
-
-pub fn decode_alternative_without_scalar_call(
-    cursor: &mut Cursor<'_>,
-) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, true, false, false)
-}
-
 fn decode_alternative_for_version(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,

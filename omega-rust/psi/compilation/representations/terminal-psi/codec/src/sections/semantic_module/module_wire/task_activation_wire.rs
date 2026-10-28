@@ -10,13 +10,13 @@ use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::super::wire::{Reader, Writer, decode_counted};
 use super::carry_and_suspension_wire::{decode_carry_policy, encode_carry_policy};
-use super::target_layout_wire;
 use terminal_psi::{
     TerminalIdentityIndex, TerminalTaskActivationDemand, TerminalTaskActivationDemands,
     TerminalTaskCarryObligations, TerminalTaskCarryStorage, TerminalTaskFrame,
-    TerminalTaskFrameCall, TerminalTaskLiveCarry, TerminalTaskResidentValue,
-    TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskSuspensionCrossing,
-    TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind, TerminalTaskValueType,
+    TerminalTaskFrameCall, TerminalTaskFrameState, TerminalTaskLiveCarry,
+    TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation,
+    TerminalTaskSuspensionCrossing, TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
+    TerminalTaskValueType,
 };
 
 fn encode_identity_index(writer: &mut Writer, index: TerminalIdentityIndex) {
@@ -29,6 +29,7 @@ fn decode_identity_index(reader: &mut Reader<'_>) -> Result<TerminalIdentityInde
 
 fn encode_value_type(writer: &mut Writer, value_type: TerminalTaskValueType) {
     match value_type {
+        TerminalTaskValueType::Unit => writer.u8(0),
         TerminalTaskValueType::Scalar(scalar_type) => {
             writer.u8(1);
             encode_scalar_type(writer, scalar_type);
@@ -37,18 +38,14 @@ fn encode_value_type(writer: &mut Writer, value_type: TerminalTaskValueType) {
             writer.u8(2);
             writer.id(structural_type);
         }
-        TerminalTaskValueType::TargetLayout(application) => {
-            writer.u8(3);
-            writer.u32(application.0);
-        }
     }
 }
 
 fn decode_value_type(reader: &mut Reader<'_>) -> Result<TerminalTaskValueType, CodecError> {
     Ok(match reader.u8()? {
+        0 => TerminalTaskValueType::Unit,
         1 => TerminalTaskValueType::Scalar(decode_scalar_type(reader)?),
         2 => TerminalTaskValueType::Structural(reader.id("StructuralTypeId")?),
-        3 => TerminalTaskValueType::TargetLayout(terminal_psi::LayoutApplicationId(reader.u32()?)),
         tag => return Err(CodecError::InvalidTag("TerminalTaskValueType", tag)),
     })
 }
@@ -115,10 +112,11 @@ fn encode_crossing(
     writer.boolean(crossing.suspension_allowed);
     writer.boolean(crossing.preserve_cpu);
     writer.boolean(crossing.preserve_host_thread);
-    writer.len("task crossing live carry", crossing.live_carry.len())?;
-    for live in &crossing.live_carry {
-        encode_live_carry(writer, live)?;
-    }
+    writer.counted(
+        "task crossing live carry",
+        &crossing.live_carry,
+        encode_live_carry,
+    )?;
     Ok(())
 }
 
@@ -136,11 +134,17 @@ fn encode_frame(writer: &mut Writer, frame: &TerminalTaskFrame) -> Result<(), Co
     writer.u64(frame.identity);
     encode_identity_index(writer, frame.machine_callable_identity);
     encode_identity_index(writer, frame.entry);
-    writer.len("task frame resident values", frame.resident.len())?;
-    for resident in &frame.resident {
-        encode_value_type(writer, resident.value_type);
-        encode_identity_index(writer, resident.normalized_identity);
-    }
+    writer.counted("task frame states", &frame.states, |writer, state| {
+        encode_identity_index(writer, state.state);
+        writer.counted("task state residents", &state.resident, encode_resident)?;
+        writer.counted(
+            "task state crossings",
+            &state.crossing_arguments,
+            |writer, arguments| {
+                writer.counted("task crossing arguments", arguments, encode_resident)
+            },
+        )
+    })?;
     writer.len("task frame calls", frame.calls.len())?;
     for call in &frame.calls {
         writer.u64(call.callee);
@@ -162,10 +166,13 @@ fn decode_frame(reader: &mut Reader<'_>) -> Result<TerminalTaskFrame, CodecError
     let identity = reader.u64()?;
     let machine_callable_identity = decode_identity_index(reader)?;
     let entry = decode_identity_index(reader)?;
-    let resident = decode_counted(reader, |reader| {
-        Ok(TerminalTaskResidentValue {
-            value_type: decode_value_type(reader)?,
-            normalized_identity: decode_identity_index(reader)?,
+    let states = decode_counted(reader, |reader| {
+        Ok(TerminalTaskFrameState {
+            state: decode_identity_index(reader)?,
+            resident: decode_counted(reader, decode_resident)?,
+            crossing_arguments: decode_counted(reader, |reader| {
+                decode_counted(reader, decode_resident)
+            })?,
         })
     })?;
     let calls = decode_counted(reader, |reader| {
@@ -194,7 +201,7 @@ fn decode_frame(reader: &mut Reader<'_>) -> Result<TerminalTaskFrame, CodecError
         identity,
         machine_callable_identity,
         entry,
-        resident,
+        states,
         calls,
         unresolved_calls,
     })
@@ -211,10 +218,12 @@ fn encode_demand(
     writer.u64(demand.report_fingerprint);
     encode_identity_index(writer, demand.requirement_callable_identity);
     encode_identity_index(writer, demand.requirement_owner_path);
-    encode_identity_index(writer, demand.requirement_owner_package);
+    writer.boolean(demand.requirement_owner_package.is_some());
+    if let Some(package) = demand.requirement_owner_package {
+        writer.bytes(&package.digest());
+    }
     writer.boolean(demand.requirement_in_scope);
     encode_identity_index(writer, demand.authored_requirement_identity);
-    writer.id(demand.machine);
     encode_identity_index(writer, demand.machine_callable_identity);
     encode_identity_index(writer, demand.entry);
     writer.u64(demand.entry_report_fingerprint);
@@ -229,14 +238,9 @@ fn encode_demand(
         encode_signature_value(writer, argument);
     }
     encode_signature_value(writer, &demand.signature_outcome);
-    writer.len("task frames", demand.frames.len())?;
-    for frame in &demand.frames {
-        encode_frame(writer, frame)?;
-    }
-    writer.len("task crossings", demand.crossings.len())?;
-    for crossing in &demand.crossings {
-        encode_crossing(writer, crossing)?;
-    }
+    writer.u64(demand.root_frame);
+    writer.counted("task frames", &demand.frames, encode_frame)?;
+    writer.counted("task crossings", &demand.crossings, encode_crossing)?;
     writer.boolean(demand.carry_obligations.preserve_cpu);
     writer.boolean(demand.carry_obligations.preserve_host_thread);
     Ok(())
@@ -251,10 +255,19 @@ fn decode_demand(reader: &mut Reader<'_>) -> Result<TerminalTaskActivationDemand
     let report_fingerprint = reader.u64()?;
     let requirement_callable_identity = decode_identity_index(reader)?;
     let requirement_owner_path = decode_identity_index(reader)?;
-    let requirement_owner_package = decode_identity_index(reader)?;
+    let requirement_owner_package = if reader.boolean()? {
+        Some(
+            semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array::<32>()?).ok_or(
+                CodecError::MalformedStructuralFoundation(
+                    "task requirement has a zero package identity",
+                ),
+            )?,
+        )
+    } else {
+        None
+    };
     let requirement_in_scope = reader.boolean()?;
     let authored_requirement_identity = decode_identity_index(reader)?;
-    let machine = reader.id("MachineId")?;
     let machine_callable_identity = decode_identity_index(reader)?;
     let entry = decode_identity_index(reader)?;
     let entry_report_fingerprint = reader.u64()?;
@@ -266,6 +279,7 @@ fn decode_demand(reader: &mut Reader<'_>) -> Result<TerminalTaskActivationDemand
     let cancellation_required = reader.boolean()?;
     let signature_arguments = decode_counted(reader, decode_signature_value)?;
     let signature_outcome = decode_signature_value(reader)?;
+    let root_frame = reader.u64()?;
     let frames = decode_counted(reader, decode_frame)?;
     let crossings = decode_counted(reader, decode_crossing)?;
     let carry_obligations = TerminalTaskCarryObligations {
@@ -280,7 +294,6 @@ fn decode_demand(reader: &mut Reader<'_>) -> Result<TerminalTaskActivationDemand
         requirement_owner_package,
         requirement_in_scope,
         authored_requirement_identity,
-        machine,
         machine_callable_identity,
         entry,
         entry_report_fingerprint,
@@ -292,6 +305,7 @@ fn decode_demand(reader: &mut Reader<'_>) -> Result<TerminalTaskActivationDemand
         cancellation_required,
         signature_arguments,
         signature_outcome,
+        root_frame,
         frames,
         crossings,
         carry_obligations,
@@ -302,24 +316,39 @@ pub(super) fn encode_demands(
     writer: &mut Writer,
     demands: &TerminalTaskActivationDemands,
 ) -> Result<(), CodecError> {
-    writer.len("task activation demands", demands.demands.len())?;
-    for demand in &demands.demands {
-        encode_demand(writer, demand)?;
-    }
-    writer.len(
+    writer.counted("task activation demands", &demands.demands, encode_demand)?;
+    writer.counted(
         "task activation structural types",
-        demands.structural_types.len(),
+        &demands.structural_types,
+        encode_structural_type,
     )?;
-    for declaration in &demands.structural_types {
-        encode_structural_type(writer, declaration)?;
-    }
-    writer.len(
+    writer.counted(
+        "task structural referents",
+        &demands.structural_referents,
+        |writer, referent| {
+            writer.id(referent.id);
+            encode_identity_index(writer, referent.identity);
+            Ok(())
+        },
+    )?;
+    writer.counted(
         "task activation target layout applications",
-        demands.target_layout_applications.len(),
+        &demands.target_layout_applications,
+        |writer, application| {
+            writer.u32(application.id.0);
+            writer.id(application.record);
+            writer.counted(
+                "task layout alternatives",
+                &application.realizations,
+                |writer, row| {
+                    writer.string("task layout target", &row.target)?;
+                    writer.u64(row.storage.byte_size);
+                    writer.u64(row.storage.byte_alignment);
+                    Ok(())
+                },
+            )
+        },
     )?;
-    for application in &demands.target_layout_applications {
-        target_layout_wire::encode(writer, application)?;
-    }
     Ok(())
 }
 
@@ -329,6 +358,41 @@ pub(super) fn decode_demands(
     Ok(TerminalTaskActivationDemands {
         demands: decode_counted(reader, decode_demand)?,
         structural_types: decode_counted(reader, decode_structural_type)?,
-        target_layout_applications: decode_counted(reader, target_layout_wire::decode)?,
+        structural_referents: decode_counted(reader, |reader| {
+            Ok(terminal_psi::StructuralReferentIdentity {
+                id: reader.id("StructuralTypeId")?,
+                identity: decode_identity_index(reader)?,
+            })
+        })?,
+        target_layout_applications: decode_counted(reader, |reader| {
+            Ok(terminal_psi::TerminalTaskTargetLayout {
+                id: terminal_psi::LayoutApplicationId(reader.u32()?),
+                record: reader.id("StructuralTypeId")?,
+                realizations: decode_counted(reader, |reader| {
+                    Ok(terminal_psi::TerminalTaskLayoutRealization {
+                        target: reader.string("task layout target")?,
+                        storage: semantic_vocabulary::AuthoredRecordStorage {
+                            byte_size: reader.u64()?,
+                            byte_alignment: reader.u64()?,
+                        },
+                    })
+                })?,
+            })
+        })?,
+    })
+}
+
+fn encode_resident(
+    writer: &mut Writer,
+    resident: &TerminalTaskResidentValue,
+) -> Result<(), CodecError> {
+    encode_value_type(writer, resident.value_type);
+    encode_identity_index(writer, resident.normalized_identity);
+    Ok(())
+}
+fn decode_resident(reader: &mut Reader<'_>) -> Result<TerminalTaskResidentValue, CodecError> {
+    Ok(TerminalTaskResidentValue {
+        value_type: decode_value_type(reader)?,
+        normalized_identity: decode_identity_index(reader)?,
     })
 }

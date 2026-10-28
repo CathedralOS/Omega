@@ -1,4 +1,4 @@
-use super::encoding::{encode_fuel, encode_ids, encode_len};
+use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option};
 use crate::legalized_operations::identity::structural_types::{
     encode_access, encode_entry_claim, encode_multiplicity, encode_string,
     encode_structural_argument, encode_structural_path,
@@ -23,16 +23,11 @@ pub(super) fn encode_boundary_settlement(
     for argument in &settlement.arguments {
         encode_structural_argument(bytes, argument);
     }
-    encode_len(bytes, settlement.completion_claim_sources.len());
-    for source in &settlement.completion_claim_sources {
-        encode_completion_claim_source(bytes, source);
-    }
-    encode_len(bytes, settlement.completion_receipts.len());
-    for receipt in &settlement.completion_receipts {
-        crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
-        encode_structural_path(bytes, &receipt.path);
-    }
+    encode_completion_roster(
+        bytes,
+        &settlement.completion_claim_sources,
+        &settlement.completion_receipts,
+    );
     encode_fuel(bytes, &settlement.fuel);
     encode_effect(bytes, settlement.effect);
     encode_ownership_roster(bytes, &settlement.ownership);
@@ -84,16 +79,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&entry.get().to_le_bytes());
             bytes.extend_from_slice(source_signature);
-            encode_len(bytes, completion_claim_sources.len());
-            for source in completion_claim_sources {
-                encode_completion_claim_source(bytes, source);
-            }
-            encode_len(bytes, completion_receipts.len());
-            for receipt in completion_receipts {
-                bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
-                bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
-                encode_structural_path(bytes, &receipt.path);
-            }
+            encode_completion_roster(bytes, completion_claim_sources, completion_receipts);
         }
         NativeCallOrigin::TargetFamily {
             boundary,
@@ -106,16 +92,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             bytes.extend_from_slice(&member.get().to_le_bytes());
             encode_string(bytes, target);
-            encode_len(bytes, completion_claim_sources.len());
-            for source in completion_claim_sources {
-                encode_completion_claim_source(bytes, source);
-            }
-            encode_len(bytes, completion_receipts.len());
-            for receipt in completion_receipts {
-                bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
-                bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
-                encode_structural_path(bytes, &receipt.path);
-            }
+            encode_completion_roster(bytes, completion_claim_sources, completion_receipts);
         }
         NativeCallOrigin::InstalledProvider {
             boundary,
@@ -142,16 +119,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
                     bytes.extend_from_slice(&id.get().to_le_bytes());
                 }
             }
-            encode_len(bytes, completion_claim_sources.len());
-            for source in completion_claim_sources {
-                encode_completion_claim_source(bytes, source);
-            }
-            encode_len(bytes, completion_receipts.len());
-            for receipt in completion_receipts {
-                crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
-                encode_structural_path(bytes, &receipt.path);
-            }
+            encode_completion_roster(bytes, completion_claim_sources, completion_receipts);
         }
     }
 }
@@ -213,48 +181,64 @@ pub(super) fn encode_provider_candidate(
     );
 }
 
+/// One settled completion receipt row: the claim it retires, the structural
+/// argument position it names, and the projection it covers.
+fn encode_receipts(bytes: &mut Vec<u8>, receipts: &[terminal_psi::CompletionReceipt]) {
+    encode_len(bytes, receipts.len());
+    for receipt in receipts {
+        crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
+        encode_structural_path(bytes, &receipt.path);
+    }
+}
+
+/// The completion custody a call origin or boundary settlement carries: the
+/// caller's retained claim sources, then the exact receipts that discharged
+/// them. Every origin arm writes both rosters in that order.
+pub(super) fn encode_completion_roster(
+    bytes: &mut Vec<u8>,
+    claim_sources: &[CompletionClaimSource],
+    receipts: &[terminal_psi::CompletionReceipt],
+) {
+    encode_len(bytes, claim_sources.len());
+    for source in claim_sources {
+        encode_completion_claim_source(bytes, source);
+    }
+    encode_receipts(bytes, receipts);
+}
+
 pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
     crate::codec_bytes::push_encoded(bytes, source.claim.get().to_le_bytes());
-    match &source.entry {
-        Some(entry) => {
-            bytes.push(1);
-            encode_entry_claim(bytes, entry);
-        }
-        None => bytes.push(0),
-    }
-    match &source.content {
-        Some(content) => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, content.claim.get().to_le_bytes());
-            bytes.push(match content.input.version {
-                ContentPlaceVersion::Entry => 1,
-                ContentPlaceVersion::Current => 2,
-            });
-            crate::codec_bytes::push_encoded(bytes, content.input.root.get().to_le_bytes());
-            encode_len(bytes, content.input.segments.len());
-            for segment in &content.input.segments {
-                match segment {
-                    ContentPlaceSegment::Field(value) => {
-                        bytes.push(1);
-                        encode_string(bytes, value);
-                    }
-                    ContentPlaceSegment::FixedIndex(value) => {
-                        bytes.push(2);
-                        crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-                    }
-                    ContentPlaceSegment::Case(value) => {
-                        bytes.push(3);
-                        encode_string(bytes, value);
-                    }
+    encode_option(bytes, source.entry.as_ref(), encode_entry_claim);
+    encode_option(bytes, source.content.as_ref(), |bytes, content| {
+        crate::codec_bytes::push_encoded(bytes, content.claim.get().to_le_bytes());
+        bytes.push(match content.input.version {
+            ContentPlaceVersion::Entry => 1,
+            ContentPlaceVersion::Current => 2,
+        });
+        crate::codec_bytes::push_encoded(bytes, content.input.root.get().to_le_bytes());
+        encode_len(bytes, content.input.segments.len());
+        for segment in &content.input.segments {
+            match segment {
+                ContentPlaceSegment::Field(value) => {
+                    bytes.push(1);
+                    encode_string(bytes, value);
+                }
+                ContentPlaceSegment::FixedIndex(value) => {
+                    bytes.push(2);
+                    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
+                }
+                ContentPlaceSegment::Case(value) => {
+                    bytes.push(3);
+                    encode_string(bytes, value);
                 }
             }
-            encode_len(bytes, content.projections.len());
-            for projection in &content.projections {
-                encode_claim_projection(bytes, projection);
-            }
         }
-        None => bytes.push(0),
-    }
+        encode_len(bytes, content.projections.len());
+        for projection in &content.projections {
+            encode_claim_projection(bytes, projection);
+        }
+    });
 }
 
 pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
@@ -291,12 +275,7 @@ pub(super) fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[Ownershi
             }
             OwnershipEvent::ClaimCompletion(receipts) => {
                 bytes.push(2);
-                encode_len(bytes, receipts.len());
-                for receipt in receipts {
-                    bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
-                    bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
-                    encode_structural_path(bytes, &receipt.path);
-                }
+                encode_receipts(bytes, receipts);
             }
             OwnershipEvent::Cleanup(actions) => {
                 bytes.push(3);

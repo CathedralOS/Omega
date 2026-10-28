@@ -12,7 +12,7 @@ use provider_planning::{
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 use typed_trees::types::PrimitiveType;
 
-pub(super) fn selected_executions(
+pub(crate) fn selected_executions(
     checked: &CheckedTrees,
     scope: source::DependencyScope,
     providers: &[SelectedProviderReviewProvenance],

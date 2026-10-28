@@ -84,10 +84,7 @@ fn encode_boolean_node(
                 }
                 Ok(())
             })?;
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
+            encoder.field_by("primitive_type", *primitive_type, encode_primitive_type)?;
             encoder.field("left", |encoder| encode_structural_field(encoder, left))?;
             encoder.field("right", |encoder| encode_structural_field(encoder, right))?;
         }

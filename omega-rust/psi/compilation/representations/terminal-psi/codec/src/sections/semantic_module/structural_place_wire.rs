@@ -53,13 +53,7 @@ pub(crate) fn encode_affine_cleanup_action(
             encode_structural_path(writer, "nominal cleanup path", &cleanup.path)?;
             writer.id(cleanup.structural_type);
             writer.id(cleanup.cleanup_machine);
-            writer.len(
-                "nominal cleanup consumed claims",
-                cleanup.consumed_claims.len(),
-            )?;
-            for claim in &cleanup.consumed_claims {
-                writer.id(*claim);
-            }
+            writer.ids("nominal cleanup consumed claims", &cleanup.consumed_claims)?;
             encode_optional_id(writer, cleanup.cleanup_receiver);
             encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
         }
@@ -151,10 +145,7 @@ pub(crate) fn encode_obligation_ids(
     writer: &mut Writer,
     obligations: &[ObligationId],
 ) -> Result<(), CodecError> {
-    writer.len("requirement obligations", obligations.len())?;
-    for obligation in obligations {
-        writer.id(*obligation);
-    }
+    writer.ids("requirement obligations", obligations)?;
     Ok(())
 }
 

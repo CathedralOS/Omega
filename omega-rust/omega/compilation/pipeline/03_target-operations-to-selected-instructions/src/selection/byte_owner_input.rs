@@ -7,6 +7,8 @@
 //! Whole-owner presentation is shared-only; established mutable storage keeps
 //! its existing exclusive field projection.
 
+use crate::selection::place_declaration::declares_block_parameter;
+
 use legalized_operations::LegalizedScalarFunction;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
@@ -122,14 +124,7 @@ fn source_declaration(
                     parameter.access,
                     StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
                 )
-                || !signature.structural_places.iter().any(|declaration| {
-                    declaration.id == *place
-                        && declaration.kind
-                            == (StructuralPlaceKind::BlockParameter {
-                                block: *block,
-                                position: parameter.position,
-                            })
-                })
+                || !declares_block_parameter(signature, *place, *block, parameter.position)
                 || (parameter.access == StructuralAccess::Owned
                     && super::aggregate_result_input::block_home(function, *place)
                         != Some((*block, parameter)))

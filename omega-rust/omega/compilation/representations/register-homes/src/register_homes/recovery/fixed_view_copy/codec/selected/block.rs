@@ -186,15 +186,13 @@ pub(super) fn decode_block(
                 2 => terminal_psi::CrashCause::Abort,
                 tag => return Err(FixedViewCopyDecodeError::UnknownCrashCause(tag)),
             };
-            let count = cursor.length()?;
-            let mut site_guard = Vec::with_capacity(count.min(cursor.remaining()));
-            for _ in 0..count {
+            let site_guard = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
                 let length = cursor.length()?;
                 let proposition =
                     terminal_codec::decode_canonical_proposition(cursor.take(length)?)
                         .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
-                site_guard.push(terminal_psi::CrashPredicateTerm::new(proposition));
-            }
+                Ok(terminal_psi::CrashPredicateTerm::new(proposition))
+            })?;
             let frontier_lower_bound = decode_list(cursor, |cursor| {
                 decode_id(cursor, semantic_vocabulary::ClaimId::new)
             })?;
@@ -384,9 +382,7 @@ fn decode_successor(
     }
     let block = SelectedBlockId(cursor.u32()?);
     let source_target = decode_id(cursor, BlockId::new)?;
-    let count = cursor.length()?;
-    let mut bindings = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let bindings = decode_list(cursor, |cursor| {
         let semantic = ValueBinding {
             parameter: decode_id(cursor, ValueId::new)?,
             argument: decode_id(cursor, ValueId::new)?,
@@ -400,15 +396,13 @@ fn decode_successor(
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
-        bindings.push(SelectedValueBinding {
+        Ok(SelectedValueBinding {
             semantic,
             transport,
-        });
-    }
+        })
+    })?;
     let structural_case = decode_case(cursor)?;
-    let count = cursor.length()?;
-    let mut structural_bindings = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let structural_bindings = decode_list(cursor, |cursor| {
         let source_indices = super::structural::decode_runtime_indices(cursor)?;
         let semantic = abstract_operations::AbstractStructuralBinding {
             parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
@@ -510,12 +504,12 @@ fn decode_successor(
             }
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
-        structural_bindings.push(selected_instructions::SelectedStructuralBinding {
+        Ok(selected_instructions::SelectedStructuralBinding {
             semantic,
             transport,
             source_indices,
-        });
-    }
+        })
+    })?;
     Ok(SelectedSuccessor {
         role,
         psi_edge,
@@ -549,9 +543,7 @@ fn decode_case(
     };
     let case = decode_id(cursor, semantic_vocabulary::StructuralCaseId::new)?;
     let case_tag = cursor.i32()?;
-    let count = cursor.length()?;
-    let mut payloads = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    let payloads = decode_list(cursor, |cursor| {
         let field = decode_id(cursor, semantic_vocabulary::StructuralFieldId::new)?;
         let field_byte_offset = cursor.u32()?;
         let parameter = legalized_operations::LegalizedValueDefinition {
@@ -570,15 +562,15 @@ fn decode_case(
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
-        payloads.push(selected_instructions::SelectedCasePayloadBinding {
+        Ok(selected_instructions::SelectedCasePayloadBinding {
             semantic: legalized_operations::LegalizedStructuralCasePayload {
                 field,
                 field_byte_offset,
                 parameter,
             },
             transport,
-        });
-    }
+        })
+    })?;
     let cleanup_actions = decode_list(cursor, super::structural::decode_cleanup)?;
     Ok(Some(selected_instructions::SelectedStructuralCaseEdge {
         source,

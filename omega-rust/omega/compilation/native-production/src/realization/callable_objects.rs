@@ -25,7 +25,6 @@ pub(super) fn emit_callable_object(
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
         private_entry_ram: &[],
         entry,
-        receiving_provider_roots: &[],
         ..admission
     };
     let mut admitted =

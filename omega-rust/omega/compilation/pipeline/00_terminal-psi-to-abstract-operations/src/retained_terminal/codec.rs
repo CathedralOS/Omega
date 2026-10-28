@@ -19,7 +19,24 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI01";
+// Entry records no longer contain synthetic application-record service fields.
+// Reject older private records before reading their differently shaped payload.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI02";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retired_entry_field_record_schema_is_rejected() {
+        let mut input =
+            RecordReader::new(b"OMGNTI01", RecordLimits::default()).expect("bounded old schema");
+        let Err(error) = DerivationInputs::read(&mut input) else {
+            panic!("retired record schema accepted");
+        };
+        assert_eq!(error.reason, "foreign native derivation record schema");
+    }
+}
 
 /// Capture only when a caller requests persistence. This does not admit or
 /// execute the proposed inputs; the original producer continues normally.

@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use terminal_psi::StructuralTypeShape;
@@ -107,11 +108,6 @@ pub(super) fn write(
         u8::try_from(byte_count).map_err(|_| invalid())?,
         address,
         value_register,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, value, length],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![index, value, length]),
     )
 }

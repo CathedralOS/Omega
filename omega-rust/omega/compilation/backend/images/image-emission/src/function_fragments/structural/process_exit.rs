@@ -1,5 +1,5 @@
 //! Nonreturning boundary custody: selected SSA and terminal span, without scratch.
-use super::{Error, attribution, fragment, host, selected, source};
+use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
 use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
 use machine_code::{
@@ -112,9 +112,7 @@ pub(super) fn settlement(
         .ok_or(Error::Mismatch("process exit placed function"))?;
     Ok(ObjectBoundarySettlement {
         machine,
-        text_offset: host(placed.section_offset)?
-            .checked_add(code_offset)
-            .ok_or(Error::Overflow)?,
+        text_offset: placed_text_offset(placed.section_offset, code_offset)?,
         settlement,
     })
 }
@@ -181,10 +179,7 @@ pub(super) fn validate(
                 completion_edge: *completion_edge,
             })
         || proposed.machine != machine
-        || proposed.text_offset
-            != host(placed.section_offset)?
-                .checked_add(host(span.offset)?)
-                .ok_or(Error::Overflow)?
+        || proposed.text_offset != placed_text_offset(placed.section_offset, host(span.offset)?)?
         || proposed.settlement.invocation_site != semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
         || proposed.settlement.execution != execution.into()
         || proposed.settlement.boundary != boundary

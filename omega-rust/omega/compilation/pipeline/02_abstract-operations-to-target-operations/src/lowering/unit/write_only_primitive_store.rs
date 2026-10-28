@@ -164,12 +164,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     // These are operand identities in path order, not one flattened address.
     // The target keeps the complete path, including each pointer crossing;
     // selection must reconstruct and apply each region around its pointer load.
-    let runs = projection
-        .pointer_slots
-        .into_iter()
-        .chain([projection.leaf])
-        .flat_map(|region| region.indices)
-        .collect();
+    let runs = projection.selector_runs();
     let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
         runs,
         function,

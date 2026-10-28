@@ -180,6 +180,14 @@ fn project_terminal_native_body(
         request.boundaries.selected_provider_plans,
         request.family_realizations,
     )?;
+    // This closes static activation obligations, not executor installation.
+    // The proposal is process-local: loaded code takes this same join once.
+    task_plans::realize_task_activations(
+        &terminal_module.task_activation_demands,
+        &terminal_module.identities,
+        &selected,
+        target_profile,
+    )?;
     let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
         &selected,
         request.provider_declarations,

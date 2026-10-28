@@ -6,10 +6,11 @@
 
 pub use terminal_psi::IntegerCastChainWitness;
 
-use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, fixed_native_interval};
+use crate::integer_rules::fixed_integer::{
+    fixed_integer_as_i128, fixed_integer_term, fixed_native_interval,
+};
 use semantic_vocabulary::{
-    IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
-    ScalarType,
+    IntegerMathTerm, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -292,10 +293,8 @@ pub fn integer_cast_truth_bounds(
         .last()
         .expect("a checked cast chain retains its target carrier");
     let literal = |value| {
-        let value = IntegerValue::for_sign(target_type.sign(), value)
-            .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)?;
-        ScalarTerm::integer(target_type, value)
-            .map_err(|_| IntegerCastBoundConversionError::ConclusionNotTypedLiteral)
+        fixed_integer_term(target_type, value)
+            .ok_or(IntegerCastBoundConversionError::ConclusionNotTypedLiteral)
     };
     Ok(vec![
         Proposition::LessOrEqual(literal(minimum)?, chain.target().clone()),
@@ -327,11 +326,10 @@ mod tests {
     use super::super::value;
     use super::{
         CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
-        IntegerCastChainWitnessError, IntegerType, IntegerValue, Proposition, PropositionContext,
-        ScalarTerm, ScalarType, check_integer_cast_bound_conversion,
-        check_integer_cast_chain_witness,
+        IntegerCastChainWitnessError, IntegerType, Proposition, PropositionContext, ScalarTerm,
+        ScalarType, check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
     };
-    use semantic_vocabulary::{IntegerSign, ValueId};
+    use semantic_vocabulary::{IntegerSign, IntegerValue, ValueId};
 
     fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
         IntegerType::new(sign, bits).expect("fixed integer type")
