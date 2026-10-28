@@ -17586,7 +17586,6 @@ fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078m
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
-pass/contracts/scalar_reference_unit_completion_exit checked 946ms check-target:macos_arm64 @1273f57db0df
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -24451,6 +24450,7 @@ pass/contracts/runtime_projected_element_requirements_exit checked 3282ms check-
 pass/contracts/runtime_recursive_result_bound_exit checked 1894ms check-target:macos_arm64 @683f7a2f2406
 pass/contracts/saved_call_case_guarantee_requires_exit checked 3495ms check-target:macos_arm64 @a92f16431042
 pass/contracts/saved_case_guarantee checked 2819ms @a92f16431042
+pass/contracts/scalar_reference_unit_completion_exit checked 946ms check-target:macos_arm64 @1273f57db0df
 pass/contracts/selected_storage_contract_exit checked 2920ms check-target:macos_arm64 @a92f16431042
 pass/contracts/shared_field_current_arithmetic checked 2584ms @a92f16431042
 pass/contracts/strict_clause_terminated_headers checked 2428ms @a92f16431042
