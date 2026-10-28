@@ -201,12 +201,6 @@ fn checked_operator_target(
             uses.iter()
                 .any(|operator_use| {
                     operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
-                        || (operator_use.status == CheckedOperatorResolutionStatus::Missing
-                            && intrinsic_operator_operand_is_primitive(
-                                program,
-                                node,
-                                operator_use.origin,
-                            ))
                 })
                 .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
@@ -233,6 +227,17 @@ fn checked_operator_target(
             }
             contract_resolution::CheckedContractOperatorResolution::Unresolved => None,
         };
+    }
+    // Missing executable metadata is not a positive builtin selection. Only
+    // a source occurrence without a reconstructible scope reaches this legacy
+    // carrier fallback; a known scoped choice above is always authoritative.
+    if uses.iter().any(|operator_use| {
+        operator_use.status == CheckedOperatorResolutionStatus::Missing
+            && intrinsic_operator_operand_is_primitive(program, node, operator_use.origin)
+    }) {
+        return Some(AuthoredSelectionResolutionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        ));
     }
     resolve_authored_operator_without_use_fact(program, expression, node)
         .and_then(|operator| declaration_target(operator.symbol))
