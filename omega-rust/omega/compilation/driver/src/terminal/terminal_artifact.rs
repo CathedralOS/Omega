@@ -99,6 +99,7 @@ struct AdmittedTerminalApplication<'a> {
     signature_identity: [u8; 32],
     admission_roots: Vec<symbols::SymbolHandle>,
     policy: Option<TerminalBehaviorExclusions<'a>>,
+    provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
 
 impl<'a> AdmittedTerminalApplication<'a> {
@@ -128,6 +129,7 @@ impl<'a> AdmittedTerminalApplication<'a> {
             .map(|placement| placement.selected_machine)
             .chain(entry.physical_adapter())
             .collect();
+        let provider_publication = prepare_target_provider_publication(view);
         Ok(Self {
             position,
             request,
@@ -135,6 +137,7 @@ impl<'a> AdmittedTerminalApplication<'a> {
             signature_identity,
             admission_roots,
             policy,
+            provider_publication,
         })
     }
 
@@ -233,10 +236,9 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     .entry
                                     .and_then(|entry| entry.physical_adapter())
                                     .is_some(),
-                                provider_proposals: produce_target_provider_proposals(
-                                    &application.request.view,
-                                    &artifact,
-                                    application.request.selections,
+                                provider_proposals: application.provider_publication.publish(
+                                    artifact.view(),
+                                    application.request.selections.identity(),
                                 ),
                                 artifact: Arc::clone(&artifact),
                                 receipt,
@@ -408,15 +410,13 @@ fn admit_terminal_production<'a>(
     })
 }
 
-/// Complete the Build companion against the exact emitted demand catalog while
-/// the source-producing operation still owns checked custody. This must follow
-/// Psi production: selecting against every source candidate would demand unused
-/// providers. Retain unavailable targets as refusal rows, never cohort failures.
-fn produce_target_provider_proposals(
+/// Prepare the Build companion while checked custody is available. Selection
+/// waits for the emitted demand catalog: selecting every source candidate here
+/// would demand unused providers. Preparation retains unavailable targets as
+/// deferred refusal rows, never cohort failures.
+fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    selections: &OptimizationSelections,
-) -> Vec<backend_plan::TerminalTargetProviderProposal> {
+) -> provider_planning::target_machines::PreparedTargetProviderPublication {
     let mut targets = source
         .provider_defaults
         .iter()
@@ -450,19 +450,17 @@ fn produce_target_provider_proposals(
     );
     targets.sort();
     targets.dedup();
-    provider_planning::target_machines::TargetProviderPublicationRequest {
+    provider_planning::target_machines::TargetProviderPreparationRequest {
         context: provider_planning::ProviderPlanningContext::new(
             &source.program.typed,
             source::DependencyScope::Product,
         ),
-        artifact: artifact.view(),
         exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         defaults: source.provider_defaults,
         overrides: &source.build.config.provider_selections,
         assumed_bindings: source.plan_facts.assumed_bindings(),
         settlement: source.provider_settlement,
         targets: &targets,
-        optimization_selection: selections.identity(),
     }
-    .publish()
+    .prepare()
 }

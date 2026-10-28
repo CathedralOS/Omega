@@ -484,8 +484,8 @@ fn terminal_production_owns_the_build_provider_companion() {
     let production = include_str!("terminal/terminal_artifact.rs");
     let completion = include_str!("../../native-production/src/application.rs");
     assert!(completion.contains("pub provider_proposals:"));
-    assert!(production.contains("provider_proposals: produce_target_provider_proposals("));
-    assert!(production.contains("TargetProviderPublicationRequest"));
+    assert!(production.contains("provider_proposals: application.provider_publication.publish("));
+    assert!(production.contains("TargetProviderPreparationRequest"));
     assert!(completion.contains("with_target_provider_proposals(self.provider_proposals)"));
     assert!(completion.contains("TerminalNativeProposalRequest<'_>"));
     assert!(completion.contains("if self.physical_entry_adapter"));
@@ -503,6 +503,36 @@ fn terminal_production_owns_the_build_provider_companion() {
             "completion reopens {forbidden}"
         );
     }
+}
+
+#[test]
+fn provider_publication_consumes_prepared_declarations_without_source() {
+    let preparation = include_str!(
+        "../../realization/provider-planning/src/target_machines/provider_publication.rs"
+    );
+    let publication = include_str!(
+        "../../realization/provider-planning/src/target_machines/provider_publication/prepared.rs"
+    );
+    assert!(!preparation.contains("TerminalArtifactView"));
+    assert!(preparation.contains("PreparedSelectionDeclarations::prepare("));
+    for forbidden in [
+        "ProviderPlanningContext",
+        ".typed",
+        "derive_satisfies_plans",
+        "settle_provider_defaults",
+        "exact_owner_nominal_identity",
+    ] {
+        assert!(
+            !publication.contains(forbidden),
+            "publication reopens {forbidden}"
+        );
+    }
+    assert!(publication.contains("candidate.explicitly_selected"));
+    assert!(publication.contains("module.boundary_machines"));
+    assert!(publication.contains("self.selection_declarations.finish(selected, &[])?"));
+    assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
 }
 
 #[test]

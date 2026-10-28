@@ -107,6 +107,13 @@ continuation. Component destinations travel with their checked products. These
 batches restore authored ordering before returning, without parallel metadata
 arrays or indexed empty result slots. Component publication borrows ready work
 for shared Terminal production and retains refusals in the same ordered roster.
+Each admitted application prepares its target-provider candidate declarations
+before Terminal production. The emitted artifact then supplies demand to the
+ordinary whole-provider selector and canonical roster join, without reopening
+typed source. Unused alternatives remain unselected, family completeness stays
+checked against the selected roster, and sibling-target failures remain proposal
+rows. Equal Terminal storage does not substitute another application's Build
+defaults, overrides or assumed bindings.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.

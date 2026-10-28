@@ -45,11 +45,12 @@ pub use provenance_replay::{
     selected_requirement_checked_adapter,
 };
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
+pub(crate) use selection_provenance::{
+    PreparedSelectionDeclarations, SelectedProviderPlanWithProvenance,
+    selected_provider_plan_facts_with_independent_components,
+};
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, selected_provider_plan_facts,
-};
-pub(crate) use selection_provenance::{
-    SelectedProviderPlanWithProvenance, selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
