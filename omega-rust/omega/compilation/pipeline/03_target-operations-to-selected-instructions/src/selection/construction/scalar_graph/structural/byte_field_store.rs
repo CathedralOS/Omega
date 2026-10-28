@@ -199,47 +199,25 @@ pub(super) fn replace(
     let byte = scratch(builder, 4)?;
     // The copy's source bytes live in the view's storage root, not the view's
     // own identity; a block-parameter view reaches each bound root.
-    match crate::selection::byte_view_homes::view_backing_roots(
+    byte_views::charge_backing_roots(
         function,
-        &builder.transport.views,
+        builder,
+        row,
         *source,
         *length,
-    )? {
-        Some(roots) => {
-            for (root, extent) in roots {
-                memory(
-                    builder,
-                    row,
-                    root,
-                    0,
-                    0,
-                    SelectedMemoryAccessRole::ReadByteSpan {
-                        length: extent,
-                        obligation: *obligation,
-                        accepted_fact: *accepted_fact,
-                    },
-                )?;
-            }
-        }
-        None => memory(
-            builder,
-            row,
-            *source,
-            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
-                .is_some()
-            {
-                8
-            } else {
-                0
-            },
-            0,
-            SelectedMemoryAccessRole::ReadByteSpan {
-                length: *length,
-                obligation: *obligation,
-                accepted_fact: *accepted_fact,
-            },
-        )?,
-    }
+        |extent| SelectedMemoryAccessRole::ReadByteSpan {
+            length: extent,
+            obligation: *obligation,
+            accepted_fact: *accepted_fact,
+        },
+        byte_views::unsliced_payload_offset(function, *source),
+        0,
+        SelectedMemoryAccessRole::ReadByteSpan {
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: *accepted_fact,
+        },
+    )?;
     memory(
         builder,
         row,
