@@ -38,3 +38,5 @@ The complete Terminal roster descends through owned payload data under exact cas
 The restoration controls retain ordinary completed-case metadata across local initialization and whole-value replacement, expose raw independently valid scalar contents while a coupling window is open, and require exact Current case/field observations to close it. Arithmetic before restoration still rejects.
 
 The parent task remains open for its other migration and composition requirements. This production makes no claim of arbitrary generic GADT/type-equation support, deferred recast establishment, or native execution on unobserved hosts.
+
+A second actual PR conflict against pinned 4a9 changed only the checking golden text, but incoming compiler dependencies required a fresh 6d4ed producer. That exact producer repeated all 11 public engine agreements, 10 intended twins, 32 checking / 14 corpus agreements, the 3 owner tests and retained-constructor pair; two incoming computed-call controls also checked and ran 0/0. The prior 3ee / 433 evidence stays historical. Scoped 32/14 rows retain every pinned 4a9 outsider unchanged.
