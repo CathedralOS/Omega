@@ -253,7 +253,12 @@ pub(super) fn call_target_in_environment(
     environment: &TypeEnvironment,
 ) -> Option<SymbolHandle> {
     if !call.receiver.is_valid() {
-        return None;
+        // Contract expressions have exact type owners but no executable site.
+        // Preserve the ordinary callable already selected from typed operands;
+        // a same-spelled symbol or an unresolved edge supplies no declaration.
+        let state = crate::call_target_state(program, call.target_symbol)?;
+        program.machine_holding_state(state.symbol)?;
+        return Some(state.symbol);
     }
     let receiver_type = exact_static_data_receiver(program, call.receiver, environment)
         .or_else(|| infer_expression_type(program, call.receiver, environment, &mut Vec::new()))?;

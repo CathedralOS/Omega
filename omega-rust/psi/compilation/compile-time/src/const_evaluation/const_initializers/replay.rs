@@ -211,7 +211,9 @@ pub(crate) fn validate(
     if leaves.is_empty() && floating_declarations.is_empty() {
         return Ok(());
     }
-    let mut probe = domain.execution_program(typed);
+    // Retain the source declaration roster until ordinary typed selection has
+    // rebound detached calls. Only the derived execution closure is projected.
+    let mut probe = typed.clone();
     let mut owners = Vec::new();
     for (ordinal, leaf) in leaves.iter().enumerate() {
         let original = super::invocations::append_probe(
@@ -263,6 +265,9 @@ pub(crate) fn validate(
         replay_owners.push((declaration.symbol, owner));
         probe_symbols.push(owner);
     }
+    while !validation::resolve_named_result_overloads(&mut probe)?.is_empty() {}
+    typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(&mut probe)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // The actual source recipe must precede specialization. Prepared target
     // custody alone cannot distinguish another valid instance of one template.
     for declaration in &replay_declarations {
@@ -279,7 +284,12 @@ pub(crate) fn validate(
         validate_authored_custody(&probe, owner, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
-    let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
+    let replay_execution = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+        &probe,
+        &probe_symbols,
+        &[],
+    );
+    let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
     let checked = super::invocations::CheckedInitializers::prepare(
         &prepared,
         authority.clone(),

@@ -12,6 +12,8 @@ mod runtime_index_fields;
 mod runtime_value_applications;
 mod selections;
 
+pub use selections::bind_pre_specialization_authored_selections;
+
 pub(crate) use data_applications::elaborate_projected_receivers;
 
 use representation_selections::OpaqueRepresentationSelection;

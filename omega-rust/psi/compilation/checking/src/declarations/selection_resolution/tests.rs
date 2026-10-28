@@ -3,7 +3,8 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelections,
 };
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-use typed_trees::{MachineSpecialization, TypedTrees, machine::Machine, state::State};
+use typed_trees::typed_trees::MachineSpecialization;
+use typed_trees::{TypedTrees, machine::Machine, state::State};
 
 fn fixture() -> (TypedTrees, [(SymbolHandle, [SymbolHandle; 2]); 3]) {
     let mut symbols = SymbolTableBuilder::default();

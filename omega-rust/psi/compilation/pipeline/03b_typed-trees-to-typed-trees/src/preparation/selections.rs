@@ -163,7 +163,7 @@ fn has_region_telescope(
         .is_some_and(|(machine, _)| !machine.lifetime_parameters.is_empty())
 }
 
-pub(crate) fn bind_pre_specialization_authored_selections(
+pub fn bind_pre_specialization_authored_selections(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
     let contract_facts = arena::Arena::default();

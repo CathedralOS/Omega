@@ -15,6 +15,7 @@ mod operators;
 mod preparation;
 
 pub use preparation::{
-    PreparationAdmission, PreparationRequest, TypedPreparation, prepare_constant_execution,
-    prepare_typed_trees, specialize_static_machine_calls,
+    PreparationAdmission, PreparationRequest, TypedPreparation,
+    bind_pre_specialization_authored_selections, prepare_constant_execution, prepare_typed_trees,
+    specialize_static_machine_calls,
 };

@@ -262,6 +262,8 @@ fn prepare_evaluation_inputs_with_owners(
         // the candidates before that selection or promote them all to execution.
         // Nested calls can settle another operand in the next selection round.
         while !validation::resolve_named_result_overloads(typing.typed_mut())?.is_empty() {}
+        typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(typing.typed_mut())
+            .map_err(|diagnostic| vec![diagnostic])?;
         // Typing selects operator overloads which have no ordinary call edge in
         // raw syntax. Use the existing operational graph, not token spellings or
         // a second expression walker, to demand those same selected bodies.

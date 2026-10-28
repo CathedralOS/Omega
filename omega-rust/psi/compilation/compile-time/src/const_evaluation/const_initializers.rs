@@ -224,7 +224,6 @@ struct Declaration<'input> {
     authored_operators: Vec<SourceSpan>,
     readiness_operators: Vec<SourceSpan>,
     normalization_owners: Vec<SourceSpan>,
-    pending_calls: bool,
 }
 
 fn propagate_target_observations(
@@ -343,7 +342,6 @@ pub(crate) fn evaluate(
             authored_operators: Vec::new(),
             readiness_operators: Vec::new(),
             normalization_owners: Vec::new(),
-            pending_calls: false,
         });
     }
     let mut target_observations = vec![false; declarations.len()];
@@ -351,7 +349,6 @@ pub(crate) fn evaluate(
         let selected =
             preparation.initializer_dependencies(&syntax, &declarations[ordinal].definition)?;
         target_observations[ordinal] = selected.pending_target_observation;
-        declarations[ordinal].pending_calls = !selected.pending_calls.is_empty();
         let authored = preparation
             .initializer_authored_dependencies(&declarations[ordinal].definition, None)?;
         declarations[ordinal].authored_calls = authored.calls;
@@ -532,23 +529,6 @@ pub(crate) fn evaluate(
             &[],
             context.predecessor.clone(),
         )?;
-        // Private typed preparation owns authored selection finalization before
-        // specialization consumes the call's source coordinates. Its result is
-        // still not invocation authority; readiness and exact custody follow.
-        let prepared = ready
-            .iter()
-            .any(|ordinal| {
-                declarations[*ordinal].pending_calls
-                    || declarations[*ordinal]
-                        .leaves
-                        .iter()
-                        .any(|leaf| leaf.structured || !leaf.calls.is_empty())
-            })
-            .then(|| crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain))
-            .transpose()?;
-        let source_typed = prepared
-            .as_ref()
-            .map_or(&typed, crate::PreparedBuildMachineProgram::typed);
         let mut observations = Vec::new();
         let mut pending_choices = Vec::new();
         for ordinal in &ready {
@@ -556,9 +536,7 @@ pub(crate) fn evaluate(
             for leaf in &declarations[*ordinal].leaves {
                 let reference = syntax.expressions.source_span(leaf.expression);
                 let observation = super::const_generic_expressions::observe_authored_probe(
-                    source_typed,
-                    reference,
-                    &syntax,
+                    &typed, reference, &syntax,
                 )
                 .map_err(|reason| failure(reference, reason))?;
                 for choice in observation.calls() {
@@ -733,11 +711,9 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                let prepared = prepared
-                    .as_ref()
-                    .expect("call or structured leaf has private preparation");
+                let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
                 invocations::CheckedInitializers::prepare(
-                    prepared,
+                    &prepared,
                     authority.clone(),
                     &symbols,
                     &domain.accounting,
