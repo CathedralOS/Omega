@@ -71,23 +71,25 @@ completion. The local case loses three Buffer child memberships and the qualifie
 Buffer/caller observations. All nine live-loan twins still reject for their
 intended read. Baseline compiler, sources, diagnostics and independent preflight
 are retained under `/Users/zcanann/Omega-build/retained-routed-handback-2026-10-28/`.
-At optimized producer `030fde8a16e`, all 62 retained public native/Terminal
-pairs pass on macOS, including this strengthened row. Eleven direct invalid
-controls retain their intended refusal. The fixed-base checking comparison
-recovers the nine strengthened positives and preserves the other 78 outcomes;
-one stale package review was retained and retried after refreshing only its
-ignored acceptance state. Four additional replacement/weaker-formal controls
-preserve their intended pass/reject split.
+At optimized producer `89e749b84c9`, all 62 retained public native/Terminal
+pairs pass on macOS with Terminal format 202, including this strengthened row.
+Eleven direct invalid controls retain their intended refusal. The fixed-base
+checking comparison recovers the nine strengthened positives and preserves the
+other 78 outcomes. Its single stale compiler-review refusal and explicit
+review-only retry remain in the evidence. The replacement/weaker-formal
+controls preserve their intended pass/reject split, and the extra caller-root
+qualification still refuses at native 0 / Terminal 201.
 
 The independent native custody audit exposed a separate interference error:
-a provider output’s validity anchor was mistaken for its pointee. Producer
-`796a65b12e4` authenticates the captured spatial ancestry before testing that
-anchor’s interference; its lifetime debt remains live. All nine pinned
-positives and the generic borrowed-root control then execute at native 0 and
-Terminal 0 under that audit. The earlier public/checking observations retain
-their actual producer; this audit-only repair leaves those consumers unchanged.
-Matching-host Windows and Linux qualification is in progress. These scoped
-results do not close the parent’s remaining codecs and ABI lanes.
+a provider output’s validity anchor was mistaken for its pointee. The repair
+authenticates the captured spatial ancestry before testing that anchor’s
+interference; its lifetime debt remains live. The integrated producer also
+executes all nine pinned positives and the generic borrowed-root control at
+native 0 and Terminal 0 under that audit. Earlier `030fde8a16e` and
+`796a65b12e4` observations retain their actual producer identities. Matching-host
+Windows and Linux runs of the unchanged mechanism at `796a65b12e4` are in
+progress; the integrated macOS row separately covers the combined wire format.
+These results do not close the parent’s remaining codecs and ABI lanes.
 
 Historical predicate-only acceptance remains separate: producer `1d92ab9b09e`
 passed ten corpus and ten public native/Terminal pairs plus ten intended rejects
