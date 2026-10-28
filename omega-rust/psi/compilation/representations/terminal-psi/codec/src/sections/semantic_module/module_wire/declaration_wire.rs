@@ -21,10 +21,7 @@ pub(crate) fn encode_required_memberships(
 ) -> Result<(), CodecError> {
     writer.boolean(required.is_some());
     if let Some(required) = required {
-        writer.len("required domain memberships", required.len())?;
-        for domain in required {
-            writer.id(*domain);
-        }
+        writer.ids("required domain memberships", required)?;
     }
     Ok(())
 }
@@ -135,10 +132,7 @@ pub(super) fn encode_service(
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
     writer.u32(declaration.identity.0);
-    writer.len("service parents", declaration.parents.len())?;
-    for parent in &declaration.parents {
-        writer.id(*parent);
-    }
+    writer.ids("service parents", &declaration.parents)?;
     Ok(())
 }
 
@@ -147,13 +141,7 @@ pub(super) fn encode_installation_reach_dependency(
     dependency: &InstallationReachDependency,
 ) -> Result<(), CodecError> {
     writer.u32(dependency.requirement_identity.0);
-    writer.len(
-        "installation reach upper bound",
-        dependency.upper_bound.len(),
-    )?;
-    for service in &dependency.upper_bound {
-        writer.id(*service);
-    }
+    writer.ids("installation reach upper bound", &dependency.upper_bound)?;
     Ok(())
 }
 

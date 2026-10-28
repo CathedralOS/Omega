@@ -32,13 +32,7 @@ pub(super) fn encode_module_invocation_inputs(
     invocation: terminal_psi::ModuleInvocationInputs<'_>,
 ) -> Result<(), CodecError> {
     writer.id(invocation.callee);
-    writer.len(
-        "module invocation scalar arguments",
-        invocation.arguments.len(),
-    )?;
-    for argument in invocation.arguments {
-        writer.id(*argument);
-    }
+    writer.ids("module invocation scalar arguments", invocation.arguments)?;
     encode_scalar_terms(writer, invocation.erased_arguments)?;
     encode_proof_terms(writer, invocation.erased_proof_arguments)?;
     encode_structural_arguments(writer, invocation.structural_arguments)?;
@@ -66,19 +60,10 @@ pub(super) fn encode_call(
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::CALL);
     writer.id(callee);
-    writer.len("call arguments", arguments.len())?;
-    for argument in arguments {
-        writer.id(argument);
-    }
+    writer.ids("call arguments", &arguments)?;
     encode_scalar_terms(writer, &erased_arguments)?;
     encode_proof_terms(writer, &erased_proof_arguments)?;
-    writer.len(
-        "call requirement obligations",
-        requirement_obligations.len(),
-    )?;
-    for obligation in requirement_obligations {
-        writer.id(obligation);
-    }
+    writer.ids("call requirement obligations", &requirement_obligations)?;
     encode_crash_routes(writer, &crash_continuations)?;
     Ok(())
 }
@@ -185,14 +170,8 @@ pub(super) fn encode_call_dynamic(
     writer.id(selector);
     writer.u32(interface);
     writer.u32(slot);
-    writer.len("dynamic-call scalar arguments", arguments.len())?;
-    for argument in arguments {
-        writer.id(argument);
-    }
-    writer.len("dynamic-call family actuals", family_actuals.len())?;
-    for actual in family_actuals {
-        writer.id(actual);
-    }
+    writer.ids("dynamic-call scalar arguments", &arguments)?;
+    writer.ids("dynamic-call family actuals", &family_actuals)?;
     encode_scalar_terms(writer, &erased_arguments)?;
     encode_proof_terms(writer, &erased_proof_arguments)?;
     encode_structural_arguments(writer, &structural_arguments)?;
@@ -496,10 +475,7 @@ pub(super) fn encode_boundary_call(
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::BOUNDARY_CALL);
     writer.id(boundary);
-    writer.len("boundary scalar arguments", arguments.len())?;
-    for argument in arguments {
-        writer.id(argument);
-    }
+    writer.ids("boundary scalar arguments", &arguments)?;
     encode_structural_arguments(writer, &structural_arguments)?;
     writer.len("boundary claim settlements", completion_receipts.len())?;
     for settlement in completion_receipts {

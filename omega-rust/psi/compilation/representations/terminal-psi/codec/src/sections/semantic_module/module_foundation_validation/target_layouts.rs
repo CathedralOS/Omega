@@ -1,6 +1,7 @@
 //! Reconstruct layout catalog associations and validate every retained geometry.
 //! The checked producer owns policy evaluation; these checks grant no execution
 //! authority and do not pretend to replay an omitted source computation.
+use super::super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
@@ -13,11 +14,12 @@ pub(super) fn validate(
     module: &TerminalModule,
     attachments: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
-    if module
-        .target_layout_applications
-        .windows(2)
-        .any(|pair| pair[0].id >= pair[1].id)
-    {
+    if !strictly_increasing(
+        module
+            .target_layout_applications
+            .iter()
+            .map(|application| application.id),
+    ) {
         return malformed("layout applications are not strictly ordered");
     }
     let mut records = BTreeSet::new();
