@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "stable identity #1 is declared more than once"
+  ]
+}
