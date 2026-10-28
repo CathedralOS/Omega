@@ -119,7 +119,11 @@ pub fn canonical_qualification_path(
                 cursor.advance(program, &Segment::Referent)?;
             }
         }
-        let member = cursor.advance(program, segment)?;
+        let member = if matches!(segment, Segment::AllElements) {
+            cursor.advance_element(program)?
+        } else {
+            cursor.advance(program, segment)?
+        };
         match segment {
             Segment::Field(_) => result.push(facts::PlaceSegment::Field {
                 symbol: member.ok_or("qualification field lost its selected symbol")?,

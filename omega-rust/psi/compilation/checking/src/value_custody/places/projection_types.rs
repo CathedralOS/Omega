@@ -295,23 +295,38 @@ impl<'program> ObservationTypeCursor<'program> {
                 indexed_element_type_reference(program, current, &self.projection.substitutions)
                     .ok_or("index carrier has no collection element")?
             }
-            Segment::RuntimeIndex(_) | Segment::ComputedIndex(_) | Segment::AllElements => {
-                if self.selected_case.is_some() {
-                    return Err("index interrupts a selected case payload");
-                }
-                if matches!(
-                    program.type_reference_table.type_reference(carrier),
-                    TypeReferenceNode::Reference { .. }
-                ) {
-                    return Err("index requires its explicit reference crossing");
-                }
-                indexed_element_type_reference(program, current, &self.projection.substitutions)
-                    .ok_or("index carrier has no collection element")?
+            Segment::RuntimeIndex(_) | Segment::ComputedIndex(_) => {
+                return self.advance_element(program);
             }
             _ => return Err("field observation has a non-field projection segment"),
         };
         self.projection.normalize(program);
         Ok(member)
+    }
+
+    /// Select the element declaration without claiming an executable selector.
+    /// Qualification extents use this directly; ordinary field observations
+    /// still require a concrete, runtime or computed index segment.
+    fn advance_element(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<Option<SymbolHandle>, &'static str> {
+        let current = self.projection.normalize(program);
+        let carrier = self.carrier(program)?;
+        if self.selected_case.is_some() {
+            return Err("index interrupts a selected case payload");
+        }
+        if matches!(
+            program.type_reference_table.type_reference(carrier),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        ) {
+            return Err("index requires its explicit reference crossing");
+        }
+        self.projection.current =
+            indexed_element_type_reference(program, current, &self.projection.substitutions)
+                .ok_or("index carrier has no collection element")?;
+        self.projection.normalize(program);
+        Ok(None)
     }
 }
 

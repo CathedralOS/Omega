@@ -1,6 +1,8 @@
 use super::replay::Origin;
 use super::*;
 
+mod call_origins;
+
 /// Disposable current-body analysis. Snapshots and summaries are shared across
 /// queries; every source observation denotes the state before its operation.
 pub struct DescriptorAnalysis<'a> {
@@ -584,41 +586,6 @@ impl<'a> DescriptorAnalysis<'a> {
             }
         }
         self.replay.storage_projection(machine, &actual)
-    }
-    pub fn call_origins(
-        &mut self,
-        identity: MachineId,
-        result: PlaceId,
-    ) -> Option<Vec<DescriptorCallOrigin>> {
-        self.replay.prepare_states(identity)?;
-        let machine = self.replay.machine(identity)?;
-        let mut calls = machine.calls.iter().filter(|(_, call)| {
-            call.result
-                .as_ref()
-                .is_some_and(|location| *location == DescriptorLocation::whole(result))
-        });
-        let (position, call) = calls.next()?;
-        if calls.next().is_some() || call.argument_contents.iter().any(Option::is_none) {
-            return None;
-        }
-        let states = self.replay.snapshots.get(&identity)?.as_ref()?;
-        let summary = self.replay.cached_invocation_summary(call)?;
-        let mut origins = BTreeSet::new();
-        // A call can return a descriptor inside a record, case, or array.
-        // Its complete result summary already distinguishes every slot and
-        // inactive case. Memory reach is their backing union, not the owned
-        // carrier home; a root-only lookup discards all aggregate descriptors.
-        for slot in summary.result.as_ref()? {
-            for origin in &slot.origins {
-                origins.extend(self.replay.substitute_result(
-                    machine,
-                    states.get(position)?,
-                    call,
-                    origin,
-                )?);
-            }
-        }
-        self.replay.resolved(machine, origins)
     }
     /// Complete private result-slot summary from current executable bodies.
     /// A caller may compare it to a public contract, never select one slot as

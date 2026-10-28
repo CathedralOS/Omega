@@ -272,6 +272,14 @@ impl<'a> Replay<'a> {
                 ) {
                     return None;
                 }
+                // A carrier's own storage coordinate is an anchor, not an
+                // equation saying its pointer contents point back to itself.
+                // View-only replay retains these anchors for ordinary reference
+                // results without tracking their pointees. Keep the authored
+                // Referent path; only a distinct captured backing can replace it.
+                if origins.len() == 1 && origins.contains(&Origin::Storage(prefix.clone())) {
+                    continue;
+                }
                 let mut alternatives = false;
                 for origin in origins {
                     let Origin::Storage(backing) = origin else {
