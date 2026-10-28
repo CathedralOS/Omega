@@ -20,10 +20,7 @@ use checked_trees::typed_trees::signature::StateParameter;
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
 
-mod closed_execution;
-mod named_execution;
-mod numeric_type;
-pub use numeric_type::primitive_numeric_type;
+pub use checked_trees::typed_trees::typed_trees::declarations::numeric_intrinsics::primitive_numeric_type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntrinsicRequirementKind {
@@ -54,6 +51,20 @@ pub struct IntrinsicRequirement<'typed> {
 }
 
 impl<'typed> IntrinsicRequirement<'typed> {
+    /// Review's token-only float conformance lane is deliberately narrower
+    /// than the complete numeric requirement catalog.
+    pub fn closed_float_execution(
+        &self,
+        typed: &TypedTrees,
+    ) -> Option<effects::CompilerIntrinsicExecutionIdentity> {
+        let meaning = typed.numeric_intrinsic_execution(self.symbol)?;
+        matches!(
+            meaning,
+            language_semantics::numeric_intrinsics::NumericIntrinsic::FloatBinary { .. }
+        )
+        .then(|| meaning.into())
+    }
+
     /// Classify the existing numeric catalog against the complete signature.
     /// This supplies meaning only; exact provider/overload/source joins remain
     /// independent obligations at each admission boundary.
@@ -61,8 +72,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
         &self,
         typed: &TypedTrees,
     ) -> Option<effects::CompilerIntrinsicExecutionIdentity> {
-        self.closed_execution(typed)
-            .or_else(|| self.named_execution(typed))
+        typed
+            .numeric_intrinsic_execution(self.symbol)
+            .map(Into::into)
     }
 
     pub fn from_operator(

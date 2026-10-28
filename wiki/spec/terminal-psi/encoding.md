@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 199 even when every table
+order below. This layout uses semantic format marker 200 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 199 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 200 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1345,6 +1345,33 @@ are not re-sorted by the canonical-order checker.
 | 2 | SharedFreezeRestoration |
 
 ### Boundary machines and provider candidates
+
+Marker 200 adds optional numeric meaning immediately after the optional checked
+callable and before the boundary identity: a presence Boolean followed, when
+present, by four bytes. This meaning is independent of provider selection and
+authority. Decoding checks the complete parameter/result signature, including
+the structural IEEE classification result. Non-callable evidence cannot carry it.
+
+| Kind | Byte 0 | Bytes 1–3 |
+| --- | --- | --- |
+| Named IEEE operation | 0 | operation tag, format, zero |
+| Primitive IEEE binary | 1 | binary-operation tag, format, zero |
+| Integer comparison | 2 | comparison tag, numeric type, zero |
+| IEEE negation | 3 | format, zero, zero |
+| Numeric conversion | 4 | source type, result type, arithmetic domain |
+
+Formats are 0 = binary32, 1 = binary64. Numeric types are, in tag order:
+i8, i16, i32, i64, u8, u16, u32, u64, f32, f64. Arithmetic domains are
+0 = Exact, 1 = Wrapping, 2 = Saturating, 3 = Trapping; Wrapping conversions
+and non-Exact conversions into floats are unsupported. Binary tags are
+add, subtract, multiply, divide, equal, not-equal, less, less-or-equal, greater,
+greater-or-equal; comparison tags are the last six in that order, starting at 0.
+Named tags, starting at 0, are minimum, maximum, square_root,
+multiply_then_add, fused_multiply_add, is_nan, is_finite, is_infinite, is_normal,
+is_subnormal, classify, then add/subtract/multiply/divide/square_root/
+fused_multiply_add, each with toward_zero, toward_positive, toward_negative in
+that order. Unknown tags and nonzero padding reject. Changing this order
+requires a format change; display spelling does not select a provider.
 
 | Row | Fields |
 | --- | --- |

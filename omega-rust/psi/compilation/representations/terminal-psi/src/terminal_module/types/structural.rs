@@ -35,6 +35,24 @@ pub struct StructuralTypeDeclaration {
     pub scalar_restriction: Option<StructuralFieldType>,
 }
 
+impl StructuralTypeDeclaration {
+    /// Semantic result of IEEE classification, independent of target layout
+    /// and nominal spelling. This predicate cannot select an implementation.
+    pub fn is_float_class_shape(&self) -> bool {
+        let StructuralTypeShape::Sum { cases } = &self.shape else {
+            return false;
+        };
+        let [nan, infinity, normal, subnormal, zero] = cases.as_slice() else {
+            return false;
+        };
+        nan.fields.is_empty()
+            && [infinity, normal, subnormal, zero].iter().all(|case| {
+                matches!(case.fields.as_slice(), [field] if !field.relevance.is_erased()
+                && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean))
+            })
+    }
+}
+
 /// A closed referent identity with no demanded storage definition. This is not
 /// a shape: it cannot establish owned storage, fields, or dereference access.
 /// Reference transport needs exact identity, not the transitive storage catalog

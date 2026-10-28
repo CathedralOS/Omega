@@ -73,6 +73,37 @@ pub enum CompilerPlacedScalarOperation {
     Write,
 }
 
+impl From<language_semantics::numeric_intrinsics::NumericIntrinsic>
+    for CompilerIntrinsicExecutionIdentity
+{
+    fn from(meaning: language_semantics::numeric_intrinsics::NumericIntrinsic) -> Self {
+        use language_semantics::numeric_intrinsics::NumericIntrinsic as Meaning;
+        match meaning {
+            Meaning::Builtin { function, .. } => Self::BuiltinFunction(function),
+            Meaning::FloatBinary { operation, format } => {
+                Self::PrimitiveFloatBinary { operation, format }
+            }
+            Meaning::IntegerComparison {
+                operation,
+                integer_type,
+            } => Self::PrimitiveIntegerComparison {
+                operation,
+                integer_type,
+            },
+            Meaning::Negation(format) => Self::NamedFloatNegation(format),
+            Meaning::Conversion {
+                source,
+                target,
+                domain,
+            } => Self::NamedFloatConversion {
+                source,
+                target,
+                domain,
+            },
+        }
+    }
+}
+
 impl CompilerIntrinsicExecutionIdentity {
     /// Fixed-register instructions already have exact compiler-owned builtin
     /// coordinates. Normalize to those closed identities, retaining both the
@@ -620,64 +651,12 @@ const fn arithmetic_domain_tag(domain: numerics::arithmetic::ArithmeticDomain) -
     }
 }
 
-tagged_vocabulary!(
-    "Closed numeric vocabulary: declaration order is the canonical encoded order.",
-    "Canonical tag of a numeric type.",
-    CompilerNumericType,
-    numeric_type_tag
-    {
-        I8 => "i8" = 0,
-        I16 => "i16" = 1,
-        I32 => "i32" = 2,
-        I64 => "i64" = 3,
-        U8 => "u8" = 4,
-        U16 => "u16" = 5,
-        U32 => "u32" = 6,
-        U64 => "u64" = 7,
-        F32 => "f32" = 8,
-        F64 => "f64" = 9,
-    }
-);
-
-impl CompilerNumericType {
-    pub const fn is_float(self) -> bool {
-        matches!(self, Self::F32 | Self::F64)
-    }
-}
-
-tagged_vocabulary!(
-    "Closed primitive-float binary operation vocabulary: declaration order is the canonical encoded order.",
-    "Canonical tag of a primitive float binary operation.",
-    CompilerPrimitiveFloatBinaryOperation,
-    primitive_float_operation_tag
-    {
-        Add => "add" = 0,
-        Subtract => "subtract" = 1,
-        Multiply => "multiply" = 2,
-        Divide => "divide" = 3,
-        Equal => "equal" = 4,
-        NotEqual => "not_equal" = 5,
-        Less => "less" = 6,
-        LessOrEqual => "less_or_equal" = 7,
-        Greater => "greater" = 8,
-        GreaterOrEqual => "greater_or_equal" = 9,
-    }
-);
-
-tagged_vocabulary!(
-    "The authored integer comparison spellings, before any emission mapping. `>`/`>=`/`!=` keep their authored identity here even though Terminal emission normalizes them onto the swapped/negated three-operation roster; the recorded emitted shape is what the proposal replays, while this value is what the selected provider plan commits to.",
-    "Wire tag for a primitive integer-comparison operation — the six-row encoding every authority table and its checker spells identically.",
-    CompilerPrimitiveIntegerComparisonOperation,
-    primitive_integer_comparison_operation_tag
-    {
-        Equal => "equal" = 0,
-        NotEqual => "not_equal" = 1,
-        Less => "less" = 2,
-        LessOrEqual => "less_or_equal" = 3,
-        Greater => "greater" = 4,
-        GreaterOrEqual => "greater_or_equal" = 5,
-    }
-);
+pub use language_semantics::numeric_intrinsics::{
+    NumericType as CompilerNumericType,
+    PrimitiveFloatBinaryOperation as CompilerPrimitiveFloatBinaryOperation,
+    PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation,
+    numeric_type_tag, primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
+};
 
 tagged_vocabulary!(
     "D45's closed physical terminal-authority vocabulary. Declaration order is the canonical encoded order; additions require a target-policy migration.",
