@@ -154,21 +154,7 @@ impl Builder<'_, '_> {
                 // their exact argument occurrence. Lending admission remains
                 // separate; no source-shape roster decides what a value is.
                 if !parameter.is_const {
-                    let value =
-                        self.retain_structural_argument(*argument, parameter.type_reference);
-                    if value.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                        eprintln!(
-                            "CALL_OPERAND no-established-value machine={:?} state={:?} statement={} call={} expression={:?} formal={:?} formal-type={}",
-                            self.machine,
-                            self.state,
-                            statement,
-                            call_ordinal,
-                            argument,
-                            parameter.type_reference,
-                            self.program
-                                .display_type_reference(parameter.type_reference),
-                        );
-                    }
+                    self.retain_structural_argument(*argument, parameter.type_reference);
                     let Some(selectors) =
                         self.projection_selector_evaluations(*argument, *argument)
                     else {

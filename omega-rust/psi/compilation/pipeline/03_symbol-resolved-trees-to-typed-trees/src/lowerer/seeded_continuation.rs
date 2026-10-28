@@ -32,7 +32,7 @@ pub struct SeededTypingBase {
     inactive_data: Vec<InactiveDataDeclaration>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct InactiveDataDeclaration {
     symbol: symbols::SymbolHandle,
     resolved: arena::Handle<symbol_resolved_trees::data::DataDefinition>,

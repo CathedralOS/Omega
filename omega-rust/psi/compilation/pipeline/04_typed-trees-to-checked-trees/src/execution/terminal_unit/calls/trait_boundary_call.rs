@@ -409,21 +409,6 @@ pub(super) fn build(
         }
         phase("call operation: boundary argument storage root");
         let Some(source_symbol) = place.root.as_symbol() else {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "BOUNDARY_ARGUMENT unestablished-expression machine={:?} state={:?} statement={} call={} parameter={} expression={:?} formal={:?} formal-type={} source-root={:?} retained-results={}",
-                    machine.symbol,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                    abi_position,
-                    argument,
-                    formal,
-                    program.display_type_reference(formal),
-                    place.root,
-                    caller_structural_results.len(),
-                );
-            }
             return None;
         };
         // Boundary calls lend the same primitive local home as checked-body

@@ -516,39 +516,6 @@ impl Builder<'_, '_> {
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
         let result = self.build_structural_value(expression, expected);
-        if result.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            let constructed = self
-                .program
-                .expression_table
-                .constructed_value_type_reference(expression);
-            let selected = match self.program.expression_table.expression(expression) {
-                ExpressionNode::StructLiteral(literal) => Some((
-                    literal.type_symbol,
-                    literal.case_symbol,
-                    self.program
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .len(),
-                )),
-                _ => None,
-            };
-            eprintln!(
-                "STRUCTURAL_VALUE unavailable machine={:?} state={:?} statement={} expression={:?} expected={:?} expected-type={} constructed={:?} constructed-type={} selected-constructor={:?}",
-                self.machine,
-                self.state,
-                self.statement_index,
-                expression,
-                expected,
-                self.program.display_type_reference(expected),
-                constructed,
-                if constructed.is_valid() {
-                    self.program.display_type_reference(constructed)
-                } else {
-                    "<absent>".to_owned()
-                },
-                selected,
-            );
-        }
         result
     }
 
@@ -689,9 +656,6 @@ impl Builder<'_, '_> {
                 expression,
             )?;
             match argument.access {
-                checked_trees::CheckedStructuralAccess::Owned => {
-                    CheckedStructuralValueKind::Place(argument)
-                }
                 checked_trees::CheckedStructuralAccess::SharedBorrow => {
                     // A shared literal produces an immutable image-backed
                     // descriptor in every value position. Its destination's
