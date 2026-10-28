@@ -298,3 +298,46 @@ pub(in crate::hosted_receiver) fn validate(
     }
     Ok(())
 }
+
+/// A free Unit adapter supplies stack backing without private RAM observation.
+/// This independent reader never accepts the observer protocol as its substitute.
+pub(in crate::hosted_receiver) fn validate_unit(
+    bytes: &[u8],
+    address: u64,
+    selected_entry: u64,
+    bss: u64,
+    partitions: HostedReceiverPartitions,
+) -> Result<(), Diagnostic> {
+    let fail = || Reader::reject("ordinary hosted entry lost exact stack or continuation");
+    let (saved, stack_top, _) = super::expected_addresses(bss, partitions, &fail)?;
+    let mut reader = Reader {
+        bytes,
+        address,
+        position: 0,
+        failure: 0,
+    };
+    reader.pointer(&[0x48, 0x89, 0x25], saved, "loader stack was not preserved")?;
+    reader.pointer(
+        &[0x48, 0x8d, 0x25],
+        stack_top,
+        "semantic call uses another stack",
+    )?;
+    reader.bytes(
+        &[0x48, 0x83, 0xec, 64],
+        "semantic call lost its shadow space",
+    )?;
+    reader.pointer(
+        &[0xe8],
+        selected_entry,
+        "adapter calls another semantic entry",
+    )?;
+    reader.pointer(&[0x48, 0x8b, 0x25], saved, "loader stack was not restored")?;
+    reader.bytes(
+        &[0x31, 0xc0, 0xc3],
+        "adapter does not return zero to its loader",
+    )?;
+    if reader.position != bytes.len() {
+        return Err(fail());
+    }
+    Ok(())
+}

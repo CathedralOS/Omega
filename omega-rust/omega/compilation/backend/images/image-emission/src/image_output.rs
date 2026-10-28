@@ -325,7 +325,7 @@ pub(crate) fn emit_direct_executable_image_signed(
         prepared.object,
         prepared.relocations,
         prepared.text_bytes,
-        prepared.entry_shim,
+        prepared.entry_shim.clone(),
         &output,
     )?;
     output.compiler_function_validation =
@@ -393,9 +393,20 @@ pub fn validate_direct_executable_image(
         prepared.object,
         prepared.relocations,
         prepared.text_bytes,
-        prepared.entry_shim,
+        prepared.entry_shim.clone(),
         image.output(),
     )?;
+    if let Some(shim) = prepared.entry_shim.as_ref()
+        && shim.surface == super::hosted_unit_entry::EntrySurface::ProvisionedUnit
+    {
+        super::hosted_receiver::validate_unit_image(
+            artifact,
+            prepared.object,
+            prepared.text_bytes,
+            shim,
+            image.output(),
+        )?;
+    }
     let function_validation =
         super::function_fragments::reporting::summarize(artifact, image.output(), &recomputed)?;
     if image.output().compiler_text_validation != Some(recomputed) {

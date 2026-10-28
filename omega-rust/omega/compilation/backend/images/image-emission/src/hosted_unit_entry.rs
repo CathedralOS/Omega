@@ -14,11 +14,12 @@ use object_file::{
 
 /// One installed entry surface: the symbol and text offset every entry
 /// surface retains, plus the surface that completes through it.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct EntryShim {
     pub(super) surface: EntrySurface,
     pub(super) symbol: ObjectSymbolHandle,
     pub(super) offset: usize,
+    pub(super) stack: Option<crate::hosted_activation_stack::HostedUnitStackPlan>,
 }
 
 /// The entry surface a shim completes through: physical arrival, one of the
@@ -27,6 +28,7 @@ pub(super) struct EntryShim {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum EntrySurface {
     Physical,
+    ProvisionedUnit,
     DarwinReceiver,
     LinuxReceiver,
     LinuxArm64Receiver,
@@ -46,6 +48,7 @@ impl EntrySurface {
             surface: self,
             symbol,
             offset,
+            stack: None,
         }
     }
 }
@@ -91,7 +94,7 @@ pub(super) fn prepared_parts<'a>(
             object: &prepared.object,
             text_bytes: prepared.text.as_slice(),
             relocations: &prepared.relocations,
-            entry_shim: Some(prepared.shim),
+            entry_shim: Some(prepared.shim.clone()),
         },
     )
 }
@@ -214,6 +217,9 @@ pub(super) fn prepare(
     }
     if !crate::function_fragments::replay::has_free_unit_entry(artifact)? {
         return Ok(None);
+    }
+    if crate::hosted_activation_stack::supports(artifact.target) {
+        return crate::hosted_activation_stack::prepare(artifact).map(Some);
     }
     let Some(form) = unit_entry_form(artifact.target) else {
         return Ok(None);
@@ -528,6 +534,7 @@ pub(super) fn validate_unit_shim(
         surface,
         symbol,
         offset,
+        ..
     } = shim;
     let target = match surface {
         EntrySurface::DarwinUnit => target::NativeTarget::macos_arm64(),

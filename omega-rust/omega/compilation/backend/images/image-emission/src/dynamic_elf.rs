@@ -246,7 +246,7 @@ fn validated_output(
         prepared.object,
         prepared.relocations,
         prepared.text_bytes,
-        prepared.entry_shim,
+        prepared.entry_shim.clone(),
         &output,
     )?;
     output.compiler_text_validation = Some(validation);
@@ -300,6 +300,17 @@ fn derive_output(
         return Err(Diagnostic::error(
             "admitted dynamic ELF final image does not replay from the exact object artifact",
         ));
+    }
+    if let Some(shim) = prepared.entry_shim.as_ref()
+        && shim.surface == crate::hosted_unit_entry::EntrySurface::ProvisionedUnit
+    {
+        crate::hosted_receiver::validate_unit_image(
+            artifact,
+            prepared.object,
+            prepared.text_bytes,
+            shim,
+            &output,
+        )?;
     }
     Ok(output)
 }

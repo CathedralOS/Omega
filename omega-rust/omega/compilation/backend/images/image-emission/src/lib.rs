@@ -56,6 +56,7 @@ pub use physical_entry::{PhysicalEntryBinding, PhysicalEntryPartitions, bind_phy
 mod dynamic_elf;
 mod final_image_validation;
 mod function_fragments;
+mod hosted_activation_stack;
 mod hosted_receiver;
 mod hosted_unit_entry;
 mod image_output;

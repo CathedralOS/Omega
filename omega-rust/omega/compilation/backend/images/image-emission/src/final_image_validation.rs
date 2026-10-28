@@ -261,6 +261,11 @@ fn validate_terminal_image_with_import_count(
     }
     if let Some(shim) = entry_shim {
         match shim.surface {
+            EntrySurface::ProvisionedUnit => {
+                // Its stack and relocations were produced from the retained
+                // final demand. Independent entry decoding belongs to the
+                // explicit executable-image verifier, not normal emission.
+            }
             EntrySurface::Physical => {
                 let (symbol, offset) = shim.symbol_offset();
                 super::physical_entry::validate_image(

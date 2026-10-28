@@ -244,3 +244,49 @@ fn initialize(
         bytes.push(*byte);
     }
 }
+
+/// A no-argument entry has no private observer protocol or associated imports.
+/// Save the exact loader RSP, switch to the provisioned semantic stack with
+/// Microsoft shadow space, and restore the loader continuation before RET.
+pub(crate) fn prepare_unit(
+    artifact: &crate::ObjectArtifact,
+    object: ObjectPlan,
+    storage: ReceiverStorage,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut fields = Vec::new();
+    pointer(
+        &mut bytes,
+        &mut fields,
+        &[0x48, 0x89, 0x25],
+        storage.scratch,
+        0,
+    );
+    pointer(
+        &mut bytes,
+        &mut fields,
+        &[0x48, 0x8d, 0x25],
+        storage.stack_top,
+        0,
+    );
+    bytes.extend([0x48, 0x83, 0xec, 64]);
+    call(&mut bytes, &mut fields, artifact.entry_function().symbol);
+    pointer(
+        &mut bytes,
+        &mut fields,
+        &[0x48, 0x8b, 0x25],
+        storage.scratch,
+        0,
+    );
+    bytes.extend([0x31, 0xc0, 0xc3]);
+    finish_receiver_shim(
+        artifact,
+        object,
+        &bytes,
+        "omega_windows_x86_64_activation_entry",
+        &fields,
+        |symbol, offset| {
+            crate::hosted_unit_entry::EntrySurface::ProvisionedUnit.shim(symbol, offset)
+        },
+    )
+}

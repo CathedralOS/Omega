@@ -5,9 +5,9 @@
 //! and observes the same allocations after normal loan retirement. Its stack
 //! is a separate disjoint partition whose demand comes from the whole callee.
 
-mod aarch64;
-mod instructions;
-mod windows_x86_64;
+pub(super) mod aarch64;
+pub(super) mod instructions;
+pub(super) mod windows_x86_64;
 
 use diagnostics::Diagnostic;
 use program_entry_plan::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
@@ -36,7 +36,7 @@ impl HostedReceiverBinding {
     }
 }
 
-fn invalid(target: target::NativeTarget) -> Diagnostic {
+pub(super) fn invalid(target: target::NativeTarget) -> Diagnostic {
     Diagnostic::error(format!(
         "installed private entry RAM lost exact contract, storage, or entry custody for {target:?}"
     ))
@@ -53,28 +53,11 @@ pub(super) fn recipe_index_for_runtime_position(
         .position(|recipe| recipe.input().runtime_position as usize == ordinal)
 }
 
-fn align(value: u64, alignment: u64, invalid: &dyn Fn() -> Diagnostic) -> Result<u64, Diagnostic> {
-    if !alignment.is_power_of_two() {
-        return Err(invalid());
-    }
-    value
-        .checked_add(alignment - 1)
-        .map(|value| value & !(alignment - 1))
-        .ok_or_else(invalid)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HostedReceiverPartitions {
-    pub saved_continuation_offset: u64,
-    pub stack_offset: u64,
-    pub stack_byte_count: u64,
-    pub allocation_offset: u64,
-    pub end_offset: u64,
-}
+pub use crate::hosted_activation_stack::HostedEntryPartitions as HostedReceiverPartitions;
+use crate::hosted_activation_stack::{HostedEntryStorage as ReceiverStorage, align};
 
 impl HostedReceiverBinding {
-    /// The exact physical target this binding was admitted for. Partition and
-    /// instruction custody are derived under it, never inferred from bytes.
+    /// Partition under the exact physical target admitted with this binding.
     fn target(&self) -> target::NativeTarget {
         self.physical.target_slot().owner.native_target()
     }
@@ -83,152 +66,13 @@ impl HostedReceiverBinding {
         &self,
         existing_bss_bytes: u64,
     ) -> Result<HostedReceiverPartitions, Diagnostic> {
-        let invalid = || invalid(self.target());
-        let saved = align(existing_bss_bytes, 16, &invalid)?;
-        let stack = saved.checked_add(16).ok_or_else(invalid)?;
-        // The bridge's own call into the semantic continuation is not part of
-        // the callee's checked demand. The Microsoft x64 caller owes
-        // shadow space, a fifth pointer slot, alignment and the pushed return
-        // address. Win32 runtime calls keep the loader's guarded stack.
-        let call_overhead = if self.target() == target::NativeTarget::windows_x64() {
-            72
-        } else {
-            0
-        };
-        let stack_bytes = align(
-            self.demand
-                .ceiling_bytes()
-                .max(16)
-                .checked_add(call_overhead)
-                .ok_or_else(invalid)?,
-            16,
-            &invalid,
-        )?;
-        let stack_end = stack.checked_add(stack_bytes).ok_or_else(invalid)?;
-        let allocation_offset = stack_end;
-        let end = self
-            .private_entry_ram
-            .iter()
-            .try_fold(allocation_offset, |end, recipe| {
-                align(end, recipe.alignment(), &invalid)?
-                    .checked_add(
-                        recipe.contents().len() as u64 + recipe.observation_header().len() as u64,
-                    )
-                    .ok_or_else(invalid)
-            })?;
-        Ok(HostedReceiverPartitions {
-            saved_continuation_offset: saved,
-            stack_offset: stack,
-            stack_byte_count: stack_bytes,
-            allocation_offset,
-            end_offset: end,
-        })
+        crate::hosted_activation_stack::partitions(
+            self.target(),
+            &self.demand,
+            &self.private_entry_ram,
+            existing_bss_bytes,
+        )
     }
-}
-
-/// One disjoint writable-image residence the bridge references by symbol.
-struct ReceiverStorage {
-    scratch: object_file::ObjectSymbolHandle,
-    stack_top: object_file::ObjectSymbolHandle,
-    private_ram: Vec<object_file::ObjectSymbolHandle>,
-    observation_headers: Vec<object_file::ObjectSymbolHandle>,
-}
-
-/// Extend the (possibly absent) BSS section with the exact disjoint bridge
-/// partitions and publish the three named residences the emitted entry uses.
-fn provision_receiver_storage(
-    artifact: &crate::ObjectArtifact,
-    binding: &HostedReceiverBinding,
-) -> Result<
-    (
-        object_file::ObjectPlan,
-        HostedReceiverPartitions,
-        ReceiverStorage,
-    ),
-    Diagnostic,
-> {
-    use object_file::{SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection};
-    let invalid = || invalid(artifact.target);
-    let mut object = artifact.object.clone();
-    let existing = object
-        .layout
-        .sections
-        .iter()
-        .filter(|(_, section)| section.kind == SectionKind::Bss)
-        .map(|(handle, section)| (handle, section.size, section.alignment))
-        .collect::<Vec<_>>();
-    if existing.len() > 1 {
-        return Err(invalid());
-    }
-    let partitions = binding.partitions(existing.first().map_or(0, |(_, size, _)| *size as u64))?;
-    let end = usize::try_from(partitions.end_offset).map_err(|_| invalid())?;
-    let alignment = usize::try_from(
-        binding
-            .private_entry_ram
-            .iter()
-            .map(|recipe| recipe.alignment())
-            .fold(16, u64::max),
-    )
-    .map_err(|_| invalid())?;
-    if let Some((handle, _, previous_alignment)) = existing.first() {
-        let section = object.layout.sections.get_mut(*handle);
-        section.size = end;
-        section.alignment = alignment.max(*previous_alignment);
-    } else {
-        object.layout.sections.insert(SectionPlan {
-            kind: SectionKind::Bss,
-            size: end,
-            alignment,
-        });
-    }
-    let mut symbol_at = |name: &str, offset: u64, size: u64| -> Result<_, Diagnostic> {
-        Ok(object.layout.symbols.insert(SymbolPlan {
-            name: name.into(),
-            section: SymbolSection::Section(SectionKind::Bss),
-            offset: usize::try_from(offset).map_err(|_| invalid())?,
-            size: usize::try_from(size).map_err(|_| invalid())?,
-            kind: SymbolKind::Object,
-            import_library: String::new(),
-        }))
-    };
-    let scratch = symbol_at(
-        "omega_hosted_saved_continuation",
-        partitions.saved_continuation_offset,
-        16,
-    )?;
-    let stack_top = symbol_at(
-        "omega_hosted_stack_top",
-        partitions.stack_offset + partitions.stack_byte_count,
-        0,
-    )?;
-    let mut private_ram = Vec::new();
-    let mut observation_headers = Vec::new();
-    let mut private_end = partitions.allocation_offset;
-    for (index, recipe) in binding.private_entry_ram.iter().enumerate() {
-        let offset = align(private_end, recipe.alignment(), &invalid)?;
-        private_ram.push(symbol_at(
-            &format!("omega_hosted_private_entry_ram_{index}"),
-            offset,
-            recipe.contents().len() as u64,
-        )?);
-        let header_offset = offset + recipe.contents().len() as u64;
-        observation_headers.push(symbol_at(
-            &format!("omega_hosted_private_ram_observation_header_{index}"),
-            header_offset,
-            recipe.observation_header().len() as u64,
-        )?);
-        private_end = header_offset + recipe.observation_header().len() as u64;
-    }
-    Ok((
-        object,
-        partitions,
-        ReceiverStorage {
-            scratch,
-            stack_top,
-            private_ram,
-            observation_headers,
-        },
-    ))
 }
 
 /// Append the emitted entry bytes, grow `.text`, and install the new symbol as
@@ -261,13 +105,17 @@ pub(crate) fn prepare(
     let invalid = || invalid(artifact.target);
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
     validate_binding(artifact, binding)?;
-    let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
+    let (object, _partitions, storage) = crate::hosted_activation_stack::provision(
+        artifact,
+        &binding.demand,
+        &binding.private_entry_ram,
+    )?;
     if artifact.target.architecture == target::Architecture::Aarch64 {
-        aarch64::prepare(artifact, binding, object, storage)
+        aarch64::prepare(artifact, &binding.private_entry_ram, object, storage)
     } else if artifact.target == target::NativeTarget::windows_x64() {
         windows_x86_64::prepare(artifact, binding, object, storage)
     } else if artifact.target == target::NativeTarget::linux_x64() {
-        prepare_linux_x86_64(artifact, binding, object, storage)
+        prepare_sysv_x86_64(artifact, &binding.private_entry_ram, object, storage)
     } else {
         Err(invalid())
     }
@@ -306,9 +154,9 @@ fn finish_receiver_shim(
     })
 }
 
-fn prepare_linux_x86_64(
+pub(super) fn prepare_sysv_x86_64(
     artifact: &crate::ObjectArtifact,
-    binding: &HostedReceiverBinding,
+    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
@@ -320,16 +168,15 @@ fn prepare_linux_x86_64(
     bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]);
     // Construct the original private typed allocations before any view is lent.
     // Each complete byte is explicitly initialized; no external backing is copied.
-    for (recipe, symbol) in binding.private_entry_ram.iter().zip(&storage.private_ram) {
+    for (recipe, symbol) in private_entry_ram.iter().zip(&storage.private_ram) {
         for (offset, byte) in recipe.contents().iter().enumerate() {
             fields.push((bytes.len() + 2, *symbol, offset as i64 - 1));
             bytes.extend([0xc6, 0x05, 0, 0, 0, 0, *byte]);
         }
     }
-    let (function, _) = crate::function_fragments::replay::entry_source(artifact)?;
-    for (ordinal, _) in function.structural_parameters.iter().enumerate() {
-        let index = recipe_index_for_runtime_position(&binding.private_entry_ram, ordinal)
-            .ok_or_else(invalid)?;
+    for ordinal in 0..private_entry_ram.len() {
+        let index =
+            recipe_index_for_runtime_position(private_entry_ram, ordinal).ok_or_else(invalid)?;
         let symbol = *storage.private_ram.get(index).ok_or_else(invalid)?;
         let (rex, modrm) = [
             (0x48, 0x3d),
@@ -351,8 +198,7 @@ fn prepare_linux_x86_64(
     // frame headers now, then observes original storage through its own private
     // channel. Every write must complete exactly; a closed/rebound/missing lane
     // cannot silently stand in for a completed owner observation.
-    for ((recipe, symbol), header_symbol) in binding
-        .private_entry_ram
+    for ((recipe, symbol), header_symbol) in private_entry_ram
         .iter()
         .zip(&storage.private_ram)
         .zip(&storage.observation_headers)
@@ -381,7 +227,12 @@ fn prepare_linux_x86_64(
             ]);
         }
     }
-    bytes.extend([0x31, 0xff, 0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b]);
+    if artifact.target == target::NativeTarget::macos_x64() {
+        fields.push((bytes.len() + 3, storage.scratch, 0));
+        bytes.extend([0x48, 0x8b, 0x25, 0, 0, 0, 0, 0x31, 0xc0, 0xc3]);
+    } else {
+        bytes.extend([0x31, 0xff, 0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b]);
+    }
     finish_receiver_shim(
         artifact,
         object,
@@ -772,7 +623,13 @@ pub(crate) fn validate_image(
         return Err(invalid());
     }
     let partitions = binding.partitions(original_bss_bytes)?;
-    validate_partitions(binding, partitions, original_bss_bytes, output)?;
+    validate_partitions(
+        artifact.target,
+        &binding.demand,
+        partitions,
+        original_bss_bytes,
+        output,
+    )?;
     // The enclosing replay has already checked the full file/VM correspondence
     // and exact dynamic fixups, including exclusion of every BSS byte. This
     // join therefore uses real mapped zero-fill, not just a section label.
@@ -808,6 +665,7 @@ pub(crate) fn validate_image(
         )
     } else {
         instructions::validate_x86_64(
+            artifact.target,
             shim_bytes,
             shim_address,
             selected_entry,
@@ -834,12 +692,13 @@ fn elf_entry_points_to(output: &image::EmittedImageOutput, offset: usize) -> boo
 }
 
 fn validate_partitions(
-    binding: &HostedReceiverBinding,
+    target: target::NativeTarget,
+    demand: &crate::StackDemand,
     partitions: HostedReceiverPartitions,
     original_bss_bytes: u64,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let invalid = || invalid(binding.target());
+    let invalid = || invalid(target);
     let continuation_end = partitions
         .saved_continuation_offset
         .checked_add(16)
@@ -850,7 +709,7 @@ fn validate_partitions(
         .ok_or_else(invalid)?;
     if partitions.saved_continuation_offset < original_bss_bytes
         || continuation_end > partitions.stack_offset
-        || partitions.stack_byte_count < binding.demand.ceiling_bytes()
+        || partitions.stack_byte_count < demand.ceiling_bytes()
         || stack_end != partitions.allocation_offset
         || partitions.allocation_offset > partitions.end_offset
         || partitions.end_offset != output.bss_bytes as u64
@@ -875,4 +734,113 @@ fn validate_partitions(
     }
     bss.checked_add(partitions.end_offset).ok_or_else(invalid)?;
     Ok(())
+}
+
+/// Explicit executable-image verification of an ordinary provisioned root.
+/// Normal image production consumes its prepared geometry without replaying
+/// these instructions or composing the same body demand again.
+pub(super) fn validate_unit_image(
+    artifact: &crate::ObjectArtifact,
+    object: &object_file::ObjectPlan,
+    text: &[u8],
+    shim: &crate::hosted_unit_entry::EntryShim,
+    output: &image::EmittedImageOutput,
+) -> Result<(), Diagnostic> {
+    let invalid = || crate::hosted_activation_stack::invalid(artifact.target);
+    let plan = shim.stack.as_ref().ok_or_else(invalid)?;
+    if plan.demand.psi() != artifact.psi()
+        || plan.demand.target() != artifact.target()
+        || plan.demand.entry() != artifact.entry()
+        || artifact.physical_entry_binding().is_some()
+        || artifact.hosted_receiver_binding().is_some()
+    {
+        return Err(invalid());
+    }
+    let mut bss = artifact
+        .object
+        .layout
+        .sections
+        .iter()
+        .filter(|(_, section)| section.kind == object_file::SectionKind::Bss);
+    let original_bss = bss.next().map_or(0, |(_, section)| section.size as u64);
+    if bss.next().is_some()
+        || crate::hosted_activation_stack::partitions(
+            artifact.target,
+            &plan.demand,
+            &[],
+            original_bss,
+        )? != plan.partitions
+    {
+        return Err(invalid());
+    }
+    validate_partitions(
+        artifact.target,
+        &plan.demand,
+        plan.partitions,
+        original_bss,
+        output,
+    )?;
+    let (symbol, offset) = shim.symbol_offset();
+    let count = text.len().checked_sub(offset).ok_or_else(invalid)?;
+    if !crate::hosted_unit_entry::unique_region(object, symbol, offset, count, output)
+        || !if artifact.target.object_format == target::ObjectFormat::MachO {
+            crate::hosted_unit_entry::main_points_to(&output.bytes, offset, artifact.target)
+        } else if artifact.target.object_format == target::ObjectFormat::Coff {
+            crate::hosted_unit_entry::pe_entry_points_to(
+                &output.bytes,
+                offset,
+                output
+                    .final_text_bytes
+                    .get(offset..offset + count)
+                    .ok_or_else(invalid)?,
+            )
+        } else {
+            elf_entry_points_to(output, offset)
+        }
+    {
+        return Err(invalid());
+    }
+    let bytes = output
+        .final_text_bytes
+        .get(offset..offset + count)
+        .ok_or_else(invalid)?;
+    let address = output
+        .final_image_layout
+        .text_address
+        .checked_add(offset as u64)
+        .ok_or_else(invalid)?;
+    let entry = output
+        .final_image_layout
+        .text_address
+        .checked_add(artifact.entry_function().text_offset as u64)
+        .ok_or_else(invalid)?;
+    if artifact.target.architecture == target::Architecture::Aarch64 {
+        instructions::validate_aarch64(
+            artifact.target,
+            bytes,
+            address,
+            entry,
+            output.final_image_layout.bss_address,
+            plan.partitions,
+            &[],
+        )
+    } else if artifact.target == target::NativeTarget::windows_x64() {
+        instructions::validate_windows_x86_64_unit(
+            bytes,
+            address,
+            entry,
+            output.final_image_layout.bss_address,
+            plan.partitions,
+        )
+    } else {
+        instructions::validate_x86_64(
+            artifact.target,
+            bytes,
+            address,
+            entry,
+            output.final_image_layout.bss_address,
+            plan.partitions,
+            &[],
+        )
+    }
 }
