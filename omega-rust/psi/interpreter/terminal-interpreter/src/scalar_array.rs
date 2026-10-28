@@ -26,7 +26,7 @@ use storage::ScalarArrayStorage;
 /// Inspection clones share read-only backing and its reservation. Guest value
 /// copies use explicit snapshots; writes preserve this value's logical identity
 /// while detaching any shared physical backing before mutation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalScalarArrayValue {
     /// Allocated from the ordinary referent allocator when this payload's
     /// location is first observed. Snapshots clear it: a copy has new storage.
@@ -80,7 +80,7 @@ impl TerminalScalarArrayValue {
 }
 
 /// An owned unrestricted array with its checked predicate memberships and no claims.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalScalarArrayResult {
     pub value: TerminalScalarArrayValue,
 }

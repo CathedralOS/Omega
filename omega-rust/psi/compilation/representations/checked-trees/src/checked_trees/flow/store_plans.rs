@@ -24,7 +24,7 @@ use crate::checked_trees::CheckedMemberIdentity;
 use typed_trees::type_identity::TypeIdentityId;
 
 /// One authored store: the exact place it replaces and the value it writes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStorePlan {
     pub statement_index: u32,
     /// Selection within the statement's pre-RHS captured destination. Whole
@@ -37,7 +37,7 @@ pub struct CheckedStorePlan {
 
 /// The exact place one store replaces: its root, the checked path below it,
 /// and the representation of the replaced leaf.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStoreDestination {
     pub root: CheckedStoreRoot,
     /// Exact checked path from the root to the replaced place. An indexed
@@ -113,7 +113,7 @@ impl CheckedStoreDestination {
 /// The declaration-selected interval and the completed judgment of this exact
 /// authored assignment. This is source proof custody, not a Terminal storage
 /// refinement: primitive type identity deliberately looks through qualification.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPrimitiveReceivingRange {
     pub primitive: PrimitiveType,
     pub integer: semantic_vocabulary::BoundedIntegerType,
@@ -122,7 +122,7 @@ pub struct CheckedPrimitiveReceivingRange {
 
 /// The representation of the place one store replaces, carrying the checked
 /// judgments that representation's store consumes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStoreLeaf {
     /// Primitive storage with no declared field contract: a whole mutable
     /// primitive local or borrowed primitive, or the primitive array element
@@ -202,7 +202,7 @@ pub enum CheckedStoreLeaf {
 }
 
 /// The value one store writes, in the shape its leaf receives.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStoreValue {
     /// A scalar evaluated at `role`: the assignment's `AssignmentValue`, or
     /// one row-major element of a closed array literal stored element-wise.
@@ -257,7 +257,7 @@ impl CheckedStoreValue {
 /// so the plan retains the authored construction and its scalar operands.
 /// Each operand was bound at the statement under
 /// `StructuralValueField { expression: literal, .. }`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCaseLiteralValuePlan {
     /// The authored case literal — the namespace subject every scalar operand
     /// bound against under `StructuralValueField`.
@@ -276,7 +276,7 @@ pub struct CheckedCaseLiteralValuePlan {
 /// judgments stay independent: an in-bounds index supplies the count
 /// conversion but cannot authorize a byte that violates the owner's byte
 /// predicates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct CheckedIndexedWriteDecisions {
     /// The index is proven within the destination's live extent.
     pub index_in_bounds: bool,
@@ -289,7 +289,7 @@ pub struct CheckedIndexedWriteDecisions {
 /// Evaluated source of one scalar store. Every scalar leaf shares this one
 /// vocabulary. A representation view lowers no scalar computation; its
 /// producer refuses `Computation`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarStoreValue {
     /// A bound pure authored expression at the store's value role.
     Pure(CheckedScalarExpression),
@@ -321,7 +321,7 @@ impl CheckedScalarStoreValue {
 /// parameters, whose own `position` is authored too. A local keeps symbol
 /// identity so ordered lowering can resolve its current home after copies or
 /// moves. Byte-field source reads use that same home identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStoreRoot {
     Parameter { position: u32 },
     Local { symbol: SymbolHandle },

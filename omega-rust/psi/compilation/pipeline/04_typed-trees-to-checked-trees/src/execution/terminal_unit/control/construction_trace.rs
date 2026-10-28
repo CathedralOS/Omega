@@ -84,7 +84,7 @@ impl LocalConstructionTrace {
             program,
             machine,
             site,
-            CheckedUnitPlanGapReason::Unsupported(self.phase.get()),
+            CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(self.phase.get())),
         )
     }
 }

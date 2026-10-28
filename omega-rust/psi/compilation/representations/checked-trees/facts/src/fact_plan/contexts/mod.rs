@@ -9,7 +9,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeConstraintNode;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum ProgramPoint {
     #[default]
     Global,
@@ -60,18 +60,18 @@ pub enum ProgramPoint {
         transition_target: typed_trees::statement::TransitionTargetHandle,
     },
 }
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactRef {
     pub fact: FactHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactContext {
     pub point: ProgramPoint,
     pub facts: HandleSpan<FactRef>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolFactSet {
     pub symbol: SymbolHandle,
     pub facts: HandleSpan<FactRef>,

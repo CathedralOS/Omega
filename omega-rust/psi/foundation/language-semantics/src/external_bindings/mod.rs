@@ -6,7 +6,7 @@ use crate::ExternalBindingId;
 /// Closed mechanism tag for one irreducible external realization. This is
 /// retained independently from the transitional binding interner so semantic
 /// consumers never classify a rendered `Binding::Case(...)` string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ExternalBindingMechanism {
     Syscall,
     CompilerIntrinsic,
@@ -44,7 +44,7 @@ impl ExternalBindingMechanism {
 /// values are interned directly; no display rendering is parsed or compared.
 /// An import has no spelling here: a foreign locator is evaluated as a typed
 /// `Binding` value through a `via` producer, never as authored strings.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum ExternalBindingIdentity {
     Syscall { number: i64 },
     CompilerIntrinsic,
@@ -67,7 +67,7 @@ impl ExternalBindingIdentity {
 
 /// Deterministic EXTERNAL-BINDING interner. `NULL`/0 stays "not computed";
 /// ids start at 1.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ExternalBindingTable {
     identities: Vec<ExternalBindingIdentity>,
 }

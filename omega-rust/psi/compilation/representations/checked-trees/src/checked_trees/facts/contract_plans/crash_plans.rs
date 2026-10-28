@@ -7,7 +7,7 @@ use crate::checked_trees::facts::contract_plans::{
 use std::hash::Hash;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CrashRouteBucket {
     pub(super) cause: CrashCause,
     /// Canonical nonempty set. `Truth` is always the sole entry when present.
@@ -49,7 +49,7 @@ impl CrashRouteBucket {
 /// Source correspondence for one membership in the invocation requirement roster.
 /// Predicate projection may duplicate or omit a subject occurrence, so replay
 /// retains its checked value explicitly instead of recovering it from a formula.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeMembershipSubject {
     pub fact_ordinal: u32,
     pub membership: crate::domain::ProofMembershipFact,
@@ -65,7 +65,7 @@ pub struct CheckedRuntimeMembershipSubject {
 /// implementation evidence and never enter that fingerprint. Path guards,
 /// complete covering buckets, and frontier lower bounds enrich
 /// the site layer without changing the published interface.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CrashPlan {
     pub(crate) interface: CrashInterface,
     pub(crate) published: Vec<CrashRouteBucket>,

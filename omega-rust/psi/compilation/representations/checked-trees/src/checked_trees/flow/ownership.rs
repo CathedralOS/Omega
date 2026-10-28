@@ -4,7 +4,7 @@ use symbols::SymbolHandle;
 mod computation_custody;
 
 /// Source occurrence of a storage movement, before permission claims expand it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowStorageTransferSource {
     Statement {
         statement_index: usize,
@@ -29,7 +29,7 @@ impl Default for FlowStorageTransferSource {
 /// Selected-arm candidates retain their route and are never unconditional
 /// permission events. Reference-carrier transfers retain their selected type
 /// so consumers do not mistake them for movement of the referent.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowStorageTransferFact {
     pub source: FlowStorageTransferSource,
     pub evaluation: FlowPermissionEvaluation,
@@ -42,7 +42,7 @@ pub struct FlowStorageTransferFact {
 
 /// The claim minted for one exact loan activation. Equal backing paths can
 /// occur more than once in a statement; they cannot recover this association.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBorrowClaimFact {
     pub loan: arena::Handle<crate::BorrowLoanFact>,
     pub claim_identity: language_semantics::PermissionClaimIdentity,
@@ -51,7 +51,7 @@ pub struct FlowBorrowClaimFact {
 /// Caller-owned storage returned by one normal exclusive invocation. Claims
 /// are the Restore events at this call beneath this exact region; the region
 /// is retained separately because an empty or inactive case owns no payload.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowLoanCompletionFact {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -63,7 +63,7 @@ pub struct FlowLoanCompletionFact {
 
 /// Exact evaluation lane within a source statement. Guards precede the
 /// custody fork; target operands execute only on their selected edge.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum FlowPermissionEvaluation {
     #[default]
     Statement,
@@ -77,7 +77,7 @@ pub enum FlowPermissionEvaluation {
 /// This is the authoritative claim ledger for later checked-IR consumers.
 /// Storage-transfer candidates are retained separately: claim expansion and
 /// inactive-payload filtering cannot describe every movement of borrowed storage.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct FlowPermissionEventFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -103,7 +103,7 @@ pub struct FlowPermissionEventFact {
 /// One owned expression destination whose incoming transfers follow its retained
 /// structural-value selection topology. These transfers are conditional and
 /// must never be replayed as the unconditional permission stream.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnedSelectionReceipt {
     /// The completed value owns this selection's context. Guard fallthrough
     /// and later writes to the source homes describe different occurrences.
@@ -130,7 +130,7 @@ pub struct FlowOwnedSelectionReceipt {
 /// One named carrier home used by a selection. This roster coordinates its
 /// physical storage and conditional residual; it grants no value or claim
 /// authority. Each transfer retains its actual post-predicate occurrence below.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnedSelectionSource {
     pub symbol: SymbolHandle,
     pub statement_ordinal: u32,
@@ -142,7 +142,7 @@ pub struct FlowOwnedSelectionSource {
 
 /// One selected place occurrence. Nested arm scopes are reconstructed from the
 /// existing authored/structural selection graph, not a product of path states.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnedSelectionTransfer {
     /// Exact type of this evaluated source value, independent of the affine
     /// disposal multiplicity of its materialized receiving carrier.
@@ -177,7 +177,7 @@ pub struct FlowOwnedSelectionTransfer {
 
 /// One side of a selected storage binding. It retains the arriving obligation,
 /// not a theorem that the two sides have common establishment lineage.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowSelectionPlaceArrival {
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     pub provenance: language_semantics::PermissionProvenance,
@@ -186,7 +186,7 @@ pub struct FlowSelectionPlaceArrival {
 /// A live place after one source selection decision. Both paths must supply
 /// the same complete typed ownership frontier before destination names bind.
 /// The binary decision preserves nested topology without enumerating paths.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowSelectionPlaceBinding {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -207,7 +207,7 @@ pub struct FlowSelectionPlaceBinding {
 /// consumed claim's current invariant pair. A known pair retains its authority;
 /// Unknown records transport only, resolved through the completed capture and
 /// current source binding rather than an invented establishment.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnedSelectionClaim {
     pub path: HandleSpan<facts::PlaceSegment>,
     pub claim_identity: language_semantics::PermissionClaimIdentity,
@@ -325,7 +325,7 @@ impl super::FlowOwnershipFacts {
 /// result. Inputs are relative to the callee's declared parameter frontier;
 /// claims established by the checked body retain their exact semantic
 /// identity and root-lineage provenance.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowClaimOutcomeSource {
     #[default]
     Unknown,
@@ -340,7 +340,7 @@ pub enum FlowClaimOutcomeSource {
 }
 
 /// One output-path entry in a checked state's normalized claim outcome map.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowClaimOutcomeEntryFact {
     pub output_segments: HandleSpan<facts::PlaceSegment>,
     pub source: FlowClaimOutcomeSource,
@@ -350,7 +350,7 @@ pub struct FlowClaimOutcomeEntryFact {
 /// Statically inactive case alternatives are intentionally absent. Absence of
 /// the map means the state has no live linear result frontier or could not
 /// prove one unique mapping for every possibly-live output claim.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowClaimOutcomeMapFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -358,7 +358,7 @@ pub struct FlowClaimOutcomeMapFact {
 }
 
 /// Exact source control edge; the two targets of one statement are distinct.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowClaimJoinExitKind {
     #[default]
     FinalExpression,
@@ -384,7 +384,7 @@ pub enum FlowClaimJoinExitKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowClaimJoinExit {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
@@ -392,7 +392,7 @@ pub struct FlowClaimJoinExit {
 }
 
 /// One complete normal-exit alternative and its exact argument substitution.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowClaimJoinAlternative {
     pub captures: HandleSpan<FlowClaimJoinCapture>,
     pub exits: HandleSpan<FlowClaimJoinExit>,
@@ -402,14 +402,14 @@ pub struct FlowClaimJoinAlternative {
 /// The actual completed return graph governing one lineage alternative.
 /// Repeated output-path queries share this capture identity; exact call exits
 /// scope nested captures to their receiving invocation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowClaimJoinCapture {
     pub operand: arena::Handle<super::FlowOperandFact>,
     pub path: HandleSpan<facts::PlaceSegment>,
     pub identity: language_semantics::PermissionClaimIdentity,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowClaimJoinAlternativeSource {
     /// The exact returned case excludes this path, not an unknown origin.
     #[default]
@@ -431,7 +431,7 @@ pub enum FlowClaimJoinAlternativeSource {
 /// Conditional returned custody for one call result path. The local claim id
 /// names the returned occurrence, not new authority. No alternative is an
 /// unconditional identity/content theorem.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowClaimJoinReceipt {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -448,7 +448,7 @@ pub struct FlowClaimJoinReceipt {
 /// A checked instruction event settles this exact owned argument. The normal
 /// permission event retains claim identity and provenance; this receipt binds
 /// its authority and source proposition to the event that actually occurred.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowInstructionDispositionFact {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -465,7 +465,7 @@ pub struct FlowInstructionDispositionFact {
 
 /// Fresh instruction evidence retained through an exact helper invocation.
 /// Children cover normal callee exits; leaves name actual catalog events.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowInstructionEffectReceiptFact {
     pub event: facts::FactHandle,
     /// A helper's exact instantiated postcondition; zero for catalog leaves.

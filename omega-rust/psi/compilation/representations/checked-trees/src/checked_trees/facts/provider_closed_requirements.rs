@@ -17,7 +17,7 @@ use typed_trees::type_identity::{LifetimeParameterIdentity, NormalizedTypeIdenti
 
 /// `provider` satisfies the closed instance `closed_requirement` of the
 /// generic requirement `template` its conformance names.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderClosedRequirement {
     pub provider: SymbolHandle,
     /// Named implementation, or the machine owning a direct satisfaction edge.
@@ -35,7 +35,7 @@ pub struct CheckedProviderClosedRequirement {
 }
 
 /// One checked owner for requirement rows and their durable region arguments.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderClosedRequirements {
     rows: Arena<CheckedProviderClosedRequirement>,
     regions: Arena<LifetimeParameterIdentity>,

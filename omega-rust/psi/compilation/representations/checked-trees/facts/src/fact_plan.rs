@@ -26,7 +26,7 @@ pub type FactContextHandle = Handle<FactContext>;
 pub type PlaceHandle = Handle<Place>;
 pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactPlan {
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,

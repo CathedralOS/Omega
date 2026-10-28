@@ -169,3 +169,19 @@ impl<T, Revision: PartialEq> OwnedIndex<T, Revision> {
             .unwrap_or_else(|error| error.into_inner()) = None;
     }
 }
+
+// This cache is a pure function of the owning tables. Its lock, revision and
+// sealed payload never enter a persisted graph or supply a retained judgment.
+impl<T, Revision> compiler_storage::Record for OwnedIndex<T, Revision> {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}

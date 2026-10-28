@@ -85,7 +85,7 @@ pub struct BuildStagedOutputTree {
 /// `BuildOutput::include_source` handoff. This value is produced only by
 /// matching the interpreter's Output-rooted coordinate against sponsored
 /// staged-tree custody.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageGeneratedSource {
     relative_path: Vec<u8>,
     bytes: Arc<[u8]>,

@@ -25,6 +25,20 @@ pub trait DeclarationSelectionAuthority: Send + Sync {
     ) -> bool;
 
     fn package_label(&self, identity: semantic_vocabulary::PackageKeyIdentity) -> String;
+
+    /// Complete allowed-owner sets for known requesters, for comparing private
+    /// source checkpoints only. A custom predicate may decline persistence.
+    /// This metadata never replaces the live predicate during admission.
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<
+        std::collections::BTreeMap<
+            semantic_vocabulary::PackageKeyIdentity,
+            Vec<semantic_vocabulary::PackageKeyIdentity>,
+        >,
+    > {
+        None
+    }
 }
 
 /// Validate exact checked declaration selections under supplied package authority.
@@ -179,4 +193,100 @@ pub fn validate_authored_declaration_selections(
     }
 
     crate::program_validation::finish_strict_diagnostics(diagnostics)
+}
+
+/// Comparison data from a source checkpoint. It deliberately implements no
+/// authority trait: decoded scope can reject reuse, never authorize execution.
+#[derive(Clone, compiler_storage::Record)]
+pub enum RecordedDeclarationAuthority {
+    Absent,
+    Packages(
+        std::collections::BTreeMap<
+            semantic_vocabulary::PackageKeyIdentity,
+            Vec<semantic_vocabulary::PackageKeyIdentity>,
+        >,
+    ),
+}
+impl RecordedDeclarationAuthority {
+    pub fn capture(
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+    ) -> Result<Self, &'static str> {
+        let Some(authority) = authority else {
+            return Ok(Self::Absent);
+        };
+        let mut scope = authority
+            .declaration_selection_scope()
+            .ok_or("declaration selection predicate does not export a complete comparison scope")?;
+        for owners in scope.values_mut() {
+            owners.sort_unstable();
+            owners.dedup();
+        }
+        Ok(Self::Packages(scope))
+    }
+    pub fn has_authority(&self) -> bool {
+        matches!(self, Self::Packages(_))
+    }
+    pub fn allows(
+        &self,
+        requester: semantic_vocabulary::PackageKeyIdentity,
+        owner: semantic_vocabulary::PackageKeyIdentity,
+    ) -> Option<bool> {
+        match self {
+            Self::Absent => None,
+            Self::Packages(scope) => scope.get(&requester).map(|owners| owners.contains(&owner)),
+        }
+    }
+    pub fn require_current(
+        &self,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        sources: &source::SourceMap,
+    ) -> Result<(), &'static str> {
+        self.require_requesters(
+            authority,
+            sources
+                .selected_files()
+                .filter(|file| file.origin != source::SourceOrigin::Toolchain)
+                .filter_map(|file| file.package_identity),
+        )
+    }
+    /// A projected pending job belongs only to the retained declarations. The
+    /// symbol table may also expose new caller files for future resolution;
+    /// those files do not become old requesters merely by joining lookup.
+    pub fn require_current_program(
+        &self,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        program: &typed_trees::TypedTrees,
+    ) -> Result<(), &'static str> {
+        let requesters = typed_trees::references::collect_program_declarations(program)
+            .into_iter()
+            .filter_map(|symbol| program.symbols.symbol_provenance_source_span(symbol))
+            .filter_map(|span| program.symbols.source_file(span))
+            .filter(|file| file.origin != source::SourceOrigin::Toolchain)
+            .filter_map(|file| file.package_identity);
+        self.require_requesters(authority, requesters)
+    }
+    fn require_requesters(
+        &self,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        requesters: impl Iterator<Item = semantic_vocabulary::PackageKeyIdentity>,
+    ) -> Result<(), &'static str> {
+        match (self, Self::capture(authority)?) {
+            (Self::Absent, Self::Absent) => Ok(()),
+            (Self::Packages(previous), Self::Packages(current)) => {
+                for requester in requesters {
+                    let old = previous
+                        .get(&requester)
+                        .ok_or("retained declaration scope does not cover a requesting package")?;
+                    let new = current
+                        .get(&requester)
+                        .ok_or("current declaration scope does not cover a requesting package")?;
+                    if old != new {
+                        return Err("requesting package declaration scope changed");
+                    }
+                }
+                Ok(())
+            }
+            _ => Err("presence of declaration selection authority changed"),
+        }
+    }
 }

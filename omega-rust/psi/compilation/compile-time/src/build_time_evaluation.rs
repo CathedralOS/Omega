@@ -11,7 +11,7 @@ use typed_trees::references::DeclarationSelection;
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
 /// operand must never promote a Product implementation into callable context.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub(crate) struct EvaluationDomain {
     work: DeclarationSelection,
     execution: DeclarationSelection,
@@ -201,6 +201,7 @@ pub fn evaluate_pre_resolution(
     Ok(PreResolutionEvaluation {
         syntax_trees,
         pre_check: PreCheckEvaluation {
+            recorded_authority: None,
             domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
             placed_view_records,
@@ -326,6 +327,7 @@ impl PreResolutionEvaluation {
 #[derive(Clone)]
 #[must_use = "the matching typed tree must consume this pre-check continuation"]
 pub struct PreCheckEvaluation {
+    recorded_authority: Option<validation::RecordedDeclarationAuthority>,
     /// Work roots, never an arena copy: folded types, evidence and fresh
     /// instances publish in the canonical frontend's original storage.
     domain: EvaluationDomain,
@@ -372,11 +374,28 @@ impl EvaluatedPreCheck {
 }
 
 impl PreCheckEvaluation {
+    /// A disk candidate has no live authority. Only an equal recorded package
+    /// scope and the matching typed source owner permit rebinding it.
+    pub fn rejoin_source_authority(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Result<(), String> {
+        if let Some(recorded) = &self.recorded_authority {
+            recorded.require_current_program(authority.as_deref(), program)?;
+            self.selection_authority = authority;
+            self.recorded_authority = None;
+        }
+        Ok(())
+    }
+
     /// Compare pending work from the same source-preparation owner. An authority
     /// object is opaque: only a shared object can establish the same selection
     /// context here. This is input matching, never permission to execute work.
     pub fn same_pending_work(&self, other: &Self) -> bool {
-        self.domain == other.domain
+        self.recorded_authority.is_none()
+            && other.recorded_authority.is_none()
+            && self.domain == other.domain
             && self.wire_schema_frontier == other.wire_schema_frontier
             && self.placed_view_records == other.placed_view_records
             && self.plan_laid_records == other.plan_laid_records
@@ -481,6 +500,7 @@ impl PreCheckEvaluation {
                 )]
             })?;
         Ok(Self {
+            recorded_authority: self.recorded_authority.clone(),
             domain,
             wire_schema_frontier: self.wire_schema_frontier,
             placed_view_records,
@@ -518,6 +538,11 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         let defer = {
             let _g = phase_profile::guard("evaluate_or_defer.check_defer");
             phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
@@ -609,6 +634,11 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
@@ -629,6 +659,11 @@ impl PreCheckEvaluation {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         self.evaluate_work(typed)?.finish(typed)
     }
 
@@ -637,13 +672,16 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
-        phase_profile::scope("evaluate_or_defer.evaluate_work.const_array_lengths", || {
-            const_lengths::evaluate_const_array_lengths_in(
-                typed,
-                self.selection_authority.clone(),
-                &self.domain,
-            )
-        })?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.const_array_lengths",
+            || {
+                const_lengths::evaluate_const_array_lengths_in(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            },
+        )?;
         phase_profile::scope("evaluate_or_defer.evaluate_work.range_endpoints", || {
             range_endpoints::evaluate_selected_range_endpoints(
                 typed,
@@ -706,12 +744,58 @@ impl PreCheckEvaluation {
         typed.retain_symbolic_constant_recipes();
         // Installed view plans bind their accessor targets before any later
         // continuation consumes them; initializer settlement waits for queries.
-        phase_profile::scope("evaluate_or_defer.evaluate_work.dynamic_call_targets", || {
-            validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())
-        })?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.dynamic_call_targets",
+            || validation::resolve_selected_dynamic_call_targets(typed, self.domain.work()),
+        )?;
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
+        })
+    }
+}
+
+impl compiler_storage::Record for PreCheckEvaluation {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.domain.write(output)?;
+            self.wire_schema_frontier.write(output)?;
+            self.placed_view_records.write(output)?;
+            self.plan_laid_records.write(output)?;
+            let captured;
+            let authority = match &self.recorded_authority {
+                Some(authority) => authority,
+                None => {
+                    captured = validation::RecordedDeclarationAuthority::capture(
+                        self.selection_authority.as_deref(),
+                    )
+                    .map_err(|reason| output.error(reason))?;
+                    &captured
+                }
+            };
+            authority.write(output)?;
+            self.selected_operators.write(output)?;
+            self.provider_bodies.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            Ok(Self {
+                domain: compiler_storage::Record::read(input)?,
+                wire_schema_frontier: compiler_storage::Record::read(input)?,
+                placed_view_records: compiler_storage::Record::read(input)?,
+                plan_laid_records: compiler_storage::Record::read(input)?,
+                recorded_authority: Some(compiler_storage::Record::read(input)?),
+                selection_authority: None,
+                selected_operators: compiler_storage::Record::read(input)?,
+                provider_bodies: compiler_storage::Record::read(input)?,
+            })
         })
     }
 }

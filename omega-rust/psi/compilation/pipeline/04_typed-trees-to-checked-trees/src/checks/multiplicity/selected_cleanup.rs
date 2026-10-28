@@ -942,7 +942,7 @@ fn source_gap(
         program,
         event.machine_symbol,
         site,
-        checked_trees::CheckedUnitPlanGapReason::Unsupported(message),
+        checked_trees::CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(message)),
     )
 }
 

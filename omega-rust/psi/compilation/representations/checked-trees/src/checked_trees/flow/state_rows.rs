@@ -17,13 +17,14 @@ type Arena<T> = arena::PagedArenaSet<T>;
 
 /// Flow-state storage and its derived machine relationships share one owner.
 /// Arena mutation is exposed for producers, but cannot retain a stale index.
-#[derive(Default)]
+#[derive(Default, compiler_storage::Record)]
 pub struct FlowStateTable {
     arena: Arena<FlowStateFact>,
     machine_rows: KeyedRows<SymbolHandle, FlowStateFact>,
     state_rows: KeyedRows<SymbolHandle, FlowStateFact>,
     // The page roster is unchanged throughout an immutable read window.
     // Mutable arena access clears this exact revision together with the rows.
+    #[record(skip)]
     revision: OnceLock<u64>,
 }
 

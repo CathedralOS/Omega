@@ -25,7 +25,7 @@ use language_core::atomic::MemoryOrdering;
 use typed_trees::types::PrimitiveType;
 
 /// The fetch-family arithmetic a read-modify-write applies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum CheckedAtomicReadModifyWrite {
     FetchAdd,
     FetchSub,
@@ -37,7 +37,7 @@ pub enum CheckedAtomicReadModifyWrite {
 /// One normalized atomic event with its orderings and checked operands. Each
 /// operand is the scalar row retained at the carrier statement under
 /// `CheckedScalarExpressionRole::AtomicOperand` with its event-order ordinal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedAtomicEvent {
     Load {
         ordering: MemoryOrdering,
@@ -103,7 +103,7 @@ impl CheckedAtomicEvent {
 /// One atomic event on the scalar field `field_identity` of the record
 /// selected by its ordinary shared structural receiver. The receiver retains
 /// the actual local or parameter home and every stored-reference crossing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedAtomicAccessPlan {
     /// The carrier statement: the assignment for a writing event, the local
     /// for a load. Operand rows are keyed here.

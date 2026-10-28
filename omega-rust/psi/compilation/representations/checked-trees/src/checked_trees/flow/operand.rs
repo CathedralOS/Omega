@@ -5,7 +5,7 @@ use super::FlowConstraintRef;
 
 /// A payload access at its actual evaluation epoch. Geometry names a case;
 /// these live constraints must separately establish that case before access.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCaseAccessFact {
     pub machine_symbol: symbols::SymbolHandle,
     pub state_symbol: symbols::SymbolHandle,
@@ -23,7 +23,7 @@ pub struct FlowCaseAccessFact {
 /// vocabulary. Produced only when the reference resolver can name the
 /// referent precisely; an empty span keeps the operand on context-identity
 /// transport.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandReferent {
     /// Descriptor-formation obligations for this exact namespace, independently
     /// of cases and contents reached below the saved pointer. Zero has no
@@ -39,7 +39,7 @@ pub struct FlowOperandReferent {
 /// its `path` must be selected on that completed value at the actual load.
 /// The saved namespace ends at this descriptor; every later suffix remains
 /// subject to current case evidence. Inventory presence proves no case.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowReferentFormation {
     /// Actual source coordinates paired with source_access. The owned path is
     /// relative to the value, not a suffix to trim from physical geometry.
@@ -57,7 +57,7 @@ pub struct FlowReferentFormation {
 /// A valid view row with no roots is known empty. An aggregate has no own
 /// view dependency; its declared leaves still require independent coverage.
 /// An invalid retention handle means that dependency was unavailable.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetention {
     /// Checked pre-interpretation storage enclosing this pointer. Recasts and
     /// ordinary placed views retain the completed source capture, not its later
@@ -110,19 +110,19 @@ pub struct FlowOperandRetention {
 
 /// One completed input region enclosing a returned footprint. Projection
 /// selects its captured descriptor, not that descriptor's former storage home.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedRegion {
     pub operand: Handle<FlowOperandFact>,
     pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedSupplier {
     pub operand: Handle<FlowOperandFact>,
     pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetainedLeaf {
     pub path: HandleSpan<facts::PlaceSegment>,
     pub retention: Handle<FlowOperandRetention>,
@@ -135,7 +135,7 @@ pub struct FlowOperandRetainedLeaf {
 /// denote storage they read at invocation, so `referents` records the exact
 /// referent custody: the clause's evidence is the facts live on that storage
 /// at invocation, including ones a later operand established.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandFact {
     pub expression: ExpressionHandle,
     /// The state and statement whose evaluation produced this observation.
@@ -186,7 +186,7 @@ pub struct FlowOperandFact {
 /// Retain the evaluated value graph without enumerating combinations of fields
 /// and choices. A selected arm refers to its actual completion, so projections
 /// of one saved selection share its identity and observation epoch.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowOperandCompletion {
     #[default]
     Observation,
@@ -217,7 +217,7 @@ impl FlowOperandFact {
 /// One reachable arm of a completed selection, in first-match order. The
 /// parent operand supplies the evaluation identity; source syntax alone does
 /// not distinguish repeated evaluations of that choice.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandAlternative {
     pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
     pub value: Handle<FlowOperandFact>,
@@ -226,7 +226,7 @@ pub struct FlowOperandAlternative {
 /// One authored child installed at its resolved destination in a completed
 /// record, case, or array. Rows are in evaluation order; paths name declaration
 /// identities and are stored in `FlowControlFacts::operand_child_paths`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandChild {
     /// The actual constructing occurrence, retained even when a later place
     /// projection or reference keeps only its selected storage. Together with
@@ -242,7 +242,7 @@ pub struct FlowOperandChild {
 /// One completed storage observation and the receiver actually evaluated for
 /// it. A scalar result retains no loan, but its read still needs the receiver's
 /// backing until completion. These contexts exclude later statement effects.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowValueObservationFact {
     pub expression: ExpressionHandle,
     pub evaluation: super::FlowPermissionEvaluation,
@@ -265,7 +265,7 @@ pub struct FlowValueObservationFact {
 /// A current guard context about one completed descriptor read, rather than
 /// every possible pointee. Consumers must rejoin its actual receiver, binding epoch,
 /// backing lifetime and content-write frontier before using that namespace.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowDescriptorContextObservation {
     pub context: facts::FactContextHandle,
     pub observation: Handle<FlowValueObservationFact>,
@@ -274,7 +274,7 @@ pub struct FlowDescriptorContextObservation {
 /// Actual source operands of one performed atomic expression. The generated
 /// update formula and result placeholder are not executed inputs. Each source
 /// operand retains its completion before later inputs or the final store.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowAtomicExecutionFact {
     pub state_symbol: symbols::SymbolHandle,
     pub statement_index: usize,
@@ -285,14 +285,14 @@ pub struct FlowAtomicExecutionFact {
 /// One copy completed before selected target operands. `source` is the actual
 /// entry-time value observation; the reference inventory retains descriptors,
 /// never a snapshot of their referee contents.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCopiedValue {
     pub source: Handle<FlowOperandFact>,
     pub references: HandleSpan<FlowCapturedReferenceLeaf>,
     pub uses: HandleSpan<FlowCopiedValueUse>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCapturedReferenceLeaf {
     pub path: HandleSpan<facts::PlaceSegment>,
     pub type_reference: typed_trees::types::TypeReferenceHandle,
@@ -303,7 +303,7 @@ pub struct FlowCapturedReferenceLeaf {
 
 /// An actual read tied to its selected copy, retained by the evaluator rather
 /// than rediscovered by scanning unrelated operands or matching source paths.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCopiedValueUse {
     pub expression: ExpressionHandle,
     pub evaluation: super::FlowPermissionEvaluation,

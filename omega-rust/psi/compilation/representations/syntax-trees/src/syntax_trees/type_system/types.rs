@@ -4,7 +4,7 @@ use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 pub type TypeReferenceFrontier = PagedArenaFrontier<TypeReferenceNode>;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
@@ -20,7 +20,15 @@ pub struct TypeReferenceTable {
 
 /// The exact declaration supplying a substituted operand. This is syntax
 /// custody, not a resolved symbol or portable lifetime identity.
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 struct SuppliedOperandOwner {
     operand: TypeReferenceHandle,
     declaration: crate::item::ItemHandle,
@@ -29,7 +37,15 @@ struct SuppliedOperandOwner {
 /// Private probe custody, never a canonical value or checking receipt. Copies
 /// inside one retained syntax lineage keep the original argument handle even
 /// when provisional applications share a synthesized carrier.
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 struct PendingConstArgument {
     position: TypeReferenceHandle,
     original: TypeReferenceHandle,
@@ -37,13 +53,21 @@ struct PendingConstArgument {
 
 /// Closed interval meaning supplied by typed semantic evaluation. Authored
 /// expressions stay in their constraint and still undergo ordinary checking.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct IntegerRangeNormalization {
     pub minimum: numerics::bignum::BigInt,
     pub maximum: numerics::bignum::BigInt,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 struct RetainedIntegerRangeNormalization {
     owner: TypeReferenceHandle,
     constraints: HandleSpan<TypeConstraintNode>,
@@ -54,7 +78,15 @@ struct RetainedIntegerRangeNormalization {
 /// Exact source custody captured before a selected constant index operand
 /// becomes a canonical value. These coordinates join to the retained declaration;
 /// they are not exported semantic identity.
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct ConstArgumentOrigin {
     pub reference: source::SourceSpan,
     pub declaration: source::SourceSpan,
@@ -63,7 +95,15 @@ pub struct ConstArgumentOrigin {
     pub evaluated_value: language_core::constant_value::EvaluatedConstant,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 struct RetainedConstArgumentNormalization {
     argument: TypeReferenceHandle,
     normalization: ConstArgumentNormalization,
@@ -71,7 +111,7 @@ struct RetainedConstArgumentNormalization {
 
 /// One completed canonical result and the exact selected leaves it consumed.
 /// The selections retain authority custody, not canonical value identity.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ConstArgumentNormalization {
     /// Exact authored structural expression before it becomes an atom. This
     /// carries constructor selections, independently of named-constant origins.
@@ -82,7 +122,15 @@ pub struct ConstArgumentNormalization {
     pub builtin_operators: HandleSpan<source::SourceSpan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 struct GenericApplicationOrigin {
     instance: TypeReferenceHandle,
     application: TypeReferenceHandle,
@@ -756,7 +804,9 @@ impl Default for TypeReferenceTable {
     }
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
@@ -814,7 +864,7 @@ impl TypeReferenceNode {
     }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum FixedArrayLength {
     Literal(usize),
     ConstParameter(Identifier),
@@ -861,7 +911,7 @@ impl FixedArrayLength {
     }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
@@ -879,7 +929,9 @@ pub enum TypeConstraintNode {
     Domain(DomainConstraint),
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct DomainConstraint {
     pub name: Identifier,
     /// Proof-static arguments remain ordinary type-reference leaves until the

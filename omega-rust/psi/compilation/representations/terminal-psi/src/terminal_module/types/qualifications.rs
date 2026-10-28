@@ -160,7 +160,7 @@ pub struct StructuralContentProjection {
 /// One exact qualification carried by a nonempty structural path beneath a
 /// parameter root. The path is occurrence-relative, not a type-wide rule: a
 /// qualification on one field never qualifies a sibling, prefix, or root.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct StructuralPathQualification {
     pub path: Vec<StructuralPathSegment>,
     pub domain: StructuralDomainId,

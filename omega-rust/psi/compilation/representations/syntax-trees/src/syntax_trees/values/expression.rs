@@ -11,7 +11,7 @@ mod tests;
 pub type ExpressionHandle = Handle<ExpressionNode>;
 pub type ExpressionFrontier = PagedArenaFrontier<ExpressionNode>;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
     source_spans: Arena<SourceSpan>,
@@ -313,7 +313,7 @@ impl Default for ExpressionTable {
     }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
     /// An arm-local alias of an enclosing dispatch's completed subject. This
@@ -351,13 +351,29 @@ pub enum ExpressionNode {
 /// the expression rather than reconstructed from the callee's expected type:
 /// `&mut place` and its explicit `&write place` attenuation are distinct
 /// source operations even though both lower to an exclusive pointer ABI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableBorrowExpression {
     pub target: ExpressionHandle,
     pub access: language_core::ReferenceAccess,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     /// Scalar observed-prior destination. Invalid for loads, stores and whole
@@ -373,20 +389,44 @@ impl Default for ExpressionNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableBinaryExpression {
     pub left: ExpressionHandle,
     pub operator: BinaryOperator,
     pub right: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableUnaryExpression {
     pub operator: UnaryOperator,
     pub operand: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     pub target_type: crate::types::TypeReferenceHandle,
@@ -408,26 +448,50 @@ pub struct TableCastExpression {
     pub form: language_core::cast_form::CastForm,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableRangeExpression {
     pub start: ExpressionHandle,
     pub end: ExpressionHandle,
     pub end_inclusive: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableMembershipExpression {
     pub value: ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member: Identifier,
@@ -439,7 +503,7 @@ pub struct TableMemberExpression {
     pub case_variant: Option<Identifier>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target: Identifier,
@@ -454,7 +518,7 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -474,7 +538,7 @@ pub struct StaticMachineArgument {
     pub evidence_projection: Option<EvidenceProjection>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct StaticSymbolApplication {
     /// Explicit erased lifetime arguments. An empty lane may be filled only
     /// by ordinary lifetime elision after the declaration is resolved.
@@ -483,13 +547,13 @@ pub struct StaticSymbolApplication {
     pub arguments: Box<[StaticMachineArgument]>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct EvidenceProjection {
     pub term: Identifier,
     pub member: Identifier,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableStructLiteral {
     /// Complete authored static name; resolution decides whether it selects
     /// a record or a case. Path length does not determine that distinction.
@@ -506,7 +570,7 @@ impl Default for TableStructLiteral {
     }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableStructLiteralField {
     pub name: Identifier,
     pub value: ExpressionHandle,
@@ -521,7 +585,7 @@ impl Default for TableStructLiteralField {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum BinaryOperator {
     Add,
     And,
@@ -543,7 +607,7 @@ pub enum BinaryOperator {
     Subtract,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum UnaryOperator {
     BitwiseNot,
     LogicalNot,
@@ -551,7 +615,14 @@ pub enum UnaryOperator {
 
 /// Ordered value dispatch. The subject is evaluated once before testing arms.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
 )]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
@@ -565,14 +636,28 @@ pub struct TableMatchExpression {
 /// a source expression. Copying a dispatch remaps this row and all arm reads
 /// together; source equality never identifies a runtime evaluation.
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
 )]
 pub struct MatchSubjectCapture {
     pub subject: ExpressionHandle,
 }
 
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
 )]
 pub struct TableSavedSubject {
     pub capture: Handle<MatchSubjectCapture>,
@@ -582,7 +667,14 @@ pub struct TableSavedSubject {
 }
 
 #[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
 )]
 pub struct TableMatchArm {
     pub pattern: MatchPattern,
@@ -590,7 +682,7 @@ pub struct TableMatchArm {
     pub source_span: SourceSpan,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MatchPattern {
     Value(ExpressionHandle),
     Destructure(TableDestructurePattern),
@@ -601,7 +693,7 @@ pub enum MatchPattern {
 /// Retain the authored shape rather than encoding field completeness in a
 /// generated local's name. Bindings read the dispatch's saved subject; their
 /// spelling does not create another value owner or grant reference access.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableDestructurePattern {
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,
@@ -610,13 +702,17 @@ pub struct TableDestructurePattern {
     pub proof_selectors: HandleSpan<crate::statement::TableOutcomeProofSelector>,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableMatchField {
     pub member: Identifier,
     pub action: MatchFieldAction,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum MatchFieldAction {
     Bind(Identifier),
     Equal(ExpressionHandle),

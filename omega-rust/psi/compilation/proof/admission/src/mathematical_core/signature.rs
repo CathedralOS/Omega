@@ -52,7 +52,7 @@ use super::typing::{Context, CoreError, check_type, infer_sort};
 /// `UnboundVariable`. `Level::Parameter(i)` inside either names the
 /// declaration's own `i`-th universe parameter, scope-checked against
 /// `level_arity`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct Declaration {
     /// The number of universe parameters this declaration is
     /// polymorphic over. A `Term::Constant` reference must supply

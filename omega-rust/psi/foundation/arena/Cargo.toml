@@ -9,4 +9,5 @@ name = "arena"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 arc-swap = "1.7"

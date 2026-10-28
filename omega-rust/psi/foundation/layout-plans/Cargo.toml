@@ -12,4 +12,5 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }

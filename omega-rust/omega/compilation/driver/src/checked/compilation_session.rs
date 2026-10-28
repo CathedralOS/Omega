@@ -26,9 +26,14 @@ use compilation_products::{
 use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
 use std::path::PathBuf;
 use std::sync::Arc;
+mod source_graph;
+use source_graph::SourceGraphCache;
 
 #[derive(Default)]
 pub struct CompilationSession {
+    source_graph: Option<SourceGraphCache>,
+    source_graph_loaded: bool,
+    source_graph_changed: bool,
     preparation: compilation_products::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
@@ -38,6 +43,7 @@ pub struct CompilationSession {
 }
 
 struct PreparedSource {
+    restored: bool,
     root: PathBuf,
     inputs: Option<Arc<PackageCompilationSourceInputs>>,
     capture: Option<package_compilation::CapturedLocalSource>,
@@ -45,6 +51,46 @@ struct PreparedSource {
 }
 
 impl CompilationSession {
+    /// Configure optional private persistence before source coordinates exist.
+    /// Storage conveys no source, Build, declaration or permission authority.
+    pub fn with_source_retention(
+        mut self,
+        storage: package_source::storage::RetainedStorageLane,
+    ) -> Self {
+        if self.source_graph_loaded || !self.sources.is_empty() {
+            source_graph::report_miss("source retention was configured after source preparation");
+            return self;
+        }
+        match SourceGraphCache::new(storage) {
+            Ok(cache) => self.source_graph = Some(cache),
+            Err(reason) => source_graph::report_miss(&reason),
+        }
+        self
+    }
+
+    fn restore_source_graph(&mut self) {
+        if self.source_graph_loaded {
+            return;
+        }
+        self.source_graph_loaded = true;
+        let Some(cache) = &self.source_graph else {
+            return;
+        };
+        match cache.load() {
+            Ok(Some(graph)) => {
+                // Decode one coupled owner before any new IDs are allocated.
+                // Every request below still supplies fresh source/custody and
+                // exact frontend inputs; no independently decoded graph joins it.
+                self.preparation = graph.preparation;
+                self.sources = graph.sources;
+                self.checks = graph.checks;
+                phase_profile::count("source.graph.loaded", 1);
+            }
+            Ok(None) => phase_profile::count("source.graph.cold", 1),
+            Err(reason) => source_graph::report_miss(&reason),
+        }
+    }
+
     /// Keep complete immutable component outputs in this invocation. Equal
     /// descriptions alone cannot deduplicate products with different native
     /// proposals; the whole product participates in this comparison.
@@ -224,12 +270,52 @@ impl CompilationSession {
         capture: Option<&package_compilation::CapturedLocalSource>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
+        // Acquisition precedes lookup and consumes no compiler coordinates.
+        // Passing this same capture into assembly avoids a second snapshot.
+        let acquired = if self.source_graph.is_some() && inputs.is_none() && capture.is_none() {
+            Some(package_compilation::capture_anonymous_compilation_source(
+                root_path,
+            )?)
+        } else {
+            None
+        };
+        let canonical_entry = acquired.as_ref().map(|capture| {
+            if root_path == capture.requested_root() {
+                capture.canonical_live_root().to_path_buf()
+            } else {
+                capture
+                    .canonical_live_root()
+                    .join(root_path.file_name().unwrap_or_default())
+            }
+        });
+        let root_path = canonical_entry.as_deref().unwrap_or(root_path);
+        let capture = capture.or(acquired.as_ref());
+        self.restore_source_graph();
         if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
             prepared.root == root_path
                 && prepared.inputs == inputs
                 && prepared.capture.as_ref() == capture
         }) {
-            return Ok(prepared.source.fork());
+            let current_identity = if !prepared.restored || capture.is_some() {
+                true
+            } else if let Some(inputs) = &inputs {
+                match inputs.matches_current_source_identity() {
+                    Ok(current) => current,
+                    Err(reason) => {
+                        source_graph::report_miss(&format!(
+                            "current package source identity: {reason}"
+                        ));
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+            if current_identity {
+                phase_profile::count("source.graph.prepared_hits", 1);
+                return Ok(prepared.source.fork_for_request(collect_timings));
+            }
+            phase_profile::count("source.graph.source_misses", 1);
         }
         let mut source = prepare_checked_source(
             root_path,
@@ -239,6 +325,7 @@ impl CompilationSession {
             self.preparation.clone(),
         )?;
         self.sources.push(PreparedSource {
+            restored: false,
             root: root_path.to_path_buf(),
             inputs,
             capture: capture.cloned(),
@@ -283,6 +370,14 @@ impl CompilationSession {
     }
 
     pub(crate) fn retain(&mut self, checks: &RetainedCompilationChecks) {
+        if checks
+            .build
+            .iter()
+            .chain(checks.product.iter())
+            .any(psi_compiler::RetainedCheck::is_current_strict_judgment)
+        {
+            self.source_graph_changed = true;
+        }
         if let Some(build) = &checks.build {
             retain_judgment(&mut self.checks.sibling_build_checks, build);
         }
@@ -296,7 +391,14 @@ fn retain_judgment(
     checks: &mut Vec<psi_compiler::RetainedCheck>,
     check: &psi_compiler::RetainedCheck,
 ) {
-    if !checks.iter().any(|retained| retained.same_judgment(check)) {
+    if let Some(retained) = checks
+        .iter_mut()
+        .find(|retained| retained.same_judgment(check))
+    {
+        // Exact reuse rejoins authority in this invocation. Keep that current
+        // provenance rather than leaving the decoded partial-body gate cold.
+        *retained = check.clone();
+    } else {
         checks.push(check.clone());
     }
 }
@@ -305,5 +407,48 @@ fn refusal(failure: CompileFailure) -> SelectedCompileOutcome {
     SelectedCompileOutcome {
         result: Err(failure),
         independent_components: IndependentComponentDiscovery::default(),
+    }
+}
+
+impl Drop for CompilationSession {
+    fn drop(&mut self) {
+        if self.source_graph_changed
+            && let Some(cache) = &self.source_graph
+        {
+            // Publish once, after successful strict judgments and fresh admission.
+            // Pure Build returns, grants, staging, sponsors and selected products
+            // are deliberately absent. A failed optional store affects no result.
+            if let Err(reason) = cache.store(&self.preparation, &self.sources, &self.checks) {
+                source_graph::report_miss(&reason);
+            }
+        }
+    }
+}
+
+impl compiler_storage::Record for PreparedSource {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.root.write(output)?;
+            self.inputs.write(output)?;
+            self.capture.write(output)?;
+            self.source.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            Ok(Self {
+                restored: true,
+                root: compiler_storage::Record::read(input)?,
+                inputs: compiler_storage::Record::read(input)?,
+                capture: compiler_storage::Record::read(input)?,
+                source: compiler_storage::Record::read(input)?,
+            })
+        })
     }
 }

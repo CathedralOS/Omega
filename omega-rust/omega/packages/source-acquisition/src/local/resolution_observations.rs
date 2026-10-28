@@ -7,7 +7,7 @@ use std::sync::Arc;
 /// Invocation-owned immutable local source. The root is a routing spelling,
 /// never permission to reopen the checkout after acquisition. Persistence is
 /// a separate operation for transaction and review custody.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedLocalSource {
     pub(super) requested_root: PathBuf,
     pub(super) normalized: ResolvedSourceTree,

@@ -18,7 +18,7 @@ use std::sync::Arc;
 /// splice, and table↔tree conversion carries it). Foundation-layer mirror of
 /// the representations' integer `PrimitiveType` subset; the stamping sites map
 /// between them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum LandedIntegerType {
     I8,
     I16,
@@ -95,7 +95,7 @@ impl LandedIntegerType {
 
 /// A landed constant's riding facts: the integer type it was rendered at and
 /// the arithmetic domain governing further folds (decision 17).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerLanding {
     pub landed_type: LandedIntegerType,
     pub domain: crate::arithmetic::ArithmeticDomain,
@@ -103,7 +103,7 @@ pub struct IntegerLanding {
 
 /// A float FORMAT a literal has landed at (F2, the float half of the ch5
 /// two-phase law). Names mean formats permanently: `f32` never rebinds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum FloatFormat {
     F32,
     F64,
@@ -129,7 +129,7 @@ impl FloatFormat {
 /// suffix (`1.5f32`) is a parse-site landing, exactly the integer carrier's
 /// CR4a. Equality is TEXT-ONLY like IntegerLiteral: spelling is identity,
 /// the landing is metadata.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct FloatLiteral {
     text: Arc<str>,
     landing: Option<FloatFormat>,
@@ -280,7 +280,7 @@ fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
 /// Radix of an integer literal's digits. Deliberately local to `numerics` so
 /// the foundation layer does not depend on the token crate's `NumericBase`
 /// (the parser maps between them).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum IntegerRadix {
     Binary,
     Octal,
@@ -311,12 +311,12 @@ impl IntegerRadix {
 /// Canonical integer spelling compressed by magnitude. Radix and sign remain
 /// part of spelling identity; landing remains site metadata. Arbitrary authored
 /// magnitudes retain canonical text, so this storage choice imposes no width.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct IntegerLiteral {
     representation: IntegerRepresentation,
 }
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 enum IntegerRepresentation {
     Small {
         magnitude: u64,

@@ -9,7 +9,7 @@ use semantic_vocabulary::OperationId;
 
 /// Exact checked application and demanded static slots in this code owner.
 /// This is source-issued companion context, not authority derived from bytes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildProviderRequirement {
     pub declaration: terminal_psi::NominalDeclarationIdentity,
     pub application: terminal_psi::TerminalIdentityIndex,
@@ -18,7 +18,7 @@ pub struct TerminalBuildProviderRequirement {
 
 pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProviderRequirement>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
     Prepare,
@@ -28,7 +28,7 @@ pub enum TerminalBuildBindingOperation {
     Exclude,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildBindingCall {
     pub operation: OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
@@ -70,9 +70,9 @@ impl TerminalBuildBindings {
 
     pub(super) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
-        calls: Vec<TerminalBuildBindingCall>,
-        declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
-        queries: Vec<crate::TerminalBuildQueryCall>,
+        calls: impl Into<std::sync::Arc<[TerminalBuildBindingCall]>>,
+        declarations: impl Into<std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>>,
+        queries: impl Into<std::sync::Arc<[crate::TerminalBuildQueryCall]>>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),

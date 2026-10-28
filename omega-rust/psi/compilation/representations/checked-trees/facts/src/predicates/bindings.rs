@@ -6,7 +6,7 @@ use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct BooleanPredicate {
     pub role: BooleanPredicateRole,
     pub machine: SymbolHandle,
@@ -27,7 +27,7 @@ impl Default for BooleanPredicate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct BooleanPredicateBinding {
     /// One existing scalar observation in the formula, including its original
     /// dense scalar or authored structural parameter position and field path.
@@ -50,7 +50,7 @@ impl Default for BooleanPredicateBinding {
 
 /// Historical entry conditions describe control reachability, never current
 /// storage. An untransportable guard explicitly blocks entry-condition proof.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BooleanPredicateRole {
     #[default]
     CurrentObservation,

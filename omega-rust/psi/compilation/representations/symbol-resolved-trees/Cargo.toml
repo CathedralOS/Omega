@@ -9,6 +9,7 @@ name = "symbol_resolved_trees"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }

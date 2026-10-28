@@ -7,7 +7,7 @@ use typed_trees::type_identity::TypeIdentityId;
 /// conversion: the selector value the conversion produces names exactly this
 /// implementation's table. Lowering consumes these rows; it never rediscovers
 /// an implementation from names or data types.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DynamicSelectionFact {
     pub occurrence: ExpressionHandle,
     pub machine: SymbolHandle,
@@ -22,7 +22,7 @@ pub struct DynamicSelectionFact {
     pub rows: Vec<DynamicConformanceRowFact>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DynamicConformanceRowFact {
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
@@ -44,14 +44,14 @@ pub struct DynamicConformanceRowFact {
     pub source: DynamicConformanceRowSource,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum DynamicConformanceRowSource {
     Inline,
     Reference,
     TraitDefault,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DynamicConformanceFacts {
     pub selections: Vec<DynamicSelectionFact>,
 }

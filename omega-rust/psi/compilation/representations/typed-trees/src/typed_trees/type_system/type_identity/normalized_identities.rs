@@ -9,7 +9,9 @@
 /// state; no consumer wraps this handle in an `Option`. Equality and hashing
 /// are handle comparisons inside one program's table — two tables each mint
 /// their own handle space, so joins across programs rehydrate through text.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct TypeIdentityId(u32);
 
 impl TypeIdentityId {
@@ -36,7 +38,7 @@ pub type NormalizedTypeIdentity = TypeIdentityId;
 /// within a revision, so a handle stays valid for as long as the table it
 /// came from; the rendered text is the structural key, so the map needs no
 /// revision guard of its own.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub struct TypeIdentityTable {
     texts: Vec<Box<str>>,
     slots: std::collections::HashMap<Box<str>, TypeIdentityId, symbols::BuildSymbolHasher>,
@@ -77,7 +79,7 @@ impl TypeIdentityTable {
 /// establishment route, and explicit empty tags remain dispatch-bearing. Terms
 /// are sorted and deduplicated so authored conjunction order cannot affect
 /// overload identity.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct NormalizedResultDispatchSet {
     pub(crate) terms: Vec<NormalizedDomainTerm>,
 }
@@ -104,7 +106,7 @@ impl NormalizedResultDispatchSet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum NormalizedDomainTerm {
     Arithmetic(String),
     Compiler(String),

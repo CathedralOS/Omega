@@ -13,7 +13,7 @@ use crate::typed_trees::ClosedConformanceApplication;
 /// a view, a provider receipt or evidence that initialization has executed.
 /// The zero arena slot is absent; populated rows retain the complete plan,
 /// including fields inaccessible through a placed accessor.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum PlacementLifecyclePlan {
     #[default]
     Absent,
@@ -31,7 +31,7 @@ pub enum PlacementLifecyclePlan {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum PlacementLifecycleOperation {
     Initialize,
     MoveOut,
@@ -111,7 +111,7 @@ impl crate::TypedTrees {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlacedViewPlan {
     /// Exact sealed source family whose closed P/T application this realizes.
     /// Invalid only for source-free derivation with no canonical interface.
@@ -132,7 +132,7 @@ pub struct PlacedViewPlan {
     pub fields: Vec<PlacedFieldPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlacedFieldPlan {
     /// Exact normalizer-issued field key; later retention never selects by spelling.
     pub access_key: access_plans::AccessFieldKey,
@@ -219,7 +219,7 @@ impl PlacedFieldPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlacedAtomicResidentContract {
     /// Exact source field whose resident type is described.
     pub field_symbol: symbols::SymbolHandle,
@@ -236,13 +236,13 @@ pub struct PlacedAtomicResidentContract {
     pub observing_results: Vec<PlacedAtomicObservingResultContract>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlacedAtomicObservingResultContract {
     pub operation: language_core::atomic::AtomicObservingCompareExchangeOperation,
     pub result_shape: language_core::atomic::AtomicObservingCompareExchangeResultShape,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlacedAccessorTarget {
     pub operation: String,
     pub machine_symbol: symbols::SymbolHandle,
@@ -267,7 +267,7 @@ pub(crate) fn named_type_reference_through_shells(
 
 /// One exact policy/schema application. Every retained geometry is validated;
 /// target-family alternatives remain guarded until target closure.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidLayout {
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
     /// Diagnostic/source-oriented presentation only.
@@ -292,13 +292,13 @@ pub struct PlanLaidLayout {
 
 /// Versioned active rows of the compiler-owned Schema ABI. Version 1 has a
 /// record shape, no cases or retired identities, and fixed unused-row padding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidSchemaArgument {
     pub abi_version: u16,
     pub fields: arena::HandleSpan<PlanLaidSchemaField>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidSchemaField {
     pub schema_field: symbols::SymbolHandle,
     pub key: u64,
@@ -308,21 +308,21 @@ pub struct PlanLaidSchemaField {
     pub kind: PlanLaidSchemaFieldKind,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum PlanLaidSchemaFieldKind {
     #[default]
     Scalar,
     Nested,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum PlanLaidRealizations {
     Invariant(PlanLaidGeometry),
     TargetFamily(arena::HandleSpan<PlanLaidTargetLayout>),
 }
 
 /// Exact member identity accompanies its geometry even for literal-only policies.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidTargetLayout {
     pub target: crate::name::Identifier,
     pub machine: symbols::SymbolHandle,
@@ -386,7 +386,7 @@ impl PlanLaidLayout {
 }
 
 /// One fully static geometry, derived only from a validated policy result.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidGeometry {
     /// Exact validated target-neutral geometry from which the host-sized
     /// consumer projections below were derived.
@@ -514,19 +514,19 @@ impl Default for PlanLaidGeometry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidRepeatedField {
     pub field_index: usize,
     pub element_stride: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidBitField {
     pub field_index: usize,
     pub fragments: Vec<PlanLaidBitFragment>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidIntegerField {
     pub field_index: usize,
     pub stored_width_bits: u16,
@@ -536,7 +536,7 @@ pub struct PlanLaidIntegerField {
     pub write_is_total: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidBitFragment {
     pub container_byte_offset: usize,
     pub container_width_bits: u16,

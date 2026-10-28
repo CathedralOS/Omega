@@ -10,6 +10,9 @@ autotests = false
 
 
 [dependencies]
+cap-std = "4.0.3"
+package-source = { path = "../../packages/source-acquisition" }
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
@@ -56,7 +59,6 @@ optimization-core = { path = "../../foundation/optimization-core" }
 [dev-dependencies]
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }
-package-source = { path = "../../packages/source-acquisition" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
 

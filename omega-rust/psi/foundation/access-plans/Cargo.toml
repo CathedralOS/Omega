@@ -9,6 +9,7 @@ name = "access_plans"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 extents = { path = "../extents" }
 language-core = { path = "../language-core" }
 layout-plans = { path = "../layout-plans" }

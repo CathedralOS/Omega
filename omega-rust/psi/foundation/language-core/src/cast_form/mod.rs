@@ -4,7 +4,7 @@
 //! tree so no phase can silently treat a re-view as a conversion.
 
 /// Which `as` a cast expression spells.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum CastForm {
     /// `x as T` — value conversion (decision 17's domain retag rides here).
     #[default]

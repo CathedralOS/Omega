@@ -7,7 +7,14 @@ use crate::identifier::Identifier;
 use crate::statement::StatementHandle;
 use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
 
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct AssemblyControlFlow {
     /// The intersection of instruction and register-view catalog demands.
     pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
@@ -31,7 +38,9 @@ impl Default for AssemblyControlFlow {
     }
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct AssemblyBlock {
     pub label: Identifier,
     pub requires: HandleSpan<ExpressionHandle>,
@@ -40,7 +49,9 @@ pub struct AssemblyBlock {
     pub exit: AssemblyExit,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum AssemblyExit {
     #[default]
     Fallthrough,
@@ -52,7 +63,7 @@ pub enum AssemblyExit {
     EnclosingTransition,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub(crate) struct AssemblyTable {
     graphs: Arena<AssemblyControlFlow>,
     blocks: Arena<AssemblyBlock>,

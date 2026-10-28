@@ -246,7 +246,8 @@ pub use value_custody::intrinsic_boundaries::validate_boundary_completion_declar
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
 pub use crate::declarations::selection_authority::{
-    DeclarationSelectionAuthority, validate_authored_declaration_selections,
+    DeclarationSelectionAuthority, RecordedDeclarationAuthority,
+    validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
     RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,

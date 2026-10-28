@@ -18,7 +18,7 @@ use std::sync::MutexGuard;
 pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 7;
 
 /// Immutable limits for one shared build-evaluation resource account.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct BuildEvaluationSponsorLimits {
     maximum_fuel_units: u64,
     maximum_build_log_bytes: u64,

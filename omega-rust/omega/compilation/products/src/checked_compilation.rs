@@ -24,7 +24,7 @@ pub use report::{CheckedProductReport, ProductReportPlan, ProductReportRequest};
 /// Invocation-local language judgments retained by the compiler session. Build
 /// and Product are independent checked programs; neither judgment carries
 /// provider selection, executor resources or consent.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct RetainedCompilationChecks {
     pub build: Option<psi_compiler::RetainedCheck>,
     pub product: Option<psi_compiler::RetainedCheck>,

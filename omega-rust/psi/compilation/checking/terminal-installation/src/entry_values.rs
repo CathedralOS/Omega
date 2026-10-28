@@ -9,7 +9,7 @@ use terminal_psi::{StructuralPathSegment, TerminalPlacedViewInput};
 /// argument forwarding and deterministic effect observation. Psi never treats
 /// it as an address or layout. Qualification IDs are semantic runtime facts
 /// supplied by the root installation and must be strictly increasing.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct TerminalStructuralValue {
     pub opaque_identity: u64,
     pub structural_type: StructuralTypeId,

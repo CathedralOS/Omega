@@ -7,7 +7,7 @@ use source::SourceSpan;
 pub type StatementHandle = Handle<StatementNode>;
 
 /// A Build declaration with product-context operands, never a runtime call.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct RootBinding {
     pub receiver: crate::expression::ExpressionHandle,
     pub slot: Box<[Identifier]>,
@@ -21,7 +21,7 @@ pub struct RootBinding {
 }
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct StatementTable {
     assembly: AssemblyTable,
     statements: Arena<StatementNode>,
@@ -237,7 +237,7 @@ impl Default for StatementTable {
     }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum StatementNode {
     Assembly(Handle<AssemblyControlFlow>),
     RootBinding(RootBinding),
@@ -253,13 +253,13 @@ pub enum StatementNode {
 /// Immediate selective binding of named proof outputs from one call. This is
 /// deliberately distinct from record destructuring: the receiver is evaluated
 /// once and no proof output is represented by a runtime member read.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableProofOutputBindingStatement {
     pub bindings: Box<[TableProofOutputSelector]>,
     pub call: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableProofOutputSelector {
     pub output_field: Identifier,
     pub binding: Identifier,
@@ -268,19 +268,29 @@ pub struct TableProofOutputSelector {
 /// One erased caller-local selection from an outcome-specific guarantee lane.
 /// This is attached to an exact transition arm and never becomes a runtime
 /// payload field or statement.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableOutcomeProofSelector {
     pub output_field: Identifier,
     pub binding: Identifier,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableAssemblyFact {
     pub kind: AssemblyFactKind,
     pub expression: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AssemblyFactKind {
     Requires,
     Ensures,
@@ -292,13 +302,23 @@ impl Default for StatementNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableAssignment {
     pub target: crate::expression::ExpressionHandle,
     pub value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableCall {
     pub receiver: HandleSpan<Identifier>,
     pub target: Identifier,
@@ -313,7 +333,9 @@ pub struct TableCall {
     pub discards_result: bool,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
     pub name: Identifier,
@@ -327,7 +349,15 @@ pub struct TableLocalData {
     pub relevance: language_core::BindingRelevance,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
@@ -364,20 +394,22 @@ impl Default for TableTransition {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionExit {
     #[default]
     Ordinary,
     Crash(crate::item::CrashCause),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionGuardNode {
     Always,
     When(crate::expression::ExpressionHandle),
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum TransitionTargetNode {
     Named {
         path: HandleSpan<Identifier>,

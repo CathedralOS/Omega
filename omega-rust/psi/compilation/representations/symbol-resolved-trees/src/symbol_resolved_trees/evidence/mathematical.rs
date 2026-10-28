@@ -12,7 +12,7 @@ use symbols::SymbolHandle;
 /// named-assumption absence a `boundary let` declares. It owns no executable
 /// signature, effects, or runtime body; the typed-trees elaboration leg turns
 /// this resolved shape into the checked proof surface.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MathematicalDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -31,7 +31,7 @@ pub struct MathematicalDefinition {
 
 /// One telescope parameter (`name [erased]?: MathematicalType`). The type is
 /// the mathematical type grammar, so `f: A -> B` is legal here.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MathematicalParameter {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -44,7 +44,7 @@ pub type MathematicalTypeHandle = Handle<MathematicalType>;
 /// The declaration-local type grammar for mathematical declarations. Arrows
 /// and value-level applications stay out of `TypeReference` deliberately —
 /// they are proof-surface structure, not machine type syntax.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum MathematicalType {
     /// An ordinary resolved type reference (`usize`, `A`, `core::Type<u>`).
     Ordinary(TypeReference),
@@ -72,7 +72,7 @@ impl Default for MathematicalType {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MathematicalBody {
     /// `boundary let ...;` — a named assumption with no body. The default is
     /// the bodyless placeholder, matching how every other root arena defaults.

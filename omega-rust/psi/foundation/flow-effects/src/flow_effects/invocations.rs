@@ -1,6 +1,6 @@
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum InvocationTarget {
     /// Positional identity in the callable's non-`self` entry parameters.
     Parameter(u32),

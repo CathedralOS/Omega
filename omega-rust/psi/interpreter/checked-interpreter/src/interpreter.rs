@@ -143,7 +143,7 @@ pub enum BuildMachineEntry<'a> {
 /// An exact family-body selection supplied by the realization owner. Psi knows
 /// membership, not deployment policy: the caller chooses a retained checked body
 /// and both admission and execution consume that same identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct SelectedBuildTimeMachineBody {
     pub family: SymbolHandle,
     pub body: SymbolHandle,

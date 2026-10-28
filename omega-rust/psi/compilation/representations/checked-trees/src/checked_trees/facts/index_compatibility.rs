@@ -6,7 +6,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 /// The only three PDI3 routes that may discharge equality between an actual
 /// proof-static index and the index required at a value-flow boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum IndexCompatibilityDischarge {
     ClosedEvaluation,
     LicensedNormalization {
@@ -25,7 +25,7 @@ pub enum IndexCompatibilityDischarge {
 /// One named verification condition produced by using a proof-static indexed
 /// value where another indexed instance is expected. These rows are checked
 /// evidence, deliberately separate from semantic domain/type identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct IndexCompatibilityFact {
     pub name: String,
     pub point: ProgramPoint,
@@ -39,7 +39,7 @@ pub struct IndexCompatibilityFact {
     pub discharge: IndexCompatibilityDischarge,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct IndexCompatibilityFacts {
     pub conditions: Vec<IndexCompatibilityFact>,
 }

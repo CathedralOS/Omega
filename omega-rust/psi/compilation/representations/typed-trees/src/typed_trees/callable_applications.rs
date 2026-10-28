@@ -153,7 +153,7 @@ impl TypedTrees {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct AppliedCallableSignature {
     owner: AppliedCallableOwner,
     signature: signature::StateSignature,
@@ -177,7 +177,7 @@ impl AppliedCallableSignature {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 enum AppliedCallableOwner {
     #[default]
     Absent,
@@ -216,7 +216,7 @@ enum AppliedCallableOwner {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallableSubstitution {
     pub parameter: SymbolHandle,
     pub actual: types::TypeReferenceHandle,

@@ -4,6 +4,7 @@
 //! selects the page and its arena index selects the page-local slot. Semantic
 //! spans remain within one page and therefore continue to resolve as slices.
 
+use compiler_storage::Record;
 mod page;
 use page::ArenaPage;
 use std::marker::PhantomData;
@@ -704,5 +705,89 @@ mod tests {
         assert_eq!(set.page_count(), 1);
         let handle = set.append("gamma".to_owned());
         assert_eq!((handle.generation(), handle.arena_index()), (1, 1));
+    }
+}
+
+impl<T> compiler_storage::Record for PagedArenaFrontier<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.generation.write(output)?;
+        self.next_arena_index.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let generation = u32::read(input)?;
+        let next_arena_index = u32::read(input)?;
+        if generation == 0 || next_arena_index == 0 {
+            return Err(input.error("paged arena frontier has an invalid coordinate"));
+        }
+        Ok(Self {
+            generation,
+            next_arena_index,
+            marker: PhantomData,
+        })
+    }
+}
+impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::Record
+    for PagedArenaSet<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.first_generation.write(output)?;
+            self.first_page.write(output)?;
+            self.additional_pages.write(output)?;
+            self.current_generation.write(output)?;
+            self.active_count.write(output)?;
+            self.dummy.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let result = Self {
+                first_generation: u32::read(input)?,
+                first_page: ArenaPage::read(input)?,
+                additional_pages: Vec::read(input)?,
+                current_generation: u32::read(input)?,
+                active_count: usize::read(input)?,
+                dummy: T::read(input)?,
+            };
+            if result.first_generation == 0
+                || result
+                    .page_for_generation(result.current_generation)
+                    .is_none()
+                || result.first_page.storage_view().fresh_generation != result.first_generation
+            {
+                return Err(input.error("paged arena has an invalid first or current page"));
+            }
+            for (position, page) in result.additional_pages.iter().enumerate() {
+                let generation = u32::try_from(position)
+                    .ok()
+                    .and_then(|position| position.checked_add(1))
+                    .and_then(|offset| result.first_generation.checked_add(offset))
+                    .ok_or_else(|| input.error("paged arena generation overflow"))?;
+                if page
+                    .as_ref()
+                    .is_some_and(|page| page.storage_view().fresh_generation != generation)
+                {
+                    return Err(input.error("paged arena slot disagrees with its page generation"));
+                }
+            }
+            if result
+                .pages()
+                .try_fold(0usize, |sum, page| sum.checked_add(page.len()))
+                != Some(result.active_count)
+            {
+                return Err(input.error("paged arena live row count disagrees with its pages"));
+            }
+            Ok(result)
+        })
     }
 }

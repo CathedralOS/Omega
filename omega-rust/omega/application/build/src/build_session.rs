@@ -21,7 +21,7 @@ impl BuildSession {
     pub fn create(workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
         let packages = PackageBuildSession::create(workspace)?;
         Ok(Self {
-            compiler: CompilationSession::default(),
+            compiler: compiler_session(),
             packages,
         })
     }
@@ -47,5 +47,20 @@ impl BuildSession {
         Error: std::fmt::Display + From<CompileResolvedPackageReviewsError>,
     {
         self.packages.dispose(result)
+    }
+}
+
+/// Both standalone requests and package workflows configure the same optional
+/// compiler-private store before source preparation. Cache setup never admits
+/// source or prevents a cold compilation.
+pub(crate) fn compiler_session() -> CompilationSession {
+    match package_manager::retain_compiler_source_storage(None) {
+        Ok(storage) => CompilationSession::default().with_source_retention(storage),
+        Err(reason) => {
+            if std::env::var_os("OMEGA_PHASE_PROFILE").is_some_and(|value| value != "0") {
+                eprintln!("compiler source retention unavailable: {reason}");
+            }
+            CompilationSession::default()
+        }
     }
 }

@@ -1,5 +1,5 @@
 /// A requested compatibility property, not an executable declaration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum WireCompatibilityFact {
     Readable,
     Writable,
@@ -23,7 +23,7 @@ impl WireCompatibilityFact {
 
 /// Directional facts requested for one channel/store edge and format lineage.
 /// Build supplies these declarations; Psi checking decides whether they hold.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireCompatibilityDemand {
     pub edge: String,
     pub lineage: String,

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Item;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(super) struct ImportOccurrence {
     source: SourceId,
     ordinal: usize,
@@ -35,14 +35,14 @@ impl ImportOccurrence {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ResolvedSourceImport {
     pub(super) occurrence: ImportOccurrence,
     pub path: PathBuf,
     pub(super) requires_module: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct PendingPackageImport {
     pub(super) occurrence: ImportOccurrence,
     /// The importer's checked instance. Retained so exact-target resolution

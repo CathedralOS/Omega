@@ -4,7 +4,7 @@ use arena::HandleSpan;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OperatorDefinition {
     pub is_public: bool,
     pub is_boundary: bool,

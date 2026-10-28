@@ -20,7 +20,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
 /// Private selection state; transient symbols never escape into normalized syntax.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
     retained: Option<SelectionBase<'base>>,
@@ -1289,5 +1289,26 @@ mod retained_namespace_tests {
         }));
         ConstantSelection::new(&syntax, None, Vec::new())
             .expect("namespace registration retains source ownership before cloning names");
+    }
+}
+
+// Only the deferred frontier's owned predecessor is persistent. Normalization's
+// temporary borrow cannot escape as an independently restorable source owner.
+impl compiler_storage::Record for SelectionBase<'_> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        match self {
+            Self::Shared(base) => compiler_storage::Record::write(base, output),
+            Self::Borrowed(_) => {
+                Err(output.error("borrowed declaration selection is not a persistent frontier"))
+            }
+        }
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        compiler_storage::Record::read(input).map(Self::Shared)
     }
 }

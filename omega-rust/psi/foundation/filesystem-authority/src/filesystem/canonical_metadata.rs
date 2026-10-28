@@ -35,7 +35,7 @@ pub fn canonical_filesystem_metadata_path_is_canonical(relative: &[u8], allow_em
 }
 
 /// Closed source entry shape from which package-visible metadata is derived.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CanonicalFilesystemMetadataRowKind {
     Directory,
     File {
@@ -164,7 +164,7 @@ impl std::error::Error for CanonicalFilesystemMetadataIndexError {}
 /// The source-content commitment is deliberately opaque to Psi. The package
 /// resolver owns its construction and the compiler binds it to the source
 /// identity; the interpreter only enforces the closed metadata policy.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CanonicalFilesystemMetadataIndex {
     pub(crate) policy_version: u32,
     pub(crate) source_content_commitment: [u8; 32],

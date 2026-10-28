@@ -3,7 +3,7 @@
 /// The in-memory representation accepts only the vocabulary it was built with.
 /// The terminal codec rejects prior wire vocabularies before constructing this
 /// marker; it does not migrate artifacts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct VocabularyMarker;
 
 impl VocabularyMarker {
