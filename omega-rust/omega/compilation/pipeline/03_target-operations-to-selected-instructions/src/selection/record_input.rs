@@ -118,6 +118,27 @@ pub(super) fn field_shape(
     }
 }
 
+/// Every source declaration naming `place`, in declaration order: the
+/// signature's parameters and the structural parameters of non-entry blocks.
+fn place_parameters<'a>(
+    source: &'a LegalizedScalarFunction,
+    signature: &'a legalized_operations::LegalizedStructuralContract,
+    place: semantic_vocabulary::PlaceId,
+) -> impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration> + 'a {
+    signature
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .chain(
+            source
+                .blocks
+                .iter()
+                .filter(move |block| block.id != source.entry_block)
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .filter(move |parameter| parameter.place == place)
+}
+
 /// Completed structural operands share one type and storage query across record
 /// members, selected payloads and fixed-array elements. Psi owns whether the
 /// value copies or moves; native transport copies the same stored descriptor
@@ -152,18 +173,7 @@ pub(super) fn structural_operand_shape(
                 return None;
             }
             let signature = source.structural.as_ref()?;
-            let mut parameters = signature
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.semantic)
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
-                )
-                .filter(|parameter| parameter.place == argument.place);
+            let mut parameters = place_parameters(source, signature, argument.place);
             let child_type = if let Some(parameter) = parameters.next() {
                 if parameters.next().is_some()
                     || parameter.access != terminal_psi::StructuralAccess::Owned
@@ -256,19 +266,7 @@ pub(super) fn structural_operand_shape(
                 return None;
             }
             let signature = source.structural.as_ref()?;
-            let parameters = signature
-                .parameters
-                .iter()
-                .map(|parameter| &parameter.semantic)
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
-                );
-            let mut matches = parameters
-                .filter(|parameter| parameter.place == argument.place)
+            let mut matches = place_parameters(source, signature, argument.place)
                 .map(|parameter| {
                     (
                         parameter.structural_type,
@@ -379,18 +377,7 @@ pub(super) fn projected_operand(
         return None;
     }
     let signature = source.structural.as_ref()?;
-    let mut parameters = signature
-        .parameters
-        .iter()
-        .map(|parameter| &parameter.semantic)
-        .chain(
-            source
-                .blocks
-                .iter()
-                .filter(|block| block.id != source.entry_block)
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .filter(|parameter| parameter.place == argument.place);
+    let mut parameters = place_parameters(source, signature, argument.place);
     // Claims and root/projected memberships stay on the exact checked operand
     // and result. This query resolves its physical type and displacement; none
     // of that semantic custody adds bytes or grants another transfer.
