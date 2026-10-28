@@ -48,16 +48,22 @@ def validate_artifacts(snapshot, entry, output):
     specification.loader.exec_module(module)
     image = output / 'omega-program'
     dependencies = module.Elf(image.read_bytes(), 2).needed()
-    dependency = dependencies[0].decode() if len(dependencies) == 1 else ''
-    filename = dependency.removeprefix('$ORIGIN/')
-    if not filename or Path(filename).name != filename or dependency != '$ORIGIN/' + filename:
-        raise ValueError('expected exactly one local native component')
-    component = output / filename
-    module.component(component.read_bytes())
-    description = component.with_suffix('.so.component')
-    if not description.is_file() or not description.stat().st_size:
-        raise ValueError('missing native component description')
-    return [image, component, description]
+    if len(dependencies) != entry.get('component_count', 1) or len(set(dependencies)) != len(dependencies):
+        raise ValueError('unexpected native component count')
+    paths = [image]
+    for dependency_bytes in dependencies:
+        dependency = dependency_bytes.decode()
+        filename = dependency.removeprefix('$ORIGIN/')
+        if not filename or Path(filename).name != filename or '/' in filename or '\\' in filename or ':' in filename or dependency != '$ORIGIN/' + filename:
+            raise ValueError('expected a local native component')
+        component = output / filename
+        module.component(component.read_bytes())
+        description = component.with_suffix('.so.component')
+        if not description.is_file() or not description.stat().st_size:
+            raise ValueError('missing native component description')
+        paths.extend([component, description])
+    return paths
+
 
 
 def compile_entry(compiler, snapshot, entry, directory):

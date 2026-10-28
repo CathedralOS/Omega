@@ -127,3 +127,9 @@ The coordination claim attempt timed out twice with an uncertain publication
 result. A subsequent successful registry read contained no matching ticket
 `e7688d468b0d41c299320f0e5ad9e64c`; no registered claim or release is asserted.
 All edits and builds are isolated in `.agents/worktree/cathedral-benchmark`.
+
+## Shared UI compilation follow-up
+
+[The measured implementation](shared/README.md) combines layout and frame in one
+export probe. Both exports remain required; the current composition has seven
+compiler roots. This original baseline retains its eight-root input definition.

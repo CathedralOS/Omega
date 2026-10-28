@@ -24,6 +24,10 @@ Compare both artifacts and runtime oracles; alter a dependency contract to
 verify stale results cannot survive. Reject this candidate if duplicate work
 is small or the end-to-end saving is lost to retention overhead.
 
-No prototype or measured reuse benefit yet. Persistence and a general query
+At that initial checkpoint there was no prototype or measured reuse benefit. Persistence and a general query
 engine are deferred until measured reuse justifies their costs. Cold full
 composition and incremental edit latency remain separate acceptance metrics.
+
+The completed experiment and selected implementation are recorded in
+[shared compilation](shared/README.md). One existing Build requesting both exports
+removes more repeated work than retaining a compiler across two root builds.

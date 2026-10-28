@@ -275,7 +275,7 @@ impl CompilationSession {
     ) -> Result<PreparedCheckedSource, CompileFailure> {
         // Acquisition precedes lookup and consumes no compiler coordinates.
         // Passing this same capture into assembly avoids a second snapshot.
-        let acquired = if self.source_graph.is_some() && inputs.is_none() && capture.is_none() {
+        let acquired = if inputs.is_none() && capture.is_none() {
             Some(package_compilation::capture_anonymous_compilation_source(
                 root_path,
             )?)

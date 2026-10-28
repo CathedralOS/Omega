@@ -51,6 +51,30 @@ class CathedralBenchmarkTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 benchmark.compile_entry(directory / 'compiler', directory, entry, directory)
 
+    def test_combined_exports_require_both_components_and_descriptions(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / 'omega-program').write_bytes(b'consumer')
+            for name in ('layout.so', 'frame.so'):
+                (directory / name).write_bytes(b'image')
+                (directory / (name + '.component')).write_bytes(b'description')
+            dependencies = [b'$ORIGIN/layout.so', b'$ORIGIN/frame.so']
+            module = SimpleNamespace(Elf=lambda *unused: SimpleNamespace(needed=lambda: dependencies),
+                                     component=lambda image: None)
+            specification = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+            with patch.object(benchmark.importlib.util, 'spec_from_file_location', return_value=specification), \
+                    patch.object(benchmark.importlib.util, 'module_from_spec', return_value=module):
+                entry = dict(kind='component', component_count=2)
+                self.assertEqual(len(benchmark.validate_artifacts(directory, entry, directory)), 5)
+                dependencies.pop()
+                with self.assertRaises(ValueError):
+                    benchmark.validate_artifacts(directory, entry, directory)
+                dependencies.append(b'$ORIGIN/frame.so')
+                (directory / 'frame.so.component').unlink()
+                with self.assertRaises(ValueError):
+                    benchmark.validate_artifacts(directory, entry, directory)
+
     def test_partial_composition_has_no_full_compile_metric(self):
         entries = [dict(name='kernel'), dict(name='matrix')]
         rows = [dict(name='kernel', compile=dict(exit_code=0, artifact_valid=True, wall_ms=12))]

@@ -24,8 +24,10 @@ Run `python tools/benchmark/cathedral.py --compiler <optimized-omega>
 The source manifest maps snapshot-relative names to `sha256` and `bytes`.
 Use the preparation ceremony below when the snapshot needs package acceptance.
 The runner verifies input and compiler hashes, uses fresh output directories,
-and emits a full compile metric only when all eight entries compile and their
-expected artifacts pass structural checks. Runtime validation is separate.
+and emits a full compile metric only when all seven entries compile and their
+expected artifacts pass structural checks. UI layout and frame share one export
+probe; both components are still required. Older records retain their original
+eight-entry composition. Runtime validation is separate.
 Preparation is excluded; persistent caches are retained, so this is not a
 cache-empty build measurement. The [first Cathedral investigation](../../wiki/drafts/measurements/cathedral_2026_10_28/README.md)
 records its exact scope, source migrations and remaining failures.

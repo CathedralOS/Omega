@@ -144,6 +144,7 @@ fn publish_flat_native_files(
         .ok_or("native process root has no directory")?;
     let mut staged = Vec::with_capacity(components.len().saturating_mul(2) + 1);
     let mut paths = Vec::with_capacity(components.len());
+    let mut export_index = String::from("omega-native-components-v1\n");
     for component in &components {
         if component.locator().target().native_target() != target {
             return Err("component file target differs from its selected process root".into());
@@ -162,8 +163,24 @@ fn publish_flat_native_files(
             component.description(),
             false,
         )?);
+        // Descriptive linkage metadata lets adapters select exports without reopening source.
+        let requirement = &component.application().requirement_identity;
+        if requirement.contains(['\t', '\r', '\n']) {
+            return Err("component requirement cannot be represented in the export index".into());
+        }
+        export_index.push_str(&format!(
+            "{}\t{}\t{}\n",
+            requirement,
+            component.locator().image_filename(),
+            component.locator().export_symbol(),
+        ));
         paths.push(path);
     }
+    staged.push(stage_exact_bytes(
+        &directory.join("omega-components.tsv"),
+        export_index.as_bytes(),
+        false,
+    )?);
     staged.push(stage_exact_bytes(output_path, output, true)?);
     if target.object_format == target::ObjectFormat::Coff {
         let provider = runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY;
