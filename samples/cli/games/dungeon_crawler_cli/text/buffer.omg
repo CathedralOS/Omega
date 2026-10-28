@@ -5,10 +5,12 @@ data TextBuffer [copy] where used <= 128 { storage: [u8; 128] in Ascii; used: u6
 machine TextBuffer::live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine TextBuffer::copy(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 128; bytes.len <= 128 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 128; index <= 128
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 128 {
             true -> writing(buffer, bytes, start, index)
@@ -17,6 +19,7 @@ requires start <= 128; bytes.len <= 128 - start
     }
     machine writing(buffer: &mut [u8; 128] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 128; index < 128; index < bytes.len; start + index < 128
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
@@ -46,10 +49,12 @@ ensures result.len == buffer.used && result.len <= 8
 { &buffer.storage[..buffer.used] }
 machine ExitCommand::copy(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 8; bytes.len <= 8 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 8; index <= 8
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 8 {
             true -> writing(buffer, bytes, start, index)
@@ -58,6 +63,7 @@ requires start <= 8; bytes.len <= 8 - start
     }
     machine writing(buffer: &mut [u8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 8; index < 8; index < bytes.len; start + index < 8
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
@@ -81,10 +87,12 @@ ensures result.len == buffer.used && result.len <= 16
 { &buffer.storage[..buffer.used] }
 machine RoomLabel::copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 16; bytes.len <= 16 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index <= 16
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 16 {
             true -> writing(buffer, bytes, start, index)
@@ -93,6 +101,7 @@ requires start <= 16; bytes.len <= 16 - start
     }
     machine writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 16; index < 16; index < bytes.len; start + index < 16
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
@@ -116,10 +125,12 @@ ensures result.len == buffer.used && result.len <= 24
 { &buffer.storage[..buffer.used] }
 machine EnemyName::copy(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 24; bytes.len <= 24 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 24; index <= 24
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 24 {
             true -> writing(buffer, bytes, start, index)
@@ -128,6 +139,7 @@ requires start <= 24; bytes.len <= 24 - start
     }
     machine writing(buffer: &mut [u8; 24] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 24; index < 24; index < bytes.len; start + index < 24
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
@@ -150,10 +162,12 @@ ensures result.len == buffer.used && result.len <= 64
 { &buffer.storage[..buffer.used] }
 machine RoomDescription::copy(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 64; bytes.len <= 64 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 64; index <= 64
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 64 {
             true -> writing(buffer, bytes, start, index)
@@ -162,6 +176,7 @@ requires start <= 64; bytes.len <= 64 - start
     }
     machine writing(buffer: &mut [u8; 64] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 64; index < 64; index < bytes.len; start + index < 64
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }

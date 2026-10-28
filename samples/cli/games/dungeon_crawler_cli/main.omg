@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) {
     Game::initialize(&mut main.game, 7);
 
     transition {
-        _ -> running(main)
+        _ -> block running(main)
     }
 
 
