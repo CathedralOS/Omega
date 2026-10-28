@@ -568,6 +568,7 @@ impl Predicate<'_> {
                     left: Box::new(self.scalar(binary.left, depth + 1)?),
                     right: Box::new(self.scalar(binary.right, depth + 1)?),
                     formation_decided: false,
+                    trap_free: false,
                 });
             }
         }

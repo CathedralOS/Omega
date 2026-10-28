@@ -103,7 +103,7 @@ pub use contextual_cleanup::{
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedMachineResourceEnvelopes, CheckedResourceAxisAnchor,
-    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject,
+    CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject, CheckedTrappingSite,
     ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement, ClosedScalarContractValue,
     ClosedScalarValueContractPlan, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
     CrashInterface, CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,

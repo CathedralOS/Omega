@@ -1513,6 +1513,18 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     encode_scalar_type(bytes, payload.parameter.scalar_type);
                     encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
+                encode_len(bytes, case.structural_bindings.len());
+                for binding in &case.structural_bindings {
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        binding.semantic.parameter.get().to_le_bytes(),
+                    );
+                    super::structural_types::encode_structural_argument(
+                        bytes,
+                        &binding.semantic.argument,
+                    );
+                    encode_runtime_indices(bytes, &binding.indices);
+                }
                 encode_len(bytes, case.cleanup_actions.len());
                 for action in &case.cleanup_actions {
                     super::structural::encode_cleanup_action(bytes, action);

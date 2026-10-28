@@ -1,0 +1,7 @@
+// Expected exit: 0
+data Counter where count<=4 {bytes:[u8;4]; count:u64; canary:u64;}
+machine run(counter:&mut Counter,remaining:u64 in Trapping) crashes Trap {transition{_->next(counter,remaining)}
+ machine next(counter:&mut Counter,remaining:u64 in Trapping) {transition remaining>0 && counter.count<4 {true->copy(counter,remaining) false->{}}}
+ machine copy(counter:&mut Counter,remaining:u64 in Trapping) requires remaining>0 {counter.bytes[counter.count]=17; counter.count=counter.count+1; transition{_->next(counter,remaining-1)}}
+}
+machine main() crashes Trap {let mut counter:Counter=Counter{bytes:[0,0,0,0],count:0,canary:33}; run(&mut counter,6); transition counter.count==4 && counter.bytes[0]==17 && counter.bytes[3]==17 && counter.canary==33 {true->{} false->bad()} machine bad() crashes Trap{crash Trap;}}

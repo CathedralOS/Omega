@@ -21,6 +21,7 @@ pub(crate) fn construct_integer_binary(
     mut right: CheckedScalarExpression,
     right_domain: ArithmeticDomain,
     formation_decided: bool,
+    trap_free: bool,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let shift = matches!(
         operator,
@@ -72,6 +73,7 @@ pub(crate) fn construct_integer_binary(
             left: Box::new(left),
             right: Box::new(right),
             formation_decided,
+            trap_free,
         },
         domain,
     ))

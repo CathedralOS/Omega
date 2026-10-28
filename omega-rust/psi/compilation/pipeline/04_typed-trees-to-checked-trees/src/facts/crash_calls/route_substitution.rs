@@ -1162,6 +1162,7 @@ fn substitute_checked_scalar_expression(
             )?),
             // A substituted callee term is a different occurrence.
             formation_decided: false,
+            trap_free: false,
         },
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,

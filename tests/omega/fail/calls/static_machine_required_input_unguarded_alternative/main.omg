@@ -1,0 +1,15 @@
+// Expected exit: 0
+public machine invoke<machine Selected>(value: u64) -> u64
+where machine Selected(input: u64) -> u64 requires input != 0;
+requires value != 0
+{ Selected(value) }
+machine main() crashes Trap {
+ let first: u64 = invoke<target>(7);
+ let second: u64 = invoke<target>(9);
+ transition first == 7 && second == 9 { true -> {} false -> failed() }
+ machine target(value: u64) -> u64 {
+  transition value == 0 { true -> bad() false -> bad() }
+ }
+ machine failed() crashes Trap { crash Trap; }
+ machine bad() -> u64 crashes Trap { crash Trap; }
+}

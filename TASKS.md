@@ -163,8 +163,8 @@ retired-syntax deletions to completion.
     live backing accounted for.
   - Migrate affected bundled/product Omega source, samples, and fixtures and
     delete the retired `state` parser/declaration/dispatch paths.
-    The Omega-written parser/resolver and linked application repositories still
-    need the corresponding declaration-model migration.
+    Linked application repositories still need the corresponding
+    declaration-model migration.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and

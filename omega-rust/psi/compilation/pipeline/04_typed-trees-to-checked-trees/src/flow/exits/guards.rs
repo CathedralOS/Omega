@@ -1002,27 +1002,6 @@ pub(in crate::flow) fn append_match_pattern_context(
             );
         }
     }
-    if let FactPayload::MatchPattern {
-        expression,
-        matched,
-        ..
-    } = payload
-    {
-        append_entry_path_context(
-            program,
-            semantic,
-            build,
-            state_symbol,
-            statement_index,
-            expression,
-            matched,
-            point,
-            entry_writes,
-            entry_unknown_write,
-            active_contexts,
-            active_constraints,
-        );
-    }
     let Some((subject, pattern, matched)) = payload.match_pattern_comparison(program) else {
         return;
     };
@@ -1072,27 +1051,48 @@ pub(in crate::flow) fn append_match_pattern_context(
             active_constraints,
         );
     }
-    if !build.active_completed_copies.is_empty()
-        && let Some(predicate) = crate::facts::boolean_predicates::bind_current_match(
+    if let Some(predicate) = crate::facts::boolean_predicates::bind_current_match(
+        program,
+        build.operators,
+        state_symbol,
+        statement_index,
+        subject,
+        pattern,
+        matched,
+    )
+    .and_then(|predicate| {
+        build.complete_predicate_bindings(program, state_symbol, statement_index, predicate)
+    }) {
+        // The match result is not its selection condition. Project the
+        // already selected comparison through its exact completed bindings,
+        // after pattern formation and before any arm value executes.
+        if let Some(expression) = build.entry_predicate_at(
             program,
-            build.operators,
             state_symbol,
             statement_index,
-            subject,
-            pattern,
-            matched,
-        )
-        .and_then(|predicate| {
-            build.complete_predicate_bindings(program, state_symbol, statement_index, predicate)
-        })
-    {
-        let context = crate::facts::boolean_predicates::seed(
-            semantic,
             &predicate,
+            entry_writes,
+            entry_unknown_write,
+        ) && let Some(context) = crate::facts::boolean_predicates::capture_entry_expression(
+            program,
+            semantic,
+            state_symbol,
+            Some(expression),
             point,
-            FactOrigin::TransitionGuard,
-        );
-        retain_semantic_context(build, active_contexts, active_constraints, context);
+        ) {
+            retain_semantic_context(build, active_contexts, active_constraints, context);
+        }
+        // Preserve the existing current-observation route independently of
+        // original-entry capture. Unknown entry provenance supplies no clause.
+        if !build.active_completed_copies.is_empty() {
+            let context = crate::facts::boolean_predicates::seed(
+                semantic,
+                &predicate,
+                point,
+                FactOrigin::TransitionGuard,
+            );
+            retain_semantic_context(build, active_contexts, active_constraints, context);
+        }
     }
     let mut occurrences = Vec::new();
     for expression in [subject, pattern] {

@@ -196,6 +196,7 @@ pub struct TargetControlCaseSuccessor {
     pub case_tag: i32,
     pub target: BlockId,
     pub payloads: Vec<TargetControlCasePayload>,
+    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 

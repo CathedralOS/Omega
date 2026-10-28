@@ -418,6 +418,11 @@ fn termination(operation: &A) -> Option<Terminator> {
             cases: cases
                 .iter()
                 .map(|edge| terminal_psi::StructuralCaseSuccessorEdge {
+                    structural_arguments: edge
+                        .structural_bindings
+                        .iter()
+                        .map(|binding| binding.argument.clone())
+                        .collect(),
                     edge: edge.psi_edge,
                     target: edge.target,
                     case: edge.case,

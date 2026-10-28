@@ -575,6 +575,11 @@ pub(super) fn build_traced(
             prepared_calls.state_schedules(owner.symbol, state.symbol),
         )?;
         let call_schedules = |value| prepared_calls.schedule(value);
+        let completion = super::cleanup::normal_edges::completed_body_outcome(
+            program,
+            state,
+            terminator.has_normal_continuation(&operations, &facts.flow.guarded_exits)?,
+        );
         result_custody::account(
             program,
             facts,
@@ -587,10 +592,14 @@ pub(super) fn build_traced(
             &sequence.structural_results,
             &mut operations,
             &terminator,
+            completion,
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
-            normal_exit_cleanups: Default::default(),
+            normal_exit_cleanups: checked_trees::CheckedNormalExitCleanups {
+                completion,
+                ..Default::default()
+            },
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),

@@ -40,6 +40,8 @@ public data PlaceKind [copy] {
     // What an operand read before a later operand wrote it, by the lending
     // operand's handle under the place read (snapshots.omg).
     case Snapshot;
+    // Immutable invocation-entry ranking coordinates and range endpoints.
+    case RankEntry;
 }
 
 public data Place [copy] {
@@ -231,7 +233,7 @@ crashes Trap
     ) -> u64 in Trapping {
         let next: u64 in Trapping = subject + 1;
         checker.subject_count = next as u64;
-        Checker::enter_range(checker, subject, carrier);
+        Checker::enter_place_range(checker, kind, subject, carrier);
         let place: Place = Place { kind: kind, handle: handle, parent: parent, type_handle: type_handle, subject: subject };
         transition { _ -> stored(checker, place) }
     }
@@ -271,7 +273,7 @@ crashes Trap
 public machine Checker::place_carrier(typing: &Typing, kind: PlaceKind, type_handle: u64 in Trapping) -> BuiltinType
 crashes Trap
 {
-    transition kind == PlaceKind::Length {
+    transition kind == PlaceKind::Length || kind == PlaceKind::RankEntry {
         true -> length()
         _ -> typed(typing, type_handle)
     }
@@ -401,7 +403,7 @@ crashes Trap
 
     machine ranged(checker: &mut Checker, typing: &Typing, index: u64 in Trapping, candidate: Place) {
         let carrier: BuiltinType = Checker::place_carrier(typing, candidate.kind, candidate.type_handle);
-        Checker::enter_range(checker, candidate.subject, carrier);
+        Checker::enter_place_range(checker, candidate.kind, candidate.subject, carrier);
         transition { _ -> next(checker, typing, index + 1) }
     }
 
@@ -481,7 +483,7 @@ crashes Trap
     machine clear(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping, candidate: Place) {
         let carrier: BuiltinType = Checker::place_carrier(typing, candidate.kind, candidate.type_handle);
         Zone::forget(&mut checker.zone, candidate.subject);
-        Checker::enter_range(checker, candidate.subject, carrier);
+        Checker::enter_place_range(checker, candidate.kind, candidate.subject, carrier);
         transition { _ -> next(checker, typing, place, contents, index + 1) }
     }
 
@@ -923,4 +925,14 @@ crashes Trap
     }
 
     machine done() {}
+}
+
+// Rank snapshots are mathematical subjects. Their exact captured facts supply
+// their range; importing a fixed carrier range could make a signed endpoint
+// contradictory and incorrectly erase a feasible obligation.
+machine Checker::enter_place_range(checker: &mut Checker, kind: PlaceKind, subject: u64 in Trapping, carrier: BuiltinType)
+crashes Trap
+{
+    transition kind == PlaceKind::RankEntry { true -> {} false -> ranged(checker, subject, carrier) }
+    machine ranged(checker: &mut Checker, subject: u64 in Trapping, carrier: BuiltinType) { Checker::enter_range(checker, subject, carrier); }
 }

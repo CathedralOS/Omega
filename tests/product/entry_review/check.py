@@ -70,7 +70,7 @@ satisfies UefiPhysicalEntry::enter {
 }
 machine kernel(image: Extent in Granted, storage: Extent in Granted) {
     transition { _ -> retain(image, storage) }
-    state retain(image: Extent in Granted, storage: Extent in Granted) {
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
 }

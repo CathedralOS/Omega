@@ -124,6 +124,7 @@ pub(crate) fn validate_declaration_value_range(
             target_domain,
             owner,
             false,
+            false,
             diagnostics,
         )
     } else {

@@ -48,7 +48,10 @@ impl Default for CheckedIntegerMathTerm {
 
 impl CheckedIntegerMathExpression {
     /// Invalid or cyclic terms do not become an executable-safe condition.
-    pub(super) fn contains_trapping_operation(&self) -> bool {
+    pub(super) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         let mut pending = vec![self.root];
         let mut remaining = 4096usize;
         while let Some(handle) = pending.pop() {
@@ -58,7 +61,7 @@ impl CheckedIntegerMathExpression {
             remaining -= 1;
             match self.terms.get(handle) {
                 CheckedIntegerMathTerm::Embed { operand, .. } => {
-                    if operand.contains_trapping_operation() {
+                    if operand.contains_trapping_operation_with_certificates(use_certificates) {
                         return true;
                     }
                 }

@@ -707,6 +707,7 @@ pub(super) fn emit_state(
             let mut case_edges = Vec::with_capacity(cases.len());
             for case in cases {
                 case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(next_edge)?),
                     target: if *case == *selected {
                         selected_block
@@ -789,6 +790,7 @@ pub(super) fn emit_state(
                         },
                     ));
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(allocate_dense(next_edge)?),
                         target: selected_block,
                         case: *case,
@@ -835,6 +837,7 @@ pub(super) fn emit_state(
                         fallback_block = Some(block);
                     }
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(allocate_dense(next_edge)?),
                         target: fallback_block.expect("armed-edge loop emitted fallback"),
                         case: *case,

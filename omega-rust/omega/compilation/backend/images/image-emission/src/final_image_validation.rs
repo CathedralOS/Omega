@@ -291,7 +291,12 @@ fn validate_terminal_image_with_import_count(
             | EntrySurface::WindowsUnit
             | EntrySurface::LinuxUnit
             | EntrySurface::LinuxArm64Unit => super::hosted_unit_entry::validate_unit_shim(
-                shim, artifact, object, text_bytes, output,
+                shim,
+                artifact,
+                object,
+                text_bytes,
+                relocations,
+                output,
             )?,
         }
     }

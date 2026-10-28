@@ -58,7 +58,7 @@ pub fn derive_authored_machine_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
-    facts::derive_authored_machine_crash_buckets(program, machine)
+    facts::derive_authored_machine_crash_buckets(program, machine, None)
 }
 
 /// Exact authored crash identity for a retained structural signature, using
@@ -67,7 +67,7 @@ pub fn derive_authored_signature_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
-    facts::derive_authored_signature_crash_buckets(program, signature)
+    facts::derive_authored_signature_crash_buckets(program, signature, None)
 }
 
 /// Query conservative causes from the checker's closed local crash summary.

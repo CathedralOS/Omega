@@ -1519,6 +1519,7 @@ impl StateGraphEmission<'_, '_> {
                             }
                         };
                         Ok(StructuralCaseSuccessorEdge {
+ structural_arguments: Vec::new(),
                             edge: edge.edge,
                             target: edge.target,
                             case: case.identity,

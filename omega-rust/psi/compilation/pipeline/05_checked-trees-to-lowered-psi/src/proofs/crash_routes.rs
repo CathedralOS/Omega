@@ -15,8 +15,7 @@ mod structural_members;
 mod structural_route_buckets;
 
 pub(crate) use argument_prefix::{
-    captured_crash_argument, structural_crash_argument_type,
-    structural_crash_route_prefix_from_type,
+    captured_crash_argument, structural_crash_route_prefix_from_type,
 };
 pub(crate) use crash_predicates::checked_boolean_proposition;
 pub(crate) use scalar_terms::{

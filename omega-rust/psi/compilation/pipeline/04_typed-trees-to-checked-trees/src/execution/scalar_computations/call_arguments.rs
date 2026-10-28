@@ -265,6 +265,7 @@ impl Builder<'_, '_> {
                         let selectors = self.projection_selector_evaluations(*argument, *argument)?;
                         let mut argument_plan = crate::execution::terminal_unit::structural_computation_argument(
                             self.program,
+                            &mut self.shapes,
                             crate::flow::CapturedSubjectFacts {
                                 semantic: self.semantic,
                                 flow: self.flow,
@@ -288,6 +289,7 @@ impl Builder<'_, '_> {
                         let argument_ordinal = structural_arguments.len();
                         crate::execution::terminal_unit::calls::subslice_computation_argument(
                             self.program,
+                            &mut self.shapes,
                             self.operators,
                             self.pure,
                             self.plans,

@@ -56,7 +56,7 @@ crashes Trap
             has_owner: true,
             owner: item.name
         };
-        Resolver::place_members(resolver, item.first_machine, item.machine_count, owner);
+        Resolver::place_members(resolver, syntax, item.first_machine, item.machine_count, owner);
         transition { _ -> traits(resolver, syntax, index + 1) }
     }
 
@@ -75,7 +75,7 @@ crashes Trap
             has_owner: true,
             owner: item.name
         };
-        Resolver::place_members(resolver, item.first_machine, item.machine_count, owner);
+        Resolver::place_members(resolver, syntax, item.first_machine, item.machine_count, owner);
         transition { _ -> conformances(resolver, syntax, index + 1) }
     }
 
@@ -97,21 +97,29 @@ machine Resolver::trait_container(is_refinement: bool) -> MachineContainer {
     }
 }
 
-machine Resolver::place_members(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
+machine Resolver::place_members(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
-    transition { _ -> next(resolver, first, count, owner, 0) }
+    transition { _ -> next(resolver, syntax, first, count, owner, 0) }
 
-    machine next(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         transition offset < count {
-            true -> place(resolver, first, count, owner, offset)
+            true -> place(resolver, syntax, first, count, owner, offset)
             _ -> done()
         }
     }
 
-    machine place(resolver: &mut Resolver, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine place(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, first + offset);
+        transition item.parent == 0 {
+            true -> place_direct(resolver, syntax, first, count, owner, offset)
+            false -> next(resolver, syntax, first, count, owner, offset + 1)
+        }
+    }
+
+    machine place_direct(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         Resolver::set_machine_owner(resolver, first + offset, owner);
-        transition { _ -> next(resolver, first, count, owner, offset + 1) }
+        transition { _ -> next(resolver, syntax, first, count, owner, offset + 1) }
     }
 
     machine done() {}
@@ -120,7 +128,7 @@ crashes Trap
 machine Resolver::set_machine_owner(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
-    transition handle < 2048 {
+    transition handle < 10240 {
         true -> store(resolver, handle, owner)
         _ -> invalid()
     }
@@ -139,9 +147,11 @@ public machine Resolver::machine_scope(resolution: &NameResolution, syntax: &Syn
 crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
-    let owner: MachineOwner = NameResolution::machine_owner(resolution, handle);
+    let root: u64 in Trapping = Resolver::lexical_root(syntax, handle);
+    let owner: MachineOwner = NameResolution::machine_owner(resolution, root);
     let outer: TypeScope = Resolver::container_scope(syntax, owner);
     TypeScope {
+        lexical_machine: handle + 1,
         first_generic_parameter: item.first_generic_parameter,
         generic_parameter_count: item.generic_parameter_count,
         first_outer_parameter: outer.first_generic_parameter,
@@ -391,7 +401,7 @@ crashes Trap
     machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         let member: MachineItem = SyntaxTrees::machine_item(syntax, item.first_machine + offset);
         let named: bool = SourceSet::spans_equal(sources, member.name.source_span, name);
-        transition named {
+        transition named && member.parent == 0 {
             true -> found(item.first_machine + offset)
             _ -> next(sources, syntax, item, name, offset + 1)
         }
@@ -496,5 +506,19 @@ crashes Trap
 
     machine invalid() {
         crash Trap;
+    }
+}
+
+// Ancestry supplies static declaration context, never invocation values.
+public machine Resolver::lexical_root(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> parent(syntax, handle) }
+    machine parent(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        transition item.parent > 0 {
+            true -> parent(syntax, item.parent - 1)
+            false -> handle
+        }
     }
 }

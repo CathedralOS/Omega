@@ -178,8 +178,12 @@ pub enum CheckedScalarExpression {
         /// excluded `MIN / -1` pair; an Exact sum, difference or product's
         /// representability). Lowering marks the emitted operation so its
         /// obligation consumes the decision; false keeps the certificate
-        /// search.
+        /// search. This is independent of permitted runtime traps.
         formation_decided: bool,
+        /// Checking proved this occurrence's Exact counterpart forms over all
+        /// observed arrivals. This excludes runtime Trap while preserving the
+        /// selected Trapping policy and its separate formation obligation.
+        trap_free: bool,
     },
     IntegerBitwiseNot {
         primitive_type: typed_trees::types::PrimitiveType,
@@ -289,37 +293,59 @@ impl CheckedScalarExpression {
     /// Boolean subterms are inspected through their integer
     /// comparisons.
     pub fn contains_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(false)
+    }
+
+    /// Runtime trap possibilities after independently checked formation.
+    pub fn contains_possible_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(true)
+    }
+
+    pub(crate) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         match self {
             Self::IntegerBinary {
-                kind, left, right, ..
+                kind,
+                left,
+                right,
+                trap_free,
+                ..
             } => {
-                kind.is_trapping()
-                    || left.contains_trapping_operation()
-                    || right.contains_trapping_operation()
+                (kind.is_trapping() && !(use_certificates && *trap_free))
+                    || left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerBitwiseNot { operand, .. }
             | Self::IntegerWiden { operand, .. }
             | Self::IntegerExactCast { operand, .. }
-            | Self::RepresentationView { operand, .. } => operand.contains_trapping_operation(),
+            | Self::RepresentationView { operand, .. } => {
+                operand.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::StructuralParameterIndexedRead {
                 index,
                 element_path,
                 ..
             } => {
-                index.expression.contains_trapping_operation()
+                index
+                    .expression
+                    .contains_trapping_operation_with_certificates(use_certificates)
                     || element_path.iter().any(|projection| match projection {
                         CheckedScalarReadProjection::Static(_) => false,
-                        CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                            selector.expression.contains_trapping_operation()
-                        }
+                        CheckedScalarReadProjection::RuntimeIndex(selector) => selector
+                            .expression
+                            .contains_trapping_operation_with_certificates(use_certificates),
                     })
             }
-            Self::Boolean(expression) => expression.contains_trapping_operation(),
+            Self::Boolean(expression) => {
+                expression.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::StructuralSequenceLength { path, .. } => path.iter().any(|step| match step {
                 CheckedScalarReadProjection::Static(_) => false,
-                CheckedScalarReadProjection::RuntimeIndex(selector) => {
-                    selector.expression.contains_trapping_operation()
-                }
+                CheckedScalarReadProjection::RuntimeIndex(selector) => selector
+                    .expression
+                    .contains_trapping_operation_with_certificates(use_certificates),
             }),
             Self::StorageRead { .. }
             | Self::Parameter { .. }
@@ -529,17 +555,34 @@ impl CheckedBooleanExpression {
     /// Whether evaluating this condition executes a Trapping primitive in
     /// one of its integer operands.
     pub fn contains_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(false)
+    }
+
+    /// Runtime trap possibilities after independently checked formation.
+    pub fn contains_possible_trapping_operation(&self) -> bool {
+        self.contains_trapping_operation_with_certificates(true)
+    }
+
+    pub(crate) fn contains_trapping_operation_with_certificates(
+        &self,
+        use_certificates: bool,
+    ) -> bool {
         match self {
-            Self::Not(operand) => operand.contains_trapping_operation(),
+            Self::Not(operand) => {
+                operand.contains_trapping_operation_with_certificates(use_certificates)
+            }
             Self::Equal { left, right } | Self::And { left, right } | Self::Or { left, right } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerComparison { left, right, .. }
             | Self::ScalarIeeeFloatComparison { left, right, .. } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::IntegerMathComparison { left, right, .. } => {
-                left.contains_trapping_operation() || right.contains_trapping_operation()
+                left.contains_trapping_operation_with_certificates(use_certificates)
+                    || right.contains_trapping_operation_with_certificates(use_certificates)
             }
             Self::StorageRead { .. }
             | Self::Constant(_)

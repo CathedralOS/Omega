@@ -387,6 +387,7 @@ fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
                     target: BlockId::new(identity).unwrap(),
                     case: semantic_vocabulary::StructuralCaseId::new(identity).unwrap(),
                     payloads: Vec::new(),
+                    structural_bindings: Vec::new(),
                     cleanup_actions: Vec::new(),
                 },
             )

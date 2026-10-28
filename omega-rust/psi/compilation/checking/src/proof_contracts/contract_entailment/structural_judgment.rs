@@ -839,42 +839,49 @@ impl<'program> StructuralJudge<'program> {
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
-        // Install premises under the runtime value resolver. Installing them
-        // in tag-only mode first can resolve the new equation through its own
-        // case substitution and discard its scalar value consequence.
-        let mut judge = Self::from_case_requires(program, judged_machine, &[]);
-        judge.runtime_body_values = true;
-        judge.body_type_parameters = program.machine_type_parameters(judged_machine);
-        judge.premise_facts.extend_from_slice(requires);
-        for fact in requires {
-            judge.intake(program, *fact);
-        }
-        // Capture entry comparison truth before any prefix effect. A later
-        // write retires current storage observations, while detached input
-        // values and their predicates keep the original invocation identity.
-        for fact in requires {
-            judge.intake_preserved_predicate(*fact);
-        }
-        judge
+        Self::from_runtime_declaration_requires(
+            program,
+            judged_machine,
+            program.machine_states(judged_machine).first(),
+            requires,
+        )
     }
 
-    /// Every arrival proves this state's declared entry contract separately.
-    /// Its prefix may consume those facts without unrolling the state cycle or
-    /// importing the machine entry's unrelated invocation assumptions.
+    /// Every arrival proves this declaration's own entry contract separately.
+    /// Its prefix retains admitted input domains, never another invocation's
+    /// entry values or unrelated enclosing requirements.
     pub(super) fn from_runtime_state_requires(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &typed_trees::state::State,
         requires: &[ExpressionHandle],
     ) -> Self {
-        let mut judge = Self::from_runtime_requires(program, machine, &[]);
-        judge.declaration_state = state.symbol;
-        judge.retain_entry_owned_values(state);
+        Self::from_runtime_declaration_requires(program, machine, Some(state), requires)
+    }
+
+    fn from_runtime_declaration_requires(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: Option<&typed_trees::state::State>,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        // Install premises under the runtime value resolver. Installing them
+        // in tag-only mode first can resolve the new equation through its own
+        // case substitution and discard its scalar value consequence.
+        let mut judge = Self::from_case_requires(program, machine, &[]);
+        judge.runtime_body_values = true;
+        judge.body_type_parameters = program.machine_type_parameters(machine);
+        if let Some(state) = state {
+            judge.declaration_state = state.symbol;
+            judge.retain_entry_owned_values(state);
+        }
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
         }
-        judge.intake_entry_domain_predicates(machine, state);
+        if let Some(state) = state {
+            judge.intake_entry_domain_predicates(machine, state);
+        }
         // Capture entry comparison truth before any prefix effect. A later
         // write retires current storage observations, while detached input
         // values and their predicates keep the original invocation identity.

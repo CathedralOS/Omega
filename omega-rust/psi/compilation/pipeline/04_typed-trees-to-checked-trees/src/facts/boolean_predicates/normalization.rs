@@ -76,9 +76,11 @@ fn clear_scalar_formation_decisions(expression: &mut Scalar) {
             left,
             right,
             formation_decided,
+            trap_free,
             ..
         } => {
             *formation_decided = false;
+            *trap_free = false;
             clear_scalar_formation_decisions(left);
             clear_scalar_formation_decisions(right);
         }

@@ -127,10 +127,34 @@ pub(crate) struct ProgramPrivateArrivalIndex {
     members_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
     call_sites_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>>,
     unclosed_symbols: SymbolSet,
+    private_targets: SymbolSet,
+    private_callees: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
     callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
 }
 
 impl ProgramPrivateArrivalIndex {
+    /// Graph/use custody only: no caller premise or body judgment is exposed.
+    /// An open callable cannot rely on a known direct-caller demand roster.
+    pub(crate) fn has_closed_private_uses(
+        &self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+    ) -> bool {
+        self.private_targets.contains(&machine.symbol)
+            && !machine.is_public
+            && !machine.target_family_interface
+            && program.machine_trait_conformances(machine).is_empty()
+            && !self.unclosed_symbols.contains(&machine.symbol)
+            && program
+                .machine_states(machine)
+                .iter()
+                .all(|state| !self.unclosed_symbols.contains(&state.symbol))
+    }
+
+    pub(crate) fn private_callees(&self, caller: SymbolHandle) -> &[SymbolHandle] {
+        self.private_callees.get(&caller).map_or(&[], Vec::as_slice)
+    }
+
     fn build(program: &dyn crate::CheckingInput) -> Self {
         let machines = program.machines();
         let mut members_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> =
@@ -158,6 +182,8 @@ impl ProgramPrivateArrivalIndex {
 
         let mut call_sites_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>> =
             Default::default();
+        let mut private_callees: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> =
+            Default::default();
         if !target_roots.is_empty() {
             for (caller_machine_index, caller) in machines.iter().enumerate() {
                 for state in program.machine_states(caller) {
@@ -176,6 +202,10 @@ impl ProgramPrivateArrivalIndex {
                             let Some(roots) = target_roots.get(&target.symbol) else {
                                 continue;
                             };
+                            let callees = private_callees.entry(caller.symbol).or_default();
+                            if !callees.contains(&target.symbol) {
+                                callees.push(target.symbol);
+                            }
                             let expression = match site {
                                 crate::CallSite::Expression { expression, .. } => Some(expression),
                                 _ => None,
@@ -222,9 +252,23 @@ impl ProgramPrivateArrivalIndex {
             members_by_root,
             call_sites_by_root,
             unclosed_symbols: uses.unclosed_symbols,
+            private_targets: uses.target_symbols,
+            private_callees,
             callable_use_owners: uses.callable_use_owners,
         }
     }
+}
+
+/// Share the exact selected-call/use inventory with consumers planning optional
+/// body outputs. The index itself grants neither execution nor proof permission.
+pub(crate) fn private_invocation_index(
+    program: &dyn crate::CheckingInput,
+) -> std::sync::Arc<ProgramPrivateArrivalIndex> {
+    crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.private_arrival_index,
+        || ProgramPrivateArrivalIndex::build(program),
+    )
 }
 
 pub(crate) struct ClosedArrivals {
@@ -232,7 +276,9 @@ pub(crate) struct ClosedArrivals {
     /// Successive complete cuts of the retained caller graph, nearest first.
     /// The original lexical/cycle frontier remains the final authority.
     pub(super) caller_frontiers: Vec<Vec<usize>>,
-    pub(super) cycle_entries: Vec<SymbolHandle>,
+    /// Entries observed independently from arbitrary own inputs. This includes
+    /// open callers and recurrent cuts; none inherits a known caller's facts.
+    pub(super) entry_boundaries: Vec<SymbolHandle>,
     pub(super) bodies: Vec<SymbolHandle>,
 }
 
@@ -264,11 +310,7 @@ fn compute_closed_arrivals(
     root: &Machine,
     callee: &Machine,
 ) -> Result<ClosedArrivals, &'static str> {
-    let index = crate::frozen_program::frozen_memo(
-        program,
-        |memos| &memos.private_arrival_index,
-        || ProgramPrivateArrivalIndex::build(program),
-    );
+    let index = private_invocation_index(program);
     let machines = program.machines();
     let Some(member_indices) = index.members_by_root.get(&root.symbol) else {
         return Err("the callable is not a private member of the enclosing declaration");
@@ -358,47 +400,92 @@ fn compute_closed_arrivals(
             break;
         }
     }
-    if outside.iter().any(|&destination| needed[destination]) {
-        return Err("a private callable has an arrival from outside its lexical group");
-    }
-    if members.iter().enumerate().any(|(index, member)| {
-        needed[index]
-            && (member.is_public
+    // Openness withdraws a declaration's direct-caller premises, not the facts
+    // its body establishes before calling a private descendant. Cut every open
+    // needed entry and observe its own body from arbitrary inputs instead. The
+    // complete set comes from use custody, independently of traversal order.
+    let open_entries = members
+        .iter()
+        .enumerate()
+        .filter_map(|(member_index, member)| {
+            let exposed = member.is_public
                 || member.target_family_interface
-                || !program.machine_trait_conformances(member).is_empty())
-    }) {
-        return Err("the private declaration group has an exposed callable");
+                || !program.machine_trait_conformances(member).is_empty();
+            let open_use = std::iter::once(member.symbol)
+                .chain(
+                    program
+                        .machine_states(member)
+                        .iter()
+                        .map(|state| state.symbol),
+                )
+                .any(|symbol| {
+                    index.unclosed_symbols.contains(&symbol)
+                        || index
+                            .callable_use_owners
+                            .get(&symbol)
+                            .is_some_and(|owners| {
+                                owners
+                                    .iter()
+                                    .any(|&owner| !belongs_to(program, owner, root.symbol))
+                            })
+                });
+            (needed[member_index] && (exposed || open_use || outside.contains(&member_index)))
+                .then_some(member_index)
+        })
+        .collect::<Vec<_>>();
+    // The queried body itself has unknown arrivals when it escapes. Its local
+    // prefix query already uses arbitrary own inputs and requires; known direct
+    // calls must not strengthen that universal judgment.
+    if open_entries.contains(&destination) {
+        return Err("the queried private callable has an open invocation entry");
     }
-    let mut target_symbols = Vec::new();
-    let mut bodies = Vec::new();
-    for (index, member) in members.iter().enumerate() {
-        if needed[index] {
-            bodies.push(member.symbol);
-            target_symbols.push(member.symbol);
-            for state in program.machine_states(member) {
-                target_symbols.push(state.symbol);
-            }
-        }
-    }
-    let closed = target_symbols.iter().all(|symbol| {
-        !index.unclosed_symbols.contains(symbol)
-            && index.callable_use_owners.get(symbol).is_none_or(|owners| {
-                owners
-                    .iter()
-                    .all(|&owner| belongs_to(program, owner, root.symbol))
-            })
-    });
-    if !closed {
-        return Err("a private callable has a non-direct or out-of-scope use");
-    }
+    let bodies = members
+        .iter()
+        .enumerate()
+        .filter_map(|(member_index, member)| needed[member_index].then_some(member.symbol))
+        .collect();
     // A recurring entry has no inherited runtime values. Its separately
     // observed prefix must establish the requested fact again from arbitrary
     // inputs; roots/initializers and a prior iteration supply no invariant.
-    let cycle_entries: Vec<_> = super::cycles::entries(&edges, &needed, &declared_entries)
+    // The actual-entry frontier preserves guards around recurrent helpers.
+    // A second complete frontier cuts every authored contract in a component;
+    // each such invocation starts arbitrary under only its own requires. This
+    // set is independent of declaration order. Neither frontier assumes an
+    // inferred invariant: every initial and recurrent arrival remains covered.
+    let mut contract_entries = open_entries.clone();
+    for entry in crate::machine_calls::graph_components::strongly_connected_components(&edges)
         .into_iter()
-        .map(|index| members[index].symbol)
-        .collect();
-    let caller_frontiers = progressive_caller_frontiers(
+        .filter(|component| {
+            component.len() > 1
+                || component
+                    .first()
+                    .is_some_and(|&node| edges[node].contains(&node))
+        })
+        .flatten()
+        .filter(|&node| {
+            !crate::proof_contracts::contract_entailment::citations::machine_requires_facts(
+                program,
+                members[node],
+            )
+            .is_empty()
+        })
+    {
+        if !contract_entries.contains(&entry) {
+            contract_entries.push(entry);
+        }
+    }
+    contract_entries.sort_unstable();
+    let contracted_entry_boundaries: Vec<_> =
+        super::cycles::entries(&edges, &needed, &declared_entries, &contract_entries)
+            .into_iter()
+            .map(|index| members[index].symbol)
+            .collect();
+    let entry_boundaries: Vec<_> =
+        super::cycles::entries(&edges, &needed, &declared_entries, &open_entries)
+            .into_iter()
+            .map(|index| members[index].symbol)
+            .collect();
+    let mut caller_frontiers = progressive_caller_frontiers(
         program,
         root,
         index
@@ -406,13 +493,43 @@ fn compute_closed_arrivals(
             .get(&root.symbol)
             .map(Vec::as_slice)
             .unwrap_or(&[]),
-        caller_machine_indices,
-        &cycle_entries,
+        caller_machine_indices.clone(),
+        &entry_boundaries,
     );
+    if contracted_entry_boundaries != entry_boundaries {
+        let sites = index
+            .call_sites_by_root
+            .get(&root.symbol)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let mut contracted_frontiers = progressive_caller_frontiers(
+            program,
+            root,
+            sites,
+            caller_machine_indices.clone(),
+            &contracted_entry_boundaries,
+        );
+        contracted_frontiers.push(
+            machines
+                .iter()
+                .enumerate()
+                .filter_map(|(index, member)| {
+                    (is_root(program, member, root)
+                        || contracted_entry_boundaries.contains(&member.symbol))
+                    .then_some(index)
+                })
+                .collect(),
+        );
+        for frontier in contracted_frontiers {
+            if !caller_frontiers.contains(&frontier) {
+                caller_frontiers.push(frontier);
+            }
+        }
+    }
     Ok(ClosedArrivals {
         expected,
         caller_frontiers,
-        cycle_entries,
+        entry_boundaries,
         bodies,
     })
 }
@@ -446,7 +563,7 @@ fn progressive_caller_frontiers(
     root: &Machine,
     sites: &[SubordinateCallSite],
     immediate: Option<Vec<usize>>,
-    cycle_entries: &[SymbolHandle],
+    entry_boundaries: &[SymbolHandle],
 ) -> Vec<Vec<usize>> {
     let Some(mut frontier) = immediate else {
         return Vec::new();
@@ -458,13 +575,14 @@ fn progressive_caller_frontiers(
     let mut anchors = vec![false; machines.len()];
     let mut original = Vec::new();
     for (index, machine) in machines.iter().enumerate() {
-        let recurrent = cycle_entries.contains(&machine.symbol);
-        anchors[index] = recurrent || is_root(program, machine, root);
+        let independent = entry_boundaries.contains(&machine.symbol);
+        anchors[index] = independent || is_root(program, machine, root);
         if anchors[index] {
             original.push(index);
         }
-        // A prior iteration's values never establish a fresh cycle entry.
-        if recurrent {
+        // Neither known callers of an open entry nor a prior iteration's
+        // values may establish this independent invocation's input facts.
+        if independent {
             frontier.push(index);
         }
     }

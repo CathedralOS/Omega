@@ -63,6 +63,7 @@ pub(crate) fn validate_total_specification_arithmetic(
         ArithmeticDomain::Exact,
         owner,
         true,
+        false,
         &mut formation_diagnostics,
     );
     // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
@@ -84,6 +85,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             ArithmeticDomain::Exact,
             owner,
             true,
+            false,
             &mut ignored_diagnostics,
         )
     };

@@ -565,8 +565,12 @@ fn entry_claim_is_retired(
                             &edge.cleanup_actions,
                             &mut selected,
                         )?;
-                        // Structural-case payloads are scalar-only; no owned
-                        // structural parameter is introduced on these edges.
+                        bind_successor_claims(
+                            machine,
+                            edge.target,
+                            &edge.structural_arguments,
+                            &mut selected,
+                        )?;
                         pending.push((edge.target, selected));
                     }
                 }
