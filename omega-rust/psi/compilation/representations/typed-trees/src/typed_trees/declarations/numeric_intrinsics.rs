@@ -232,7 +232,7 @@ impl TypedTrees {
                 .normalized_hermetic_symbol_identity(machine.symbol)
                 .ok()?
                 != format!(
-                    "toolchain::FloatNativeProvider::{}::{target}",
+                    "toolchain::{namespace}::{}::{target}",
                     machine.name.as_str()
                 )
         {
