@@ -28,7 +28,16 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = input.into();
+    let projected = input
+        .external_providers
+        .is_none()
+        .then(|| input.project_external_providers())
+        .transpose()?;
+    let compilation = &PackageReviewInput {
+        external_providers: input.external_providers.or(projected.as_ref()),
+        ..input
+    };
     let selected_execution = compilation.custody.execution();
     let mut plans = selected_execution
         .selected_provider_provenance

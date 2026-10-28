@@ -293,6 +293,20 @@ Preparation retains a refusal as data until the native handoff demands it, so a
 checking-only stop does not acquire native-only obligations. Physical family
 membership and receiving admission still belong to the Terminal consumer.
 
+Numeric meaning and external satisfaction have one Psi declaration producer,
+shared by Terminal retention and rootless package projection. Checked-provider
+binding retains that projection before selection. Package review prepares its
+supplied candidate independently, then joins nominal requirement, realization
+and selecting-owner identities against immutable custody. A library needs no
+ProgramEntry or executable lowering to review its uncalled supplied declarations.
+Private checking-only coordinates remain invocation-local, never portable owners.
+The selected row no longer duplicates numeric execution identity: review and
+native settlement consume the checked meaning through the shared source-free
+external-satisfaction join. Host/placement authority remains independent.
+Exact source schema association, earlier typed constant/comparison evaluation
+and direct-leaf execution records remain migration work; this does not claim
+that selected dispatch as a whole is source-free.
+
 The source-producing operation returns each Terminal application with its exact
 Build provider companion. It closes those proposals against the emitted demand
 catalog before returning the product: selecting against all source candidates

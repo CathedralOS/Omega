@@ -305,6 +305,7 @@ pub(super) fn project(
             plan,
             row,
             retained.provider.schema,
+            retained.provider.provider_type,
             **requirement_symbol,
             realization_symbol.authored().ok_or_else(|| vec![Diagnostic::error("intrinsic application lost its authored realization")])?,
             compilation

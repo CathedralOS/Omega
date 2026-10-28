@@ -16,6 +16,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
+    pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
@@ -201,6 +202,7 @@ pub fn settle_selected_execution(
         };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         &checked.program,
+        &checked.external_providers,
         settlement.calling_plans,
         &checked.selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
@@ -212,6 +214,7 @@ pub fn settle_selected_execution(
     )?;
     crate::intrinsic_review::close_direct_boundary_candidates(
         &checked.program,
+        &checked.external_providers,
         &settlement.selected_provider_provenance,
         settlement.direct_boundary_candidates,
         settlement
@@ -236,6 +239,7 @@ pub fn settle_selected_execution(
             .and_then(accepted_binding),
     )?;
     Ok(SelectedExecution {
+        external_providers: checked.external_providers,
         native_provider_sources: checked.native_provider_sources,
         program: checked.program,
         selected_target_profile: settlement.selected_target_profile,
