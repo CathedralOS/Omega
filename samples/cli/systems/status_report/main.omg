@@ -44,8 +44,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.reading = 95;
 
     transition main.reading > 90 {
-        true -> high(main)
-        _ -> normal(main)
+        true -> block high(main)
+        _ -> block normal(main)
     }
 
     machine high(main: &mut Main) {
@@ -53,7 +53,7 @@ machine Main::main(main: &mut Main) reaches Console {
         copy(&mut main.message.storage, &main.label, 6);
         main.message.used = 10;
         Console::write_line(live(&main.message));
-        transition live(&main.message) == "ALERT temp" { true -> ok(main) _ -> bad(main) }
+        transition live(&main.message) == "ALERT temp" { true -> block ok(main) _ -> block bad(main) }
     }
 
     machine normal(main: &mut Main) {
@@ -61,7 +61,7 @@ machine Main::main(main: &mut Main) reaches Console {
         copy(&mut main.message.storage, &main.label, 3);
         main.message.used = 7;
         Console::write_line(live(&main.message));
-        transition live(&main.message) == "ok temp" { true -> ok(main) _ -> bad(main) }
+        transition live(&main.message) == "ok temp" { true -> block ok(main) _ -> block bad(main) }
     }
 
     machine ok(main: &mut Main) {

@@ -48,8 +48,8 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line(live(&main.greeting));
 
     transition live(&main.greeting) == "Hello, Ada!" {
-        true -> ok(main)
-        _ -> mismatch(main)
+        true -> block ok(main)
+        _ -> block mismatch(main)
     }
 
     machine ok(main: &mut Main) {
