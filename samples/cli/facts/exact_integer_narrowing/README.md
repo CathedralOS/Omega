@@ -109,7 +109,7 @@ formation, operand definedness and result landing independently succeed. An
 authenticated normal Trapping value retains its opaque identity when optional
 mathematical unfolding cannot be proved. Wrapping and Saturating keep their
 selected node results and count rules; raw legacy range normalization retains
-its separate formation checks. The owning qualification distinguishes the fresh
+its separate formation checks. The owning qualification distinguishes the
 fresh 8110 integration observations from the retained 4588 recordings and
 4c99 comparisons. The reviewed one-line lint change and actual main conflict
 resolution retain their separate source identities.
