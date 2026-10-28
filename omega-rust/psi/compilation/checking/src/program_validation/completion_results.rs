@@ -69,8 +69,8 @@ pub(super) fn validate(
                 return;
             }
             StatementNode::LocalData(local)
-                if local.initializer.is_valid()
-                    && calls::expression_normal_completion_possible(program, local.initializer)
+                if local.initial_value.is_valid()
+                    && calls::expression_normal_completion_possible(program, local.initial_value)
                         == Some(false) =>
             {
                 return;
