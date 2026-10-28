@@ -6,6 +6,7 @@
 mod assumed_bindings;
 mod authority;
 mod external;
+mod native_bindings;
 mod restricted_build;
 mod semantic_dependencies;
 
@@ -82,6 +83,7 @@ pub fn project_checked_package_policy<'a>(
         terminal_permissions,
         representation,
         external_supplies,
+        native_bindings: native_bindings::project(compilation, package)?,
         dangerous_capabilities,
         slack_uses,
         semantic_dependencies,

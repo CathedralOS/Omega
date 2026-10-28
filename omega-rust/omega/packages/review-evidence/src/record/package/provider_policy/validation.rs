@@ -31,7 +31,9 @@ impl PackagePolicySelectedProviders {
             if plan.plan_name.is_empty()
                 || (plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
                     && !(plan.provider_type_declaration.is_none()
-                        && plan.realizing_package.is_none()))
+                        && (plan.realizing_package.is_none()
+                            || !plan.rows.is_empty()
+                                && plan.rows.iter().all(|row| row.native_build.is_some()))))
                 || (!plan.target.is_empty() && plan.target != self.target.target_name())
                 || plan.methods.is_empty()
                 || plan.methods.len() != plan.rows.len()
@@ -70,10 +72,46 @@ impl PackagePolicySelectedProviders {
                             );
                         }
                     }
+                    // Build-owned supply names its actual Build producer,
+                    // independently of a runtime realization declaration.
+                    None if row.native_build.as_ref().is_some_and(|producer| {
+                        producer.package == plan.realizing_package
+                            && producer.package.is_some()
+                            && super::binding_validation::matches_owner(
+                                producer.declaration.owner,
+                                producer.package,
+                            )
+                    }) => {}
                     // A toolchain-settled row names no authored machine.
-                    None if plan.realizing_package.is_none() => {}
+                    None if plan.realizing_package.is_none() && row.native_build.is_none() => {}
                     None => {
                         return Err("provider row omits its realization under a realizing package");
+                    }
+                }
+                if let Some(producer) = &row.native_build {
+                    producer.declaration.validate_resolved()?;
+                    if row.realization.is_some()
+                        || row.compiler_intrinsic_execution.is_some()
+                        || !row.requirement_lifetime_partition.is_empty()
+                    {
+                        return Err(
+                            "native Build row mixes authored realization or binder origins",
+                        );
+                    }
+                    match &row.binding {
+                        crate::record::PackagePolicyProviderBinding::Import {
+                            producer: bound,
+                            ..
+                        } if bound == producer => {}
+                        crate::record::PackagePolicyProviderBinding::Syscall {
+                            evaluated: Some(bound),
+                            ..
+                        } if &bound.producer == producer => {}
+                        _ => {
+                            return Err(
+                                "native Build row has a different binding producer or mechanism",
+                            );
+                        }
                     }
                 }
                 if row.requirement_lifetime_partition

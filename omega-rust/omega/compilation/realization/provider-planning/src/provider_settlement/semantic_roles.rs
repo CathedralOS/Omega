@@ -32,24 +32,26 @@ pub(super) fn validate_proposed(
         let Some(declaration) = completion_declaration(typed, owner, package) else {
             continue;
         };
-        let external_rows = plan
-            .rows
-            .iter()
-            .enumerate()
-            .filter(|(index, _row)| {
-                selected
-                    .row_external_completion_leaves
-                    .get(*index)
-                    .is_some_and(|leaves| !leaves.is_empty())
-                    && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
-                    && provenance
-                        .row_realizations
+        let external_rows =
+            plan.rows
+                .iter()
+                .enumerate()
+                .filter(|(index, _row)| {
+                    selected
+                        .row_external_completion_leaves
                         .get(*index)
-                        .is_some_and(|realization| {
-                            typed.symbols.symbol_package_identity(*realization) == Some(package)
-                        })
-            })
-            .count();
+                        .is_some_and(|leaves| !leaves.is_empty())
+                        && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
+                        && provenance
+                            .row_realizations
+                            .get(*index)
+                            .is_some_and(|realization| {
+                                realization.authored().and_then(|symbol| {
+                                    typed.symbols.symbol_package_identity(symbol)
+                                }) == Some(package)
+                            })
+                })
+                .count();
         if external_rows > 1 {
             return Err(vec![Diagnostic::error(
                 "completion role discovery has multiple realizations for one source requirement",

@@ -7,7 +7,7 @@
 pub(super) mod application_realizations;
 mod boundary_policy;
 pub(super) mod installation;
-mod policy;
+pub(crate) mod policy;
 pub(crate) use boundary_policy::project_checked_boundary_application_policy;
 pub(crate) use policy::project_checked_selected_provider_policy;
 pub(super) mod intrinsics;

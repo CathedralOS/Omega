@@ -72,7 +72,7 @@ fn boundary_requirement(
         .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
             program
-                .trait_machine_instances(definition)
+                .executable_trait_machine_instances(definition)
                 .filter(move |signature| signature.symbol == target)
                 .map(move |signature| (definition, signature))
         })

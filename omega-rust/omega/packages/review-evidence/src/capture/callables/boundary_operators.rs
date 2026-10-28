@@ -42,6 +42,13 @@ fn boundary_operator_plan_singletons<'plan>(
             plan.name,
         ))]);
     };
+    let provider_planning::ProviderRowRealization::Authored(realization_symbol) =
+        realization_symbol
+    else {
+        return Err(vec![Diagnostic::error(
+            "boundary operator callable requires its exact authored realization",
+        )]);
+    };
     Ok((method, row, requirement_symbol, realization_symbol))
 }
 
@@ -193,7 +200,11 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
                     == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
                         operator.symbol,
                     )
-                && retained.provider.row_realizations.contains(&machine.symbol)
+                && retained
+                    .provider
+                    .row_realizations
+                    .iter()
+                    .any(|row| row.authored() == Some(machine.symbol))
         })
         .collect::<Vec<_>>();
     if matches.is_empty() {

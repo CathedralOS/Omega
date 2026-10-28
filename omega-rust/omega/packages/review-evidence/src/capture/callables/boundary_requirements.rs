@@ -98,7 +98,11 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
                 == provider_planning::ProviderSchemaDeclaration::BoundaryRequirement(
                     requirement.symbol,
                 )
-                && retained.provider.row_realizations.contains(&machine.symbol)
+                && retained
+                    .provider
+                    .row_realizations
+                    .iter()
+                    .any(|row| row.authored() == Some(machine.symbol))
         })
         .collect::<Vec<_>>();
     if matches.is_empty() {
@@ -161,7 +165,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         .symbol_package_identity(machine.attached_data_symbol);
     if retained.plan != **plan
         || *requirement_symbol != requirement.symbol
-        || *realization_symbol != machine.symbol
+        || realization_symbol.authored() != Some(machine.symbol)
         || retained.provider.provider_type != Some(machine.attached_data_symbol)
         || plan.origin_package_identity != expected_package
         || plan.provider_type != expected_provider_type

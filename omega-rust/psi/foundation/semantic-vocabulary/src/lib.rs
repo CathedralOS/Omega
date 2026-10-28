@@ -69,3 +69,6 @@ pub use proposition::{
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
 };
 pub use structural_places::{AffineConstructionElement, StructuralPlaceKind};
+
+mod foreign_locator;
+pub use foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};

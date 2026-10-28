@@ -142,8 +142,19 @@ pub fn select_derived_provider_plans(
             .into_iter()
             .map(|selected| SelectedProviderPlanWithProvenance {
                 derived: derived[selected.candidate].clone(),
-                selected_by: selected.selected_by,
+                selected_by: if derived[selected.candidate]
+                    .provenance
+                    .row_realizations
+                    .iter()
+                    .all(|row| row.native().is_some())
+                {
+                    ProviderSelectionProvenance::NativeBuild
+                } else {
+                    selected.selected_by
+                },
             })
             .collect()
     })
 }
+
+pub use provenance_replay::ProviderRowRealization;

@@ -70,7 +70,9 @@ pub(crate) fn request(
     };
     if !operand_count_valid
         || evidence_count != 0
-        || if operation == BuildOperation::ProviderSelection {
+        || if operation == BuildOperation::NativeBinding {
+            ordinary_count != 3
+        } else if operation == BuildOperation::ProviderSelection {
             !(2..=3).contains(&ordinary_count)
         } else {
             ordinary_count != 1
@@ -80,6 +82,7 @@ pub(crate) fn request(
             "{} requires {} and {}",
             operation.authored_spelling(),
             match operation {
+                BuildOperation::NativeBinding => "one exact requirement operand",
                 BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
@@ -87,7 +90,9 @@ pub(crate) fn request(
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",
             },
-            if operation == BuildOperation::ProviderSelection {
+            if operation == BuildOperation::NativeBinding {
+                "its explicit mutable Build, catalog target and owned native locator arguments"
+            } else if operation == BuildOperation::ProviderSelection {
                 "its explicit mutable Build and catalog target arguments (plus an optional composition mode)"
             } else {
                 "its explicit mutable Build argument"

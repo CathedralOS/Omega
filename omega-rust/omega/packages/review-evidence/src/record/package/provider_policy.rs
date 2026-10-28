@@ -23,4 +23,14 @@ pub(crate) use rows::{
     PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderRow,
 };
 pub(crate) use service_validation::validate_service_methods;
+pub(crate) fn validate_native_service_method(
+    method: &PackagePolicyServiceMethod,
+    target: target::TargetProfile,
+) -> Result<(), &'static str> {
+    validate_service_methods(
+        std::slice::from_ref(method),
+        &method.requirement_owner,
+        target,
+    )
+}
 pub(crate) use signature::PackagePolicyServiceSignature;

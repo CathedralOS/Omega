@@ -203,7 +203,7 @@ pub(crate) fn boundary_identity(
     let program = &checked.typed;
     let mut requirements = program.traits().iter().flat_map(|owner| {
         program
-            .trait_machine_instances(owner)
+            .executable_trait_machine_instances(owner)
             .filter_map(move |signature| (signature.symbol == target).then_some((owner, signature)))
     });
     let Some((owner, signature)) = requirements.next() else {
