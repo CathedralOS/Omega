@@ -33,16 +33,28 @@ untouched canary make the executed branches observable. Caller equality checks
 are runtime oracles; the store itself must independently preserve the declared
 data predicate.
 
-The current baseline wrongly refuses all nine positives at the increment;
-their nine twins refuse the same intended obligation. The trace proves the
-bound under the private arrival, then loses the entire observation because
-another arm's explicit Unit completion is treated as unsupported. Removing
-the indexed write still fails; an explicit helper `requires` or a scalar
-result avoids that traversal failure. Source, oracle and optimized-producer
-identities are retained in the session's qualification evidence. Runtime
-acceptance, pinned fixtures and the full product migration remain unfinished.
+Optimized baseline `05e1922` wrongly refuses all nine positives at the
+increment. The repaired producer `5792c168` runs all nine with native/Terminal
+exit 0; their nine twins retain the intended data-store refusal. The two
+positive controls also run with exit 0. The five negative controls preserve
+stale-write, all-arrival, operand-formation and completion-resolution boundaries.
+All 25 source fixtures and 11 runtime agreements are pinned under
+`tests/omega/{pass,fail}/facts/nested_machine_default_domain_*`.
+
+The focused regression scope has 287 source observations: 284 intended outcomes
+and three exact baseline failures. Its 155 BOTH observations contain 108
+native/Terminal exit agreements, 42 declaration-only checks, three Terminal-only
+runs without native bindings for this host, and two refusals. The retained
+baseline reproduces all five unmet runtime outcomes and all three source
+failures; their goldens are unchanged. A corrupted saved-count oracle traps
+both engines. Formatting and the affected crate's Clippy pass with existing
+warnings. Records retain their actual producer identities and host; this does
+not establish other-host native execution.
 
 The customer is `source/psi`: its source/token/parser tables increment bounded
-counts under caller guards. The product parser currently reports this same
-data-store refusal at many such sites. The broader product declaration-model
-migration remains open; no other-host native execution is claimed here.
+counts under caller guards. A retained product parser replay
+reports this data-store refusal at many such sites. Fresh full-parser checks
+on both baseline and repaired compilers timed out after 90 seconds; they supply
+no product acceptance. Checking an unused source module alone passes on both
+compilers and is coverage only. The broader product declaration-model migration
+and its checking workflow remain open.
