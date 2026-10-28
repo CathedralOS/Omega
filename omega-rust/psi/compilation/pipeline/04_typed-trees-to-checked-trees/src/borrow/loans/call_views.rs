@@ -398,15 +398,14 @@ pub(super) fn rebase_reference_formation_geometry(
             statement,
             &validation::CanonicalPlace {
                 root: place.root,
-                segments: place.segments.clone(),
+                segments: Vec::new(),
             },
         ) else {
             return false;
         };
         // A whole borrowed formal lends its ingress referent, rather than
         // the callee's descriptor slot. Further reference shells are stored.
-        if place.segments.is_empty()
-            && let Some(symbol) = place.root.as_symbol()
+        if let Some(symbol) = place.root.as_symbol()
             && program
                 .state_by_symbol(state)
                 .is_some_and(|state| program.state_parameter_by_symbol(state, symbol).is_some())
@@ -414,7 +413,15 @@ pub(super) fn rebase_reference_formation_geometry(
         {
             reference = shell.referee;
         }
-        validation::stored_structural_type_identity(program, reference, &[], &[]) == expected
+        // A canonical leaf type may already have crossed a stored descriptor.
+        // Such a projection still owes the descriptor's current supplier loan;
+        // matching its referee does not make the local descriptor its backing.
+        // Stop only at actual inline storage, retaining the shared projection
+        // owner's complete generic environment and final descriptor boundary.
+        validation::owned_projection_type_reference(program, reference, &place.segments)
+            .is_some_and(|stored| {
+                validation::stored_structural_type_identity(program, stored, &[], &[]) == expected
+            })
     };
     rebase_borrow_places_following(
         program,
