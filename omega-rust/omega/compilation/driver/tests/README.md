@@ -231,6 +231,14 @@ copying bindings or deleting a stale lock to turn it into an unlocked request.
 
 ### Captured Build input fixtures
 
+This section describes the existing legacy fixture harness, not the ratified
+public authoring model. `STAGED-BUILD-CAPABILITIES` in
+[TASKS.md](../../../../../TASKS.md) migrates these controls to ordinary explicit
+filesystem views and context-specific staged execution, then removes the
+BuildInputs/BuildSource registry and related facets. Retain the same isolation,
+missing-file, source-capture and immutable-publication obligations; a renamed
+wrapper around the old protocol is not that migration.
+
 An authored fixture may supply named host-API inputs as immediate directories
 under `build-inputs/<slot>/`. The corpus harness captures each sealed directory
 and calls `BuildSnapshotRequest::with_inputs` before both preliminary acceptance

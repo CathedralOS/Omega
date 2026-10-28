@@ -21,6 +21,19 @@ declaration's visibility. Fully qualified spelling and explicit arguments obey
 the same rule. Tooling may discover an enclosing package; source cannot walk
 parent directories to gain undeclared reach.
 
+Build source supports [checked staged imports](../build/scoped_execution.md#checked-build-stages).
+A logical `use dependency;` may remain deferred until explicit dependency
+registration and preparation make its exact declaration scope available to a
+subsequent checked continuation. Unused deferred imports normally warn without
+acquisition or execution; references in types and contracts still require
+resolution before their checked use. A later request cannot justify earlier
+code. Alias/source/purpose/context registration is atomic and immutable, with
+no post-registration retarget or implicit compiler-filesystem fallback.
+`use name from Source::Path { ... };` is not an acquisition/import surface.
+Ordinary product source retains complete name resolution before type/proof
+checking its consumers; this Build staging rule is not lazy unchecked product
+execution or declaration identity invented from matching signatures.
+
 Dependency authority is context-specific. Build entry/local-helper imports use
 build dependencies; product and generated-product imports use ordinary product
 dependencies. The same alias can have distinct meanings in those scopes, with

@@ -63,17 +63,16 @@ stay the same. Existing locks require a fresh update/review after a declaration
 rename; old acceptance does not authorize the new identity. Hyphenated package
 declarations are not accepted through an implicit spelling conversion.
 
-Product dependencies use `depend`/`depend_as`; build-only helpers use
-`build_depend`/`build_depend_as`. They are separate checked scopes, including
-when the same library is used in both. Build code obtains a dependency helper
-through `suspend Build::await_provider<R, dependency::Backing>(builder)` after
-declaring its build edge, explicitly naming both its pre-known requirement and
-the exact backing to prepare, then
-calls the exact static requirement application; the edge does not make unresolved
-package paths visible or return a routing value. The
+Product and interpreted Build dependencies use separate atomic
+`Build::dependency` and `Build::build_dependency` registrations. An ordinary
+description is configured before registration, including any alias and delegated
+execution context. `use` performs only logical name selection; explicit
+`Build::prepare_dependency` admits the package before the dependent continuation
+is checked and executed. A child uses ordinary supplied filesystem capabilities,
+not an injected named-input registry. The
 [build dependency guide](chapter_15_modules_imports_visibility.md#build-and-product-dependencies)
 explains target separation, helper imports, and explicit legacy migration.
-Purpose-aware installation/lock support is implementation work; the current
+Staged dependency and capability migration remains implementation work; the current
 command list below does not imply a new build-dependency CLI option.
 
 ## Install and update
