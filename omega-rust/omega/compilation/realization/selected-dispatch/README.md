@@ -16,7 +16,12 @@ selected execution does not mutate incomplete leaves or reconstruct truncated
 source plans. The same inputs retain intrinsic declaration facts from
 [intrinsic_declarations.rs](../provider-planning/src/intrinsic_declarations.rs):
 exact ownership, signature/effect/supply eligibility and deferred failures.
-Direct-leaf completion consumes those facts without checked-source queries.
+Selected intrinsic/host-role settlement and direct-leaf completion consume those
+same facts without checked-source queries. The candidate's
+[original rows](../provider-planning/src/provider_planning/provider_rows.rs) own
+optional direct-call inputs alongside declaration facts; bodyful completion
+adapters retain host-role eligibility without inventing direct leaves. Independent
+package review still projects the supplied source through its own preparation.
 Preparation consumes the original candidate after constant closure; its typed
 output prevents completion from accepting the earlier unprepared snapshot.
 The accepted public plan remains distinct from the original candidate and the

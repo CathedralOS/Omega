@@ -356,7 +356,13 @@ immutable custody and uses only its own source correspondence for remaining
 contract capture. Unsupported or unowned unused declarations retain deferred
 projection refusals. Host classification still uses a catalog-local source join;
 this does not claim all accepted-service preparation is portable Psi.
-Original direct-call candidates also retain intrinsic declaration facts:
+Original provider rows retain declaration facts shared by selected review and
+direct-call completion. Each row owns its optional direct-call input; bodyful
+checked completion adapters keep their host-role facts without acquiring a
+direct leaf. Selected settlement rejoins the exact original plan/provenance and
+consumes prepared placed-catalog and exit-role facts, not checked trees.
+Independent package review still projects its supplied candidate afresh.
+These original rows retain intrinsic declaration facts:
 exact nominal owners, bundled-source eligibility, signature/effect/supply checks
 and sealed placed-operation contracts. Selected-row review projects the supplied
 source through that same producer. Direct-call completion joins target and accepted

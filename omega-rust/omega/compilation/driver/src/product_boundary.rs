@@ -426,6 +426,33 @@ fn native_provider_handoff_borrows_closed_source_associations() {
 }
 
 #[test]
+fn selected_intrinsic_settlement_borrows_original_row_declarations() {
+    let settlement = include_str!("../../realization/selected-dispatch/src/intrinsic_review.rs");
+    for forbidden in [
+        "CheckedTrees",
+        "ProviderPlanningContext",
+        "SealedPlacedAccessor::rejoin_plan",
+        "row_execution_identity(",
+        "accepted_binding_matches_exit_process_row(",
+    ] {
+        assert!(
+            !settlement.contains(forbidden),
+            "selected settlement reopens {forbidden}"
+        );
+    }
+    assert!(settlement.contains("candidate.row_declarations("));
+    assert!(settlement.contains(".direct_declarations("));
+    let producer =
+        include_str!("../../realization/provider-planning/src/provider_planning/provider_rows.rs");
+    assert!(producer.contains("struct ProviderRow {"));
+    assert!(producer.contains("direct: Option<DirectBoundaryInput>"));
+    assert!(producer.contains("ExitProcessDeclaration::prepare("));
+    let review =
+        include_str!("../../../packages/review-evidence/src/capture/providers/intrinsics.rs");
+    assert!(review.contains("derive_selected_compiler_intrinsic_execution_identity_for_row"));
+}
+
+#[test]
 fn components_use_the_shared_product_sequence() {
     for source in [
         include_str!("checked/package_compilation.rs"),

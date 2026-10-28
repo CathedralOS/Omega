@@ -263,7 +263,7 @@ fn select_checked_providers(
         },
     )?;
     let root_grants = build_config.root_grant_selectors();
-    let providers = providers.prepare_intrinsic_declarations(
+    let providers = providers.prepare_row_declarations(
         &closed_program.typed,
         source.sources.exact_toolchain_sources(),
     )?;
