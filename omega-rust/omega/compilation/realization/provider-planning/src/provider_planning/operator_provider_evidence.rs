@@ -183,7 +183,7 @@ fn selected_requirement_provider_evidence(
         ProviderBinding::CheckedAdapter { .. } => {}
         ProviderBinding::CompilerIntrinsic { machine, .. } => {
             requirement
-                .diagnostic_label(typed)
+                .execution_identity(typed)
                 .ok_or_else(|| {
                     diagnostics::Diagnostic::error(format!(
                         "selected boundary-requirement ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
@@ -386,7 +386,7 @@ fn selected_operator_provider_evidence(
         )));
     };
     let requirement = crate::IntrinsicRequirement::from_operator(typed, operator)
-        .filter(|requirement| requirement.diagnostic_label(typed).is_some())
+        .filter(|requirement| requirement.execution_identity(typed).is_some())
         .ok_or_else(|| {
             diagnostics::Diagnostic::error(format!(
                 "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",

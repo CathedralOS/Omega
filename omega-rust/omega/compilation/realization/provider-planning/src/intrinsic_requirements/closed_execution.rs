@@ -4,8 +4,9 @@
 //! top-level requirement without a token view never selects a closed child.
 //! `closed_execution` asks the float lane before the integer-comparison lane:
 //! a float comparison spelling is a `PrimitiveFloatBinary`, never an integer
-//! comparison. Plan validation, diagnostic labels and selected dispatch all
-//! ask that one chain. Package review asks only `closed_float_execution`.
+//! comparison. The complete `execution_identity` classification adds the
+//! named numeric catalog after this token-only chain. Package review's token
+//! conformance question still asks only `closed_float_execution`.
 
 use super::IntrinsicRequirement;
 use checked_trees::typed_trees::types::PrimitiveType;
@@ -19,7 +20,7 @@ impl IntrinsicRequirement<'_> {
     /// The sealed compiler execution child this requirement's token denotes:
     /// a primitive float binary operation, else a primitive integer
     /// comparison. The selected plan separately binds its provider.
-    pub fn closed_execution(
+    pub(super) fn closed_execution(
         &self,
         typed: &TypedTrees,
     ) -> Option<CompilerIntrinsicExecutionIdentity> {

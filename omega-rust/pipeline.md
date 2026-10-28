@@ -333,6 +333,13 @@ invocation's deferred work, not the cached consumer's. Selected Product closure
 evaluates a private copy, rejoins recorded recipe identities and closes queries
 in the actual checked forest; the coordinator no longer copies constant values
 or layout tables between those forests.
+Numeric intrinsic classification has one source-owned decision: the exact
+requirement's token or named catalog row supplies both signature obligations
+and its closed execution identity. Provider planning and selected dispatch use
+that classification; diagnostic strings do not gate support. Package review
+still independently rejoins its supplied candidate to retained selection
+custody. The classification is not yet published in canonical Terminal Psi;
+moving this source dependency remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not
 yet target-independent constant production or a completed Terminal-only provider
 pipeline; portable deferred recipes remain part of the migration.
