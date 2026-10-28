@@ -26,6 +26,25 @@ pub(crate) fn selection_for_call(
     expected_return: Option<TypeReferenceHandle>,
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
+    let query = match site {
+        CallSite::Expression(handle) => program
+            .expression_table
+            .call_node(handle)
+            .and_then(|call| call.native_code_layout.as_ref()),
+        CallSite::Statement(_) => None,
+    };
+    let effective_target = if let Some(query) = query {
+        program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == query.operand.symbol)
+            .and_then(|machine| program.machine_states(machine).first())
+            .map(|state| state.symbol)
+            .unwrap_or(query.operand.symbol)
+    } else {
+        target_symbol
+    };
+    resolve_callee(program, callee_states, effective_target)?;
     // A runtime `Value` subject resolves only against the locals the call can
     // see: the caller's parameters and `let` declarations before its own
     // statement.

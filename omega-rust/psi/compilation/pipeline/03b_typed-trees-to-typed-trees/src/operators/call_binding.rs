@@ -231,27 +231,30 @@ pub(crate) fn bind_selected_operator_calls(
     // specializing first changes the diagnostic leaf but not the authored
     // qualifier. The ordinary call edge, not closedness, owns this decision.
     let mut named_targets = Vec::new();
-    for (_, value) in values.values.iter() {
-        expressions.clear();
-        validation::expression_traversal::collect_expression_tree(
-            program,
-            value.expression,
-            &mut expressions,
-        );
-        for expression in expressions.iter().copied() {
-            let Some(call) = program.expression_table.call_node(expression) else {
-                continue;
-            };
-            let owner = program
-                .machine_holding_state(call.target_symbol)
-                .or_else(|| program.machine_by_symbol(call.target_symbol));
-            if let Some(owner) = owner
-                && program
-                    .machine_token_binding_by_symbol(owner.symbol)
-                    .is_some()
-                && !named_targets.contains(&(expression, owner.symbol))
-            {
-                named_targets.push((expression, owner.symbol));
+    if !program.machine_token_bindings().is_empty() {
+        let mut seen_named = HashSet::with_hasher(symbols::BuildSymbolHasher);
+        for (_, value) in values.values.iter() {
+            expressions.clear();
+            validation::expression_traversal::collect_expression_tree(
+                program,
+                value.expression,
+                &mut expressions,
+            );
+            for expression in expressions.iter().copied() {
+                let Some(call) = program.expression_table.call_node(expression) else {
+                    continue;
+                };
+                let owner = program
+                    .machine_holding_state(call.target_symbol)
+                    .or_else(|| program.machine_by_symbol(call.target_symbol));
+                if let Some(owner) = owner
+                    && program
+                        .machine_token_binding_by_symbol(owner.symbol)
+                        .is_some()
+                    && seen_named.insert((expression, owner.symbol))
+                {
+                    named_targets.push((expression, owner.symbol));
+                }
             }
         }
     }

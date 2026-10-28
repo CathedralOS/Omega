@@ -618,6 +618,25 @@ impl TypedTrees {
         self.machines().get(position as usize)
     }
 
+    /// Return all non-target machines rendering `identity` in declaration order.
+    pub fn machines_by_callable_identity(&self, identity: CallableIdentityId) -> Vec<&Machine> {
+        let Some(slot) = identity.slot() else {
+            return Vec::new();
+        };
+        self.sweep_callable_identities();
+        let positions = self.read_callable_memo(|memo| {
+            memo.machines
+                .get(slot)
+                .cloned()
+                .unwrap_or_default()
+        });
+        let machines = self.machines();
+        positions
+            .into_iter()
+            .filter_map(|position| machines.get(position as usize))
+            .collect()
+    }
+
     fn read_callable_identities<R>(&self, read: impl FnOnce(&CallableIdentityTable) -> R) -> R {
         self.callable_identities.with(read)
     }
