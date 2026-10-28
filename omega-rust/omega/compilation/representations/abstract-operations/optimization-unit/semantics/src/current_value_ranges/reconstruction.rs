@@ -5,10 +5,13 @@ use crate::candidates::sparse_conditional_constant_propagation::{
 };
 use optimization_core::ValueRangeFactIdentity;
 use optimization_unit::{
-    OptimizationFact, ProofQuestionOwner, PsiOptimizationUnit, ScalarConstantValue, ValueRangeFact,
-    ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
+    OptimizationFact, ProofQuestionOwner, PsiOptimizationFunction, PsiOptimizationUnit,
+    ScalarConstantValue, ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport,
+    value_range_fact_identity,
 };
-use semantic_vocabulary::{BlockId, IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    BlockId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ScalarType, ValueId,
+};
 
 use super::availability::{scope_applies_at, value_available_at};
 use optimization_unit::{IntervalExtraction, extract_integer_intervals, proof_range_goal};
@@ -71,28 +74,7 @@ pub(super) fn reconstruct_value_range_fact(
                 .get(usize::try_from(node).ok()?)?;
             let (current_operation, obligation, goal) = proof_range_goal(&anchor.operation)?;
             if current_operation != operation
-                || function
-                    .blocks
-                    .iter()
-                    .flat_map(|candidate| &candidate.nodes)
-                    .filter(|candidate| {
-                        proof_range_goal(&candidate.operation)
-                            .is_some_and(|(candidate, _, _)| candidate == operation)
-                    })
-                    .count()
-                    != 1
-                || function
-                    .facts
-                    .iter()
-                    .filter(|candidate| {
-                        matches!(candidate,
-                            OptimizationFact::OperationObligationReference {
-                                obligation: candidate_obligation,
-                                support,
-                            } if *candidate_obligation == obligation && *support == operation)
-                    })
-                    .count()
-                    != 1
+                || !is_unique_proof_anchor(function, operation, obligation)
             {
                 return None;
             }
@@ -202,29 +184,7 @@ pub(crate) fn independently_reconstruct_value_range_fact_at(
             let Some((operation, obligation, goal)) = proof_range_goal(&node.operation) else {
                 continue;
             };
-            if function
-                .blocks
-                .iter()
-                .flat_map(|candidate| &candidate.nodes)
-                .filter(|candidate| {
-                    proof_range_goal(&candidate.operation)
-                        .is_some_and(|(candidate, _, _)| candidate == operation)
-                })
-                .count()
-                != 1
-                || function
-                    .facts
-                    .iter()
-                    .filter(|candidate| {
-                        matches!(candidate,
-                            OptimizationFact::OperationObligationReference {
-                                obligation: candidate_obligation,
-                                support,
-                            } if *candidate_obligation == obligation && *support == operation)
-                    })
-                    .count()
-                    != 1
-            {
+            if !is_unique_proof_anchor(function, operation, obligation) {
                 continue;
             }
             let Ok(proposition) = goal.kernel_proposition() else {
@@ -328,6 +288,36 @@ pub(crate) fn independently_reconstruct_value_range_fact_at(
         }
     }
     None
+}
+
+/// A proof-derived range has one anchor only when the operation is the single
+/// node carrying a proof goal and exactly one obligation reference names it.
+fn is_unique_proof_anchor(
+    function: &PsiOptimizationFunction,
+    operation: OperationId,
+    obligation: ObligationId,
+) -> bool {
+    let goals = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            proof_range_goal(&node.operation)
+                .is_some_and(|(candidate, _, _)| candidate == operation)
+        })
+        .count();
+    let references = function
+        .facts
+        .iter()
+        .filter(|fact| {
+            matches!(fact,
+                OptimizationFact::OperationObligationReference {
+                    obligation: candidate_obligation,
+                    support,
+                } if *candidate_obligation == obligation && *support == operation)
+        })
+        .count();
+    goals == 1 && references == 1
 }
 
 fn new_fact(
