@@ -6,8 +6,6 @@
 //! give detached expressions ordinary checking context; they remain in a private
 //! clone and never add a runtime declaration or a portable representation.
 
-mod selections;
-
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -32,13 +30,38 @@ struct Leaf {
 }
 
 pub(crate) fn validate(
-    typed: &mut TypedTrees,
+    typed: &TypedTrees,
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    // Exact ordinary selection closes the dependency roster before any source
-    // initializer is checked in custody or projected into the replay program.
-    let (mut probe, replay_domain) = selections::prepare(typed, domain)?;
+    // Syntax work and receiving value validation have different domains. New
+    // values carry exact constant dependencies, including call-produced values
+    // from a completed predecessor. Close those recorded edges before creating
+    // the independently checked replay batch; omission must still hit the
+    // missing-owner fence below, never authorize trusting a capsule by itself.
+    let mut replay_domain = typed_trees::references::DeclarationSelection::from_symbols(
+        typed
+            .const_declarations()
+            .iter()
+            .filter(|declaration| domain.contains(declaration.symbol))
+            .map(|declaration| declaration.symbol),
+    );
+    loop {
+        let references =
+            typed_trees::references::collect_selected_program_references(typed, &replay_domain);
+        let mut changed = false;
+        for declaration in typed.const_declarations() {
+            if references.symbols.contains(&declaration.symbol)
+                && !replay_domain.contains(declaration.symbol)
+            {
+                replay_domain.include(declaration.symbol);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
     let mut leaves = Vec::new();
     let mut replay_declarations = Vec::new();
     let mut floating_declarations = Vec::new();
@@ -190,6 +213,7 @@ pub(crate) fn validate(
     }
     // Retain the source declaration roster until ordinary typed selection has
     // rebound detached calls. Only the derived execution closure is projected.
+    let mut probe = typed.clone();
     let mut owners = Vec::new();
     for (ordinal, leaf) in leaves.iter().enumerate() {
         let original = super::invocations::append_probe(
@@ -398,9 +422,7 @@ pub(crate) fn validate(
             super::failure(program.expression_table.source_span(leaf.original), reason)
         })?;
     }
-    // Publish only the original source selections produced before private
-    // specialization, and only after both source and materialized values pass.
-    selections::publish(typed, &probe, &replay_domain)
+    Ok(())
 }
 
 /// The declared type, not a receipt tag, decides whether floating replay is
