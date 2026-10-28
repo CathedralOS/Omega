@@ -27,10 +27,17 @@ pub(super) fn collect(
             resolutions,
         )?;
     }
+    if !typed
+        .expression_table
+        .static_machine_applications()
+        .any(|(_, application)| !application.input_selections.is_empty())
+    {
+        return Ok(());
+    }
     #[derive(Default)]
     struct Applications {
         handles: Vec<typed_trees::static_applications::StaticMachineApplicationHandle>,
-        expressions: Vec<typed_trees::expression::ExpressionHandle>,
+        expressions: Vec<Vec<typed_trees::expression::ExpressionHandle>>,
     }
     impl Extend<symbols::SymbolHandle> for Applications {
         fn extend<Symbols: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, _: Symbols) {}
@@ -45,10 +52,14 @@ pub(super) fn collect(
             }
         }
         fn expression(&mut self, handle: typed_trees::expression::ExpressionHandle) -> bool {
-            if self.expressions.contains(&handle) {
+            let index = handle.arena_index() as usize;
+            if self.expressions.len() <= index {
+                self.expressions.resize_with(index + 1, Vec::new);
+            }
+            if self.expressions[index].contains(&handle) {
                 return false;
             }
-            self.expressions.push(handle);
+            self.expressions[index].push(handle);
             true
         }
     }
