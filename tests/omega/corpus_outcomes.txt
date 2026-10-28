@@ -11481,37 +11481,37 @@ fail/facts/nested_fourteen_level_record_field_bound_through_target_body_rejected
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_machine_completion_result_array_unit_arm_rejected rejected 1269ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_array_unit_arm_rejected rejected 331ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` a terminal arm supplies Unit, but the invocation returns `[u8; 2]`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_call_result_rejected rejected 1643ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_call_result_rejected rejected 344ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_conditional_fallthrough_rejected rejected 766ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_conditional_fallthrough_rejected rejected 192ms expected @5b8ead0dbfc5
 	transition dispatch in `missing::entry` can fall through: no arm matches when every guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the `true`/`false` pair)
-fail/facts/nested_machine_completion_result_const_name_rejected rejected 1215ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_const_name_rejected rejected 339ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_field_rejected rejected 1262ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_field_rejected rejected 327ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_generic_empty_rejected rejected 1244ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_generic_empty_rejected rejected 444ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` declares a return type but its body is empty -- return a value or drop the `-> T`
-fail/facts/nested_machine_completion_result_generic_unit_arm_rejected rejected 1189ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_generic_unit_arm_rejected rejected 438ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` a terminal arm supplies Unit, but the invocation returns `T`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_implicit_after_write_rejected rejected 1150ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_implicit_after_write_rejected rejected 304ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` implicit body completion supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_implicit_empty_rejected rejected 1132ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_implicit_empty_rejected rejected 285ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` declares a return type but its body is empty -- return a value or drop the `-> T`
-fail/facts/nested_machine_completion_result_local_rejected rejected 1032ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_local_rejected rejected 294ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_match_join_rejected rejected 1026ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_match_join_rejected rejected 282ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_other_machine_rejected rejected 983ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_other_machine_rejected rejected 311ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_other_state_rejected rejected 1005ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_other_state_rejected rejected 286ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_parameter_rejected rejected 897ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_parameter_rejected rejected 508ms expected @5b8ead0dbfc5
 	machine `select` state `entry` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_reference_unit_arm_rejected rejected 998ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_reference_unit_arm_rejected rejected 514ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` a terminal arm supplies Unit, but the invocation returns `&u8`; every normal completion must supply its declared result
-fail/facts/nested_machine_completion_result_target_body_rejected rejected 862ms expected @86421512ec65
+fail/facts/nested_machine_completion_result_target_body_rejected rejected 306ms expected @5b8ead0dbfc5
 	machine `Selected::apply` state `apply` a terminal arm supplies Unit, but the invocation returns `u8`; every normal completion must supply its declared result
 fail/facts/nested_machine_default_domain_call_result_rejected rejected 431ms expected @860b169d5798
 	machine `read` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
@@ -27807,18 +27807,18 @@ pass/facts/nested_fourteen_level_record_field_bound_through_other_machine_exit c
 pass/facts/nested_fourteen_level_record_field_bound_through_other_state_exit checked 2827ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_parameter_exit checked 1925ms check-target:macos_arm64 @a92f16431042
 pass/facts/nested_fourteen_level_record_field_bound_through_target_body_exit checked 2803ms check-target:macos_arm64 @a92f16431042
-pass/facts/nested_machine_completion_result_call_result_exit checked 9986ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_const_name_exit checked 9331ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_crash_only_exit checked 7817ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_field_exit checked 8952ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_local_exit checked 7877ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_match_join_exit checked 10276ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_nonreturning_call_exit checked 9236ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_other_machine_exit checked 8677ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_other_state_exit checked 9619ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_parameter_exit checked 9236ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_target_body_exit checked 6550ms check-target:macos_arm64 @86421512ec65
-pass/facts/nested_machine_completion_result_unit_and_crash_exit checked 6439ms check-target:macos_arm64 @86421512ec65
+pass/facts/nested_machine_completion_result_call_result_exit checked 1964ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_const_name_exit checked 1964ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_crash_only_exit checked 1776ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_field_exit checked 1721ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_local_exit checked 1664ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_match_join_exit checked 1707ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_nonreturning_call_exit checked 1761ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_other_machine_exit checked 1785ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_other_state_exit checked 1686ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_parameter_exit checked 1665ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_target_body_exit checked 1755ms check-target:macos_arm64 @5b8ead0dbfc5
+pass/facts/nested_machine_completion_result_unit_and_crash_exit checked 1713ms check-target:macos_arm64 @5b8ead0dbfc5
 pass/facts/nested_machine_default_domain_call_result_exit checked 2180ms check-target:macos_arm64 @860b169d5798
 pass/facts/nested_machine_default_domain_const_name_exit checked 2218ms check-target:macos_arm64 @860b169d5798
 pass/facts/nested_machine_default_domain_explicit_unit_exit checked 2181ms check-target:macos_arm64 @860b169d5798
