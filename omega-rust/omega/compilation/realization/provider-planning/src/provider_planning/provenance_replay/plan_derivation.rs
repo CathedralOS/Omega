@@ -20,7 +20,7 @@ use crate::provider_planning::provenance_replay::requirement_identities::{
     external_provider_binding, inferred_compiler_leaf_binding, realization_machine_identity,
 };
 use crate::provider_planning::provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
+    DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
@@ -190,7 +190,7 @@ pub(crate) fn derive_provider_plans(
                 plans[position]
                     .provenance
                     .row_realizations
-                    .push(machine.symbol);
+                    .push(ProviderRowRealization::Authored(machine.symbol));
                 plans[position]
                     .provenance
                     .row_target_machine_origins
@@ -223,7 +223,8 @@ pub(crate) fn derive_provider_plans(
             .provenance
             .row_realizations
             .iter()
-            .any(|machine| absent.contains(typed, *machine))
+            .filter_map(ProviderRowRealization::authored)
+            .any(|machine| absent.contains(typed, machine))
     });
     Ok(plans)
 }
@@ -344,8 +345,12 @@ fn derive_named_provider_plans(
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {
                             if candidate.provenance.row_requirements.get(index)
                                 == Some(&row.requirement)
-                                && candidate.provenance.row_realizations.get(index)
-                                    == Some(&machine.symbol)
+                                && candidate
+                                    .provenance
+                                    .row_realizations
+                                    .get(index)
+                                    .and_then(ProviderRowRealization::authored)
+                                    == Some(machine.symbol)
                                 && candidate.plan.identities.text(binding.requirement_identity)
                                     == identity.as_str()
                             {
@@ -391,7 +396,9 @@ fn derive_named_provider_plans(
                     binding,
                 });
                 provenance.row_requirements.push(row.requirement);
-                provenance.row_realizations.push(machine.symbol);
+                provenance
+                    .row_realizations
+                    .push(ProviderRowRealization::Authored(machine.symbol));
                 provenance.row_target_machine_origins.push(origin);
                 provenance.row_placed_accessors.push(None);
             }
@@ -543,7 +550,7 @@ fn derive_top_level_requirement_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(machine.symbol);
+                .push(ProviderRowRealization::Authored(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -702,7 +709,7 @@ fn derive_boundary_operator_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(machine.symbol);
+                .push(ProviderRowRealization::Authored(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -919,7 +926,9 @@ fn derive_placed_accessor_plans(
                 });
                 let provenance = &mut plans[position].provenance;
                 provenance.row_requirements.push(machine.symbol);
-                provenance.row_realizations.push(machine.symbol);
+                provenance
+                    .row_realizations
+                    .push(ProviderRowRealization::Authored(machine.symbol));
                 provenance.row_target_machine_origins.push(None);
                 provenance.row_placed_accessors.push(Some(accessor));
             }

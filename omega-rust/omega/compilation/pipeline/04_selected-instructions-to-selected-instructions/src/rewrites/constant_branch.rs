@@ -122,37 +122,22 @@ impl ConstantBranchReceipt {
     /// carries this identity across.
         branch: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// constant-branch domain separator.
-    pub fn identity(&self) -> ConstantBranchIdentity {
-        constant_branch_identity(self)
-    }
 }
 
 receipt_selected_identities!(ConstantBranchReceipt);
 
-/// Canonical identity of one validated constant branch fold: every receipt
-/// field — the coordinate, both plan identities, and the proof inputs — is
-/// part of the durable record, so two folds of the same branch under
-/// different sources stay distinct transformations.
-pub(crate) fn constant_branch_identity(receipt: &ConstantBranchReceipt) -> ConstantBranchIdentity {
-    ConstantBranchIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-constant-branch-fold.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("constant-branch function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.branch.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated constant branch fold: every receipt
+// field — the coordinate, both plan identities, and the proof inputs — is
+// part of the durable record, so two folds of the same branch under
+// different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    constant_branch_identity,
+    ConstantBranchIdentity,
+    ConstantBranchReceipt,
+    b"omega.terminal-constant-branch-fold.v1\0",
+    "constant-branch",
+    branch,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstantBranchError {
@@ -185,10 +170,4 @@ pub enum ConstantBranchError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for ConstantBranchError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid constant branch fold: {self:?}")
-    }
-}
-
-impl std::error::Error for ConstantBranchError {}
+failed_display!(ConstantBranchError, "invalid constant branch fold");

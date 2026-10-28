@@ -35,6 +35,7 @@ pub(crate) use local_origins::{OriginPrecision, origin_place, sole_local_referen
 pub(in crate::flow) use receiver::local_jump_data_argument;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
+    family_attached_data_symbol,
 };
 pub(crate) use regions::StorageRegion;
 pub(in crate::flow) use summary::instantiate_call_relative_places;

@@ -16,7 +16,7 @@ mod product_target;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
-    ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
+    ExecutedEnumExclusion, ExecutedNativeBinding, ExecutedProductSelection, ExecutedRootBinding,
     ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
@@ -219,6 +219,8 @@ pub enum BuildOperation {
     IncludedSourceHandoff,
     /// `BuildLog::write_line`.
     LogWriteLine,
+    /// Package-local native supply for one exact Product requirement.
+    NativeBinding,
 }
 /// The call's target names [`BuildOperation::ProviderSelection`] and carries
 /// no resolved symbol — the authored, still-unresolved form every consumer
@@ -245,6 +247,7 @@ impl BuildOperation {
         matches!(
             self,
             Self::ProviderSelection
+                | Self::NativeBinding
                 | Self::ServiceExclusion
                 | Self::ServiceAudit
                 | Self::BoundaryAcceptance
@@ -257,7 +260,7 @@ impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::ProviderReadiness,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
@@ -270,11 +273,13 @@ impl BuildOperation {
         Self::WireCompatibilityRequest,
         Self::IncludedSourceHandoff,
         Self::LogWriteLine,
+        Self::NativeBinding,
     ];
 
     /// The exact authored operation name; static operands stay in their own table.
     pub const fn authored_spelling(self) -> &'static str {
         match self {
+            Self::NativeBinding => "bind",
             Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
             Self::AssumedBindingContract => "assume_binding_contract",
@@ -301,6 +306,7 @@ impl BuildOperation {
     /// The intrinsic selection target checking records for this operation.
     pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
         match self {
+            Self::NativeBinding => AuthoredDeclarationSelectionIntrinsic::BuildNativeBinding,
             Self::ProviderReadiness => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderReadiness
             }
@@ -341,6 +347,7 @@ impl BuildOperation {
 /// unresolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
+    BuildNativeBinding,
     BuildProviderReadiness,
     BuiltinOperator,
     /// One exact compiler-owned carry permission selected by authored domain
@@ -998,3 +1005,7 @@ impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {
 
 #[cfg(test)]
 mod tests;
+
+pub use product::{
+    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingFormation, NativeBindingProducer,
+};

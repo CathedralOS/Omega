@@ -9,6 +9,7 @@ name = "provider_planning"
 path = "src/lib.rs"
 
 [dependencies]
+evaluation-accounting = { path = "../../../../psi/foundation/evaluation-accounting" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }

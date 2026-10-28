@@ -1,6 +1,9 @@
 //! Selected normal-edge custody, expressed in the ordinary state value namespace.
 //! The shared ownership selection supplies order and exact outgoing coordinates;
 //! hook requirements remain obligations at that edge, never new unconditional facts.
+mod exits;
+pub(in crate::execution::terminal_unit) use exits::state_exits;
+
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
     CheckFacts, CheckedComposedUnitControlStatePlan, CheckedUnitCallableEntry,
@@ -40,13 +43,6 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
 ) -> Result<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>, &'static str> {
-    if state_plan
-        .terminator
-        .has_normal_continuation(&state_plan.operations, &facts.flow.guarded_exits)
-        == Some(false)
-    {
-        return Ok(Default::default());
-    }
     let (machine, state) = program
         .machines()
         .iter()
@@ -56,6 +52,34 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
                 .map(|state| (machine, state))
         })
         .ok_or("normal cleanup state has no owning machine")?;
+    if state_plan
+        .terminator
+        .has_normal_continuation(&state_plan.operations, &facts.flow.guarded_exits)
+        == Some(false)
+    {
+        // A suspended or crashing terminator has no exits to plan. A
+        // transfer terminator also reports no normal resumption of this
+        // state, but its machine-boundary exits still transfer custody into
+        // their callee; only a genuinely edge-less terminator skips rows.
+        let Some(flow_state) = facts.flow.control.state(machine.symbol, state.symbol) else {
+            return Ok(Default::default());
+        };
+        if facts
+            .flow
+            .control
+            .outgoing
+            .span_or_empty(flow_state.outgoing)
+            .is_empty()
+            && facts
+                .flow
+                .control
+                .exits
+                .span_or_empty(flow_state.exits)
+                .is_empty()
+        {
+            return Ok(Default::default());
+        }
+    }
     let rows = cleanup_rows(
         program,
         facts,
@@ -78,15 +102,35 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     shapes: &mut ShapeCollector<'_>,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
 ) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
+    let machine = program.machine_by_symbol(plan.machine)?;
+    let state = program.state_in_machine(machine, plan.state)?;
     if plan
         .operations
         .iter()
         .any(|operation| !operation.has_normal_continuation())
     {
-        return Some(Default::default());
+        // Same distinction as state terminators: an exit edge that exists in
+        // flow still owes its transfer cleanup even when no operation
+        // resumes this body.
+        let Some(flow_state) = facts.flow.control.state(plan.machine, plan.state) else {
+            return None;
+        };
+        if facts
+            .flow
+            .control
+            .outgoing
+            .span_or_empty(flow_state.outgoing)
+            .is_empty()
+            && facts
+                .flow
+                .control
+                .exits
+                .span_or_empty(flow_state.exits)
+                .is_empty()
+        {
+            return Some(Default::default());
+        }
     }
-    let machine = program.machine_by_symbol(plan.machine)?;
-    let state = program.state_in_machine(machine, plan.state)?;
     let rows = cleanup_rows(
         program,
         facts,
@@ -143,43 +187,14 @@ fn cleanup_rows(
         .control
         .state(machine, state.symbol)
         .ok_or("normal cleanup state has no retained control flow")?;
-    let mut rows = Vec::<NormalExitConstruction>::new();
-    for outgoing in facts
-        .flow
-        .control
-        .outgoing
-        .span_or_empty(flow_state.outgoing)
-    {
-        let kind = if !outgoing.transition_target.is_valid() {
-            checked_trees::FlowClaimJoinExitKind::FinalExpression
-        } else {
-            let transition = program
-                .statement_table
-                .statement_at(state, outgoing.statement_index)
-                .ok_or("normal cleanup edge has no source statement")?
-                .as_transition()
-                .ok_or("normal cleanup edge is not a direct transition")?;
-            if transition.target == outgoing.transition_target {
-                checked_trees::FlowClaimJoinExitKind::TransitionTarget
-            } else if transition.continuation == outgoing.transition_target {
-                checked_trees::FlowClaimJoinExitKind::TransitionContinuation
-            } else {
-                return Err("normal cleanup edge does not select the source transition");
-            }
-        };
-        let exit = checked_trees::FlowClaimJoinExit {
-            state_symbol: state.symbol,
-            statement_index: outgoing.statement_index,
-            kind,
-        };
-        if !rows.iter().any(|row| row.exit == exit) {
-            rows.push(NormalExitConstruction {
-                exit,
-                selected_regions: Vec::new(),
-                actions: Vec::new(),
-            });
-        }
-    }
+    let mut rows = state_exits(program, facts, machine, state)?
+        .into_iter()
+        .map(|exit| NormalExitConstruction {
+            exit,
+            selected_regions: Vec::new(),
+            actions: Vec::new(),
+        })
+        .collect::<Vec<_>>();
     let mut retirements = Vec::new();
     let mut establishment_ordered = Vec::new();
     for disposition_handle in facts

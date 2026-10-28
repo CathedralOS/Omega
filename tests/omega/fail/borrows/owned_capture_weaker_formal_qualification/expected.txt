@@ -1,0 +1,3 @@
+cannot prove requires contract for call observe
+Cell::Issued
+invalidated by prior mutation

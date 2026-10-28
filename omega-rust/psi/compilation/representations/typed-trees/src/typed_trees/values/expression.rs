@@ -889,30 +889,25 @@ impl ExpressionTable {
         self.expression_handles.insert_many(expressions)
     }
 
-    pub fn reserve_expression_handles(&mut self, count: u32) -> HandleSpan<ExpressionHandle> {
-        self.expression_handles.insert_many(
-            std::iter::repeat_with(ExpressionHandle::invalid)
-                .take(usize::try_from(count).expect("expression handle span count overflow")),
-        )
-    }
-
-    pub fn set_expression_handle_at_offset(
-        &mut self,
-        expressions: HandleSpan<ExpressionHandle>,
-        offset: u32,
-        expression: ExpressionHandle,
-    ) {
-        *self
-            .expression_handles
-            .get_mut(expressions.handle_at(offset)) = expression;
-    }
-
-    pub fn push_expression_handle(
-        &mut self,
-        span: &mut HandleSpan<ExpressionHandle>,
-        expression: ExpressionHandle,
-    ) {
-        self.expression_handles.append_to_span(span, expression);
+    // One entry per span column: the arena and its row type, the reserve
+    // (with its overflow message), the patch and the append.
+    crate::typed_trees::span_columns! {
+        expression_handles(ExpressionHandle)
+            reserve reserve_expression_handles("expression handle span count overflow")
+            set set_expression_handle_at_offset
+            push push_expression_handle;
+        struct_fields(TableStructLiteralField)
+            reserve reserve_struct_fields("struct literal field span count overflow")
+            set set_struct_field_at_offset
+            push push_struct_field;
+        name_path_members(Identifier)
+            reserve reserve_name_path_members("name path member span count overflow")
+            set set_name_path_member_at_offset
+            push push_name_path_member;
+        name_path_member_symbols(SymbolHandle)
+            reserve reserve_name_path_member_symbols("name path member symbol span count overflow")
+            set set_name_path_member_symbol_at_offset
+            push push_name_path_member_symbol;
     }
 
     pub fn insert_struct_fields(
@@ -920,77 +915,6 @@ impl ExpressionTable {
         fields: impl IntoIterator<Item = TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
         self.struct_fields.insert_many(fields)
-    }
-
-    pub fn reserve_struct_fields(&mut self, count: u32) -> HandleSpan<TableStructLiteralField> {
-        self.struct_fields.insert_many(
-            std::iter::repeat_with(TableStructLiteralField::default)
-                .take(usize::try_from(count).expect("struct literal field span count overflow")),
-        )
-    }
-
-    pub fn set_struct_field_at_offset(
-        &mut self,
-        fields: HandleSpan<TableStructLiteralField>,
-        offset: u32,
-        field: TableStructLiteralField,
-    ) {
-        *self.struct_fields.get_mut(fields.handle_at(offset)) = field;
-    }
-
-    pub fn push_struct_field(
-        &mut self,
-        span: &mut HandleSpan<TableStructLiteralField>,
-        field: TableStructLiteralField,
-    ) {
-        self.struct_fields.append_to_span(span, field);
-    }
-
-    pub fn push_name_path_member(&mut self, span: &mut HandleSpan<Identifier>, member: Identifier) {
-        self.name_path_members.append_to_span(span, member);
-    }
-
-    pub fn reserve_name_path_members(&mut self, count: u32) -> HandleSpan<Identifier> {
-        self.name_path_members.insert_many(
-            std::iter::repeat_with(Identifier::default)
-                .take(usize::try_from(count).expect("name path member span count overflow")),
-        )
-    }
-
-    pub fn set_name_path_member_at_offset(
-        &mut self,
-        members: HandleSpan<Identifier>,
-        offset: u32,
-        member: Identifier,
-    ) {
-        *self.name_path_members.get_mut(members.handle_at(offset)) = member;
-    }
-
-    pub fn push_name_path_member_symbol(
-        &mut self,
-        span: &mut HandleSpan<SymbolHandle>,
-        member_symbol: SymbolHandle,
-    ) {
-        self.name_path_member_symbols
-            .append_to_span(span, member_symbol);
-    }
-
-    pub fn reserve_name_path_member_symbols(&mut self, count: u32) -> HandleSpan<SymbolHandle> {
-        self.name_path_member_symbols.insert_many(
-            std::iter::repeat_with(SymbolHandle::invalid)
-                .take(usize::try_from(count).expect("name path member symbol span count overflow")),
-        )
-    }
-
-    pub fn set_name_path_member_symbol_at_offset(
-        &mut self,
-        member_symbols: HandleSpan<SymbolHandle>,
-        offset: u32,
-        member_symbol: SymbolHandle,
-    ) {
-        *self
-            .name_path_member_symbols
-            .get_mut(member_symbols.handle_at(offset)) = member_symbol;
     }
 
     pub fn expression_handle_at_offset(

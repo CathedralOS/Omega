@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 compiler-storage = { path = "../../../foundation/compiler-storage" }
+validation = { path = "../../checking" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 typed-trees = { path = "../../representations/typed-trees" }
 lowered-psi = { path = "../../representations/lowered-psi" }

@@ -144,8 +144,13 @@ pub(super) fn validate_boundary_machine(
         let Some(domain) = module.structural_domain(requirement.domain) else {
             return malformed("boundary requirement references an unknown domain");
         };
-        if domain.carrier != parameter.structural_type {
-            return malformed("boundary requirement domain has the wrong carrier type");
+        if terminal_semantics::qualification_path_carrier(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &requirement.path,
+        ) != Some(domain.carrier)
+        {
+            return malformed("boundary requirement domain has the wrong path carrier");
         }
     }
     for guarantee in &boundary.normal_qualifications {
@@ -159,9 +164,13 @@ pub(super) fn validate_boundary_machine(
             return malformed("boundary normal guarantee has unknown domain");
         };
         if parameter.access != terminal_psi::StructuralAccess::MutableBorrow
-            || domain.carrier != parameter.structural_type
+            || terminal_semantics::qualification_path_carrier(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &guarantee.path,
+            ) != Some(domain.carrier)
         {
-            return malformed("boundary normal guarantee changes mutable carrier");
+            return malformed("boundary normal guarantee has the wrong mutable path carrier");
         }
     }
     require_known_services(module, &boundary.published_service_ceiling)?;

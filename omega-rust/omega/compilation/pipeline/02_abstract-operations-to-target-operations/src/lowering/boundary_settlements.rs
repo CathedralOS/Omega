@@ -46,13 +46,23 @@ pub(super) fn claim_completion_only_boundary_is_exact(
             return false;
         };
         let mut expected_qualifications = boundary_parameter.qualifications.clone();
-        expected_qualifications.extend(
-            declaration
-                .requires
-                .iter()
-                .filter(|requirement| requirement.argument_index as usize == index)
-                .map(|requirement| requirement.domain),
-        );
+        let mut expected_projected = boundary_parameter.projected_qualifications.clone();
+        for requirement in declaration
+            .requires
+            .iter()
+            .filter(|requirement| requirement.argument_index as usize == index)
+        {
+            if requirement.path.is_empty() {
+                expected_qualifications.push(requirement.domain);
+            } else {
+                expected_projected.push(terminal_psi::StructuralPathQualification {
+                    path: requirement.path.clone(),
+                    domain: requirement.domain,
+                });
+            }
+        }
+        expected_projected.sort();
+        expected_projected.dedup();
         expected_qualifications.sort_unstable();
         expected_qualifications.dedup();
         if !argument.path.is_empty()
@@ -64,6 +74,7 @@ pub(super) fn claim_completion_only_boundary_is_exact(
             || boundary_parameter.position != index as u32
             || source.structural_type != boundary_parameter.structural_type
             || caller_parameter.qualifications != expected_qualifications
+            || caller_parameter.projected_qualifications != expected_projected
         {
             return false;
         }

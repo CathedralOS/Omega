@@ -4,6 +4,7 @@ mod requirements;
 mod signatures;
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::record::{PackagePolicyExternalBinding, PackagePolicyExternalExecutableSupply};
 use diagnostics::Diagnostic;
@@ -65,8 +66,4 @@ pub(crate) fn project_checked_external_supply_policy<'a>(
     Ok(vec![row])
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "external-supply policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "external-supply policy rejects {reason}");

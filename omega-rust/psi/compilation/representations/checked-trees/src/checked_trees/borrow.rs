@@ -264,6 +264,10 @@ pub struct BorrowCallFact {
     /// Exact expression invocation. Zero is an explicitly collected statement
     /// call or transition, distinguished by the owning statement schedule.
     pub authored_expression: ExpressionHandle,
+    /// Descriptor generations present immediately before this invocation.
+    /// None is unavailable; the roster contains handles, not inferred places.
+    /// Normal-call custody records it before applying this invocation's stores.
+    pub input_reference_loans: Option<HandleSpan<arena::Handle<BorrowLoanFact>>>,
     /// Complete exact slot relations produced by this normal invocation,
     /// before enclosing control-flow joins. Rows live in reference_slot_effects.
     pub reference_slot_effects: HandleSpan<BorrowCallReferenceSlotEffect>,

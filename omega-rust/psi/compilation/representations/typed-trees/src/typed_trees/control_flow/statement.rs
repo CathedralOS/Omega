@@ -94,12 +94,13 @@ impl StatementTable {
         self.statements.append_to_span(span, statement)
     }
 
-    pub fn push_expression_handle(
-        &mut self,
-        span: &mut HandleSpan<crate::expression::ExpressionHandle>,
-        expression: crate::expression::ExpressionHandle,
-    ) {
-        self.expression_handles.append_to_span(span, expression);
+    // One entry per span column: the arena and its row type, the reserve
+    // (with its overflow message), the patch and the append.
+    crate::typed_trees::span_columns! {
+        expression_handles(crate::expression::ExpressionHandle)
+            reserve reserve_expression_handles("expression handle span count overflow")
+            set set_expression_handle_at_offset
+            push push_expression_handle;
     }
 
     pub fn insert_expression_handles(
@@ -107,27 +108,6 @@ impl StatementTable {
         expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
         self.expression_handles.insert_many(expressions)
-    }
-
-    pub fn reserve_expression_handles(
-        &mut self,
-        count: u32,
-    ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        self.expression_handles.insert_many(
-            std::iter::repeat_with(crate::expression::ExpressionHandle::invalid)
-                .take(usize::try_from(count).expect("expression handle span count overflow")),
-        )
-    }
-
-    pub fn set_expression_handle_at_offset(
-        &mut self,
-        expressions: HandleSpan<crate::expression::ExpressionHandle>,
-        offset: u32,
-        expression: crate::expression::ExpressionHandle,
-    ) {
-        *self
-            .expression_handles
-            .get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn push_name_path_member(&mut self, span: &mut HandleSpan<Identifier>, member: Identifier) {

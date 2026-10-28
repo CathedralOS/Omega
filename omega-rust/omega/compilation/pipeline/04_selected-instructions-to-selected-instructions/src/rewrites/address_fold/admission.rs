@@ -113,25 +113,11 @@ pub(super) fn admit<'source>(
     // silently keep on a malformed shape.
     let (scale, second_access) =
         consumer_shape(consumer.kind).ok_or(AddressFoldError::UnsupportedInstruction)?;
-    if consumer.operands.len() != 2
-        || !consumer.implicit_uses.is_empty()
-        || !consumer.implicit_defs.is_empty()
-        || !consumer.clobbers.is_empty()
-    {
+    let Some((pointer_operand, second_operand)) =
+        crate::rewrites::carrier_pair(consumer, second_access)
+    else {
         return Err(AddressFoldError::UnsupportedInstruction);
-    }
-    let pointer_operand = &consumer.operands[0];
-    let second_operand = &consumer.operands[1];
-    if pointer_operand.operand != 0
-        || pointer_operand.access != RegisterOperandAccess::Use
-        || second_operand.operand != 1
-        || second_operand.access != second_access
-        || consumer.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
-        return Err(AddressFoldError::UnsupportedInstruction);
-    }
+    };
     let pointer = pointer_operand.virtual_register;
     let find_register = |register| function.virtual_register(register);
     let pointer_register = find_register(pointer).ok_or(AddressFoldError::UnsupportedProducer)?;
@@ -176,24 +162,12 @@ pub(super) fn admit<'source>(
     else {
         return Err(AddressFoldError::UnsupportedProducer);
     };
-    if producer.operands.len() != 2
-        || !producer.implicit_uses.is_empty()
-        || !producer.implicit_defs.is_empty()
-        || !producer.clobbers.is_empty()
-    {
+    let Some((base_operand, result_operand)) =
+        crate::rewrites::carrier_pair(producer, RegisterOperandAccess::Def)
+    else {
         return Err(AddressFoldError::UnsupportedProducer);
-    }
-    let base_operand = &producer.operands[0];
-    let result_operand = &producer.operands[1];
-    if base_operand.operand != 0
-        || base_operand.access != RegisterOperandAccess::Use
-        || result_operand.operand != 1
-        || result_operand.access != RegisterOperandAccess::Def
-        || result_operand.virtual_register != pointer
-        || producer.operands.iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-    {
+    };
+    if result_operand.virtual_register != pointer {
         return Err(AddressFoldError::UnsupportedProducer);
     }
     let base = base_operand.virtual_register;

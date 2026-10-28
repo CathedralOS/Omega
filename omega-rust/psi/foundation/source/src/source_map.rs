@@ -627,6 +627,26 @@ impl SourceMap {
         }
     }
 
+    /// Temporal visibility for a retained completed-Build package scope.
+    /// The immutable package output supplies this coordinate, never a caller's
+    /// fabricated SourceId. Own generated outputs remain unavailable to Base.
+    pub fn captured_reference_can_see_stratum(
+        package: PackageKeyIdentity,
+        stratum: SourceResolutionStratum,
+        declaration: &SourceFile,
+    ) -> bool {
+        match declaration.resolution_stratum {
+            SourceResolutionStratum::Base => true,
+            SourceResolutionStratum::CurrentActivationExtension => {
+                stratum == SourceResolutionStratum::CurrentActivationExtension
+            }
+            SourceResolutionStratum::DependencyActivationExtension => {
+                stratum != SourceResolutionStratum::Base
+                    || declaration.package_identity != Some(package)
+            }
+        }
+    }
+
     pub fn resolution_strata_separate(&self, left: SourceSpan, right: SourceSpan) -> bool {
         match (self.file_at(left), self.file_at(right)) {
             (Some(left), Some(right)) => left.resolution_stratum != right.resolution_stratum,

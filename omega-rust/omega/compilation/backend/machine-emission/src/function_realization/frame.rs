@@ -29,21 +29,13 @@ pub struct FunctionRelativeFrame {
     pub(in crate::function_realization) protocol: ValidatedTargetFrameProtocolEncoding,
 }
 
-impl FunctionRelativeFrame {
-    pub const fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
-        &self.requirements
-    }
-
-    pub const fn storage(&self) -> &ValidatedNonAuthoritativeCalleeSaveStorage {
-        &self.storage
-    }
-
-    pub const fn layout(&self) -> &ValidatedTargetFrameLayout {
-        &self.layout
-    }
-
-    pub const fn protocol(&self) -> &ValidatedTargetFrameProtocolEncoding {
-        &self.protocol
+optimization_core::record_views! {
+    record FunctionRelativeFrame;
+    borrowed {
+        requirements: ValidatedAllocatedCalleeSavedRequirements,
+        storage: ValidatedNonAuthoritativeCalleeSaveStorage,
+        layout: ValidatedTargetFrameLayout,
+        protocol: ValidatedTargetFrameProtocolEncoding,
     }
 }
 

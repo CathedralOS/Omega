@@ -1,0 +1,12 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::application(builder, "foreign_reference_probe");
+ Build::bind<Compare::compare>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "memcmp" } });
+ Build::bind<Compare::compare>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5" } });
+ Build::bind<Compare::compare>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.17" } });
+ Build::bind<Compare::compare>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp" } });
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

@@ -1003,17 +1003,37 @@ fn storage_projection(
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let leaf = custody.leaf(source.place, &path[..crossing])?;
+        let leaf_referent = match custody.leaf(source.place, &path[..crossing]) {
+            Some(leaf) => leaf.referent,
+            // A runtime-indexed prefix names every possible fixed slot, not a
+            // single declared key. The observation replay authenticates each
+            // fixed alternative's carrier; only a uniform referent keeps one
+            // crossing type.
+            None => {
+                let observed = observations::observe_alternatives(
+                    function,
+                    custody,
+                    types,
+                    source.place,
+                    &path[..crossing],
+                )
+                .ok()?;
+                let (first, rest) = observed.split_first()?;
+                rest.iter()
+                    .all(|alternative| alternative.referent == first.referent)
+                    .then_some(first.referent)?
+            }
+        };
         let reference = leaf_type(types, carrier, &path[..crossing])?;
         let StructuralTypeShape::Reference { referent, access } =
             find_structural_type(types, reference)?.shape
         else {
             return None;
         };
-        if referent != leaf.referent || !source.access.admits_referent(access) {
+        if referent != leaf_referent || !source.access.admits_referent(access) {
             return None;
         }
-        carrier = leaf.referent;
+        carrier = leaf_referent;
         path = &path[crossing + 1..];
     }
     optimization_unit_semantics::structural_borrowed_storage_projection(
@@ -1406,6 +1426,14 @@ fn lifetime_storage_access_conflicts(
     path: &[StructuralPathSegment],
     requested: StructuralAccess,
 ) -> bool {
+    // A captured arrival may use this exact occurrence through an admitted
+    // spatial reborrow. Its opaque pointee geometry is not an access to the
+    // provider's separate validity anchor. Authenticate every alternative's
+    // grant and access ceiling; equal roots or lifetime links grant nothing.
+    // The debt remains live for unrelated uses and anchor disposal.
+    if borrowed_arrivals::lends_from(custody, place, &reference.identity, requested) {
+        return false;
+    }
     // A shared output can retain an exclusive validity anchor. Its own access
     // therefore cannot exempt that anchor from interference checks.
     custody

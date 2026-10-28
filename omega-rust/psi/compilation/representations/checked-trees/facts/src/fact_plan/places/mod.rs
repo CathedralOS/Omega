@@ -66,6 +66,24 @@ pub enum PlaceRoot {
     TypeReference(TypeReferenceHandle),
 }
 
+/// One variant-extraction accessor per root vocabulary entry. Both place
+/// vocabularies publish the same spelling (`as_symbol`, `as_expression`, …), so
+/// the extraction is written once here and each enum names the variants it
+/// carries.
+macro_rules! place_root_handle_accessors {
+    ($($variant:ident => $method:ident -> $handle:ty),* $(,)?) => {
+        $(
+            /// The stored handle, when this place names that variant.
+            pub fn $method(&self) -> Option<$handle> {
+                let Self::$variant(handle) = self else {
+                    return None;
+                };
+                Some(*handle)
+            }
+        )*
+    };
+}
+
 impl PlaceRoot {
     /// Whether the root retains a nonzero identity. The owning arena still
     /// establishes validity; absence cannot establish storage compatibility.
@@ -83,29 +101,11 @@ impl PlaceRoot {
         }
     }
 
-    /// The symbol root, if this place is rooted at one.
-    pub fn as_symbol(&self) -> Option<SymbolHandle> {
-        let PlaceRoot::Symbol(symbol) = self else {
-            return None;
-        };
-        Some(*symbol)
-    }
-
-    /// The expression root, if this place is rooted at one.
-    pub fn as_expression(&self) -> Option<ExpressionHandle> {
-        let PlaceRoot::Expression(expression) = self else {
-            return None;
-        };
-        Some(*expression)
-    }
-
-    /// The type-reference root, if this place is rooted at one.
-    pub fn as_type_reference(&self) -> Option<TypeReferenceHandle> {
-        let PlaceRoot::TypeReference(reference) = self else {
-            return None;
-        };
-        Some(*reference)
-    }
+    place_root_handle_accessors!(
+        Symbol => as_symbol -> SymbolHandle,
+        Expression => as_expression -> ExpressionHandle,
+        TypeReference => as_type_reference -> TypeReferenceHandle,
+    );
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
@@ -189,37 +189,11 @@ pub enum FactPlace {
 }
 
 impl FactPlace {
-    /// The place handle, if this fact place names one.
-    pub fn as_place(&self) -> Option<PlaceHandle> {
-        let FactPlace::Place(place) = self else {
-            return None;
-        };
-        Some(*place)
-    }
-
-    /// The symbol, if this fact place names one.
-    pub fn as_symbol(&self) -> Option<SymbolHandle> {
-        let FactPlace::Symbol(symbol) = self else {
-            return None;
-        };
-        Some(*symbol)
-    }
-
-    /// The expression handle, if this fact place names one.
-    pub fn as_expression(&self) -> Option<ExpressionHandle> {
-        let FactPlace::Expression(expression) = self else {
-            return None;
-        };
-        Some(*expression)
-    }
-
-    /// The type-reference handle, if this fact place names one.
-    pub fn as_type_reference(&self) -> Option<TypeReferenceHandle> {
-        let FactPlace::TypeReference(reference) = self else {
-            return None;
-        };
-        Some(*reference)
-    }
+    place_root_handle_accessors!(
+        Place => as_place -> PlaceHandle,
+        Symbol => as_symbol -> SymbolHandle,
+        Expression => as_expression -> ExpressionHandle,
+    );
 }
 
 /// Scratch partition key for an exact structural place. Equal places produce

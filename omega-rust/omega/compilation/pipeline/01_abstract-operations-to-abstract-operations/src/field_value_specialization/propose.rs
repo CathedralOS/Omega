@@ -28,10 +28,10 @@
 //! field the unit cannot prove stay unfolded; the rule freezes machines
 //! holding an authenticated cyclic component before asking for a plan.
 
-use super::{
-    FieldValueSpecializationRewrite, PlaceId, PsiOptimizationFunction, PsiOptimizationUnit,
-    admission,
+use optimization_unit::{
+    FieldValueSpecializationRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
 };
+use semantic_vocabulary::PlaceId;
 
 /// Independently derived specialization plan for one place, or `None` when
 /// the place is not rostered in `function` or carries no field-value
@@ -45,23 +45,10 @@ pub(crate) fn plan(
     place: PlaceId,
 ) -> Option<FieldValueSpecializationRewrite> {
     let evidence = optimization_unit::field_evidence(function, place)?;
-    let analysis = optimization_unit::function_analysis(function);
-    let mut reads = Vec::new();
-    for block in &function.blocks {
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            let Some(row) = admission::admit_field_node(
-                unit, &evidence, function, &analysis, block, node_index, node,
-            ) else {
-                continue;
-            };
-            reads.push(row);
-        }
-    }
-    reads.sort_by_key(|row| (row.site.block, row.site.node));
     Some(FieldValueSpecializationRewrite {
         machine: function.machine,
         place,
         producer: evidence.root_producer.operation(),
-        reads,
+        reads: optimization_unit::field_value_reads(unit, &evidence, function),
     })
 }

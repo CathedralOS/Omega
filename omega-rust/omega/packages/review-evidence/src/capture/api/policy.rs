@@ -10,6 +10,7 @@ use crate::capture::semantics::signatures::policy as signatures;
 use signatures::values;
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::record::PackagePolicyPublicApi;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -35,6 +36,4 @@ pub(crate) fn project(
     })
 }
 
-fn rejected(message: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!("public API policy: {message}"))]
-}
+refusal!(message, "public API policy: {message}");

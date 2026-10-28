@@ -4,6 +4,7 @@ mod demands;
 mod realizations;
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::record::PackagePolicyBoundaryApplications;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -25,8 +26,4 @@ pub(crate) fn project_checked_boundary_application_policy<'a>(
     Ok(policy)
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "boundary application policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "boundary application policy rejects {reason}");

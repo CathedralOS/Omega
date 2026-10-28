@@ -8,10 +8,9 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Land exact-width quoted-byte literals into the owned fixed byte array
 /// destinations this run produced: those of machines appended after
@@ -45,37 +44,12 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
         }
         match expression {
             ExpressionNode::StructLiteral(literal) => {
-                let Some(definition) = program.data_definitions().iter().find(|definition| {
-                    if literal.type_symbol.is_valid() {
-                        definition.symbol == literal.type_symbol
-                    } else {
-                        definition.name.as_str() == literal.type_name.as_str()
-                    }
-                }) else {
-                    continue;
-                };
-                // A STILL-GENERIC template is not a landing site. Its
-                // `[u8; N]` member has a const-parameter width, which is
-                // never a literal, and its constructions are rewritten onto
-                // the synthesized instance whose width IS one -- that copy
-                // lands below like any other. The numeric-range probe types
-                // the program BEFORE generic-data synthesis on purpose (the
-                // synthesis consumes the canonical ranges that pass
-                // produces), so refusing here reported std's
-                // `"kernel32.dll"` as the author's error in every program
-                // pairing a range-constrained generic argument with a
-                // library.
-                if !definition.type_parameters.is_empty() {
-                    continue;
-                }
                 for field in program.expression_table.struct_fields(literal.fields) {
-                    if let Some(field_type) = construction_field_type(
+                    if let Some(field_type) = validation::selected_construction_field_type(
                         program,
-                        definition,
-                        literal.case_symbol,
-                        literal.case_name.as_ref().map(|name| name.as_str()),
+                        handle,
+                        literal,
                         field.field_symbol,
-                        field.name.as_str(),
                     ) {
                         destinations.push((field.value, field_type));
                     }
@@ -193,53 +167,6 @@ fn collect_call_destinations(
     }
 }
 
-fn construction_field_type(
-    program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-    case_symbol: Option<SymbolHandle>,
-    case_name: Option<&str>,
-    field_symbol: SymbolHandle,
-    field_name: &str,
-) -> Option<TypeReferenceHandle> {
-    let matches_field = |field: &typed_trees::data::DataField| {
-        if field_symbol.is_valid() {
-            field.symbol == field_symbol
-        } else {
-            field.name.as_str() == field_name
-        }
-    };
-    if let Some(field) = program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Field(field) if matches_field(field) => Some(field),
-            _ => None,
-        })
-    {
-        return Some(field.type_reference);
-    }
-    let variant = program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Variant(variant)
-                if if case_symbol.is_some_and(|symbol| symbol.is_valid()) {
-                    case_symbol == Some(variant.symbol)
-                } else {
-                    case_name.is_some_and(|name| variant.name.as_str() == name)
-                } =>
-            {
-                Some(variant)
-            }
-            _ => None,
-        })?;
-    program
-        .data_payload_fields(variant)
-        .iter()
-        .find(|field| matches_field(field))
-        .map(|field| field.type_reference)
-}
-
 fn land_one(
     program: &mut TypedTrees,
     value: ExpressionHandle,
@@ -252,6 +179,44 @@ fn land_one(
         let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
         for arm in arms {
             land_one(program, arm.value, destination)?;
+        }
+        return Ok(());
+    }
+    if let ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(value).clone()
+    {
+        // Destination is a receiving obligation, never the constructor's
+        // produced type. The shared join checks its exact authored owner and
+        // selected case before exposing an applied field telescope.
+        // An open template field is not the receiving application. Late
+        // ordinary application preparation will revisit its exact children.
+        if program
+            .closed_data_constructor_definition(destination, literal.type_symbol)
+            .is_none()
+        {
+            return Ok(());
+        }
+        let prior = program
+            .expression_table
+            .construction_required_type_reference(value);
+        if !prior.is_valid() {
+            program
+                .expression_table
+                .set_construction_required_type_reference(value, destination);
+        }
+        let fields = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .to_vec();
+        for field in fields {
+            if let Some(field_type) = validation::selected_construction_field_type(
+                program,
+                value,
+                &literal,
+                field.field_symbol,
+            ) {
+                land_one(program, field.value, field_type)?;
+            }
         }
         return Ok(());
     }
@@ -275,54 +240,5 @@ fn land_one(
         }
         return Ok(());
     }
-    let ExpressionNode::String(bytes) = program.expression_table.expression(value).clone() else {
-        return Ok(());
-    };
-    // Only the owned carrier selects literal geometry. Keep the original
-    // qualification on the destination for independent membership checking.
-    let mut carrier = destination;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier)
-    {
-        carrier = *base_type;
-    }
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length,
-    } = program.type_reference_table.type_reference(carrier).clone()
-    else {
-        return Ok(());
-    };
-
-    if program.primitive_type_reference(element_type) != Some(PrimitiveType::U8) {
-        return Err(Diagnostic::error(format!(
-            "quoted byte literal cannot initialize owned fixed array `{}`: its element type must be `u8`",
-            program.display_type_reference(destination),
-        )));
-    }
-    let FixedArrayLength::Literal(width) = length else {
-        return Err(Diagnostic::error(format!(
-            "quoted byte literal cannot initialize owned fixed byte array `{}`: its width must be a compile-known resolved integer literal",
-            program.display_type_reference(destination),
-        )));
-    };
-    let actual = bytes.len();
-    if actual != width {
-        return Err(Diagnostic::error(format!(
-            "quoted byte literal has {actual} source byte(s), but owned fixed byte array `{}` requires exactly {width}; fixed-array literal copying neither truncates nor pads",
-            program.display_type_reference(destination),
-        )));
-    }
-
-    let elements = bytes
-        .iter()
-        .map(|byte| {
-            program.expression_table.insert(ExpressionNode::Integer(
-                numerics::literals::IntegerLiteral::from_value(i64::from(*byte)),
-            ))
-        })
-        .collect::<Vec<_>>();
-    let elements = program.expression_table.insert_expression_handles(elements);
-    *program.expression_table.expression_mut(value) = ExpressionNode::ArrayLiteral(elements);
-    Ok(())
+    validation::land_owned_fixed_byte_literal(program, value, destination)
 }

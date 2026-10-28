@@ -662,12 +662,7 @@ fn instantiated_fact_spelling(
             )?;
             Some(format!("{left} {} {right}", binary.operator.display_name()))
         }
-        BinaryOperator::Equal
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual => {
+        operator if operator.is_comparison() => {
             let (left, right, _) = instantiated_operands(
                 program,
                 judge,

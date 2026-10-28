@@ -1,5 +1,6 @@
 use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;
+use crate::record::accessors::field_projection_accessors;
 
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,13 +47,8 @@ pub struct PackageReviewSelectedInstallationReach {
 }
 
 impl PackageReviewSelectedInstallationReach {
-    pub fn upper_bound(&self) -> &[PackageReviewNominalIdentity] {
-        &self.upper_bound
-    }
-
-    pub fn resolved(&self) -> &[PackageReviewNominalIdentity] {
-        &self.resolved
-    }
+    field_projection_accessors!(sliced upper_bound: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced resolved: &[PackageReviewNominalIdentity]);
 }
 
 /// Authored selector vocabulary for one admitted selected-provider grant.

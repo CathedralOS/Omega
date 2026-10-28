@@ -301,7 +301,7 @@ pub(crate) fn build_static_boundary_requirements(
         .iter()
         .filter(|definition| definition.is_boundary)
     {
-        for signature in program.trait_machine_instances(definition) {
+        for signature in program.executable_trait_machine_instances(definition) {
             // The declaration's outer telescope remains authored and open.
             // Prepared instances retain its exact application and substituted
             // formals; publish those instances without admitting the open head

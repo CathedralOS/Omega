@@ -1,11 +1,12 @@
 //! Complete selected-provider policy captured from live checked associations.
 
-mod bindings;
+pub(crate) mod bindings;
 mod families;
 mod rows;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
@@ -103,6 +104,15 @@ fn project_plan(
             &plan.name,
             "provider type",
         )?,
+        None if matches!(
+            retained.selected_by,
+            provider_planning::ProviderSelectionProvenance::NativeBuild
+        ) && !plan.rows.is_empty()
+            && retained
+                .provider
+                .row_realizations
+                .iter()
+                .all(|row| row.native().is_some()) => {}
         None if plan.provider_type_package_identity.is_none()
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),
@@ -202,8 +212,4 @@ fn normalized_plan_name(
     ))
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "selected-provider policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "selected-provider policy rejects {reason}");

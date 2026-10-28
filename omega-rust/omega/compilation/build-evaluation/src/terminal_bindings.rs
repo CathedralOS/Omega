@@ -20,6 +20,7 @@ use terminal_interpreter::{
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
 
+mod native_bindings;
 mod product_queries;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
 
@@ -33,6 +34,7 @@ pub struct TerminalBuildBindingHost {
     product_facet: Option<TerminalStructuralValue>,
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
+    native_formations: Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
     original: TerminalStructuralValue,
     state: Mutex<BindingState>,
 }
@@ -41,6 +43,7 @@ pub struct TerminalBuildBindingHost {
 struct BindingState {
     pending: Vec<Option<psi_compiler::TerminalBuildSelectionRequest>>,
     executed: Vec<ExecutedBuildSelection>,
+    native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     awaiting_provider: Option<usize>,
     installed_providers: Vec<InstalledBuildProvider>,
     query: Option<product_queries::PendingQuery>,
@@ -115,9 +118,19 @@ impl TerminalBuildBindingHost {
             product_facet,
             account: account.cloned(),
             declarations: Arc::clone(declarations),
+            native_formations: bindings
+                .native_formations_for(artifact)
+                .cloned()
+                .ok_or("native formation belongs to another Terminal artifact")?,
             original,
             state: Mutex::new(BindingState::default()),
         }))
+    }
+
+    pub(crate) fn native_formations(
+        &self,
+    ) -> &[language_semantics::declaration_selection::NativeBindingFormation] {
+        &self.native_formations
     }
 
     pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {
@@ -220,6 +233,40 @@ impl TerminalImportAdapter for TerminalBuildBindingAdapter {
 }
 
 impl TerminalEffectHandler for TerminalBuildBindingAdapter {
+    fn storage_arguments(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
+        if self.host.calls.iter().any(|call| {
+            call.boundary == boundary && call.action == TerminalBuildBindingOperation::BindNative
+        }) {
+            &[0]
+        } else {
+            &[]
+        }
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        byte_buffers: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
+        storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let native = matches!(effect, TerminalEffect::BoundaryCall { operation, boundary, .. }
+            if self.host.calls.iter().any(|call| call.operation == *operation && call.boundary == *boundary && call.action == TerminalBuildBindingOperation::BindNative));
+        if native {
+            if !byte_buffers.is_empty() {
+                return Err(TerminalEffectRejection::new(
+                    "native Build call has unexpected mutable byte buffers",
+                ));
+            }
+            return self.commit_native(effect, storage_buffers);
+        }
+        if !storage_buffers.is_empty() || !byte_buffers.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "Build selection has unexpected storage operands",
+            ));
+        }
+        self.handle_effect_result(effect)
+    }
+
     fn poll_host_computation(
         &mut self,
         effect: &TerminalEffect,

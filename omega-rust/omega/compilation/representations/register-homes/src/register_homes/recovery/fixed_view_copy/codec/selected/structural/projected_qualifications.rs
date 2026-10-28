@@ -4,7 +4,7 @@ use terminal_psi::StructuralPathQualification;
 
 use crate::FixedViewCopyDecodeError;
 
-use super::declarations::decode_path;
+use super::declarations::decode_qualification_path;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_list, length,
 };
@@ -34,7 +34,7 @@ pub(super) fn decode_projected(
     }
     decode_list(cursor, |cursor| {
         Ok(StructuralPathQualification {
-            path: decode_path(cursor)?,
+            path: decode_qualification_path(cursor)?,
             domain: decode_id(cursor, semantic_vocabulary::StructuralDomainId::new)?,
         })
     })

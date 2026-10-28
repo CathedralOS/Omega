@@ -10,6 +10,7 @@ use terminal_psi::{
 };
 
 use super::CodecError;
+use super::structural_place_wire::{decode_qualification_path, encode_qualification_path};
 use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
 use super::structural_signature_wire::{
     decode_projected_qualifications, decode_structural_access, encode_projected_qualifications,
@@ -75,6 +76,7 @@ pub(crate) fn encode_provider_candidate(
     )?;
     for requirement in &candidate.refinement.required_domains {
         writer.u32(requirement.argument_index);
+        encode_qualification_path(writer, &requirement.path)?;
         writer.id(requirement.domain);
     }
     encode_service_ceiling(writer, &candidate.refinement.realized_service_ceiling)
@@ -126,6 +128,7 @@ pub(crate) fn decode_provider_candidate(
     let required_domains = decode_counted(reader, |reader| {
         Ok(StructuralDomainRequirement {
             argument_index: reader.u32()?,
+            path: decode_qualification_path(reader)?,
             domain: reader.id("StructuralDomainId")?,
         })
     })?;

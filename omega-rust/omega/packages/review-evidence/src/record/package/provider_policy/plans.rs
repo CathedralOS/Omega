@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderRow, PackagePolicyServiceMethod,
     PackageReviewNominalIdentity, PackageReviewProviderGrantSelectorKind,
@@ -14,21 +15,9 @@ pub struct PackagePolicySelectedProviders {
 }
 
 impl PackagePolicySelectedProviders {
-    pub fn package(&self) -> PackageKeyIdentity {
-        self.package
-    }
-
-    pub fn target(&self) -> TargetProfile {
-        self.target
-    }
-
-    pub fn plans(&self) -> &[PackagePolicyProviderPlan] {
-        &self.plans
-    }
-
-    pub fn families(&self) -> &[PackagePolicyProviderFamily] {
-        &self.families
-    }
+    field_projection_accessors!(copied package: PackageKeyIdentity, target: TargetProfile);
+    field_projection_accessors!(sliced plans: &[PackagePolicyProviderPlan]);
+    field_projection_accessors!(sliced families: &[PackagePolicyProviderFamily]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,9 +38,7 @@ impl PackagePolicyProviderPlan {
         &self.plan_name
     }
 
-    pub fn schema_declaration(&self) -> &PackageReviewNominalIdentity {
-        &self.schema_declaration
-    }
+    field_projection_accessors!(borrowed schema_declaration: &PackageReviewNominalIdentity);
 
     pub fn provider_type(&self) -> &str {
         &self.provider_type
@@ -65,15 +52,7 @@ impl PackagePolicyProviderPlan {
         &self.target
     }
 
-    pub fn methods(&self) -> &[PackagePolicyServiceMethod] {
-        &self.methods
-    }
-
-    pub fn rows(&self) -> &[PackagePolicyProviderRow] {
-        &self.rows
-    }
-
-    pub fn grants(&self) -> &[PackageReviewProviderGrantSelectorKind] {
-        &self.grants
-    }
+    field_projection_accessors!(sliced methods: &[PackagePolicyServiceMethod]);
+    field_projection_accessors!(sliced rows: &[PackagePolicyProviderRow]);
+    field_projection_accessors!(sliced grants: &[PackageReviewProviderGrantSelectorKind]);
 }

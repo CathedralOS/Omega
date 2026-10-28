@@ -9,7 +9,7 @@ pub(crate) fn fact_domain(
     payload: FactPayload,
 ) -> Option<SymbolHandle> {
     let (domain_symbol, semantic_domain) = match payload {
-        facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
+        facts::domain_membership_pattern!(domain_symbol, semantic_domain) => {
             (domain_symbol, semantic_domain)
         }
         _ => return None,

@@ -385,8 +385,10 @@ pub(crate) fn desugar_generic_data_instances_in(
             canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
                 .map_err(|diagnostic| vec![diagnostic])?;
         }
-        let storage_positions =
-            work.type_positions(syntax, TypePositionPurpose::Materialization, false);
+        let storage_positions: std::collections::HashSet<TypeReferenceHandle> = work
+            .type_positions(syntax, TypePositionPurpose::Materialization, false)
+            .into_iter()
+            .collect();
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
         for position in work.type_positions(syntax, TypePositionPurpose::Identity, false) {

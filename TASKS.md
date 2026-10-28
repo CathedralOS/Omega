@@ -1609,8 +1609,8 @@ defines the complete product bar.
     rejection.
   - **FOREIGN-RETAINED-ARGUMENT-BACKING:** complete installed-provider custody
     and native marshaling for protocol-owned backing, permitted snapshots, and
-    remaining resident/view codecs (tagged/dynamic carriers,
-    independently qualified descendants and tagged/qualified owned results)
+    remaining resident/view codecs (tagged/dynamic carriers and
+    tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,

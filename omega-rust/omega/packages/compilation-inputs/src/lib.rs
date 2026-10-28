@@ -97,3 +97,7 @@ pub fn capture_anonymous_compilation_source(
         ))]
     })
 }
+pub use package_compilation::{
+    NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,
+    PackageNativeBindingBundle, PackageNativeBindingOrigin,
+};

@@ -150,7 +150,20 @@ pub fn type_requires_establishment(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_requires_establishment_inner(program, type_reference, &mut EstablishmentIndex::new())
+    if !type_reference.is_valid() {
+        return false;
+    }
+    crate::value_custody::type_properties::memoized_type_requires_establishment(
+        program,
+        type_reference,
+        || {
+            type_requires_establishment_inner(
+                program,
+                type_reference,
+                &mut EstablishmentIndex::new(),
+            )
+        },
+    )
 }
 
 /// One walk's working set: the active-path `seen` set and the absolute

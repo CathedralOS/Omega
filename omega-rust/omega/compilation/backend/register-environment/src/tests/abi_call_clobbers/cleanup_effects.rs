@@ -12,12 +12,13 @@
 
 use super::{
     Architecture, EffectRejection, RegisterConstraintKey, baseline_target_register_environment,
-    named_view, produced_effects, scalar_abi_cases, validate_effects, validated_effects,
+    declaration_mut, named_view, produced_effects, scalar_abi_cases, validate_effects,
+    validated_effects,
 };
 use selected_instructions::{
-    MachineCleanupEffect, MachineEffectCatalog, MachineEffectCatalogValidationError,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSemanticKind,
+    MachineCleanupEffect, MachineEffectCatalogValidationError, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind,
 };
 
 /// Which side of the activation-stack lifecycle a selected semantic owns —
@@ -52,22 +53,6 @@ fn lifecycle_owner(
         | MachineSemanticKind::ReturnAggregate => Some(LifecycleOwner::Return),
         _ => None,
     }
-}
-
-/// The declaration for one selected (semantic, constraint) pair: several
-/// semantics share a constraint key — `copy_i64` backs every integer move
-/// and narrow extension, `materialize_boolean` backs every boolean
-/// materialization — so a catalog row is addressed by both coordinates.
-fn semantic_declaration_mut(
-    catalog: &mut MachineEffectCatalog,
-    semantic: MachineSemanticKind,
-    key: RegisterConstraintKey,
-) -> &mut MachineEffectDeclaration {
-    catalog
-        .declarations
-        .iter_mut()
-        .find(|declaration| declaration.semantic == semantic && declaration.constraint == key)
-        .unwrap_or_else(|| panic!("effect catalog missing {semantic:?} declaration {key:?}"))
 }
 
 /// Every selected rule on every declared target/ABI pair binds its cleanup
@@ -338,7 +323,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
             // enough.
             for (label, stack) in forgeries {
                 let mut corrupted = catalog.clone();
-                semantic_declaration_mut(&mut corrupted, semantic, key).alternatives[0]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .stack = stack;
                 assert_eq!(
@@ -357,7 +342,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
             // surface leaves a (memory, stack, trap) triple no semantic owns.
             if lifecycle_owner(case.target.architecture, semantic, key).is_some() {
                 let mut corrupted = catalog.clone();
-                semantic_declaration_mut(&mut corrupted, semantic, key).alternatives[0]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .trap = MachineEncodedTrapBehavior::NeverV1;
                 assert_eq!(
@@ -407,9 +392,8 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             // admission cannot tell a register view from the stack pointer,
             // so canonical replay must reject it.
             let mut corrupted = catalog.clone();
-            let encoded = &mut semantic_declaration_mut(&mut corrupted, semantic, key).alternatives
-                [0]
-            .encoded;
+            let encoded =
+                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
             encoded.memory = match owner {
                 LifecycleOwner::Call => {
                     MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
@@ -442,9 +426,8 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             // admission sees a coherent lifecycle, so canonical replay must
             // reject the half-width return address.
             let mut corrupted = catalog.clone();
-            let encoded = &mut semantic_declaration_mut(&mut corrupted, semantic, key).alternatives
-                [0]
-            .encoded;
+            let encoded =
+                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
             encoded.memory = match owner {
                 LifecycleOwner::Call => {
                     MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {

@@ -21,7 +21,7 @@ pub use contracts::{
     derive_pre_flow_operator_selections,
 };
 pub use receiver::expression_type_reference_for_origin;
-pub use requirement_uses::{collect_named_requirement_uses, token_bound_machine_call_target};
+pub use requirement_uses::token_bound_machine_call_target;
 pub use selection::select_pending_domain_operator_meanings;
 pub use uses::{
     build_operator_uses, checked_operator_candidate,

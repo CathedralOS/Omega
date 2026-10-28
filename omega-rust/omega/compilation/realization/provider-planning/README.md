@@ -116,3 +116,16 @@ sits below native realization and deployment policy. Routes that supply no
 verified components call `selected_provider_plan_facts`, where every Independent
 selection still rejects; the rejection never becomes a Fused fallback, and
 retaining a mode in provenance is not implementation of that mode.
+
+[Native Build planning](src/native_bindings.rs) consumes those admitted exact
+Product choices. It validates every authored target's locator and derives the
+selected target's complete schema, calling application and evaluated receipt.
+A native row has a Build producer, not a synthetic runtime realization machine.
+Equal repeated bindings retain their source origins; conflicting bindings at
+the same supplier precedence refuse. Package review retains private and unused
+native choices as explicit acceptance/audit rows as well as selected associations.
+The closed static requirement path is exercised by Cathedral's Windows UI and
+`tests/omega/pass/build/runtime_dependency_private_native_binding_exit`.
+Full static/lifetime application support, all-host audio execution and removal
+of the remaining legacy `via`/table/intrinsic paths are still acceptance of
+`BUILD-OWNED-NATIVE-BINDINGS`, not established by this customer witness.
