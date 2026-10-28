@@ -1,4 +1,4 @@
-use register_model::{RegisterOperandAccess, RegisterUnitId, RegisterWriteSemantics};
+use register_model::{RegisterUnitId, write_semantics_tag};
 
 use crate::PostAllocationMachinePlan;
 
@@ -59,11 +59,11 @@ pub(crate) fn write_terminal_post_allocation_machine_content(
     bytes.push(match plan.choice_rule {
         crate::MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1 => 0,
     });
-    encode_len(&mut bytes, plan.functions.len());
+    crate::codec_bytes::push_count_u64(&mut bytes, plan.functions.len());
     emit(&mut bytes);
     for function in &plan.functions {
         crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
-        encode_len(&mut bytes, function.local_storage_slots.len());
+        crate::codec_bytes::push_count_u64(&mut bytes, function.local_storage_slots.len());
         emit(&mut bytes);
         for slot in &function.local_storage_slots {
             slot.id.encode_identity(&mut bytes);
@@ -71,7 +71,7 @@ pub(crate) fn write_terminal_post_allocation_machine_content(
             crate::codec_bytes::push_encoded(&mut bytes, slot.alignment.to_le_bytes());
             emit(&mut bytes);
         }
-        encode_len(&mut bytes, function.outgoing_arguments.len());
+        crate::codec_bytes::push_count_u64(&mut bytes, function.outgoing_arguments.len());
         emit(&mut bytes);
         for slot in &function.outgoing_arguments {
             slot.id.encode_identity(&mut bytes);
@@ -80,11 +80,11 @@ pub(crate) fn write_terminal_post_allocation_machine_content(
             crate::codec_bytes::push_encoded(&mut bytes, slot.abi_stack_byte_offset.to_le_bytes());
             emit(&mut bytes);
         }
-        encode_len(&mut bytes, function.blocks.len());
+        crate::codec_bytes::push_count_u64(&mut bytes, function.blocks.len());
         emit(&mut bytes);
         for block in &function.blocks {
             crate::codec_bytes::push_encoded(&mut bytes, block.block.0.to_le_bytes());
-            encode_len(&mut bytes, block.instructions.len());
+            crate::codec_bytes::push_count_u64(&mut bytes, block.instructions.len());
             emit(&mut bytes);
             for instruction in &block.instructions {
                 encode_instruction(&mut bytes, instruction);
@@ -97,17 +97,13 @@ pub(crate) fn write_terminal_post_allocation_machine_content(
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMachineInstruction) {
     crate::codec_bytes::push_encoded(bytes, instruction.instruction.0.to_le_bytes());
     selected_instructions::encode_machine_alternative_identity(bytes, &instruction.alternative);
-    encode_len(bytes, instruction.operands.len());
+    crate::codec_bytes::push_count_u64(bytes, instruction.operands.len());
     for operand in &instruction.operands {
         crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.view.0.to_le_bytes());
-        bytes.push(match operand.access {
-            RegisterOperandAccess::Use => 0,
-            RegisterOperandAccess::Def => 1,
-            RegisterOperandAccess::UseDef => 2,
-        });
+        bytes.push(operand.access.access_tag());
         encode_units(bytes, &operand.storage_units);
         encode_units(bytes, &operand.read_units);
         encode_units(bytes, &operand.write_units);
@@ -115,14 +111,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
             None => bytes.push(0),
             Some(semantics) => {
                 bytes.push(1);
-                bytes.push(match semantics {
-                    RegisterWriteSemantics::ExactView => 0,
-                    RegisterWriteSemantics::PreservesUnwritten => 1,
-                    RegisterWriteSemantics::ZeroExtendsParent => 2,
-                    RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
-                    RegisterWriteSemantics::Discards => 4,
-                    RegisterWriteSemantics::InstructionDefined => 5,
-                });
+                bytes.push(write_semantics_tag(semantics));
             }
         }
     }
@@ -280,16 +269,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
 }
 
 fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
-    encode_len(bytes, units.len());
+    crate::codec_bytes::push_count_u64(bytes, units.len());
     for unit in units {
         crate::codec_bytes::push_encoded(bytes, unit.0.to_le_bytes());
     }
-}
-
-fn encode_len(bytes: &mut Vec<u8>, length: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(length)
-            .expect("in-memory artifact length fits u64")
-            .to_le_bytes(),
-    );
 }
