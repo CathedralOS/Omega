@@ -3,6 +3,7 @@
 mod generics;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};
+use crate::record::validation::ordered_by;
 use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
 use effects::TerminalAuthorityDisposition;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -22,24 +23,16 @@ impl PackagePolicyTerminalPermissions {
     }
 
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
-        if self
-            .services
-            .windows(2)
-            .any(|pair| pair[0].service >= pair[1].service)
-        {
-            return Err("terminal permission services repeat or reorder identities");
-        }
+        ordered_by(&self.services, |a, b| a.service.cmp(&b.service))?;
         for service in &self.services {
             validate_service_methods(&service.methods, &service.service, self.target)?;
             generics::validate(service)?;
-            if service.permissions.is_empty()
-                || service
-                    .permissions
-                    .windows(2)
-                    .any(|pair| pair[0].requirement >= pair[1].requirement)
-            {
-                return Err("terminal permission service has empty or noncanonical permissions");
+            if service.permissions.is_empty() {
+                return Err("terminal permission service has no permissions");
             }
+            ordered_by(&service.permissions, |a, b| {
+                a.requirement.cmp(&b.requirement)
+            })?;
             for permission in &service.permissions {
                 if permission.requirement.validate_resolved().is_err()
                     || !service
