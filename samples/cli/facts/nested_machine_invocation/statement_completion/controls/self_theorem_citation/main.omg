@@ -1,0 +1,6 @@
+use omega::language::core::nat;
+trait UncheckedLaw { machine forge(a: Nat, b: Nat) ensures a == b; }
+Laws satisfies UncheckedLaw {
+    machine forge(a: Nat, b: Nat) ensures a == b { Laws::forge(a, b); }
+}
+machine main() {}

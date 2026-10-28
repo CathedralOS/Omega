@@ -3731,6 +3731,18 @@ pass/facts/unsigned_16bit_wrapping_arithmetic_bound_through_parameter_exit built
 pass/facts/unsigned_16bit_wrapping_arithmetic_bound_through_target_body_exit built 4210ms exit:0 interpreter-exit:0 interpreter:agrees @9b001b8f6afa+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_call_result_exit built 7561ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_const_name_exit built 7569ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
+pass/arithmetic/sparse_captured_utf_path_exit built 37014ms exit:0 interpreter-exit:0 interpreter:agrees @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_call_result_exit built 18702ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_const_name_exit built 18893ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_field_exit built 18449ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_local_exit built 19094ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_match_join_exit built 18992ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_namespaced_tag_exit built 6326ms exit:0 interpreter-exit:0 interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_namespaced_theorem_exit built 6423ms exit:0 interpreter-exit:0 interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_other_machine_exit built 18599ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_other_state_exit built 19177ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_parameter_exit built 18805ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_target_body_exit built 13229ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_field_exit built 7952ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_local_exit built 8205ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_match_join_exit built 7043ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt

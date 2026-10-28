@@ -272,6 +272,35 @@ impl ProofOnlyClassification {
         has_proof_value
     }
 
+    /// Public callable contracts select their proof stratum from their own
+    /// complete telescope, independently of a selected implementation's body.
+    /// Erased formals and borrowed storage-free values retain the same rules as
+    /// concrete machines; a private proof local cannot classify a public call.
+    pub fn is_proof_signature(
+        &self,
+        program: &TypedTrees,
+        signature: &crate::signature::StateSignature,
+    ) -> bool {
+        let mut has_proof_value = false;
+        let parameters = program
+            .state_signature_parameters(signature)
+            .iter()
+            .filter(|parameter| !parameter.relevance.is_erased())
+            .map(|parameter| (parameter.type_reference, parameter.is_mutable));
+        for (reference, mutable) in
+            parameters.chain(std::iter::once((signature.return_type, false)))
+        {
+            if self.proof_only_mention(program, reference).is_none() {
+                continue;
+            }
+            if mutable || self.borrows_proof_only_data(program, reference) {
+                return false;
+            }
+            has_proof_value = true;
+        }
+        has_proof_value
+    }
+
     /// Follow type constructors, not the spelling or position of an argument.
     /// An array or generic argument cannot hide a borrow of storage-free data.
     fn borrows_proof_only_data(

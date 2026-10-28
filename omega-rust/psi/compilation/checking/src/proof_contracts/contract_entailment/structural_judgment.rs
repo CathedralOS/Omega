@@ -3240,6 +3240,28 @@ impl<'program> StructuralJudge<'program> {
         map: &[(String, StructuralTerm)],
         guarantees: &mut Vec<CaseGuarantee>,
     ) {
+        let Some(entry) = self.program.machine_states(callee).first() else {
+            return;
+        };
+        self.instantiated_contract_case_guarantees(
+            &super::specification_calls::SelectedCallContract::Concrete(callee, entry),
+            fact,
+            map,
+            guarantees,
+        );
+    }
+
+    /// The selected public telescope owns tag formation too. A retained
+    /// requirement can classify its explicit arguments or exact result without
+    /// reopening a private realization's stronger contract or storage names.
+    pub(super) fn instantiated_contract_case_guarantees(
+        &self,
+        owner: &super::specification_calls::SelectedCallContract<'_>,
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+        guarantees: &mut Vec<CaseGuarantee>,
+    ) {
+        use super::specification_calls::{SelectedCallContract, owner_parameters, owner_symbol};
         if !self.has_exact_case_subjects() {
             return;
         }
@@ -3247,19 +3269,45 @@ impl<'program> StructuralJudge<'program> {
             return;
         };
         if binary.operator == BinaryOperator::And {
-            self.instantiated_case_guarantees(callee, binary.left, map, guarantees);
-            self.instantiated_case_guarantees(callee, binary.right, map, guarantees);
+            self.instantiated_contract_case_guarantees(owner, binary.left, map, guarantees);
+            self.instantiated_contract_case_guarantees(owner, binary.right, map, guarantees);
             return;
         }
-        if !super::structural_terms::is_case_observation(self.program, fact)
-            || !crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                self.program,
-                callee,
-                None,
-                fact,
-                binary,
-            )
-        {
+        if !super::structural_terms::is_case_observation(self.program, fact) {
+            return;
+        }
+        let parameters = owner_parameters(self.program, owner);
+        let (scope, exact) = match owner {
+            SelectedCallContract::Concrete(callee, _) => (
+                callee.symbol,
+                crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                    self.program,
+                    callee,
+                    None,
+                    fact,
+                    binary,
+                ),
+            ),
+            SelectedCallContract::Signature(signature) => {
+                let subject_type = crate::parameter_expression_result_type_reference(
+                    self.program,
+                    signature.symbol,
+                    parameters,
+                    binary.left,
+                )
+                .or_else(|| {
+                    crate::reserved_result_place(self.program, binary.left)
+                        .filter(|place| place.machine_symbol == signature.symbol)
+                        .map(|place| place.type_reference)
+                });
+                (signature.symbol,
+                 crate::proof_contracts::bound_expression_meaning::has_exact_typed_case_membership_meaning(
+                    self.program, fact, binary, subject_type,
+                 ))
+            }
+            _ => (owner_symbol(owner), false),
+        };
+        if !exact {
             return;
         }
         let Some((definition, variant)) =
@@ -3267,13 +3315,10 @@ impl<'program> StructuralJudge<'program> {
         else {
             return;
         };
-        let Some(entry) = self.program.machine_states(callee).first() else {
-            return;
-        };
         let Some(subject) = super::structural_terms::structural_term(
             self.program,
             None,
-            Some((callee.symbol, self.program.state_parameters(entry))),
+            Some((scope, parameters)),
             binary.left,
             None,
         ) else {
