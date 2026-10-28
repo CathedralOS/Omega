@@ -389,13 +389,23 @@ pub(crate) fn bind_selected_operator_calls(
         let arguments = program
             .expression_table
             .insert_expression_handles(operands.iter().copied());
-        let receiver = if target.binder.is_valid() {
-            let binder_name =
-                typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
+        // A requirement keeps its ordinary declaration namespace after token
+        // binding. Dropping that qualifier creates a receiverless free call,
+        // which cannot carry the selected trait's argument and contract frame.
+        let receiver_symbol = if target.binder.is_valid() {
+            target.binder
+        } else {
+            program
+                .trait_machine_signature(target.entry)
+                .map_or_else(SymbolHandle::invalid, |(owner, _)| owner.symbol)
+        };
+        let receiver = if receiver_symbol.is_valid() {
+            let receiver_name =
+                typed_trees::name::Identifier::generated(program.symbols.name(receiver_symbol));
             crate::monomorphization::insert_subject_name(
                 &mut program.expression_table,
-                binder_name,
-                target.binder,
+                receiver_name,
+                receiver_symbol,
             )
         } else {
             ExpressionHandle::invalid()
