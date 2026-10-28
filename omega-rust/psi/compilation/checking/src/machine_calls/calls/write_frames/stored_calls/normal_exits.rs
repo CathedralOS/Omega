@@ -30,6 +30,7 @@ enum SlotExit {
 }
 
 struct SlotEquation<'program> {
+    machine: &'program Machine,
     state: &'program State,
     inventory: Vec<SlotInventory>,
     exits: Vec<SlotExit>,
@@ -45,12 +46,12 @@ fn solve_state_effects<'program>(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<SlotEffect>> {
-    let mut states = vec![entry];
+    let mut states = vec![(machine, entry)];
     let mut equations = Vec::new();
     let mut substitutions = frames::cycle_substitutions::Substitutions::default();
     let mut index = 0;
     while index < states.len() {
-        let state = states[index];
+        let (machine, state) = states[index];
         let inventory = destination_inventory(program, state)?;
         let (last, prefixes) =
             stored_reference_transfer(program, machine, state, symbols, inference)?;
@@ -77,19 +78,32 @@ fn solve_state_effects<'program>(
                     .find(|completed| completed.target == edge)?;
                 match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
-                        if frames::terminal_calls::target(program, machine, edge).is_valid() {
-                            return None;
-                        }
-                        let target = frames::transition_topology::named_transition_target_state(
-                            program, machine, state, edge,
-                        )?;
+                        let invoked = frames::terminal_calls::target(program, machine, edge);
+                        let (target_machine, target) = if invoked.is_valid() {
+                            let (owner, target) =
+                                frames::machine_state_by_symbol(program, invoked)?;
+                            if !owner.supply_mode.is_checked_body()
+                                || !owner.body_is_present
+                                || !program.machine_type_parameters(owner).is_empty()
+                            {
+                                return None;
+                            }
+                            (owner, target)
+                        } else {
+                            (
+                                machine,
+                                frames::transition_topology::named_transition_target_state(
+                                    program, machine, state, edge,
+                                )?,
+                            )
+                        };
                         let target_index = if let Some(index) = states
                             .iter()
-                            .position(|candidate| candidate.symbol == target.symbol)
+                            .position(|(_, candidate)| candidate.symbol == target.symbol)
                         {
                             index
                         } else {
-                            states.push(target);
+                            states.push((target_machine, target));
                             states.len() - 1
                         };
                         let arguments = program.statement_table.expression_handles(*arguments);
@@ -122,6 +136,7 @@ fn solve_state_effects<'program>(
             exits.push(SlotExit::Return(last.stored));
         }
         equations.push(SlotEquation {
+            machine,
             state,
             inventory,
             exits,
@@ -147,7 +162,7 @@ fn solve_state_effects<'program>(
                         };
                         let instantiated = instantiate(
                             program,
-                            machine,
+                            equation.machine,
                             program.state_parameters(equations[*target].state),
                             arguments,
                             relative,
