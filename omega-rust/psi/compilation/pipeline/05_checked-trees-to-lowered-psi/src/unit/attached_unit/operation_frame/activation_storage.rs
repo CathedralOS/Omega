@@ -70,13 +70,11 @@ impl OperationFrame<'_, '_> {
                     id,
                     call.target.machine,
                 )?;
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
+                self.operations.push(Operation::unsuspended(
                     id,
-                    result: OperationResult::Unit,
-                    kind: OperationKind::ReleaseActivationClaim { source, claim },
-                });
+                    OperationResult::Unit,
+                    OperationKind::ReleaseActivationClaim { source, claim },
+                ));
                 return Ok(());
             }
             // An establishment consumes its evaluated extent and reports the
@@ -120,28 +118,24 @@ impl OperationFrame<'_, '_> {
                 // the same exclusive descriptor used by the following subslice.
                 let read = source.clone();
                 let id = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
+                self.operations.push(Operation::unsuspended(
                     id,
-                    result: OperationResult::Scalar(length),
-                    kind: OperationKind::ByteSequenceLength { source: read },
-                });
+                    OperationResult::Scalar(length),
+                    OperationKind::ByteSequenceLength { source: read },
+                ));
                 let start = ValueDeclaration {
                     qualifications: Default::default(),
                     id: value_id(allocate_dense(self.next_value)?),
                     scalar_type: integer,
                 };
                 let id = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
+                self.operations.push(Operation::unsuspended(
                     id,
-                    result: OperationResult::Scalar(start),
-                    kind: OperationKind::IntegerConstant {
+                    OperationResult::Scalar(start),
+                    OperationKind::IntegerConstant {
                         value: IntegerValue::Unsigned(0),
                     },
-                });
+                ));
                 OperationKind::ByteSequenceSubslice {
                     source,
                     start: start.id,

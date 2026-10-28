@@ -146,12 +146,10 @@ pub(crate) fn emit_dynamic_call_leaf(
     operation: OperationId,
     operations: &mut OperationBuffer,
 ) {
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: produced,
-        kind: OperationKind::CallDynamic {
+    operations.push(Operation::unsuspended(
+        operation,
+        produced,
+        OperationKind::CallDynamic {
             selector,
             interface,
             slot,
@@ -164,7 +162,7 @@ pub(crate) fn emit_dynamic_call_leaf(
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-    });
+    ));
 }
 
 /// Emit one completed invocation, including finite-family row selection. Every

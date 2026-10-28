@@ -178,12 +178,10 @@ pub(super) fn emit_boundary_call_binding(
         call.target_machine,
         &lowered_psi::LoweredSourceFrontierBindings::default(),
     )?;
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: OperationResult::Scalar(raw),
-        kind: operands.into_kind(),
-    });
+    operations.push(Operation::unsuspended(
+        operation,
+        OperationResult::Scalar(raw),
+        operands.into_kind(),
+    ));
     Ok(result_policy::emit(policy, raw, next_value_identity, operations)?.id)
 }
