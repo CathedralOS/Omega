@@ -1,6 +1,7 @@
 //! Reify retained resolved arguments without parsing their display paths.
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
 use symbols::{SymbolHandle, SymbolKind};
@@ -9,11 +10,7 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::name::Identifier;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "conformance policy cannot retain {reason}"
-    ))]
-}
+refusal!(pub(super) reason, "conformance policy cannot retain {reason}");
 
 pub(crate) fn argument_type_reference(
     program: &mut typed_trees::TypedTrees,

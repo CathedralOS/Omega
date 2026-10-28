@@ -6,6 +6,7 @@ mod rows;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
@@ -202,8 +203,4 @@ fn normalized_plan_name(
     ))
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "selected-provider policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "selected-provider policy rejects {reason}");
