@@ -517,7 +517,7 @@ pub(super) fn build_traced(
         // the returned value. The receiving graph rejoins its exact producer
         // and independently validates the source reference's access and path.
         let _term_guard = phase_profile::guard("05.d.8_10.a.3.2c.4.terminator");
-        let terminator = terminator::build(
+        let (terminator, selected_exit) = terminator::build(
             program,
             facts,
             scalar_callees,
@@ -587,10 +587,12 @@ pub(super) fn build_traced(
             &sequence.structural_results,
             &mut operations,
             &terminator,
+            selected_exit,
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
             normal_exit_cleanups: Default::default(),
+            selected_exit,
             state: state.symbol,
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),

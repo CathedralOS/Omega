@@ -45,15 +45,21 @@ pub(super) fn build(
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
-) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+) -> Option<(
+    CheckedComposedUnitControlTerminatorPlan,
+    Option<checked_trees::FlowClaimJoinExit>,
+)> {
     if let Some(call) = operations
         .iter()
         .filter_map(CheckedUnitEffectOperationPlan::call)
         .find(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
     {
-        return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
-            coordinate: call.coordinate,
-        });
+        return Some((
+            CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+                coordinate: call.coordinate,
+            },
+            None,
+        ));
     }
     // A stopped prefix has no value to return, including a declaration-owned
     // external completion. The operation retains its exact outcome and entry
@@ -62,7 +68,10 @@ pub(super) fn build(
         .iter()
         .any(|operation| !operation.has_normal_continuation())
     {
-        return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+        return Some((
+            CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal,
+            None,
+        ));
     }
     let result = result.clone();
     // The state's own owner answers its machine-scoped facts; the dispatch
@@ -163,18 +172,26 @@ pub(super) fn build(
         trace.phase("state graph: terminator: selected static destination");
         let transition = selected.transition;
         let selected_ordinal = selected.statement_ordinal;
+        let selected_exit = checked_trees::FlowClaimJoinExit {
+            state_symbol: state.symbol,
+            statement_index: selected_ordinal as usize,
+            kind: checked_trees::FlowClaimJoinExitKind::TransitionTarget,
+        };
         if validation::completing_transition_transfer(program, transition.target).is_some_and(
             |transfer| super::fused::fused_target_index(program, fused, transfer.target).is_some(),
         ) {
-            return Some(CheckedComposedUnitControlTerminatorPlan::Jump {
-                successor: edge(
-                    operations,
-                    transition,
-                    selected_ordinal,
-                    SuccessorEdge::Jump,
-                    shapes,
-                )?,
-            });
+            return Some((
+                CheckedComposedUnitControlTerminatorPlan::Jump {
+                    successor: edge(
+                        operations,
+                        transition,
+                        selected_ordinal,
+                        SuccessorEdge::Jump,
+                        shapes,
+                    )?,
+                },
+                Some(selected_exit),
+            ));
         }
         let arm = guarded_return_arm(
             program,
@@ -193,7 +210,10 @@ pub(super) fn build(
             transition,
             trace,
         )?;
-        return complete_selected_return(program, transition, arm, operations);
+        return Some((
+            complete_selected_return(program, transition, arm, operations)?,
+            Some(selected_exit),
+        ));
     }
     let before_closed_sum = trace.mark();
     let closed_sum = closed_sum::build(
@@ -819,7 +839,7 @@ pub(super) fn build(
             }
         }
     };
-    Some(terminator)
+    Some((terminator, None))
 }
 
 /// Rejoin the shared roster's authored destination, distinguishing a local
