@@ -278,6 +278,14 @@ pub(crate) fn validate_declaration_call_requirements(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    if let ProofFact::Membership(membership) = fact
+        && pending_data_subject(program, owner_symbol, membership.value).is_some()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot form named-domain membership in {owner}: the logical subject's own default domain is still pending admission"
+        )).with_source_span(program.expression_table.source_span(membership.value)));
+        return;
+    }
     let mut roots = Vec::new();
     fact_roots(program, fact, &mut roots);
     let content = content_conservation_inputs(program);
