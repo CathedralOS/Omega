@@ -412,6 +412,42 @@ fn declared_predicate_fields<'program>(
         .collect()
 }
 
+#[derive(Default)]
+struct PredicateArgumentReferences {
+    symbols: Vec<symbols::SymbolHandle>,
+    expressions: Vec<ExpressionHandle>,
+    types: Vec<TypeReferenceHandle>,
+}
+
+impl Extend<symbols::SymbolHandle> for PredicateArgumentReferences {
+    fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if !self.symbols.contains(&symbol) {
+                self.symbols.push(symbol);
+            }
+        }
+    }
+}
+
+impl typed_trees::references::TypedReferences for PredicateArgumentReferences {
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.expressions.push(expression);
+        false
+    }
+    fn type_expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.expressions.push(expression);
+        false
+    }
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        if self.types.contains(&reference) {
+            false
+        } else {
+            self.types.push(reference);
+            true
+        }
+    }
+}
+
 /// A source field and a logical-subject projection read their exact receiving
 /// declaration. A qualified constant sharing the last spelling is never a field.
 fn predicate_read_set(
@@ -420,6 +456,23 @@ fn predicate_read_set(
     fact: &typed_trees::domain::ProofFact,
 ) -> PredicateReadSet {
     let declared = declared_predicate_fields(program, definition);
+    let receiving_field = |symbol| {
+        if let Some(field) = declared.iter().find(|field| field.symbol == symbol) {
+            return Some(field.symbol);
+        }
+        let reference = definition
+            .generic_instance
+            .unwrap_or(definition.predicate_subject_type);
+        if !reference.is_valid() {
+            return None;
+        }
+        let (source, _) = program.any_field_owner(symbol)?;
+        let selected = program.data_constructor_field(reference, source.symbol, symbol)?;
+        declared
+            .iter()
+            .any(|field| field.symbol == selected.symbol)
+            .then_some(selected.symbol)
+    };
     let mut reads = PredicateReadSet::default();
     let mut pending = match fact {
         typed_trees::domain::ProofFact::Expression(expression) => vec![(*expression, true)],
@@ -431,6 +484,32 @@ fn predicate_read_set(
             .map(|value| (*value, true))
             .collect(),
     };
+    let mut static_references = PredicateArgumentReferences::default();
+    if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+        for argument in program
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments)
+        {
+            typed_trees::references::visit_type_reference(
+                program,
+                &mut static_references,
+                *argument,
+            );
+        }
+    }
+    pending.extend(
+        static_references
+            .expressions
+            .drain(..)
+            .map(|expression| (expression, true)),
+    );
+    for symbol in static_references.symbols.drain(..) {
+        if let Some(field) = receiving_field(symbol) {
+            if !reads.fields.contains(&field) {
+                reads.fields.push(field);
+            }
+        }
+    }
     let mut visited = Vec::new();
     while let Some((expression, whole_subject)) = pending.pop() {
         if !expression.is_valid() || visited.contains(&(expression, whole_subject)) {
@@ -439,8 +518,8 @@ fn predicate_read_set(
         visited.push((expression, whole_subject));
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if declared.iter().any(|field| field.symbol == path.symbol) {
-                    if !reads.fields.contains(&path.symbol) { reads.fields.push(path.symbol); }
+                if let Some(symbol) = receiving_field(path.symbol) {
+                    if !reads.fields.contains(&symbol) { reads.fields.push(symbol); }
                 } else if definition.predicate_subject_symbol.is_valid()
                     && path.symbol == definition.predicate_subject_symbol && whole_subject
                 {
@@ -454,7 +533,7 @@ fn predicate_read_set(
                         && path.symbol == definition.predicate_subject_symbol);
                 if logical_receiver {
                     if let Some(field) = crate::value_custody::places::exact_data_member_field(
-                        program, definition, member.member_symbol, member.member.as_str(),
+                        program, definition, receiving_field(member.member_symbol).unwrap_or(member.member_symbol), member.member.as_str(),
                         member.case_variant.as_ref().map(|case| case.as_str()),
                     ) {
                         if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); }
@@ -464,6 +543,23 @@ fn predicate_read_set(
                         for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
                     }
                 } else { pending.push((member.receiver, false)); }
+            }
+            ExpressionNode::Call(call) => {
+                crate::expression_traversal::children(program, program.expression_table.expression(expression), |child| pending.push((child, true)));
+                let call = typed_trees::references::StaticArgumentCall::Expression(expression, call);
+                for argument in call.arguments(program) {
+                    typed_trees::references::visit_static_argument(program, &mut static_references, argument);
+                }
+                typed_trees::references::visit_static_machine_bindings(program, &mut static_references, call.application());
+                typed_trees::references::visit_static_machine_bindings(program, &mut static_references, call.selection_application());
+                pending.extend(static_references.expressions.drain(..).map(|expression| (expression, true)));
+                for symbol in static_references.symbols.drain(..) {
+                    if let Some(field) = receiving_field(symbol) { if !reads.fields.contains(&field) { reads.fields.push(field); } }
+                    else if definition.predicate_subject_symbol.is_valid() && symbol == definition.predicate_subject_symbol {
+                        reads.tag = true;
+                        for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
+                    }
+                }
             }
             ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership
                 || program.expression_table.authored_selection_occurrences(expression).any(|occurrence| {

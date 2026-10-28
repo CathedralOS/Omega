@@ -175,11 +175,12 @@ fn is_pending_data_subject(
         match target.expression_table.expression(value) {
             typed::expression::ExpressionNode::Name(path) => {
                 return path.symbol.is_valid()
-                    && program.data_definitions.iter().any(|definition| {
-                        definition.predicate_subject_symbol == path.symbol
-                            && program.symbols.get(path.symbol).parent == definition.symbol
-                            && !definition.where_facts.is_empty()
-                    });
+                    && program
+                        .data_definition_by_symbol(program.symbols.get(path.symbol).parent)
+                        .is_some_and(|definition| {
+                            definition.predicate_subject_symbol == path.symbol
+                                && !definition.where_facts.is_empty()
+                        });
             }
             typed::expression::ExpressionNode::Borrow(borrow) => value = borrow.target,
             typed::expression::ExpressionNode::Cast(cast) => value = cast.value,
