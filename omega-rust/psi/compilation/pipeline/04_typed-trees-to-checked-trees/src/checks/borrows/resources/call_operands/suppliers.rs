@@ -28,6 +28,33 @@ pub(super) fn collect(
     output: &mut Vec<ResourceDraft>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> bool {
+    macro_rules! push_stored_loan {
+        ($loan:expr, $row:expr) => {
+            output.push(ResourceDraft {
+                resource: CheckedCallBorrowLoanResource {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    call,
+                    owner_operand,
+                    operand,
+                    source: CheckedCallBorrowLoanSource::StoredLoan { loan: $loan },
+                    access: output_access.clone(),
+                    parent_lifetime: CheckedDirectBorrowParentLifetime {
+                        machine_symbol: state.machine_symbol,
+                        state_symbol: state.state_symbol,
+                        root: $row.root,
+                    },
+                    ..Default::default()
+                },
+                path: path.to_vec(),
+                backing: checked_trees::CapturedPlace {
+                    incoming_reference: $row.incoming_reference,
+                    root: $row.root,
+                    segments: facts.borrow.loan_segments($row).to_vec(),
+                },
+            });
+        };
+    }
     let Some((_, borrow_state)) = facts
         .borrow
         .first_state_borrow(state.machine_symbol, state.state_symbol)
@@ -195,29 +222,7 @@ pub(super) fn collect(
                             {
                                 continue;
                             }
-                            output.push(ResourceDraft {
-                                resource: CheckedCallBorrowLoanResource {
-                                    machine_symbol: state.machine_symbol,
-                                    state_symbol: state.state_symbol,
-                                    call,
-                                    owner_operand,
-                                    operand,
-                                    source: CheckedCallBorrowLoanSource::StoredLoan { loan },
-                                    access: output_access.clone(),
-                                    parent_lifetime: CheckedDirectBorrowParentLifetime {
-                                        machine_symbol: state.machine_symbol,
-                                        state_symbol: state.state_symbol,
-                                        root: row.root,
-                                    },
-                                    ..Default::default()
-                                },
-                                path: path.to_vec(),
-                                backing: checked_trees::CapturedPlace {
-                                    incoming_reference: row.incoming_reference,
-                                    root: row.root,
-                                    segments: facts.borrow.loan_segments(row).to_vec(),
-                                },
-                            });
+                            push_stored_loan!(loan, row);
                         }
                         output.len() > before
                     } else {
@@ -331,29 +336,7 @@ pub(super) fn collect(
                         && row.formation_expression == capture.expression
                         && row.statement_index == capture.statement_index
                 }) {
-                    output.push(ResourceDraft {
-                        resource: CheckedCallBorrowLoanResource {
-                            machine_symbol: state.machine_symbol,
-                            state_symbol: state.state_symbol,
-                            call,
-                            owner_operand,
-                            operand,
-                            source: CheckedCallBorrowLoanSource::StoredLoan { loan },
-                            access: output_access.clone(),
-                            parent_lifetime: CheckedDirectBorrowParentLifetime {
-                                machine_symbol: state.machine_symbol,
-                                state_symbol: state.state_symbol,
-                                root: row.root,
-                            },
-                            ..Default::default()
-                        },
-                        path: path.to_vec(),
-                        backing: checked_trees::CapturedPlace {
-                            incoming_reference: row.incoming_reference,
-                            root: row.root,
-                            segments: facts.borrow.loan_segments(row).to_vec(),
-                        },
-                    });
+                    push_stored_loan!(loan, row);
                 }
                 output.len() > before
             }
