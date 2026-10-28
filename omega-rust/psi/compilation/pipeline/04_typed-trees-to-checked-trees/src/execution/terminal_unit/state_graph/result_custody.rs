@@ -518,7 +518,7 @@ pub(super) fn account<'calls>(
                 .is_some_and(|declaration| {
                     declaration.no_code_affine_cleanup && !declaration.owns_linear_claim
                 })
-            && producer_claim_paths(program, facts, operation)
+            && producer_claim_paths(program, facts, state, operation)
                 .is_some_and(|claims| claims.is_empty())
             && storage_transfers
                 .as_ref()
@@ -666,7 +666,7 @@ pub(super) fn account<'calls>(
             let mut remaining = paths.as_slice();
             !paths.is_empty()
                 && paths.iter().all(|path| !path.is_empty())
-                && producer_claim_paths(program, facts, operation).is_some_and(|claims| {
+                && producer_claim_paths(program, facts, state, operation).is_some_and(|claims| {
                     paths.iter().all(|path| {
                         claims
                             .iter()
@@ -1103,6 +1103,7 @@ pub(super) fn account<'calls>(
 fn producer_claim_paths(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state: &typed_trees::state::State,
     producer: &CheckedUnitEffectOperationPlan,
 ) -> Option<Vec<Vec<checked_trees::CheckedUnitStructuralPathSegment>>> {
     if let Some(call) = producer.call() {
@@ -1114,21 +1115,44 @@ fn producer_claim_paths(
                 .collect(),
         );
     }
-    let CheckedUnitEffectOperationPlan::EstablishLocal(
-        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-    ) = producer
-    else {
-        return None;
+    let actual_type = match producer {
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+        ) => {
+            if !facts.values.structural_values.nodes.is_valid(*value) {
+                return None;
+            }
+            facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .type_reference
+        }
+        CheckedUnitEffectOperationPlan::EstablishLocal(
+            checked_trees::CheckedUnitLocalBindingPlan::Structural {
+                statement_index,
+                symbol,
+                ..
+            },
+        ) => {
+            // A declared home is also a producer. Retain its actual typed
+            // claim frontier, including zero-created contents; absence of a
+            // value-expression node does not mean absent or unknown custody.
+            let StatementNode::LocalData(local) = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(*statement_index as usize)?
+            else {
+                return None;
+            };
+            if local.symbol != *symbol {
+                return None;
+            }
+            local.type_reference
+        }
+        _ => return None,
     };
-    if !facts.values.structural_values.nodes.is_valid(*value) {
-        return None;
-    }
-    let actual_type = facts
-        .values
-        .structural_values
-        .nodes
-        .get(*value)
-        .type_reference;
     validation::linear_claim_frontier(program, actual_type)
         .into_iter()
         .map(|claim| validation::structural_claim_path(program, actual_type, &claim.path).ok())

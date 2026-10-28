@@ -1,0 +1,30 @@
+// Expected exit: 0
+// The ordinary declared affine home remains backed through its pending
+// borrowed successor; whole no-code custody closes at its actual frontier.
+use omega_language_std::console;
+data Name { bytes: [u8; 8] in Trapping; length: u64; }
+machine read()
+reaches Console
+{
+    let mut name: Name;
+    clear(&mut name);
+    let input: ByteRead = block Console::read_byte();
+    transition input {
+        ByteRead::Byte { value } -> block retain(&name, value)
+        _ -> done()
+    }
+    machine clear(name: &mut Name) { name.length = 0; }
+    machine retain(name: &Name, value: i32) {
+        transition name.length == 0 {
+            true -> block echo(value)
+            _ -> fail()
+        }
+    }
+    machine echo(value: i32) {
+        Console::write_byte(value);
+        transition { _ -> block read() }
+    }
+    machine done() { Console::exit_process(0); }
+    machine fail() { Console::exit_process(1); }
+}
+machine main() reaches Console { block read(); }
