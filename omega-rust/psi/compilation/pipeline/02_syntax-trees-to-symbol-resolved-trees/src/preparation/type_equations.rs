@@ -97,7 +97,7 @@ impl TypeEquation {
     pub(crate) fn structural_definition(&self) -> Option<(usize, ExpressionHandle)> {
         match self.shape {
             EquationShape::Structural { binder, .. } => Some((binder, self.definition)),
-            EquationShape::KindMismatch { .. } => None,
+            EquationShape::Boolean { .. } | EquationShape::KindMismatch { .. } => None,
         }
     }
 
@@ -113,11 +113,19 @@ impl TypeEquation {
             EquationShape::Structural {
                 binder, structure, ..
             } => *binder == index || structure.binder_mentions(syntax, names).contains(&index),
+            EquationShape::Boolean { operands, .. } => operands
+                .iter()
+                .any(|operand| operand.mentions_parameter(syntax, names, index)),
             EquationShape::KindMismatch { .. } => false,
         }
     }
 
     pub(crate) fn validate_kind(&self, declaration: &str) -> Result<(), Diagnostic> {
+        if let EquationShape::Boolean { operands, .. } = &self.shape {
+            for operand in operands {
+                operand.validate_kind(declaration)?;
+            }
+        }
         if let EquationShape::KindMismatch { span, description } = &self.shape {
             return Err(Diagnostic::error(format!(
                 "{declaration} where equation mixes type and value kinds: {description}"
@@ -125,6 +133,29 @@ impl TypeEquation {
             .with_source_span(*span));
         }
         Ok(())
+    }
+
+    fn validate_names(
+        &self,
+        syntax: &SyntaxTrees,
+        selection: Option<&declaration_selection::ConstantSelection>,
+    ) -> Result<(), Diagnostic> {
+        self.validate_kind("declaration")?;
+        match &self.shape {
+            EquationShape::Structural {
+                structure: Structure::Name { name, binder: None },
+                span,
+                ..
+            } => validate_closed_name_type(syntax, selection, name)
+                .map_err(|reason| Diagnostic::error(reason).with_source_span(*span)),
+            EquationShape::Boolean { operands, .. } => {
+                for operand in operands {
+                    operand.validate_names(syntax, selection)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 }
 
@@ -148,6 +179,12 @@ pub(crate) fn template_type_equation_offsets(
         syntax.items.proof_facts(definition.where_facts),
     ) {
         match equation.shape {
+            EquationShape::Boolean { ref operands, .. } => {
+                for operand in operands {
+                    operand.validate_names(syntax, selection)?;
+                }
+                offsets.push(equation.fact_offset);
+            }
             EquationShape::Structural {
                 structure: Structure::TypeReference(_) | Structure::TypeOperand(_),
                 ..
@@ -253,6 +290,14 @@ pub(crate) fn validate_materialized_type_equations(
 
 #[derive(Clone)]
 enum EquationShape {
+    /// A Boolean condition over exact type equations. Alternatives constrain an
+    /// already determined tuple; they never select one possible type for an
+    /// omitted argument or supply implicit conformance evidence.
+    Boolean {
+        operator: TypeBooleanOperator,
+        operands: Vec<TypeEquation>,
+        span: SourceSpan,
+    },
     /// `binder == structure` with a `type` binder on the binder side.
     Structural {
         binder: usize,
@@ -266,6 +311,13 @@ enum EquationShape {
         span: SourceSpan,
         description: String,
     },
+}
+
+#[derive(Clone, Copy)]
+enum TypeBooleanOperator {
+    And,
+    Or,
+    Not,
 }
 
 #[derive(Clone)]
@@ -405,13 +457,52 @@ pub(crate) fn classify_type_equations(
             let ProofFact::Expression(expression) = fact else {
                 return None;
             };
+            let nested = |expression| {
+                classify_type_equations(syntax, parameters, &[ProofFact::Expression(expression)])
+                    .into_iter()
+                    .next()
+            };
+            let span = syntax.expressions.source_span(*expression);
+            let boolean = match syntax.expressions.expression(*expression) {
+                ExpressionNode::Binary(binary)
+                    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+                {
+                    Some((
+                        if binary.operator == BinaryOperator::And {
+                            TypeBooleanOperator::And
+                        } else {
+                            TypeBooleanOperator::Or
+                        },
+                        vec![nested(binary.left)?, nested(binary.right)?],
+                    ))
+                }
+                ExpressionNode::Unary(unary)
+                    if unary.operator == syntax_trees::expression::UnaryOperator::LogicalNot =>
+                {
+                    Some((TypeBooleanOperator::Not, vec![nested(unary.operand)?]))
+                }
+                _ => None,
+            };
+            if let Some((operator, operands)) = boolean {
+                return Some(TypeEquation {
+                    fact_offset,
+                    definition: *expression,
+                    shape: EquationShape::Boolean {
+                        operator,
+                        operands,
+                        span,
+                    },
+                });
+            }
             let ExpressionNode::Binary(binary) = syntax.expressions.expression(*expression) else {
                 return None;
             };
-            if binary.operator != BinaryOperator::Equal {
+            if !matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) {
                 return None;
             }
-            let span = syntax.expressions.source_span(*expression);
             let left = classify_side(syntax, parameters, binary.left);
             let right = classify_side(syntax, parameters, binary.right);
             let definition = if matches!(left, Side::TypeBinder(_)) {
@@ -443,10 +534,23 @@ pub(crate) fn classify_type_equations(
                 }
                 _ => return None,
             };
-            Some(TypeEquation {
+            let equation = TypeEquation {
                 fact_offset,
                 definition,
                 shape,
+            };
+            Some(if binary.operator == BinaryOperator::NotEqual {
+                TypeEquation {
+                    fact_offset,
+                    definition: *expression,
+                    shape: EquationShape::Boolean {
+                        operator: TypeBooleanOperator::Not,
+                        operands: vec![equation],
+                        span,
+                    },
+                }
+            } else {
+                equation
             })
         })
         .collect()
@@ -1027,6 +1131,15 @@ impl<'a, 's> Solver<'a, 's> {
             )));
         }
         if let Some(index) = self.settled.iter().position(|settled| !settled) {
+            if let EquationShape::Boolean { span, .. } = &self.base_info.type_equations[index].shape
+            {
+                return Err(self
+                    .reject(
+                        "where type predicate cannot be decided from the supplied arguments"
+                            .to_owned(),
+                    )
+                    .with_source_span(*span));
+            }
             let EquationShape::Structural { binder, span, .. } =
                 &self.base_info.type_equations[index].shape
             else {
@@ -1121,6 +1234,34 @@ impl<'a, 's> Solver<'a, 's> {
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match &equation.shape {
+            EquationShape::Boolean {
+                operator,
+                operands,
+                span,
+            } => {
+                equation.validate_names(self.syntax, self.selection)?;
+                if matches!(operator, TypeBooleanOperator::And) {
+                    let mut settled = true;
+                    for operand in operands {
+                        settled &= matches!(self.apply(operand, warnings)?, Outcome::Settled);
+                    }
+                    return Ok(if settled {
+                        Outcome::Settled
+                    } else {
+                        Outcome::Deferred
+                    });
+                }
+                match self.predicate_value(equation, warnings)? {
+                    Some(true) => Ok(Outcome::Settled),
+                    Some(false) => Err(self
+                        .reject(
+                            "where type predicate does not hold for the supplied arguments"
+                                .to_owned(),
+                        )
+                        .with_source_span(*span)),
+                    None => Ok(Outcome::Deferred),
+                }
+            }
             EquationShape::KindMismatch { span, description } => Err(self
                 .reject(format!(
                     "where equation mixes type and value kinds: {description}"
@@ -1175,6 +1316,87 @@ impl<'a, 's> Solver<'a, 's> {
                 }
             }
         }
+    }
+
+    /// Decide a condition without using an alternative as inference. Reuse the
+    /// ordinary structural constructor, restoring the original binder before
+    /// observing either outcome. Every leaf is formed, including on an arm
+    /// whose Boolean value is already determined by its sibling.
+    fn predicate_value(
+        &mut self,
+        equation: &TypeEquation,
+        warnings: &mut Vec<Diagnostic>,
+    ) -> Result<Option<bool>, Diagnostic> {
+        match &equation.shape {
+            EquationShape::Boolean {
+                operator, operands, ..
+            } => {
+                let values = operands
+                    .iter()
+                    .map(|operand| self.predicate_value(operand, warnings))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(match (*operator, values.as_slice()) {
+                    (TypeBooleanOperator::Not, [Some(value)]) => Some(!value),
+                    (TypeBooleanOperator::And, [Some(left), Some(right)]) => Some(*left && *right),
+                    (TypeBooleanOperator::Or, [Some(left), Some(right)]) => Some(*left || *right),
+                    _ => None,
+                })
+            }
+            EquationShape::Structural {
+                binder,
+                structure,
+                span,
+            } => {
+                let actual = self.bindings[*binder].clone();
+                let formed = self.recover_binder(*binder, structure, *span, warnings);
+                let expected = self.bindings[*binder].clone();
+                self.bindings[*binder] = actual.clone();
+                if matches!(formed?, Outcome::Deferred) {
+                    return Ok(None);
+                }
+                let Some(actual) = self.predicate_binding_identity(actual.as_ref(), *span)? else {
+                    return Ok(None);
+                };
+                let Some(expected) = self.predicate_binding_identity(expected.as_ref(), *span)?
+                else {
+                    return Ok(None);
+                };
+                Ok(Some(actual == expected))
+            }
+            EquationShape::KindMismatch { .. } => {
+                equation.validate_kind("declaration")?;
+                unreachable!("kind mismatch must refuse")
+            }
+        }
+    }
+
+    fn predicate_binding_identity(
+        &self,
+        binding: Option<&Binding>,
+        span: SourceSpan,
+    ) -> Result<Option<ClosedArgumentIdentity>, Diagnostic> {
+        let identity = match binding {
+            None => return Ok(None),
+            Some(Binding::Type(reference)) => {
+                closed_argument_identity(self.syntax, self.selection, *reference, false)
+            }
+            Some(Binding::NamedType(name)) => {
+                validate_closed_name_type(self.syntax, self.selection, name)
+                    .map_err(|reason| self.reject(reason).with_source_span(span))?;
+                closed_name_identity(self.syntax, self.selection, name)
+            }
+            Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
+                return Err(self
+                    .reject("where type predicate received a value operand".to_owned())
+                    .with_source_span(span));
+            }
+        };
+        identity.map(Some).ok_or_else(|| {
+            self.reject(
+                "where type predicate operand has no complete exact type identity".to_owned(),
+            )
+            .with_source_span(span)
+        })
     }
 
     fn require_closed_name_type(

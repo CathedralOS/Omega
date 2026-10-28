@@ -647,6 +647,9 @@ pub enum ExpressionNode {
     /// Exact decoded literal octets, including non-UTF-8 `\xNN` values.
     String(source::SourceBytes),
     Unary(TableUnaryExpression),
+    /// A source type operand. Only static type predicates consume it; it has
+    /// no runtime scalar or storage value.
+    TypeExpression(arena::Handle<crate::types::TypeReference>),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(arena::Handle<crate::types::TypeReference>),
 }

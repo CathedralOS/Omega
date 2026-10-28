@@ -956,6 +956,10 @@ pub(crate) fn normalize_index_expression(
                     }),
             ),
         ),
+        ExpressionNode::TypeExpression(type_reference) => compound(
+            "type-expression",
+            [normalize_type_reference(program, *type_reference, context)],
+        ),
         ExpressionNode::ZeroValue(type_reference) => compound(
             "zero-value",
             [normalize_type_reference(program, *type_reference, context)],

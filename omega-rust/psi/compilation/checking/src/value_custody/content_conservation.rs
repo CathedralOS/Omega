@@ -681,7 +681,9 @@ fn expression_uses_content_surface(
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_uses_content_surface(program, projections, field.value)),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => false,
     }
 }
 

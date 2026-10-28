@@ -228,6 +228,7 @@ fn lower_machine_contents(
             .collect(),
         type_parameters: arena::HandleSpan::empty(),
         declared_type_equations: arena::HandleSpan::empty(),
+        declared_type_predicates: arena::HandleSpan::empty(),
         owned_data: arena::HandleSpan::empty(),
         satisfies: arena::HandleSpan::empty(),
         conformance_bounds: Vec::new(),
@@ -279,6 +280,21 @@ fn lower_machine_contents(
         .typed_trees
         .declared_type_equations
         .insert_many(equations);
+
+    let mut predicates = Vec::new();
+    for &expression in lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(machine.declared_type_predicates)
+    {
+        predicates.push(lower_expression_handle(lowerer, expression)?);
+    }
+    typed_machine.declared_type_predicates = lowerer
+        .typed_trees
+        .expression_table
+        .insert_expression_handles(predicates);
 
     if let Some(application) = &machine.attached_data_application {
         typed_machine.attached_data_application =

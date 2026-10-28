@@ -155,7 +155,7 @@ fn append_occurrences(
         ExpressionNode::Unary(unary) => {
             append_occurrences(program, unary.operand, state, occurrences);
         }
-        typed_trees::spelled_literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -198,7 +198,9 @@ pub(crate) fn append_selector_occurrences(
         ExpressionNode::Borrow(borrow) => {
             append_selector_occurrences(program, borrow.target, occurrences)
         }
-        ExpressionNode::Name(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::Name(_)
+        | ExpressionNode::TypeExpression(_)
+        | typed_trees::literal_expression_pattern!() => {}
         _ => append_expression_occurrences(program, expression, occurrences),
     }
 }

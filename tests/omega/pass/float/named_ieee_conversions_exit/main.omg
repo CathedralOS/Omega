@@ -12,7 +12,7 @@
 //   i64 2^53 + 3 lands on 2^53 + 4 in binary64, and -(2^53 + 3) on
 //   -(2^53 + 4);
 //   u32 3000000000 stays positive (a signed reading would be negative), and
-//   u32::MAX rounds up to 2^32 in binary32;
+//   u32 maximum rounds up to 2^32 in binary32;
 //   i8 -100, i16 -30000, u8 250 and u16 65000 convert exactly (the narrow
 //   operand is extended explicitly, never read from upper register bits);
 //   binary32 0.1 widens exactly, binary64 1 + 3*2^-25 narrows to 1 + 2^-23

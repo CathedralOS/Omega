@@ -462,7 +462,9 @@ fn collect_expression_dependency_symbols(
                 collect_expression_dependency_symbols(program, field.value, symbols);
             }
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => {}
     }
 }
 

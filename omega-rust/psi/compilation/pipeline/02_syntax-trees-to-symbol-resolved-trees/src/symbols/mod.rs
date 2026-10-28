@@ -34,6 +34,7 @@ pub(crate) mod target_machine_families;
 pub(crate) mod target_siblings;
 mod targets;
 mod top_level;
+pub(crate) mod type_predicates;
 mod type_references;
 
 use contracts::assign_contract_reference_symbols;

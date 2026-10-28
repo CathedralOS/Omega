@@ -663,6 +663,7 @@ fn expression_child_handles(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => Vec::new(),
     }
 }
@@ -1130,7 +1131,9 @@ impl<'program> Collector<'program> {
                     self.type_declaration(program.symbols.get(path.symbol).parent)?;
                 }
             }
-            ExpressionNode::ZeroValue(reference) => self.type_child(*reference)?,
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                self.type_child(*reference)?
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
@@ -1215,6 +1218,15 @@ impl<'program> Collector<'program> {
             );
         }
         self.type_parameters(machine.type_parameters)?;
+        self.expressions.extend(
+            program
+                .tables
+                .bodies
+                .expressions
+                .expression_handles(machine.declared_type_predicates)
+                .iter()
+                .copied(),
+        );
         for equation in program
             .tables
             .declarations

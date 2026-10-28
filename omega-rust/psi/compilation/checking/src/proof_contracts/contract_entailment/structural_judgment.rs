@@ -810,6 +810,15 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
+        let mut entry_facts = requires.to_vec();
+        if let Some(machine) = program.machine(owner) {
+            entry_facts.extend_from_slice(
+                program
+                    .expression_table
+                    .expression_handles(machine.declared_type_predicates),
+            );
+        }
+        let requires = entry_facts.as_slice();
         let licenses = crate::frozen_program::frozen_memo(
             program,
             |memos| &memos.license_candidates,
@@ -1084,6 +1093,12 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake(&mut self, program: &dyn crate::CheckingInput, fact: ExpressionHandle) {
+        if !self.case_facts_only && program.static_type_predicate_operands(fact).is_some() {
+            if let Some(predicate) = self.declaration_term(fact) {
+                self.intake_equation(predicate, value_predicates::boolean_term(true), 0);
+            }
+            return;
+        }
         let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
         };
@@ -1178,6 +1193,9 @@ impl<'program> StructuralJudge<'program> {
                     self.declaration_expression_type(fact)
                         .and_then(|reference| program.primitive_type_reference(reference))
                         == Some(typed_trees::types::PrimitiveType::Bool)
+                }
+                StructuralTerm::Variable(_) => {
+                    program.static_type_predicate_operands(fact).is_some()
                 }
                 _ => false,
             };
@@ -3001,6 +3019,20 @@ impl<'program> StructuralJudge<'program> {
     ) -> StructuralJudgment {
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
+        }
+        if program.static_type_predicate_operands(fact).is_some() {
+            return self
+                .declaration_term(fact)
+                .map(|term| self.resolve(term))
+                .and_then(|term| value_predicates::boolean_value(term.semantic_value()))
+                .map(|holds| {
+                    if holds {
+                        StructuralJudgment::Proven
+                    } else {
+                        StructuralJudgment::Refuted
+                    }
+                })
+                .unwrap_or(StructuralJudgment::Unknown);
         }
         if program
             .expression_table

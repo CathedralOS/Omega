@@ -143,6 +143,7 @@ pub fn normalize_terminal_transition_calls(
         let call = program
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
+                authored_call_selection: None,
                 authored_call_binding: None,
                 authored_machine_application: Default::default(),
                 requirement_application: Default::default(),

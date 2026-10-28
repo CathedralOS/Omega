@@ -21,7 +21,7 @@
 // - Overflow/underflow DETECTION is explicit guards; the arithmetic itself
 //   runs in Wrapping-domained lets (obligation-free), whose values are only
 //   USED on the guard arms that prove them meaningful — the wrapped-compare
-//   idiom (`sum < a` iff the u64 add wrapped) needs no u64::MAX literal.
+//   idiom (`sum < a` iff the u64 add wrapped) needs no u64 maximum literal.
 // - Emission helpers receive their scalars explicitly and establish the data
 //   predicate at construction. A nested declaration does not inherit its
 //   caller's guard facts; bounds follow its parameters and checked expressions.
@@ -58,7 +58,7 @@ public data TotalResult [copy] {
 }
 
 const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0 };
-// u64::MAX seconds: spellable since D14 fire D blessed u64-classed
+// u64 maximum seconds: spellable since D14 fire D blessed u64-classed
 // struct-literal fields for u64-magnitude literals. MAX is public because it
 // is the exact saturation and checked-total boundary exposed by Duration.
 public const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
@@ -149,22 +149,22 @@ requires divisor > 0
 }
 
 // The whole duration as a nanosecond count. u64 nanoseconds cap at
-// ~584 years: seconds above 18_446_744_073 (u64::MAX / 1e9) overflow, and at
+// ~584 years: seconds above 18_446_744_073 (u64 maximum / 1e9) overflow, and at
 // exactly that threshold only subseconds up to 709_551_615 still fit
-// (18_446_744_073 * 1e9 + 709_551_615 == u64::MAX).
+// (18_446_744_073 * 1e9 + 709_551_615 == u64 maximum).
 public machine Duration::checked_as_nanoseconds(duration: &Duration) -> TotalResult {
     checked_as_scaled_total(duration, 1000000000 as u64 in Wrapping, 1, 18446744073, 709551615)
 }
 
 // The whole duration as a microsecond count (subseconds truncate to the
-// microsecond). Threshold 18_446_744_073_709 = u64::MAX / 1e6; at the edge
+// microsecond). Threshold 18_446_744_073_709 = u64 maximum / 1e6; at the edge
 // only microsecond parts up to 551_615 still fit.
 public machine Duration::checked_as_microseconds(duration: &Duration) -> TotalResult {
     checked_as_scaled_total(duration, 1000000 as u64 in Wrapping, 1000, 18446744073709, 551615)
 }
 
 // The whole duration as a millisecond count (subseconds truncate to the
-// millisecond). Threshold 18_446_744_073_709_551 = u64::MAX / 1e3; at the
+// millisecond). Threshold 18_446_744_073_709_551 = u64 maximum / 1e3; at the
 // edge only millisecond parts up to 615 still fit.
 public machine Duration::checked_as_milliseconds(duration: &Duration) -> TotalResult {
     checked_as_scaled_total(duration, 1000 as u64 in Wrapping, 1000000, 18446744073709551, 615)
@@ -285,7 +285,7 @@ public machine Duration::checked_subtract(duration: &Duration, other: Duration) 
 // duration * factor; `Overflow` when the true product exceeds the range.
 public machine Duration::checked_multiply(duration: &Duration, factor: u32) -> DurationResult {
     let factor_wide: u64 = widen_u32_to_u64(factor);
-    // Subsecond product fits u64 by math ([0..=999_999_999] * [0..=u32::MAX])
+    // Subsecond product fits u64 by math ([0..=999_999_999] * [0..=u32 maximum])
     // but the interval fold cannot multiply variable bounds -- Wrapping
     // spelling, correctness carried by the bounds themselves.
     let nano_product_wrapped: u64 in Wrapping =
@@ -301,7 +301,7 @@ public machine Duration::checked_multiply(duration: &Duration, factor: u32) -> D
     // seconds = hi<<32 | lo. Overflow iff hi*factor exceeds 32 bits or a
     // carry wraps (wrapped-compare idiom).
     let seconds_high: u64 = duration.seconds >> 32;
-    let seconds_low: u64 = duration.seconds & 4294967295;
+    let seconds_low: u64 = duration.seconds & 0xFFFF_FFFF;
     let high_product_wrapped: u64 in Wrapping =
         (seconds_high as u64 in Wrapping) * (factor_wide as u64 in Wrapping);
     let high_product: u64 = high_product_wrapped as u64;
@@ -357,7 +357,7 @@ public machine Duration::divide(duration: &Duration, divisor: u32) -> DurationRe
     let safe_divisor: u64 = widen_u32_to_u64(safe_divisor_narrow);
     let seconds_quotient: u64 = duration.seconds / safe_divisor;
     let seconds_remainder: u64 = duration.seconds % safe_divisor;
-    // remainder < divisor <= u32::MAX, so this fits u64 by math; Wrapping
+    // remainder < divisor <= u32 maximum, so this fits u64 by math; Wrapping
     // spelling because the fold cannot multiply variable bounds.
     let total_wrapped: u64 in Wrapping = ((seconds_remainder as u64 in Wrapping)
         * 1000000000)
@@ -686,7 +686,7 @@ public machine SystemTime::from_unix_seconds(seconds: i64) -> SystemTime {
 
 // time - earlier as a Duration, or Backwards(earlier - time) when the wall
 // clock ran backwards. The seconds difference of two i64s always fits u64
-// (i64::MAX - i64::MIN == u64::MAX), computed as a u64 BIT-PATTERN wrapping
+// (i64 maximum - i64 minimum == u64 maximum), computed as a u64 BIT-PATTERN wrapping
 // subtraction -- two's complement makes it the true difference whenever the
 // dominating compare proves the sign. Same borrow idiom as
 // Duration::checked_subtract, both directions precomputed in entry lets.
@@ -765,13 +765,13 @@ public data SystemTimeResult [copy] {
     case Ok(time: SystemTime);
 }
 
-// time + duration; `Overflow` past i64::MAX seconds. The signed overflow
+// time + duration; `Overflow` past i64 maximum seconds. The signed overflow
 // detection runs in BIASED u64 space: adding 2^63 (spelled `1 << 63` -- the
 // raw literal is not blessed in operand position) maps the whole i64 range
-// onto [0, 2^64) order-preserving, so "exceeds i64::MAX" becomes the plain
+// onto [0, 2^64) order-preserving, so "exceeds i64 maximum" becomes the plain
 // unsigned wrapped-compare idiom, uniformly for duration seconds above
-// i64::MAX too. The RESULT seconds compute in i64-domained Wrapping
-// bit-arithmetic (probe-verified incl. above-i64::MAX operands).
+// i64 maximum too. The RESULT seconds compute in i64-domained Wrapping
+// bit-arithmetic (probe-verified incl. above-i64 maximum operands).
 public machine SystemTime::checked_add(time: &SystemTime, duration: Duration) -> SystemTimeResult {
     let nanoseconds_total: u32 = time.subsecond_nanoseconds + duration.subsecond_nanoseconds;
     let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
@@ -821,7 +821,7 @@ public machine SystemTime::checked_add(time: &SystemTime, duration: Duration) ->
     machine wall_add_overflow() -> SystemTimeResult { SystemTimeResult::Overflow }
 }
 
-// time - duration; `Overflow` below i64::MIN seconds. Same biased-space
+// time - duration; `Overflow` below i64 minimum seconds. Same biased-space
 // idiom, subtraction direction: underflow iff the biased difference wrapped
 // UPWARD (difference > minuend, unsigned).
 public machine SystemTime::checked_subtract(time: &SystemTime, duration: Duration) -> SystemTimeResult {
@@ -890,7 +890,7 @@ public machine SystemTime::saturating_add(time: &SystemTime, duration: Duration)
 }
 
 // time - duration, clamping at SystemTime::MIN instead of reporting
-// underflow (total; wall time is signed, so the floor is i64::MIN seconds,
+// underflow (total; wall time is signed, so the floor is i64 minimum seconds,
 // not the epoch). Mirrors Duration::saturating_subtract.
 public machine SystemTime::saturating_subtract(time: &SystemTime, duration: Duration) -> SystemTime {
     let difference: SystemTimeResult = SystemTime::checked_subtract(time, duration);
@@ -945,7 +945,7 @@ invokes
 // the two per-target calibration constants, all conversion math here.
 // `unix = raw / units - offset`; the subtraction is a u64 wrapping let whose
 // value is only USED on the after-epoch arm the dominating compare proves
-// (the checked_subtract idiom); `% i64::MAX` establishes the bound for the
+// (the checked_subtract idiom); `% i64 maximum` establishes the bound for the
 // i64 narrowing (real clocks sit ~1.7e9, the bound only tames the prover).
 // A host clock before 1970 reads as UNIX_EPOCH (degraded, never faulting).
 public machine Time::system_time_now(time: &mut Time) -> SystemTime
@@ -1051,9 +1051,9 @@ invokes
 
 // Sleep for (approximately, never less than the platform grants) the given
 // duration, through the millisecond host op. ONE clamped chunk: durations
-// above u32::MAX milliseconds (~49.7 days) saturate -- the clamped request
+// above u32 maximum milliseconds (~49.7 days) saturate -- the clamped request
 // is RETURNED so the caller can observe it. All-entry lets; the clamps
-// carry the narrowing proofs (4294968 * 1000 + 999 just exceeds u32::MAX,
+// carry the narrowing proofs (4294968 * 1000 + 999 just exceeds u32 maximum,
 // hence the second clamp).
 public machine Time::sleep_for(time: &mut Time, duration: Duration) -> u32
 reaches

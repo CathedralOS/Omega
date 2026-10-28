@@ -88,6 +88,7 @@ impl ExpressionNode {
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => source::display_literal_bytes(value),
             Self::Unary(unary) => unary.display_name(table),
+            Self::TypeExpression(_) => "type".to_owned(),
             Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
     }

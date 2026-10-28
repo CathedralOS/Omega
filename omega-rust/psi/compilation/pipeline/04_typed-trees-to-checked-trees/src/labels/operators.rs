@@ -158,6 +158,9 @@ pub(crate) fn instantiate_operator_contract_expression_label(
             program.render_proof_constructor_value(literal, instantiate)
         }
         ExpressionNode::String(value) => format!("{value:?}"),
+        ExpressionNode::TypeExpression(type_reference) => {
+            program.display_type_reference(*type_reference).to_string()
+        }
         ExpressionNode::ZeroValue(type_reference) => format!(
             "zero_value<{}>()",
             program.display_type_reference(*type_reference)

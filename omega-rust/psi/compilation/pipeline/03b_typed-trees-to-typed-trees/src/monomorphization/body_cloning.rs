@@ -97,6 +97,43 @@ pub(super) fn clone_single_specialized_machine(
         .map_err(|diagnostic| vec![diagnostic])?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
+    // Source probes retain static equations as pending. Derive their closure
+    // from the actual tuple before declaration-based body substitution; a
+    // formal's own where definition cannot justify the supplied argument.
+    let predicates_closed = if source_machine.structural_type_equations_pending {
+        let input = source.unwrap_or(program);
+        let substitutions = candidate
+            .template
+            .type_parameters
+            .iter()
+            .zip(&candidate.type_bindings)
+            .filter_map(|((formal, _), actual)| actual.map(|actual| (*formal, actual)))
+            .chain(
+                candidate
+                    .template
+                    .const_parameters
+                    .iter()
+                    .zip(&candidate.const_bindings)
+                    .filter_map(|((formal, _, _), actual)| actual.map(|actual| (*formal, actual))),
+            )
+            .collect::<Vec<_>>();
+        let predicates = input
+            .expression_table
+            .expression_handles(source_machine.declared_type_predicates);
+        let mut complete = !predicates.is_empty();
+        for &predicate in predicates {
+            match input.applied_static_type_predicate_value(predicate, &substitutions) {
+                Some(true) => {}
+                Some(false) => return Err(vec![Diagnostic::error(format!(
+                    "machine `{}` where type predicate does not hold for the supplied arguments", source_machine.name
+                )).with_source_span(input.expression_table.source_span(predicate))]),
+                None => complete = false,
+            }
+        }
+        complete
+    } else {
+        false
+    };
     let source_states = source
         .unwrap_or(program)
         .machine_states(&source_machine)
@@ -337,6 +374,7 @@ pub(super) fn clone_single_specialized_machine(
     }
 
     let mut cloned = source_machine.clone();
+    cloned.structural_type_equations_pending &= !predicates_closed;
     // Published progress premises are declaration-owned identities, like
     // ordinary requires/ensures subjects. The fresh specialization cannot
     // retain its template's entry formals. External field symbols stay exact.
@@ -417,6 +455,19 @@ pub(super) fn clone_single_specialized_machine(
         })
         .collect::<Vec<_>>();
     cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
+    let predicates = source
+        .unwrap_or(program)
+        .expression_table
+        .expression_handles(source_machine.declared_type_predicates)
+        .to_vec();
+    let predicates = predicates
+        .into_iter()
+        .map(|expression| copy_expression(source, program, expression, &symbol_map))
+        .collect::<Vec<_>>();
+    cloned.declared_type_predicates = program
+        .expression_table
+        .insert_expression_handles(predicates);
+
     if capture.is_none() {
         cloned.conformance_bounds.clear();
     } else {
@@ -1181,7 +1232,9 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .iter_expressions()
         .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
         .filter_map(|(handle, expression)| {
-            let ExpressionNode::ZeroValue(type_reference) = expression else {
+            let (ExpressionNode::ZeroValue(type_reference)
+            | ExpressionNode::TypeExpression(type_reference)) = expression
+            else {
                 return None;
             };
             Some((handle, *type_reference))
@@ -1189,7 +1242,8 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .collect::<Vec<_>>();
     for (handle, type_reference) in zero_values {
         let type_reference = copy_type_reference(source, program, type_reference, symbols);
-        let ExpressionNode::ZeroValue(current) = program.expression_table.expression_mut(handle)
+        let (ExpressionNode::ZeroValue(current) | ExpressionNode::TypeExpression(current)) =
+            program.expression_table.expression_mut(handle)
         else {
             unreachable!("collected zero-value expression changed kind")
         };

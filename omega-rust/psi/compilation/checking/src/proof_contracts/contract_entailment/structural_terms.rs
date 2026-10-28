@@ -513,6 +513,27 @@ pub(super) fn structural_term(
     expression: ExpressionHandle,
     bindings: Option<&dyn Fn(ExpressionHandle) -> Option<StructuralTerm>>,
 ) -> Option<StructuralTerm> {
+    if let Some((left, right, negate)) = program.static_type_predicate_operands(expression) {
+        if let Some(value) = program.static_type_predicate_value(expression) {
+            return Some(StructuralTerm::Constructor {
+                data: "bool".to_owned(),
+                case: value.to_string(),
+                fields: Vec::new(),
+            });
+        }
+        let mut operands = [
+            program.package_qualified_type_identity_text(left),
+            program.package_qualified_type_identity_text(right),
+        ];
+        operands.sort_unstable();
+        return Some(StructuralTerm::Variable(format!(
+            "$static-type-predicate:{}:{}:{}:{}:{negate}",
+            operands[0].len(),
+            operands[0],
+            operands[1].len(),
+            operands[1]
+        )));
+    }
     if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
         return Some(term);
     }

@@ -722,30 +722,31 @@ fn validate<'program>(
             // machine's `requires` bounds on its parameters (`requires amount <=
             // 100`), so bounded param arithmetic stays exact. Statements are
             // validated in order so the environment is current at each use.
-            let mut value_environment = phase_profile::scope("05.d.2.a.2b.0b.value_env_init", || {
-                if state_index == 0 {
-                    arithmetic_domains::requires_value_environment(program, machine, state)
-                } else {
-                    // A non-entry state may assume the facts established by every
-                    // incoming guarded transition. Multiple predecessors join at
-                    // their common facts and widest admitted interval; call,
-                    // continuation, and self-loop entries remain conservative
-                    // fences.
-                    incoming_environments
-                        .get_or_insert_with(|| {
-                            arithmetic_domains::incoming_guard_environments(
-                                program,
-                                machine,
-                                call_frames.as_ref(),
-                            )
-                        })
-                        .iter()
-                        .find_map(|(symbol, environment)| {
-                            (*symbol == state.symbol).then(|| environment.clone())
-                        })
-                        .unwrap_or_default()
-                }
-            });
+            let mut value_environment =
+                phase_profile::scope("05.d.2.a.2b.0b.value_env_init", || {
+                    if state_index == 0 {
+                        arithmetic_domains::requires_value_environment(program, machine, state)
+                    } else {
+                        // A non-entry state may assume the facts established by every
+                        // incoming guarded transition. Multiple predecessors join at
+                        // their common facts and widest admitted interval; call,
+                        // continuation, and self-loop entries remain conservative
+                        // fences.
+                        incoming_environments
+                            .get_or_insert_with(|| {
+                                arithmetic_domains::incoming_guard_environments(
+                                    program,
+                                    machine,
+                                    call_frames.as_ref(),
+                                )
+                            })
+                            .iter()
+                            .find_map(|(symbol, environment)| {
+                                (*symbol == state.symbol).then(|| environment.clone())
+                            })
+                            .unwrap_or_default()
+                    }
+                });
             // Value facts follow control edges, not source order. Still check
             // every authored statement: unreachable instructions are validated
             // separately with no predecessor facts and cannot affect the live
@@ -781,9 +782,8 @@ fn validate<'program>(
                         [..statement_index],
                     parameters: program.state_parameters(state),
                 };
-                let transition_values = phase_profile::scope(
-                    "05.d.2.a.2b.1.transition_values",
-                    || {
+                let transition_values =
+                    phase_profile::scope("05.d.2.a.2b.1.transition_values", || {
                         transitions::TransitionValueEnvironments::collect(
                             program,
                             machine,
@@ -792,8 +792,7 @@ fn validate<'program>(
                             &value_environment,
                             call_frames.as_ref(),
                         )
-                    },
-                );
+                    });
                 if let Some(local) = statement.as_local_data()
                     && local.role == language_core::LocalBindingRole::Value
                     && !local.type_is_inferred
@@ -829,18 +828,15 @@ fn validate<'program>(
                 // call-free expression reports an empty frame; any unresolved
                 // call retires mutable-storage facts; copied immutable scalars
                 // retain their already established value snapshots.
-                let value_written = phase_profile::scope(
-                    "05.d.2.a.2b.3.value_call_frames",
-                    || {
-                        call_frames.as_ref().and_then(|frames| {
-                            frames.statement_value_may_write_paths_for_symbols(
-                                machine,
-                                &machine_symbols,
-                                statement,
-                            )
-                        })
-                    },
-                );
+                let value_written = phase_profile::scope("05.d.2.a.2b.3.value_call_frames", || {
+                    call_frames.as_ref().and_then(|frames| {
+                        frames.statement_value_may_write_paths_for_symbols(
+                            machine,
+                            &machine_symbols,
+                            statement,
+                        )
+                    })
+                });
                 // Conflicting top-level declarations can prevent creating a
                 // resolver at all. That does not give a call-free statement
                 // unknown effects: preserve its incoming facts, as the
@@ -911,22 +907,25 @@ fn validate<'program>(
                             StatementNode::Call(call) => call_frames
                                 .as_ref()
                                 .and_then(|frames| frames.may_write_paths(machine, call)),
-                            StatementNode::Assignment(_) => call_frames.as_ref().and_then(|frames| {
-                                frames
-                                    .assignment_write_frame(machine, statement)
-                                    .into_complete_paths()
-                            }),
+                            StatementNode::Assignment(_) => {
+                                call_frames.as_ref().and_then(|frames| {
+                                    frames
+                                        .assignment_write_frame(machine, statement)
+                                        .into_complete_paths()
+                                })
+                            }
                             _ => None,
                         };
-                        let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
-                            && has_plan_laid_integer_fields
-                        {
-                            call_frames.as_ref().and_then(|frames| {
-                                frames.local_write_origins_before_statement(machine, statement)
-                            })
-                        } else {
-                            Some(Vec::new())
-                        };
+                        let local_write_origins =
+                            if matches!(statement, StatementNode::Assignment(_))
+                                && has_plan_laid_integer_fields
+                            {
+                                call_frames.as_ref().and_then(|frames| {
+                                    frames.local_write_origins_before_statement(machine, statement)
+                                })
+                            } else {
+                                Some(Vec::new())
+                            };
                         (direct_written, local_write_origins)
                     });
                 phase_profile::scope("05.d.2.a.2b.5.validate_statement_node", || {

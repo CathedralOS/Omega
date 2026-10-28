@@ -155,6 +155,6 @@ fn seed_index_proofs_from_expression(
                 seed_index_proofs_from_expression(program, facts, field.value);
             }
         }
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }

@@ -962,6 +962,7 @@ fn expression_is_inert_or_calls(
                     .iter()
                     .all(|argument| inert(*argument))
         }
+        ExpressionNode::TypeExpression(_) => true,
         ExpressionNode::Indexed(_) | ExpressionNode::Range(_) => false,
     }
 }

@@ -1,0 +1,107 @@
+module core::integer;
+
+// Ordinary exact carrier queries. Static type equations select semantic
+// integer meanings; layouts, providers and arithmetic policies do not choose
+// these endpoints. Qualified and unsupported types do not satisfy the domain.
+// Results are unqualified: callers explicitly apply arithmetic policy with
+// `as`, for example `integer::max<u32>() as u32 in Wrapping`.
+
+public machine min<T>() -> T
+where
+    T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
+ensures
+    (T == u8 && result == 0u8) ||
+    (T == u16 && result == 0u16) ||
+    (T == u32 && result == 0u32) ||
+    (T == u64 && result == 0u64) ||
+    (T == i8 && result == -0x80i8) ||
+    (T == i16 && result == -0x8000i16) ||
+    (T == i32 && result == -0x8000_0000i32) ||
+    (T == i64 && result == -0x8000_0000_0000_0000i64)
+{
+    transition {
+        T == u8 -> (0u8)
+        T == u16 -> (0u16)
+        T == u32 -> (0u32)
+        T == u64 -> (0u64)
+        T == i8 -> (-0x80i8)
+        T == i16 -> (-0x8000i16)
+        T == i32 -> (-0x8000_0000i32)
+        _ -> (-0x8000_0000_0000_0000i64)
+    }
+}
+
+public machine max<T>() -> T
+where
+    T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
+ensures
+    (T == u8 && result == 0xFFu8) ||
+    (T == u16 && result == 0xFFFFu16) ||
+    (T == u32 && result == 0xFFFFFFFFu32) ||
+    (T == u64 && result == 0xFFFFFFFFFFFFFFFFu64) ||
+    (T == i8 && result == 0x7Fi8) ||
+    (T == i16 && result == 0x7FFFi16) ||
+    (T == i32 && result == 0x7FFFFFFFi32) ||
+    (T == i64 && result == 0x7FFFFFFFFFFFFFFFi64)
+{
+    transition {
+        T == u8 -> (0xFFu8)
+        T == u16 -> (0xFFFFu16)
+        T == u32 -> (0xFFFFFFFFu32)
+        T == u64 -> (0xFFFFFFFFFFFFFFFFu64)
+        T == i8 -> (0x7Fi8)
+        T == i16 -> (0x7FFFi16)
+        T == i32 -> (0x7FFFFFFFi32)
+        _ -> (0x7FFFFFFFFFFFFFFFi64)
+    }
+}
+
+public machine width_bits<T>() -> u64
+where
+    T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
+ensures
+    (T == u8 && result == 8u64) ||
+    (T == u16 && result == 16u64) ||
+    (T == u32 && result == 32u64) ||
+    (T == u64 && result == 64u64) ||
+    (T == i8 && result == 8u64) ||
+    (T == i16 && result == 16u64) ||
+    (T == i32 && result == 32u64) ||
+    (T == i64 && result == 64u64)
+{
+    transition {
+        T == u8 -> (8u64)
+        T == u16 -> (16u64)
+        T == u32 -> (32u64)
+        T == u64 -> (64u64)
+        T == i8 -> (8u64)
+        T == i16 -> (16u64)
+        T == i32 -> (32u64)
+        _ -> (64u64)
+    }
+}
+
+public machine is_signed<T>() -> bool
+where
+    T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
+ensures
+    (T == u8 && result == false) ||
+    (T == u16 && result == false) ||
+    (T == u32 && result == false) ||
+    (T == u64 && result == false) ||
+    (T == i8 && result == true) ||
+    (T == i16 && result == true) ||
+    (T == i32 && result == true) ||
+    (T == i64 && result == true)
+{
+    transition {
+        T == u8 -> (false)
+        T == u16 -> (false)
+        T == u32 -> (false)
+        T == u64 -> (false)
+        T == i8 -> (true)
+        T == i16 -> (true)
+        T == i32 -> (true)
+        _ -> (true)
+    }
+}

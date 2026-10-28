@@ -653,3 +653,5 @@ pub use value_custody::places::storage_path_relations;
 pub use value_custody::membership_evidence;
 
 pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
+
+pub use proof_contracts::bound_expression_meaning::static_type_boolean_equalities;

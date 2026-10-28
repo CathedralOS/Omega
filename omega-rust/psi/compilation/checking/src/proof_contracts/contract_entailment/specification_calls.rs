@@ -512,6 +512,11 @@ fn validate_specification_expression(
                 AppliedProofBindings::for_call(program, caller.symbol(), &selected, call);
             (selected, arguments.to_vec(), Some(call), substitution)
         }
+        ExpressionNode::Binary(_)
+            if program.static_type_predicate_operands(expression).is_some() =>
+        {
+            return;
+        }
         ExpressionNode::Binary(binary) => {
             let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
             else {

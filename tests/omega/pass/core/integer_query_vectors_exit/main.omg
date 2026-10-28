@@ -1,0 +1,39 @@
+// Exact endpoint, semantic-width and signedness vectors for all eight admitted carriers.
+// Expected exit: 0
+use omega::language::core::integer;
+machine main() crashes Trap {
+    transition integer::min<u8>() == 0u8
+        && integer::max<u8>() == 0xFFu8
+        && integer::width_bits<u8>() == 8u64
+        && integer::is_signed<u8>() == false
+        && integer::min<u16>() == 0u16
+        && integer::max<u16>() == 0xFFFFu16
+        && integer::width_bits<u16>() == 16u64
+        && integer::is_signed<u16>() == false
+        && integer::min<u32>() == 0u32
+        && integer::max<u32>() == 0xFFFF_FFFFu32
+        && integer::width_bits<u32>() == 32u64
+        && integer::is_signed<u32>() == false
+        && integer::min<u64>() == 0u64
+        && integer::max<u64>() == 0xFFFF_FFFF_FFFF_FFFFu64
+        && integer::width_bits<u64>() == 64u64
+        && integer::is_signed<u64>() == false
+        && integer::min<i8>() == -0x80i8
+        && integer::max<i8>() == 0x7Fi8
+        && integer::width_bits<i8>() == 8u64
+        && integer::is_signed<i8>() == true
+        && integer::min<i16>() == -0x8000i16
+        && integer::max<i16>() == 0x7FFFi16
+        && integer::width_bits<i16>() == 16u64
+        && integer::is_signed<i16>() == true
+        && integer::min<i32>() == -0x8000_0000i32
+        && integer::max<i32>() == 0x7FFF_FFFFi32
+        && integer::width_bits<i32>() == 32u64
+        && integer::is_signed<i32>() == true
+        && integer::min<i64>() == -0x8000_0000_0000_0000i64
+        && integer::max<i64>() == 0x7FFF_FFFF_FFFF_FFFFi64
+        && integer::width_bits<i64>() == 64u64
+        && integer::is_signed<i64>() == true { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

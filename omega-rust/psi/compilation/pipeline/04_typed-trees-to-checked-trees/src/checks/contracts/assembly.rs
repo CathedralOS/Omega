@@ -276,7 +276,9 @@ pub(super) fn expression_reads_overlapping_place(
             .struct_fields(struct_literal.fields)
             .iter()
             .any(|field| recurse(field.value)),
-        typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            false
+        }
     }
 }
 

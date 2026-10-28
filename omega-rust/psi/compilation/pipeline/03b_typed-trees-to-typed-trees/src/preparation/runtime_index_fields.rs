@@ -57,12 +57,8 @@ fn contains_reachable_struct_literal(program: &TypedTrees, expression: Expressio
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(_) => true,
-        ExpressionNode::Borrow(borrow) => {
-            contains_reachable_struct_literal(program, borrow.target)
-        }
-        ExpressionNode::Atomic(atomic) => {
-            contains_reachable_struct_literal(program, atomic.value)
-        }
+        ExpressionNode::Borrow(borrow) => contains_reachable_struct_literal(program, borrow.target),
+        ExpressionNode::Atomic(atomic) => contains_reachable_struct_literal(program, atomic.value),
         ExpressionNode::Cast(cast) => contains_reachable_struct_literal(program, cast.value),
         ExpressionNode::Match(dispatch) => program
             .expression_table
@@ -79,16 +75,19 @@ fn contains_reachable_struct_literal(program: &TypedTrees, expression: Expressio
 }
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let has_value_parameter_data = program
-        .data_definitions()
-        .iter()
-        .any(|definition| program.data_value_parameter_fields(definition).next().is_some());
+    let has_value_parameter_data = program.data_definitions().iter().any(|definition| {
+        program
+            .data_value_parameter_fields(definition)
+            .next()
+            .is_some()
+    });
     let mut destinations = Vec::new();
     let mut calls = Vec::new();
     let mut caller_effects = Vec::new();
     let mut caller_effects_by_machine: symbols::SymbolKeyMap<SymbolHandle, usize> =
         symbols::SymbolKeyMap::default();
-    let checking_context = has_value_parameter_data.then(|| validation::CheckingContext::new(program));
+    let checking_context =
+        has_value_parameter_data.then(|| validation::CheckingContext::new(program));
     let frames = checking_context
         .as_ref()
         .and_then(|context| validation::CallFrameResolver::new(context));
@@ -142,19 +141,13 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                         }
                     }
                     StatementNode::Call(call) => {
-                        let arguments = program
-                            .statement_table
-                            .expression_handles(call.arguments);
+                        let arguments = program.statement_table.expression_handles(call.arguments);
                         if arguments
                             .iter()
                             .any(|arg| contains_reachable_struct_literal(program, *arg))
                         {
                             machine_has_struct_destination_or_call = true;
-                            calls.push((
-                                machine.symbol,
-                                call.target_symbol,
-                                arguments.to_vec(),
-                            ));
+                            calls.push((machine.symbol, call.target_symbol, arguments.to_vec()));
                         }
                     }
                     StatementNode::Transition(transition) => {
@@ -174,12 +167,12 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                                 TransitionTargetNode::Named {
                                     path, arguments, ..
                                 } => {
-                                    let arguments = program
-                                        .statement_table
-                                        .expression_handles(*arguments);
-                                    if arguments.iter().any(|arg| {
-                                        contains_reachable_struct_literal(program, *arg)
-                                    }) {
+                                    let arguments =
+                                        program.statement_table.expression_handles(*arguments);
+                                    if arguments
+                                        .iter()
+                                        .any(|arg| contains_reachable_struct_literal(program, *arg))
+                                    {
                                         machine_has_struct_destination_or_call = true;
                                         calls.push((
                                             machine.symbol,
@@ -205,19 +198,13 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                         if has_value_parameter_data {
                             statement_calls.push(expression);
                         }
-                        let arguments = program
-                            .expression_table
-                            .expression_handles(call.arguments);
+                        let arguments = program.expression_table.expression_handles(call.arguments);
                         if arguments
                             .iter()
                             .any(|arg| contains_reachable_struct_literal(program, *arg))
                         {
                             machine_has_struct_destination_or_call = true;
-                            calls.push((
-                                machine.symbol,
-                                call.target_symbol,
-                                arguments.to_vec(),
-                            ));
+                            calls.push((machine.symbol, call.target_symbol, arguments.to_vec()));
                         }
                     }
                 }
@@ -549,7 +536,9 @@ fn fill(
                         return None;
                     }
                     let selected = program.data_constructor_field(
-                        reference, literal.type_symbol, field.field_symbol,
+                        reference,
+                        literal.type_symbol,
+                        field.field_symbol,
                     )?;
                     Some((field.value, selected.type_reference, field_prior))
                 })

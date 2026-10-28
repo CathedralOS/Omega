@@ -360,6 +360,7 @@ fn expression_mentions_any(
         | ExpressionNode::Member(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => !symbols.is_empty(),
     }
 }
@@ -1111,6 +1112,7 @@ fn render_expression(
         ExpressionNode::StructLiteral(literal) => {
             program.render_proof_constructor_value(literal, render)
         }
+        ExpressionNode::TypeExpression(reference) => program.display_type_reference(*reference),
         ExpressionNode::ZeroValue(_) => program.expression_table.display_name(expression),
         ExpressionNode::Unary(unary) => {
             format!("{}{}", unary.operator.display_name(), render(unary.operand))

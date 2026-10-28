@@ -592,6 +592,9 @@ fn expression_symbol_trace(
                 .join(",")
         ),
         ExpressionNode::Unary(value) => trace(value.operand),
+        ExpressionNode::TypeExpression(value) => {
+            format!("type:{}", program.normalized_type_identity_text(*value))
+        }
         ExpressionNode::ZeroValue(value) => {
             format!("zero:{}", program.normalized_type_identity_text(*value))
         }

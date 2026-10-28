@@ -59,10 +59,13 @@ unbounded mathematical integers. Arbitrary-width integer families remain
 separately unspecified; their future admission must use the same general
 mechanisms, not add one compiler-recognized name per width.
 
-The reference library and compiler do not yet implement this complete surface.
-`CORE-INTEGER-FLOAT-APIS` in [the task board](../../../TASKS.md) owns the library,
-generic checking, old-spelling removal and end-to-end migration. The contracts
-below are ratified requirements, not claims that guide examples currently run.
+The integer query surface is supplied by ordinary checked declarations in
+`core::integer`, including exact carrier refinement and static evaluation.
+[The endpoint fact](../../../samples/cli/facts/core_integer_endpoint/README.md)
+records its transport witnesses. The complete floating surface remains open:
+`CORE-INTEGER-FLOAT-APIS` in [the task board](../../../TASKS.md) retains floating
+representation, metadata and migration acceptance. The floating contracts below
+are ratified requirements, not a claim that the entire surface currently runs.
 
 ### Integer carrier queries
 

@@ -56,6 +56,7 @@ impl StoredAuthoredSelectionOccurrenceId {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
+    TypeExpression(crate::types::TypeReferenceHandle),
     Match(Box<MatchExpression>),
     ArrayLiteral(Arc<[Expression]>),
     Atomic(Box<AtomicExpression>),
@@ -1440,6 +1441,8 @@ impl Default for ExpressionTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
+    /// Exact type operand for static predicates, never an executable value.
+    TypeExpression(crate::types::TypeReferenceHandle),
     Match(TableMatchExpression),
     /// Read the exact completed subject of an enclosing dispatch. Type
     /// dependencies do not imply reevaluating the captured source at runtime.
@@ -1582,6 +1585,9 @@ pub struct TableMemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
+    /// Exact source-issued Call occurrence, independent of diagnostic spans.
+    pub authored_call_selection:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
     pub authored_call_binding:
         Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     pub exact_coercion_target: crate::types::TypeReferenceHandle,
@@ -1597,6 +1603,9 @@ pub struct CallExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCallExpression {
     /// Original declaration correspondence certified by source resolution.
+    /// Exact source-issued Call occurrence, independent of diagnostic spans.
+    pub authored_call_selection:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
     pub authored_call_binding:
         Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     /// Source-issued selection carried by an ordinary Build boundary call.

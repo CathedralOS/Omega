@@ -254,7 +254,9 @@ fn validate_expression(
                 validate_expression(program, machine, state, field.value, false, diagnostics);
             }
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => {}
     }
 }
 

@@ -154,6 +154,8 @@ pub(super) fn find_call_site_in_expression<'program>(
             }
             None
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => None,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => None,
     }
 }

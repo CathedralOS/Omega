@@ -183,6 +183,6 @@ fn collect_expression_callees(
         ExpressionNode::Unary(unary) => {
             collect_expression_callees(typed, unary.operand, visited, called);
         }
-        crate::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | crate::literal_expression_pattern!() => {}
     }
 }

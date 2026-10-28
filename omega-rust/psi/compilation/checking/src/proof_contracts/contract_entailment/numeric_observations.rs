@@ -285,10 +285,7 @@ fn collect_state_numeric_observations_batch(
                         program.expression_table.expression(expression),
                         typed_trees::expression::ExpressionNode::Integer(_)
                     ) && crate::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        expression,
+                        program, machine, state, expression,
                     )
                     .and_then(|reference| program.primitive_type_reference(reference))
                     .is_some_and(|primitive| primitive.is_fixed_integer())
@@ -641,8 +638,7 @@ impl Observations {
             else {
                 continue;
             };
-            let Some(place) =
-                scalar_operand(program, machine, state, read, judge.frame_resolver())
+            let Some(place) = scalar_operand(program, machine, state, read, judge.frame_resolver())
             else {
                 continue;
             };

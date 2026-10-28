@@ -176,6 +176,27 @@ fn lower_lexical_machine_parts(
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let declared_type_equations = type_equations::lower(lowerer, syntax_trees, machine)?;
+    let mut predicates = Vec::new();
+    for fact in syntax_trees.items.proof_facts(machine.where_facts) {
+        let syntax_trees::item::ProofFact::Expression(expression) = fact else {
+            return Err(Diagnostic::error(
+                "machine static type predicate lacks an expression owner",
+            )
+            .with_source_span(machine.name.source_span()));
+        };
+        predicates.push(crate::lowering::expression::lower_expression_into_table(
+            lowerer,
+            syntax_trees,
+            *expression,
+        )?);
+    }
+    let declared_type_predicates = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert_expression_handles(predicates);
+
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
     // portable head or rewriting other members' declarations.
@@ -361,6 +382,7 @@ fn lower_lexical_machine_parts(
                 .collect(),
             type_parameters,
             declared_type_equations,
+            declared_type_predicates,
             owned_data: HandleSpan::empty(),
             satisfies,
             conformance_bounds,

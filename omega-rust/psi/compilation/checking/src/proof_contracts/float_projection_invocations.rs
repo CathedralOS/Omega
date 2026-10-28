@@ -235,7 +235,9 @@ fn walk_expression(
         ExpressionNode::Unary(unary) => {
             walk_expression(program, unary.operand, visited, projections, equalities)?;
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => {}
     }
     Ok(())
 }

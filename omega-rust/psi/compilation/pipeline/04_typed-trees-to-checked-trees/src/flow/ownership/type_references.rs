@@ -106,6 +106,7 @@ pub(super) fn expression_is_place_like(
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::Unary(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }

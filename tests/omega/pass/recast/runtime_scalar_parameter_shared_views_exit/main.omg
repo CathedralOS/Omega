@@ -25,8 +25,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let integer: i32 = read_integer(-17);
     let bits32: u32 = read_bits32(1.0f32);
     let bits64: u64 = read_bits64(1.0);
-    transition integer == -17 && bits32 == 1065353216
-        && bits64 == 4607182418800017408 {
+    transition integer == -17 && bits32 == 0x3F80_0000
+        && bits64 == 0x3FF0_0000_0000_0000 {
         true -> finish(main, 70)
         _ -> finish(main, 71)
     }

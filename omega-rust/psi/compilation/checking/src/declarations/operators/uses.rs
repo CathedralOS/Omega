@@ -264,6 +264,8 @@ fn collect_expression_operator_use(
                 );
             }
         }
+        ExpressionNode::Binary(_)
+            if program.static_type_predicate_operands(expression).is_some() => {}
         ExpressionNode::Binary(binary) => {
             // Resolve from the complete recoverable operand tuple. A
             // contextual literal or nested binary may not expose an
@@ -392,7 +394,9 @@ fn collect_expression_operator_use(
                 );
             }
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => {}
     }
 }
 
