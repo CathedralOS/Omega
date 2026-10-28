@@ -75,7 +75,8 @@ impl StructuralTerm {
                     ..
                 }
                 | Self::Projection { subject, .. }
-                | Self::IntegerEmbedding { value: subject, .. } => visit(subject),
+                | Self::IntegerEmbedding { value: subject, .. }
+                | Self::ScalarRepresentation { value: subject, .. } => visit(subject),
                 Self::ScalarBinary { left, right, .. }
                 | Self::MathematicalBinary { left, right, .. } => visit(left) || visit(right),
                 _ => false,
@@ -169,6 +170,14 @@ impl PartialEq for StructuralTerm {
                     return false;
                 };
                 value == other_value
+            }
+            Self::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => {
+                matches!(other, Self::ScalarRepresentation { source: other_source, target: other_target, value: other_value }
+                    if source == other_source && target == other_target && value == other_value)
             }
             Self::IntegerEmbedding { reference, value } => {
                 matches!(other, Self::IntegerEmbedding { reference: other_reference, value: other_value }
@@ -359,6 +368,16 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("path", path)
                 .finish(),
             Self::Integer(value) => formatter.debug_tuple("Integer").field(value).finish(),
+            Self::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => formatter
+                .debug_struct("ScalarRepresentation")
+                .field("source", source)
+                .field("target", target)
+                .field("value", value)
+                .finish(),
             Self::IntegerEmbedding { reference, value } => formatter
                 .debug_struct("IntegerEmbedding")
                 .field("reference", reference)

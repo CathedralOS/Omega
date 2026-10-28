@@ -1862,7 +1862,8 @@ fn term_has_complete_substitution(
             collection: subject,
             ..
         }
-        | StructuralTerm::Projection { subject, .. } => {
+        | StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
             // Term formation retains a selected field or collection measure;
             // its complete subject, not the display path alone, owns identity.
             term_has_complete_substitution(program, subject)

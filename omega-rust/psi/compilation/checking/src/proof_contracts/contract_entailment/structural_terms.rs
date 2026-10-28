@@ -34,6 +34,7 @@ pub(super) use owned_observations::{
     shared_inline_observation_type,
 };
 mod scalar_operands;
+mod scalar_representation;
 pub(super) use binary::{
     binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
 };
@@ -45,6 +46,9 @@ pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms
 pub(super) use scalar_operands::{
     completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
     term_is_unobserved_descriptor,
+};
+pub(super) use scalar_representation::{
+    normalize_scalar_representation, scalar_representation_term,
 };
 
 /// An admitted integer conversion preserves its mathematical value; policy
@@ -209,6 +213,16 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         StructuralTerm::BoundProjection { subject, path } => {
             format!("{}.{path}", program.symbols.name(*subject))
         }
+        StructuralTerm::ScalarRepresentation {
+            source,
+            target,
+            value,
+        } => format!(
+            "representation<{}, {}>({})",
+            source.name(),
+            target.name(),
+            term_spelling(program, value)
+        ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Float(value) => value.to_string(),
         StructuralTerm::Constructor { data, case, fields } => {
@@ -582,9 +596,12 @@ pub(super) fn structural_term(
                     crate::expression_result_type_reference(program, machine, state, cast.value)
                 })
             }?;
-            denotation_preserving_conversion(program, cast, source)
-                .then(|| structural_term(program, scope, frame, cast.value, bindings))
-                .flatten()
+            let value = structural_term(program, scope, frame, cast.value, bindings)?;
+            if denotation_preserving_conversion(program, cast, source) {
+                Some(value)
+            } else {
+                scalar_representation_term(program, cast, source, value)
+            }
         }
         // A determinate float literal carries its exact decimal spelling; the
         // ordering arm widens it once at judgment. UndeterminedNaN stays

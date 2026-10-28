@@ -225,6 +225,7 @@ fn has_observation_free_closure(
     }
     let mut path = requirements_in_flight.to_vec();
     path.push(machine_symbol);
+    let frames = crate::CallFrameResolver::new(program);
     each_reachable_checked_machine(program, machine_symbol, operational, |program, machine| {
         if !machine.supplies_checked_body() || !machine.body_is_present {
             let satisfiers = requirement_satisfiers(program, machine.symbol);
@@ -277,7 +278,33 @@ fn has_observation_free_closure(
                 }
                 return false;
             }
+            // A shared view of immutable invocation-owned storage observes only
+            // that invocation's value inputs. Retained origin custody separates
+            // these internal reads from observations through external references.
+            let mut owned_values = program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| {
+                    frames.as_ref().is_some_and(|frames| {
+                        frames.proof_value_is_caller_isolated(parameter.type_reference)
+                    })
+                })
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
             for statement in program.statement_table.statements(state.statement_nodes) {
+                let internal_borrow = |expression| {
+                    let Some(frames) = frames.as_ref() else {
+                        return false;
+                    };
+                    frames
+                        .reference_expression_origins_before_statement(
+                            machine, statement, expression,
+                        )
+                        .is_some_and(|origins| {
+                            !origins.is_empty()
+                                && origins.iter().all(|(root, _)| owned_values.contains(root))
+                        })
+                };
                 use typed_trees::statement::StatementNode;
                 // Statement calls and transition arguments retain their spans
                 // in the statement table, independently of expression calls.
@@ -290,7 +317,9 @@ fn has_observation_free_closure(
                     StatementNode::Call(call) => !call.receiver_symbol.is_valid(),
                     StatementNode::Expression(_) | StatementNode::Transition(_) => true,
                 } && program.tables.expression_roots(statement).iter().all(
-                    |(_, expression)| expression_is_fact_observation_free(program, *expression),
+                    |(_, expression)| {
+                        expression_is_fact_observation_free(program, *expression, &internal_borrow)
+                    },
                 );
                 if !allowed {
                     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
@@ -301,6 +330,13 @@ fn has_observation_free_closure(
                     }
                     return false;
                 }
+                if let StatementNode::LocalData(local) = statement
+                    && frames.as_ref().is_some_and(|frames| {
+                        frames.proof_value_is_caller_isolated(local.type_reference)
+                    })
+                {
+                    owned_values.push(local.symbol);
+                }
             }
         }
         true
@@ -310,21 +346,27 @@ fn has_observation_free_closure(
 fn expression_is_fact_observation_free(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
+    internal_borrow: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
     let node = program.expression_table.expression(expression);
     let allowed = match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
-                .all(|child| expression_is_fact_observation_free(program, child))
+                .all(|child| expression_is_fact_observation_free(program, child, internal_borrow))
         }
-        ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) | ExpressionNode::Borrow(_) => {
-            false
+        ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) => false,
+        ExpressionNode::Borrow(borrow) => {
+            borrow.access == language_semantics::ReferenceAccess::Shared
+                && internal_borrow(expression)
+                && expression_is_fact_observation_free(program, borrow.target, internal_borrow)
         }
         ExpressionNode::Binary(binary) => {
-            expression_is_fact_observation_free(program, binary.left)
-                && expression_is_fact_observation_free(program, binary.right)
+            expression_is_fact_observation_free(program, binary.left, internal_borrow)
+                && expression_is_fact_observation_free(program, binary.right, internal_borrow)
         }
-        ExpressionNode::Cast(cast) => expression_is_fact_observation_free(program, cast.value),
+        ExpressionNode::Cast(cast) => {
+            expression_is_fact_observation_free(program, cast.value, internal_borrow)
+        }
         ExpressionNode::Call(call) => {
             // A retained declaration qualifier is not a storage observation.
             // Rejoin it to the exact selected target through the shared call
@@ -334,30 +376,36 @@ fn expression_is_fact_observation_free(
                     .expression_table
                     .expression_handles(call.arguments)
                     .iter()
-                    .all(|argument| expression_is_fact_observation_free(program, *argument))
+                    .all(|argument| {
+                        expression_is_fact_observation_free(program, *argument, internal_borrow)
+                    })
         }
         ExpressionNode::Indexed(indexed) => {
-            expression_is_fact_observation_free(program, indexed.collection)
-                && expression_is_fact_observation_free(program, indexed.index)
+            expression_is_fact_observation_free(program, indexed.collection, internal_borrow)
+                && expression_is_fact_observation_free(program, indexed.index, internal_borrow)
         }
         ExpressionNode::Member(member) => {
-            expression_is_fact_observation_free(program, member.receiver)
+            expression_is_fact_observation_free(program, member.receiver, internal_borrow)
         }
         ExpressionNode::Range(range) => {
-            expression_is_fact_observation_free(program, range.start)
-                && expression_is_fact_observation_free(program, range.end)
+            expression_is_fact_observation_free(program, range.start, internal_borrow)
+                && expression_is_fact_observation_free(program, range.end, internal_borrow)
         }
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .all(|field| expression_is_fact_observation_free(program, field.value)),
-        ExpressionNode::Unary(unary) => expression_is_fact_observation_free(program, unary.operand),
+            .all(|field| {
+                expression_is_fact_observation_free(program, field.value, internal_borrow)
+            }),
+        ExpressionNode::Unary(unary) => {
+            expression_is_fact_observation_free(program, unary.operand, internal_borrow)
+        }
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
             .iter()
-            .all(|value| expression_is_fact_observation_free(program, *value)),
+            .all(|value| expression_is_fact_observation_free(program, *value, internal_borrow)),
         ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => true,
     };
     if !allowed && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {

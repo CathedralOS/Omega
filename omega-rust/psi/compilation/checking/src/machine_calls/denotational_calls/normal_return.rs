@@ -207,7 +207,14 @@ fn closed_expression(
                     .iter()
                     .all(|argument| child(*argument))
         }
-        // Broader projections, adapters and reference reads need their own
+        // The shared closure has already joined each borrow to immutable,
+        // invocation-owned backing. A checked representation view changes its
+        // interpretation, not the captured input or the observation's authority.
+        ExpressionNode::Borrow(borrow) => {
+            borrow.access == language_semantics::ReferenceAccess::Shared && child(borrow.target)
+        }
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => child(cast.value),
+        // Broader projections and executable adapters still need their own
         // exact read/meaning custody, not a syntactic claim of purity.
         _ => false,
     }

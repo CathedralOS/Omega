@@ -122,6 +122,15 @@ pub(crate) enum StructuralTerm {
         subject: SymbolHandle,
         path: String,
     },
+    /// The same captured scalar bits viewed in another admitted carrier.
+    /// This records representation identity, never IEEE numeric equality.
+    /// Construction retains checked shared-read custody; reversing the view
+    /// recovers the original value without quieting or canonicalizing NaNs.
+    ScalarRepresentation {
+        source: typed_trees::types::PrimitiveType,
+        target: typed_trees::types::PrimitiveType,
+        value: Box<StructuralTerm>,
+    },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
     /// Exact mathematical observation of one already evaluated integer or
@@ -300,6 +309,15 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value: Box::new(map(*value)),
+            },
             StructuralTerm::IntegerEmbedding { reference, value } => {
                 StructuralTerm::IntegerEmbedding {
                     reference,
@@ -1450,6 +1468,7 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
+                | StructuralTerm::ScalarRepresentation { .. }
                 | StructuralTerm::ScalarBinary { .. },
                 _,
             ) => {
@@ -1466,6 +1485,7 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
+                | StructuralTerm::ScalarRepresentation { .. }
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
@@ -1780,6 +1800,22 @@ impl<'program> StructuralJudge<'program> {
                     }
                     if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
                         return folded;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::ScalarRepresentation {
+                    source,
+                    target,
+                    value,
+                } => {
+                    let resolved = super::structural_terms::normalize_scalar_representation(
+                        source,
+                        target,
+                        self.resolve_at(*value, depth + 1),
+                    );
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
+                        term = replacement.clone();
+                        continue;
                     }
                     return resolved;
                 }
@@ -2736,17 +2772,21 @@ impl<'program> StructuralJudge<'program> {
                 let (machine, state, _) = scope?;
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
-                super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                    .then(|| {
-                        self.callee_term(
-                            cast.value,
-                            environment,
-                            static_observations,
-                            scope,
-                            depth + 1,
-                        )
-                    })
-                    .flatten()
+                let value = self.callee_term(
+                    cast.value,
+                    environment,
+                    static_observations,
+                    scope,
+                    depth + 1,
+                )?;
+                if super::structural_terms::denotation_preserving_conversion(program, cast, source)
+                {
+                    Some(value)
+                } else {
+                    super::structural_terms::scalar_representation_term(
+                        program, cast, source, value,
+                    )
+                }
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {
@@ -3052,6 +3092,7 @@ impl<'program> StructuralJudge<'program> {
                         }
                         StructuralTerm::Integer(_)
                         | StructuralTerm::Float(_)
+                        | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::CapturedValue { .. }
@@ -3637,6 +3678,7 @@ impl<'program> StructuralJudge<'program> {
             }
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
+            | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::BoundValue(_) => Some(term),
             StructuralTerm::CapturedValue { .. } => Some(term),
             application @ StructuralTerm::Application { .. } => {

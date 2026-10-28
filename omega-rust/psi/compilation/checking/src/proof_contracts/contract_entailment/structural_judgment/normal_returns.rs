@@ -2645,6 +2645,49 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         let mut equations = guarantees.equations;
+        // A completed occurrence keeps its identity. The shared value-call
+        // judgment may additionally establish that its scalar payload equals
+        // the selected application of these already captured operands. An
+        // empty write frame alone supplies no such equation; observations,
+        // unresolved calls and non-builtin operators remain excluded by that
+        // judgment. This imports neither termination nor entry admission.
+        if let (Some(captured), Some(presentation)) = (&captured, &result_presentation)
+            && crate::machine_calls::denotational_calls::plain_value_call_target(program, call)
+                .is_some()
+        {
+            let plans = crate::operand_call_plans(program, self.frame_resolver());
+            if let Ok((_, entry)) =
+                crate::machine_calls::denotational_calls::normal_return_call_candidate(
+                    program, call, &plans.0, &plans.1,
+                )
+                && crate::declared_carriers_match(
+                    program,
+                    presentation.type_reference,
+                    entry.return_type,
+                )
+                && program.arithmetic_domain_for_type_reference(presentation.type_reference)
+                    == program.arithmetic_domain_for_type_reference(entry.return_type)
+            {
+                equations.push((
+                    captured.clone(),
+                    StructuralTerm::Application {
+                        result_type: entry.return_type,
+                        target: super::super::structural_terms::structural_call_target(
+                            program,
+                            scope.0.symbol,
+                            call,
+                        ),
+                        selections: call.machine_arguments.to_vec(),
+                        machine: super::structural_call_machine_name(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            &[],
+                        ),
+                        arguments: actuals.to_vec(),
+                    },
+                ));
+            }
+        }
         std::sync::Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags

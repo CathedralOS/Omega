@@ -85,6 +85,10 @@ pub(in crate::proof_contracts::contract_entailment) fn scalar_operand_is_observe
                     *element_type,
                 )
         }
+        StructuralTerm::ScalarRepresentation { target, .. } => {
+            crate::value_custody::expression_types::scalar_observation_meaning(program, declared)
+                .is_some_and(|(primitive, _)| primitive == *target)
+        }
         StructuralTerm::CallProjection { .. } => true,
         // A produced owned field can be borrowed as its exact carrier too.
         // Check every projection crossing: a reference field is a descriptor,
