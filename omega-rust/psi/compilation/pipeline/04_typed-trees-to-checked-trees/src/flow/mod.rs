@@ -170,7 +170,8 @@ pub(crate) use mutation::{OriginPrecision, origin_place, sole_local_referent_ori
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_mutated_regions,
     call_receiver_write_accesses, call_write_accesses, canonical_receiver_place_for_call_site,
-    frame_storage_writes, place_from_origin_path, signature_ceiling_places,
+    family_attached_data_symbol, frame_storage_writes, place_from_origin_path,
+    signature_ceiling_places,
     signature_ceiling_regions, state_storage_writes, statement_mutated_place,
     statement_storage_writes,
 };
