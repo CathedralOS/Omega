@@ -5665,48 +5665,50 @@ fail/facts/case_tag_discriminant_layout_through_target_body_rejected rejected 59
 	exact arithmetic in machine `eval` state `inspect` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `eval` state `inspect` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `eval` state `inspect` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_arithmetic_before_restore_rejected rejected 728ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_arithmetic_before_restore_rejected rejected 729ms expected @3ee474962e7a
 	exact arithmetic in machine `main` state `entry` local `unsafe_delta` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 319ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_nested_payload_carriage_rejected rejected 751ms expected @3ee474962e7a
+	exact arithmetic in machine `pair_width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 284ms expected @3ee474962e7a
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form named-domain membership: the logical data subject's own default domain is still pending admission", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 342, end: 346 } }), resolved_location: None })
-fail/facts/case_where_equality_data_predicate_partial_call_rejected rejected 934ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_partial_call_rejected rejected 657ms expected @3ee474962e7a
 	cannot prove requires contract for specification call `needs_equal` in data `Interval` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_payload_stale_rejected rejected 756ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_payload_stale_rejected rejected 710ms expected @3ee474962e7a
 	machine `main` state `entry` statement 2: reading `point.<whole value>` inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before this consumption point (ch11)
 	machine `main` state `entry` statement 2: the next whole-value read of `point` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `point` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/case_where_equality_data_predicate_through_call_result_rejected rejected 722ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_call_result_rejected rejected 708ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_const_name_rejected rejected 1004ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_const_name_rejected rejected 809ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_field_rejected rejected 786ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_field_rejected rejected 751ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_local_rejected rejected 699ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_local_rejected rejected 657ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_match_join_rejected rejected 819ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_match_join_rejected rejected 802ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_other_machine_rejected rejected 681ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_other_machine_rejected rejected 664ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_other_state_rejected rejected 780ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_other_state_rejected rejected 815ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_parameter_rejected rejected 726ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_parameter_rejected rejected 700ms expected @3ee474962e7a
 	exact arithmetic in machine `width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_through_target_body_rejected rejected 805ms expected @024e35c18f4a
-	exact arithmetic in machine `target_width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `target_width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `target_width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `target_width` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_unguarded_payload_rejected rejected 805ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_through_target_body_rejected rejected 789ms expected @3ee474962e7a
+	exact arithmetic in machine `WindowsWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `LinuxArmWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `MacWidth::width` state `width` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_data_predicate_unguarded_payload_rejected rejected 783ms expected @3ee474962e7a
 	cannot form specification payload projection `lo` in data `Interval` default-domain predicate: establish its exact active case before projecting the payload
 	cannot form specification payload projection `hi` in data `Interval` default-domain predicate: establish its exact active case before projecting the payload
 	data `Interval` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/case_where_equality_data_predicate_whole_replacement_arithmetic_before_restore_rejected rejected 800ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_whole_replacement_arithmetic_before_restore_rejected rejected 731ms expected @3ee474962e7a
 	exact arithmetic in machine `main` state `entry` local `unsafe_delta` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_whole_subject_domain_rejected rejected 798ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_whole_subject_domain_rejected rejected 725ms expected @3ee474962e7a
 	cannot form named-domain membership in data `Interval` default-domain predicate: the logical subject's own default domain is still pending admission
 	data `Interval` literal cannot prove default-domain fact: field `<unknown>` is not known to satisfy domain `Interval::Always` at construction
-fail/facts/case_where_equality_data_predicate_whole_subject_formation_rejected rejected 704ms expected @024e35c18f4a
+fail/facts/case_where_equality_data_predicate_whole_subject_formation_rejected rejected 578ms expected @3ee474962e7a
 	cannot form specification argument in data `Interval` default-domain predicate: the logical subject's pending default domain cannot admit the nominal value required by parameter `value`
 fail/facts/case_where_equality_through_call_result_rejected rejected 598ms expected @a92f16431042
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -17806,6 +17808,7 @@ pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos
 pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
 pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1022ms check-target:macos_arm64 @8bcb7be3db2b
+pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit checked 2082ms check-target:macos_arm64 @3ee474962e7a
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -25897,19 +25900,19 @@ pass/facts/case_tag_discriminant_layout_through_other_state_exit checked 2751ms 
 pass/facts/case_tag_discriminant_layout_through_parameter_exit checked 2832ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_tag_discriminant_layout_through_target_body_exit checked 4373ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_value_binder_payload_compile checked 2078ms @a92f16431042
-pass/facts/case_where_equality_data_predicate_direct_exit checked 5475ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_formed_call_exit checked 5382ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_restored_exit checked 5977ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_call_result_exit checked 5765ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_const_name_exit checked 10645ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_field_exit checked 5243ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_local_exit checked 5519ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_match_join_exit checked 5050ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_other_machine_exit checked 5045ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 4717ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 4655ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 4729ms check-target:macos_arm64 @024e35c18f4a
-pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 4784ms check-target:macos_arm64 @024e35c18f4a
+pass/facts/case_where_equality_data_predicate_direct_exit checked 1992ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_formed_call_exit checked 1992ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_restored_exit checked 2200ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_call_result_exit checked 2082ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_const_name_exit checked 3980ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_field_exit checked 1981ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_local_exit checked 1928ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_match_join_exit checked 2037ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_other_machine_exit checked 2137ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 1970ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 2161ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 2251ms check-target:macos_arm64 @3ee474962e7a
+pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 2071ms check-target:macos_arm64 @3ee474962e7a
 pass/facts/case_where_equality_through_call_result_exit checked 3209ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_where_equality_through_const_name_exit checked 2378ms check-target:macos_arm64 @a92f16431042
 pass/facts/case_where_equality_through_field_exit checked 2777ms check-target:macos_arm64 @a92f16431042
