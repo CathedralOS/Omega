@@ -132,26 +132,22 @@ pub(crate) fn row_execution_identity(
             },
         )));
     }
-    // The float intrinsic catalog is keyed on the requirement view: a named
-    // boundary operator or a top-level `boundary requirement` machine.
-    if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))
-        || (matches!(schema, ProviderSchemaDeclaration::BoundaryRequirement(_))
-            && provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
-                .is_some_and(|requirement| {
-                    requirement.kind
-                        == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
-                }))
+    // Numeric meaning belongs to the exact public requirement; selecting an
+    // intrinsic still rejoins its independent sealed realization and plan row.
+    if checked
+        .numeric_intrinsic_execution(requirement_symbol)
+        .is_some()
     {
         let requirement =
             provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
                 .ok_or_else(|| Diagnostic::error("numeric selection has no exact requirement"))?;
-        let ([method], [selected_row]) = (plan.schema.methods.as_slice(), plan.rows.as_slice())
-        else {
-            return Err(Diagnostic::error(
-                "numeric selection must bind one schema method and row",
-            ));
-        };
-        if selected_row != row || !requirement.plan_row_binds(plan, method, row) {
+        let methods = plan
+            .schema
+            .methods
+            .iter()
+            .filter(|method| requirement.plan_row_binds(plan, method, row))
+            .collect::<Vec<_>>();
+        if methods.len() != 1 || plan.rows.iter().filter(|selected| *selected == row).count() != 1 {
             return Err(Diagnostic::error(
                 "numeric selection differs from its exact requirement",
             ));

@@ -28,6 +28,7 @@ pub enum IntrinsicRequirementKind {
     Operator,
     /// A receiver-free top-level `boundary requirement` machine.
     TopLevelRequirement,
+    Trait(symbols::SymbolHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,6 +157,22 @@ impl<'typed> IntrinsicRequirement<'typed> {
         if !symbol.is_valid() {
             return None;
         }
+        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
+            typed.sealed_numeric_requirement(owner, requirement)?;
+            return Some(Self {
+                kind: IntrinsicRequirementKind::Trait(owner.symbol),
+                symbol: requirement.symbol,
+                call_target: requirement.symbol,
+                namespace: typed.trait_declaration_path(owner),
+                name: requirement.name.as_str().to_owned(),
+                parameters: typed.state_signature_parameters(requirement),
+                return_type: requirement.return_type,
+                package_identity: typed.symbols.symbol_package_identity(requirement.symbol),
+                requirement_identity: typed
+                    .trait_requirement_callable_identity_text(owner, requirement),
+                operator: None,
+            });
+        }
         if let Some(operator) = typed.operator_definition_by_symbol(symbol) {
             return Self::from_operator(typed, operator);
         }
@@ -197,6 +214,11 @@ impl<'typed> IntrinsicRequirement<'typed> {
                     context, schema, operator,
                 )
             }),
+            IntrinsicRequirementKind::Trait(owner) => typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| {
+                    crate::service_schema::schema_binds_exact_boundary_trait(context, schema, owner)
+                }),
             IntrinsicRequirementKind::TopLevelRequirement => {
                 typed.machine(self.symbol).is_some_and(|requirement| {
                     crate::service_schema::schema_binds_exact_boundary_requirement(
@@ -233,6 +255,12 @@ impl<'typed> IntrinsicRequirement<'typed> {
                         == self.requirement_identity
                     && method.name == "realize"
                     && method.requirement_owner == self.requirement_identity
+            }
+            IntrinsicRequirementKind::Trait(_) => {
+                owner_matches
+                    && plan.schema.identity_text(plan.schema.trait_name) == self.namespace
+                    && method.name == self.name
+                    && method.requirement_owner == self.namespace
             }
             IntrinsicRequirementKind::TopLevelRequirement => {
                 owner_matches
@@ -273,6 +301,11 @@ impl<'typed> IntrinsicRequirement<'typed> {
                             )
                             .is_some_and(|resolved| resolved.symbol == self.symbol)
                         }
+                        IntrinsicRequirementKind::Trait(_) => matches!(
+                            checked_trees::typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance),
+                            Some(checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait { requirement, .. })
+                                if requirement.symbol == self.symbol
+                        ),
                         IntrinsicRequirementKind::TopLevelRequirement => matches!(
                             checked_trees::typed_trees::machine::resolve_satisfied_declaration(
                                 typed, machine, conformance,

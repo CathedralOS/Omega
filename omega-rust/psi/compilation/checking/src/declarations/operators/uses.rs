@@ -290,6 +290,21 @@ fn named_operator_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedOperatorUseFact> {
+    if let Some(requirement) = program.sealed_numeric_requirement_by_symbol(call.target_symbol) {
+        let format = match program.primitive_type_reference(requirement.signature.return_type) {
+            Some(PrimitiveType::F32) => Some(FloatFormat::BINARY32),
+            Some(PrimitiveType::F64) => Some(FloatFormat::BINARY64),
+            _ => None,
+        };
+        return Some(CheckedNamedOperatorUseFact {
+            expression,
+            origin,
+            selected_operator_symbol: requirement.signature.symbol,
+            policy_adapter: format.map_or(CheckedArithmeticPolicyAdapter::None, |format| {
+                named_float_policy_adapter(program, call, origin, format)
+            }),
+        });
+    }
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)
         .or_else(|| {
             // Token-machine overloads use the same complete operand matching as

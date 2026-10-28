@@ -28,7 +28,7 @@ pub struct SourceMap {
     query_dependencies: Option<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>,
     /// Pure byte digests follow the exact immutable text allocation retained
     /// by this owner. Source selection, metadata and authority stay separate.
-    content_digests: arena::OwnedIndex<BTreeMap<SourceId, (Arc<str>, [u8; 32])>, ()>,
+    content_digests: arena::OwnedIndex<BTreeMap<usize, (Arc<str>, [u8; 32])>, ()>,
 }
 
 /// Backing coordinates survive across requests; activation does not. Ordinary
@@ -215,7 +215,7 @@ impl SourceMap {
         use sha2::{Digest, Sha256};
         let file = self.get(source)?;
         Some(self.content_digests.with_mut((), BTreeMap::new, |digests| {
-            let entry = digests.entry(source).or_insert_with(|| {
+            let entry = digests.entry(source.0).or_insert_with(|| {
                 (
                     file.source.clone(),
                     Sha256::digest(file.source.as_bytes()).into(),
