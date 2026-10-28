@@ -55,6 +55,8 @@ pub enum ProviderRowOrigin {
         source_span: source::SourceSpan,
         event_ordinal: usize,
         table_field: Option<crate::NativeFieldIdentity>,
+        trait_scope: Option<checked_trees::typed_trees::trait_definition::RetainedTraitScope>,
+        closed_requirement: Option<symbols::SymbolHandle>,
     },
     Toolchain,
 }

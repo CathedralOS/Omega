@@ -31,10 +31,20 @@ pub(super) fn append(
         }
         let (declaration, schema, requirement_identity, method, lifetime_partition) =
             if let Some((owner, signature)) = typed.trait_machine_signature(binding.requirement) {
-                let schema = crate::service_schema::from_typed(context, calling_plans, owner)
-                    .ok_or_else(|| {
-                        refuse("Build-native requirement lost its complete boundary schema")
-                    })?;
+                let schema = match binding.trait_scope {
+                    Some(scope) => crate::service_schema::from_typed_application(
+                        context,
+                        calling_plans,
+                        scope.scope(typed).ok_or_else(|| {
+                            refuse("native binding lost its retained source application")
+                        })?,
+                        &[],
+                    ),
+                    None => crate::service_schema::from_typed(context, calling_plans, owner),
+                }
+                .ok_or_else(|| {
+                    refuse("Build-native requirement lost its complete boundary schema")
+                })?;
                 (
                     ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
                     schema,
@@ -86,6 +96,7 @@ pub(super) fn append(
                     && candidate.plan.origin_package_identity == package
                     && candidate.provenance.schema == declaration
                     && candidate.provenance.provider_type.is_none()
+                    && candidate.plan.schema == schema
             })
             .unwrap_or_else(|| {
                 plans.push(DerivedProviderPlan {
@@ -142,6 +153,8 @@ pub(super) fn append(
                 source_span: binding.source_span,
                 event_ordinal: binding.event_ordinal,
                 table_field: binding.table_field(),
+                trait_scope: binding.trait_scope,
+                closed_requirement: binding.closed_requirement,
             });
         candidate.provenance.row_target_machine_origins.push(None);
         candidate.provenance.row_placed_accessors.push(None);

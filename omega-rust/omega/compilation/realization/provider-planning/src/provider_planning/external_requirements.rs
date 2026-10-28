@@ -73,15 +73,23 @@ pub(super) fn derive(
                     "selected Import template identity disagrees with its provenance".into(),
                 );
             }
-            let native = matches!(
-                retained.provider.row_realizations[index],
-                crate::ProviderRowOrigin::BuildNative { .. }
-            );
+            let native_scope = match retained.provider.row_realizations[index] {
+                crate::ProviderRowOrigin::BuildNative {
+                    trait_scope,
+                    closed_requirement,
+                    ..
+                } => Some((trait_scope, closed_requirement)),
+                _ => None,
+            };
+            let native = native_scope.is_some();
             let realization = retained.provider.row_realizations[index]
                 .machine()
                 .and_then(|symbol| typed.machine(symbol));
             let scope = if native {
-                Some(AppliedTraitScope::abstract_scope(owner))
+                match native_scope.and_then(|(scope, _)| scope) {
+                    Some(scope) => scope.scope(typed),
+                    None => Some(AppliedTraitScope::abstract_scope(owner)),
+                }
             } else if let Some(declaration) = retained
                 .provider
                 .provider_type
@@ -139,7 +147,11 @@ pub(super) fn derive(
                 .closed_requirement_applications()
                 .filter(|application| {
                     application.template == template
-                        && (native
+                        && native_scope
+                            .and_then(|(_, closed)| closed)
+                            .is_none_or(|closed| application.signature.symbol == closed)
+                        && (native_scope
+                            .is_some_and(|(scope, closed)| scope.is_none() && closed.is_none())
                             || typed.requirement_application_matches_scope(
                                 application.signature.symbol,
                                 &scope,

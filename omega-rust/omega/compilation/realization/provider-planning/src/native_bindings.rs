@@ -47,6 +47,8 @@ pub struct NativeSameStackDemand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedNativeBinding {
+    pub closed_requirement: Option<SymbolHandle>,
+    pub trait_scope: Option<checked_trees::typed_trees::trait_definition::RetainedTraitScope>,
     pub same_stack_demand: Option<NativeSameStackDemand>,
     pub raw_locator: NativeBindingValue,
     pub widths: [u64; 3],
@@ -387,6 +389,8 @@ pub fn admit_native_binding(
         }
     };
     Ok(AdmittedNativeBinding {
+        trait_scope: None,
+        closed_requirement: None,
         same_stack_demand,
         raw_locator: event.locator.clone(),
         widths: event.widths,

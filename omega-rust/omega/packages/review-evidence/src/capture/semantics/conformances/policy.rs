@@ -221,6 +221,7 @@ fn validate_retained_application(
     let selected = StaticMachineArgument {
         path: Box::new([]),
         application: Some(Box::new(StaticSymbolApplication {
+            member: arena::Handle::invalid(),
             lifetime_arguments: application
                 .lifetime_arguments
                 .iter()

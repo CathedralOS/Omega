@@ -14,6 +14,7 @@ pub struct ResolvedAuthoredCallBinding {
 }
 
 mod product;
+pub mod product_operands;
 mod product_target;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,

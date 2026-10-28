@@ -3,17 +3,15 @@
 //! exact-key join precedes physical normalization and is independent of order.
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::{
-    BuildOperation, NativeBindingValue, ProductOperandRole,
-};
-use typed_trees::TypedTrees;
+use language_semantics::declaration_selection::{BuildOperation, NativeBindingValue};
 
 pub(super) fn admit(
-    typed: &TypedTrees,
+    source: &mut psi_compiler::SourceContinuation,
     computed: &mut ComputedBuildConfig,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut resolved = Vec::new();
     for (ordinal, event) in computed.native_binding_requests.iter().enumerate() {
+        let typed = source.typed();
         let request = &event.request;
         let refuse =
             |reason: &str| vec![Diagnostic::error(reason).with_source_span(request.source_span)];
@@ -38,24 +36,18 @@ pub(super) fn admit(
             .operands
             .first()
             .ok_or_else(|| refuse("native binding lost its requirement operand"))?;
-        let requirement = typed_trees::product_operand::resolve_product_path(
-            typed,
-            &operand.path,
-            operand.source_span,
-            ProductOperandRole::Requirement,
-        )
-        .ok_or_else(|| {
-            refuse("native binding must name one exact visible package-owned requirement")
-        })?;
         let author = typed_trees::product_operand::resolve_build_request_author(
             typed,
             event.selecting_machine,
         )
         .map_err(|reason| refuse(&reason))?;
-        resolved.push((ordinal, event, requirement, author));
+        let prepared = source.prepare_product_requirement_operand(operand, author)?;
+        resolved.push((ordinal, event, prepared, author));
     }
+    let typed = source.typed();
     let mut footprints = Vec::new();
-    for (ordinal, event, requirement, author) in &resolved {
+    for (ordinal, event, prepared, author) in &resolved {
+        let requirement = &prepared.requirement;
         let NativeBindingValue::SameStackDemand { bytes } = event.locator else {
             if event.request.operation == BuildOperation::NativeSameStackDemand {
                 return Err(vec![
@@ -77,6 +69,11 @@ pub(super) fn admit(
         }
         let key = (
             *requirement,
+            prepared.closed_requirement,
+            prepared
+                .trait_scope
+                .and_then(|scope| scope.scope(typed))
+                .and_then(|scope| scope.portable_application_identity(typed)),
             event.target,
             typed.symbols.symbol_package_identity(*author),
         );
@@ -100,7 +97,8 @@ pub(super) fn admit(
     }
     let mut admitted = Vec::new();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    for (ordinal, event, requirement, author) in resolved {
+    for (ordinal, event, prepared, author) in resolved {
+        let requirement = prepared.requirement;
         if event.request.operation == BuildOperation::NativeSameStackDemand {
             continue;
         }
@@ -141,6 +139,11 @@ pub(super) fn admit(
         };
         let key = (
             requirement,
+            prepared.closed_requirement,
+            prepared
+                .trait_scope
+                .and_then(|scope| scope.scope(typed))
+                .and_then(|scope| scope.portable_application_identity(typed)),
             event.target,
             typed.symbols.symbol_package_identity(author),
         );
@@ -148,11 +151,17 @@ pub(super) fn admit(
             .iter()
             .any(|prior: &provider_planning::AdmittedNativeBinding| {
                 prior.requirement == requirement
+                    && prior.closed_requirement == prepared.closed_requirement
+                    && prior
+                        .trait_scope
+                        .and_then(|scope| scope.scope(typed))
+                        .and_then(|scope| scope.portable_application_identity(typed))
+                        == key.2
                     && prior.target.target_name() == event.target.canonical_name()
                     && typed
                         .symbols
                         .symbol_package_identity(prior.selecting_machine)
-                        == key.2
+                        == key.4
             })
         {
             return Err(refuse(
@@ -173,7 +182,7 @@ pub(super) fn admit(
         let usage = computed
             .evaluation_usage
             .ok_or_else(|| refuse("native binding lost its sponsoring Build accounting"))?;
-        let row = provider_planning::admit_native_binding(
+        let mut row = provider_planning::admit_native_binding(
             typed,
             event,
             requirement,
@@ -186,6 +195,8 @@ pub(super) fn admit(
             &mut identities,
         )
         .map_err(|reason| refuse(&reason))?;
+        row.trait_scope = prepared.trait_scope;
+        row.closed_requirement = prepared.closed_requirement;
         admitted.push(row);
     }
     if let Some((_, demand, _)) = footprints.iter().find(|(_, _, used)| !*used) {

@@ -21,6 +21,7 @@ pub struct ExpressionTable {
     match_arms: Arena<TableMatchArm>,
     match_fields: Arena<TableMatchField>,
     match_subjects: Arena<MatchSubjectCapture>,
+    static_members: Arena<StaticMachineArgument>,
 }
 
 pub(crate) struct ExpressionTableAppendCheckpoint {
@@ -32,9 +33,37 @@ pub(crate) struct ExpressionTableAppendCheckpoint {
     match_arms: arena::PagedArenaFrontier<TableMatchArm>,
     match_fields: arena::PagedArenaFrontier<TableMatchField>,
     match_subjects: arena::PagedArenaFrontier<MatchSubjectCapture>,
+    static_members: arena::PagedArenaFrontier<StaticMachineArgument>,
 }
 
 impl ExpressionTable {
+    pub fn insert_static_member(
+        &mut self,
+        member: StaticMachineArgument,
+    ) -> Handle<StaticMachineArgument> {
+        self.static_members.insert(member)
+    }
+
+    pub fn static_member(
+        &self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&StaticMachineArgument> {
+        self.static_members
+            .is_valid(member)
+            .then(|| self.static_members.get(member))
+    }
+
+    pub fn static_member_mut(
+        &mut self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&mut StaticMachineArgument> {
+        if self.static_members.is_valid(member) {
+            Some(self.static_members.get_mut(member))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn append_checkpoint(&self) -> ExpressionTableAppendCheckpoint {
         ExpressionTableAppendCheckpoint {
             expressions: self.expressions.frontier(),
@@ -45,6 +74,7 @@ impl ExpressionTable {
             match_arms: self.match_arms.frontier(),
             match_fields: self.match_fields.frontier(),
             match_subjects: self.match_subjects.frontier(),
+            static_members: self.static_members.frontier(),
         }
     }
 
@@ -60,6 +90,8 @@ impl ExpressionTable {
         self.match_fields.rewind_appended(checkpoint.match_fields);
         self.match_subjects
             .rewind_appended(checkpoint.match_subjects);
+        self.static_members
+            .rewind_appended(checkpoint.static_members);
     }
 
     pub(crate) fn share_pages(&mut self) {
@@ -71,6 +103,7 @@ impl ExpressionTable {
         self.match_arms.share_pages();
         self.match_fields.share_pages();
         self.match_subjects.share_pages();
+        self.static_members.share_pages();
     }
 
     pub fn insert_match_arms(
@@ -149,6 +182,7 @@ impl ExpressionTable {
             match_arms: Arena::with_generation(generation),
             match_fields: Arena::with_generation(generation),
             match_subjects: Arena::with_generation(generation),
+            static_members: Arena::with_generation(generation),
         }
     }
 
@@ -178,6 +212,7 @@ impl ExpressionTable {
         self.match_arms.adopt(other.match_arms);
         self.match_fields.adopt(other.match_fields);
         self.match_subjects.adopt(other.match_subjects);
+        self.static_members.adopt(other.static_members);
     }
 
     pub(crate) fn begin_page(&mut self, generation: u32) {
@@ -189,6 +224,7 @@ impl ExpressionTable {
         self.match_arms.begin_page(generation);
         self.match_fields.begin_page(generation);
         self.match_subjects.begin_page(generation);
+        self.static_members.begin_page(generation);
     }
 
     pub fn append_expression_handle(
@@ -454,7 +490,7 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -476,6 +512,9 @@ pub struct StaticMachineArgument {
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StaticSymbolApplication {
+    /// Continuation selected after this exact applied owner, as in
+    /// `Owner<T>::member<U>`. Zero denotes no qualified continuation.
+    pub member: Handle<StaticMachineArgument>,
     /// Explicit erased lifetime arguments. An empty lane may be filled only
     /// by ordinary lifetime elision after the declaration is resolved.
     pub lifetime_arguments: Box<[Identifier]>,

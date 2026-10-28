@@ -570,24 +570,23 @@ pub(super) fn clone_single_specialized_machine(
                 else {
                     continue;
                 };
-                for argument in call.machine_arguments.iter_mut() {
-                    argument.remap_symbols(realized);
-                }
                 let applications =
                     typed_trees::references::StaticArgumentCall::Statement(call).applications();
+                let mut arguments = std::mem::take(&mut call.machine_arguments);
+                for argument in &mut arguments {
+                    program
+                        .expression_table
+                        .remap_static_argument_symbols(argument, realized);
+                }
+                let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
+                else {
+                    unreachable!();
+                };
+                call.machine_arguments = arguments;
                 for application in applications {
-                    for argument in program
+                    program
                         .expression_table
-                        .static_machine_application_arguments_mut(application)
-                    {
-                        argument.remap_symbols(realized);
-                    }
-                    for argument in program
-                        .expression_table
-                        .static_machine_application_selected_machines_mut(application)
-                    {
-                        argument.remap_symbols(realized);
-                    }
+                        .remap_static_application_operands(application, realized);
                 }
             }
             for statement in program

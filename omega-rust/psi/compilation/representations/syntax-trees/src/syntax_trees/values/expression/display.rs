@@ -286,6 +286,10 @@ impl StaticMachineArgument {
             rendered.push('<');
             rendered.push_str(&arguments.join(", "));
             rendered.push('>');
+            if let Some(member) = table.expressions.static_member(application.member) {
+                rendered.push_str("::");
+                rendered.push_str(&member.display_name(table));
+            }
         }
         rendered
     }

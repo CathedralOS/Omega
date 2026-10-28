@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v3\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v4\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -511,8 +511,12 @@ impl BuildOutputIdentity<'_> {
             let language_semantics::declaration_selection::ProductDeclarationOperand {
                 path,
                 source_span,
+                application,
             } = operand;
             self.digest.string(path);
+            // The occurrence commits its immutable complete source bytes; the
+            // graph is a deterministic source capture, not another authority.
+            self.digest.byte(u8::from(application.is_some()));
             self.occurrence(*source_span)?;
         }
         Ok(())

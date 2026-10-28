@@ -72,6 +72,13 @@ pub(super) fn index_argument(
             )
         }
         IndexIdentityArgument::StaticArgument(argument) => {
+            if argument
+                .application
+                .as_ref()
+                .is_some_and(|application| application.member.is_valid())
+            {
+                return rejected(context);
+            }
             if argument.type_reference.is_valid() {
                 if !program
                     .type_reference_table

@@ -65,20 +65,34 @@ fn inferred_method_arguments(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    _position: usize,
+    position: usize,
     call: StaticArgumentCall<'_>,
 ) -> Option<Vec<StaticMachineArgument>> {
-    let (target, runtime_arguments) = match call {
+    let (target, runtime_arguments, application) = match call {
         StaticArgumentCall::Expression(_, call) => (
             call.target_symbol,
             program.expression_table.expression_handles(call.arguments),
+            call.requirement_application,
         ),
         StaticArgumentCall::Statement(call) => (
             call.target_symbol,
             program.statement_table.expression_handles(call.arguments),
+            TypeReferenceHandle::invalid(),
         ),
     };
-    let (_, signature) = program.trait_machine_signature(target)?;
+    // Rechecking a joined Product can observe an already closed receiving
+    // target. Its zero-parameter signature cannot replace this invocation's
+    // original method telescope or its independently applied outer scope.
+    let receiver = receiver_scope(program, machine, state, position, call);
+    let (template, scope) =
+        source_scope(program, machine.symbol, target, receiver, application).ok()??;
+    let (_, declared_signature) = program.trait_machine_signature(template)?;
+    let signature = program
+        .applied_callable_signature(&scope, template)
+        .or_else(|| {
+            (scope.substitutions.is_empty() && scope.declaration.lifetime_parameters.is_empty())
+                .then_some(declared_signature)
+        })?;
     let parameters = program.state_signature_type_parameters(signature);
     let explicit = call.arguments(program);
     if explicit.len() >= parameters.len() {
@@ -153,6 +167,37 @@ fn inferred_method_arguments(
         );
     }
     Some(complete)
+}
+
+/// Rejoin the invocation's authored receiver in its exact evaluation context.
+/// Statement and expression actual spans have different arena owners, while
+/// their applied trait scope has the same checking meaning.
+fn receiver_scope<'p>(
+    program: &'p TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    position: usize,
+    call: StaticArgumentCall<'_>,
+) -> Option<AppliedTraitScope<'p>> {
+    let (symbol, reference) = match call {
+        StaticArgumentCall::Statement(call) => (
+            call.receiver_symbol,
+            validation::projected_statement_receiver_type_reference(program, state, position, call),
+        ),
+        StaticArgumentCall::Expression(_, call) => (
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+            validation::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                position,
+                call.receiver,
+            ),
+        ),
+    };
+    validation::qualified_trait_scope(program, machine.symbol, symbol, reference)
 }
 
 fn instance(
@@ -474,13 +519,12 @@ pub(super) fn invocation_tuples(
                     add(
                         machine.symbol,
                         call.target_symbol,
-                        validation::qualified_trait_scope(
+                        receiver_scope(
                             program,
-                            machine.symbol,
-                            call.receiver_symbol,
-                            validation::projected_statement_receiver_type_reference(
-                                program, state, position, call,
-                            ),
+                            machine,
+                            state,
+                            position,
+                            StaticArgumentCall::Statement(call),
                         ),
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
@@ -505,19 +549,12 @@ pub(super) fn invocation_tuples(
                         add(
                             machine.symbol,
                             call.target_symbol,
-                            validation::qualified_trait_scope(
+                            receiver_scope(
                                 program,
-                                machine.symbol,
-                                program
-                                    .expression_table
-                                    .name_path_node(call.receiver)
-                                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                validation::expression_type_reference_in_state(
-                                    program,
-                                    state.symbol,
-                                    position,
-                                    call.receiver,
-                                ),
+                                machine,
+                                state,
+                                position,
+                                StaticArgumentCall::Expression(expression, call),
                             ),
                             call.requirement_application,
                             call.static_requirement_dispatch.as_ref(),

@@ -233,6 +233,8 @@ pub struct ProductDeclarationRequest {
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
+    /// Complete inert authored application; None denotes a bare declaration.
+    pub application: Option<std::sync::Arc<super::product_operands::ProductStaticOperandGraph>>,
 }
 
 impl ProductDeclarationRequest {

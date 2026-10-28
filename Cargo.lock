@@ -982,6 +982,7 @@ dependencies = [
 name = "language-semantics"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "build-time-values",
  "language-core",
  "numerics",

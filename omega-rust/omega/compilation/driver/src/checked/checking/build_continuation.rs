@@ -354,7 +354,7 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
-    super::product_selections::admit(source.typed(), Arc::make_mut(&mut computed_build_config))?;
+    super::product_selections::admit(&mut source, Arc::make_mut(&mut computed_build_config))?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,

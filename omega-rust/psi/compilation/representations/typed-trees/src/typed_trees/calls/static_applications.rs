@@ -90,26 +90,6 @@ impl Default for StaticMachineBindingValue {
     }
 }
 
-impl StaticMachineBinding {
-    pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
-        // The binder belongs to binding_declaration, not lexical_owner.
-        // Remapping it would turn recursive calls into bindings for a private
-        // caller's erased telescope. Actual operands do follow caller cloning.
-        match &mut self.value {
-            StaticMachineBindingValue::Machine(argument)
-            | StaticMachineBindingValue::Conformance(argument) => argument.remap_symbols(symbols),
-            StaticMachineBindingValue::RuntimeValue { subject, .. } => {
-                if let Some((_, replacement)) =
-                    symbols.iter().find(|(source, _)| *source == *subject)
-                {
-                    *subject = *replacement;
-                }
-            }
-            StaticMachineBindingValue::Type(_) | StaticMachineBindingValue::Const(_) => {}
-        }
-    }
-}
-
 /// Read one source type leaf under a simultaneous static application. An actual
 /// reference belongs to its supplying scope and is returned without applying
 /// the receiving substitutions again. Graph readers compose this operation at

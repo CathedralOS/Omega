@@ -890,6 +890,9 @@ pub fn visit_static_argument(
         for nested in application.arguments.iter() {
             visit_static_argument(program, retained, nested);
         }
+        if let Some(member) = program.expression_table.static_member(application.member) {
+            visit_static_argument(program, retained, member);
+        }
     }
 }
 

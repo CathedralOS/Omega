@@ -313,8 +313,18 @@ pub struct DataApplicationView {
     is_closed: bool,
 }
 
+/// One designated source type's independent formation obligation. This is
+/// source custody, not an executable call or provider selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DesignatedStaticTypeArgument {
+    pub owner: symbols::SymbolHandle,
+    pub reference: types::TypeReferenceHandle,
+    pub source_span: source::SourceSpan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTreeTables {
+    pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
