@@ -516,32 +516,17 @@ impl ConstantCalls for Invocation<'_> {
             BuildTimeValue::Float(value)
                 if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
             {
-                // The interpreter carries floats in f64 storage, but that is
-                // not permission to round an incorrectly landed f32 result.
-                // As in literal materialization, NaN needs exact realization
-                // custody before an evaluator choice can enter image bytes.
-                if value.is_nan() {
-                    return Err(
-                        "constant result is NaN without an exact raw-NaN realization".into(),
-                    );
-                }
-                match destination {
-                    PrimitiveType::F32 if f64::from(value as f32).to_bits() == value.to_bits() => {
-                        ScalarValue::Float {
-                            format: numerics::literals::FloatFormat::F32,
-                            bits: u64::from((value as f32).to_bits()),
-                        }
-                    }
-                    PrimitiveType::F64 => ScalarValue::Float {
-                        format: numerics::literals::FloatFormat::F64,
-                        bits: value.to_bits(),
-                    },
-                    _ => {
-                        return Err(
-                            "constant result does not retain one exact binary32 value".into()
-                        );
-                    }
-                }
+                // Semantic arithmetic publishes UndeterminedNaN above. This
+                // branch carries presented bits, including exact raw NaNs.
+                let format = if destination == PrimitiveType::F32 {
+                    numerics::literals::FloatFormat::F32
+                } else {
+                    numerics::literals::FloatFormat::F64
+                };
+                let bits = format
+                    .capture_wide_representation(value)
+                    .ok_or("constant result does not retain its exact floating carrier")?;
+                ScalarValue::Float { format, bits }
             }
             _ => return Err("constant result does not match its declared scalar carrier".into()),
         };
@@ -665,12 +650,11 @@ impl Invocation<'_> {
             }
             arguments.push(match value {
                 ScalarValue::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(format),
-                ScalarValue::Float { format, bits } => BuildTimeValue::Float(match format {
-                    numerics::literals::FloatFormat::F32 => f64::from(f32::from_bits(
-                        u32::try_from(bits).map_err(|_| "invalid binary32 snapshot")?,
-                    )),
-                    numerics::literals::FloatFormat::F64 => f64::from_bits(bits),
-                }),
+                ScalarValue::Float { format, bits } => BuildTimeValue::Float(
+                    format
+                        .widen_representation(bits)
+                        .ok_or("invalid floating snapshot")?,
+                ),
                 ScalarValue::Index(value) => match value.decode_encoding() {
                     Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
                         let bits = if destination.is_signed_integer() {
@@ -1170,15 +1154,16 @@ pub(super) fn scalar_snapshot(
         }
         ScalarValue::Index(value) => value,
         ScalarValue::Float { format, bits } => {
-            let value = match (format, carrier) {
-                (numerics::literals::FloatFormat::F32, PrimitiveType::F32) => f64::from(
-                    f32::from_bits(u32::try_from(*bits).map_err(|_| "invalid binary32 snapshot")?),
-                ),
-                (numerics::literals::FloatFormat::F64, PrimitiveType::F64) => f64::from_bits(*bits),
-                _ => return Err("constant argument lost its exact floating carrier".into()),
-            };
+            if !matches!(
+                (format, carrier),
+                (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
+                    | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+            ) {
+                return Err("constant argument lost its exact floating carrier".into());
+            }
             return Ok(ExpressionNode::Float(
-                numerics::literals::FloatLiteral::from_f64(value).with_landing(*format),
+                numerics::literals::FloatLiteral::from_bits(*format, *bits)
+                    .ok_or("invalid floating snapshot")?,
             ));
         }
     };

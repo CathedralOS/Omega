@@ -694,15 +694,11 @@ pub(crate) fn evaluate(
                 let literal = match result.value {
                     ScalarValue::UndeterminedNaN(format) => ExpressionNode::UndeterminedNaN(format),
                     ScalarValue::Float { format, bits } => {
-                        let spelling = match format {
-                            numerics::literals::FloatFormat::F32 => {
-                                format!("{:?}f32", f32::from_bits(bits as u32))
-                            }
-                            numerics::literals::FloatFormat::F64 => {
-                                format!("{:?}f64", f64::from_bits(bits))
-                            }
-                        };
-                        ExpressionNode::Float(syntax_trees::FloatSpelling::new(spelling, reference))
+                        let literal = numerics::literals::FloatLiteral::from_bits(format, bits)
+                            .ok_or_else(|| failure(reference, "invalid floating representation"))?;
+                        ExpressionNode::Float(syntax_trees::FloatSpelling::materialized(
+                            literal, reference,
+                        ))
                     }
                     ScalarValue::Index(value) => match value.decode_encoding() {
                         Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
