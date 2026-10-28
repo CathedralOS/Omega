@@ -370,19 +370,13 @@ impl CompilationSession {
     }
 
     pub(crate) fn retain(&mut self, checks: &RetainedCompilationChecks) {
-        if checks
-            .build
-            .iter()
-            .chain(checks.product.iter())
-            .any(psi_compiler::RetainedCheck::is_current_strict_judgment)
-        {
-            self.source_graph_changed = true;
-        }
         if let Some(build) = &checks.build {
-            retain_judgment(&mut self.checks.sibling_build_checks, build);
+            self.source_graph_changed |=
+                retain_judgment(&mut self.checks.sibling_build_checks, build);
         }
         if let Some(product) = &checks.product {
-            retain_judgment(&mut self.checks.sibling_product_checks, product);
+            self.source_graph_changed |=
+                retain_judgment(&mut self.checks.sibling_product_checks, product);
         }
     }
 }
@@ -390,7 +384,7 @@ impl CompilationSession {
 fn retain_judgment(
     checks: &mut Vec<psi_compiler::RetainedCheck>,
     check: &psi_compiler::RetainedCheck,
-) {
+) -> bool {
     if let Some(retained) = checks
         .iter_mut()
         .find(|retained| retained.same_judgment(check))
@@ -398,8 +392,12 @@ fn retain_judgment(
         // Exact reuse rejoins authority in this invocation. Keep that current
         // provenance rather than leaving the decoded partial-body gate cold.
         *retained = check.clone();
+        // Readmission changes invocation-local provenance only. Its record is
+        // unchanged, so an exact warm request need not encode/write the graph.
+        false
     } else {
         checks.push(check.clone());
+        check.is_current_strict_judgment()
     }
 }
 
