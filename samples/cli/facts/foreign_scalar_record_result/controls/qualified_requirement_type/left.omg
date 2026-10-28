@@ -1,0 +1,2 @@
+module left;
+public data Tag {}

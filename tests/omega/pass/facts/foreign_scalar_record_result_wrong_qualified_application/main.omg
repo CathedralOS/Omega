@@ -1,0 +1,26 @@
+// Fact: a copyable C quotient/remainder record preserves both signed fields and independent earlier-call contents through transport and copying into the consuming operation.
+use omega::language::core::external_binding;
+use left;
+use right;
+public data Division [copy] { quotient: i64; remainder: i64; }
+public boundary trait IntegerDivision<Tag> {
+ machine divide(numerator: i64, denominator: i64) -> Division reaches;
+}
+machine consume(first: Division, copied: Division) -> bool reaches IntegerDivision {
+ let second: Division = IntegerDivision<left::Tag>::divide(70000000000, 9);
+ first.quotient == -23333333333 && first.remainder == -1
+ && copied.quotient == -23333333333 && copied.remainder == -1
+ && second.quotient == 7777777777 && second.remainder == 7
+}
+machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
+machine observe() -> bool reaches IntegerDivision {
+ let first: Division = IntegerDivision<left::Tag>::divide(-70000000000, 3);
+ let local: Division = first;
+ receive(local)
+}
+
+machine main() reaches IntegerDivision crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() { crash Trap; }
+}

@@ -1,0 +1,9 @@
+// Expected exit: 0
+domain u8::Small requires self < 16;
+data Packet[copy] { bytes: [u8 in Small; 1]; }
+machine produce<Tag>() -> Packet { Packet { bytes: "A" } }
+machine main() crashes Trap {
+ transition true { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() { crash Trap; }
+}
