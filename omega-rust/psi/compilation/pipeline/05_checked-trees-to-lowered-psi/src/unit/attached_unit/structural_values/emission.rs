@@ -350,6 +350,7 @@ pub(crate) fn emit<'source>(
         owners,
         result_access,
         published_places: Vec::new(),
+        completed_projections: Vec::new(),
         selection_route: Vec::new(),
     };
     if production.destination == ValueDestination::Evaluation {
@@ -785,32 +786,33 @@ fn prepare_owners(
         let entry = source_parameters
             .iter()
             .any(|parameter| parameter.symbol == symbol);
-        let has_conflicting_selection = checked
-            .facts
-            .flow
-            .ownership
-            .with_state_owned_selections(state, |handles| {
-                handles.iter().copied().any(|handle| {
-                    let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
-                    receipt.machine == machine
-                        && receipt.state == state
-                        && matches!(
-                            receipt.evaluation,
-                            checked_trees::FlowPermissionEvaluation::Statement
-                                | checked_trees::FlowPermissionEvaluation::TransitionGuard
-                        )
-                        && (entry || receipt.statement_ordinal > formation)
-                        && receipt.statement_ordinal < statement
-                        && checked
-                            .facts
-                            .flow
-                            .ownership
-                            .selection_sources
-                            .span_or_empty(receipt.sources)
-                            .iter()
-                            .any(|source| source.symbol == symbol)
-                })
-            });
+        let has_conflicting_selection =
+            checked
+                .facts
+                .flow
+                .ownership
+                .with_state_owned_selections(state, |handles| {
+                    handles.iter().copied().any(|handle| {
+                        let receipt = checked.facts.flow.ownership.owned_selections.get(handle);
+                        receipt.machine == machine
+                            && receipt.state == state
+                            && matches!(
+                                receipt.evaluation,
+                                checked_trees::FlowPermissionEvaluation::Statement
+                                    | checked_trees::FlowPermissionEvaluation::TransitionGuard
+                            )
+                            && (entry || receipt.statement_ordinal > formation)
+                            && receipt.statement_ordinal < statement
+                            && checked
+                                .facts
+                                .flow
+                                .ownership
+                                .selection_sources
+                                .span_or_empty(receipt.sources)
+                                .iter()
+                                .any(|source| source.symbol == symbol)
+                    })
+                });
         if has_conflicting_selection {
             return Ok(false);
         }
@@ -1141,6 +1143,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// Exact declarations already published by nested operation emission.
     /// These are receipts, not new catalog entries owned by this value.
     published_places: Vec<StructuralPlaceDeclaration>,
+    /// Exact checked projections realized by this production, including private
+    /// descriptor captures. Geometry only; current memberships still need proof.
+    completed_projections: Vec<completed_projection::CompletedProjection>,
     selection_route: Vec<crate::emission::claim_bindings::selections::SelectedDecision>,
 }
 

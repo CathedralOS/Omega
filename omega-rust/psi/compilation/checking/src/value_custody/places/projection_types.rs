@@ -160,87 +160,8 @@ pub fn observed_storage_type_references(
     })
 }
 
-/// Resolve an already checked membership's root-relative storage coordinate.
-/// Pointer crossings describe the actual stored presentation; they confer no
-/// access, lifetime, membership or ownership. The publisher retains the exact
-/// checked occurrence and Core authenticates its live restoration window.
-/// A final reference remains the selected descriptor home. If the membership
-/// qualifies its referent, `result_membership_carrier` supplies that separate,
-/// domain-sensitive suffix; the place alone cannot choose the endpoint.
-pub fn qualification_storage_path(
-    program: &dyn crate::CheckingInput,
-    root_type: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
-) -> Result<Vec<checked_trees::CheckedUnitStructuralPathSegment>, &'static str> {
-    use checked_trees::CheckedUnitStructuralPathSegment as Segment;
-    use typed_trees::types::TypeReferenceNode;
-
-    if !root_type.is_valid() {
-        return Err("qualification storage has no exact root type");
-    }
-    let mut cursor = ObservationTypeCursor::new(root_type);
-    let mut path = Vec::with_capacity(segments.len());
-    for segment in segments {
-        let mut crossed = Vec::new();
-        loop {
-            let carrier = cursor.carrier(program)?;
-            if !matches!(
-                program.type_reference_table.type_reference(carrier),
-                TypeReferenceNode::Reference { .. }
-            ) {
-                break;
-            }
-            if crossed.contains(&carrier) {
-                return Err("qualification storage crosses a cyclic reference carrier");
-            }
-            crossed.push(carrier);
-            let stored_pointer =
-                crate::stores_reference_shape(program, carrier, &cursor.projection.substitutions);
-            let _ = cursor.advance(program, &Segment::Referent)?;
-            // Slice views already store their referent presentation. They
-            // are not an additional ordinary pointer wrapper.
-            if stored_pointer {
-                path.push(Segment::Referent);
-            }
-        }
-        let (checked, symbol) = match segment {
-            facts::PlaceSegment::Field { symbol } => (
-                Segment::Field(
-                    super::structural_member_identity(program, *symbol)
-                        .ok_or("qualification field has no exact member identity")?,
-                ),
-                Some(*symbol),
-            ),
-            facts::PlaceSegment::Case { variant } => (
-                Segment::Case(
-                    super::structural_member_identity(program, *variant)
-                        .ok_or("qualification case has no exact member identity")?,
-                ),
-                Some(*variant),
-            ),
-            facts::PlaceSegment::FixedIndex { index } => (
-                Segment::FixedIndex(
-                    u64::try_from(*index).map_err(|_| "qualification index exceeds u64")?,
-                ),
-                None,
-            ),
-            facts::PlaceSegment::Index { .. } => {
-                return Err("qualification storage requires a statically captured index");
-            }
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
-                return Err("qualification storage has an unsupported collection window");
-            }
-        };
-        if cursor.advance(program, &checked)? != symbol {
-            return Err("qualification member differs from its exact typed owner");
-        }
-        path.push(checked);
-    }
-    if cursor.selected_case.is_some() {
-        return Err("qualification storage ends in an unprojected case");
-    }
-    Ok(path)
-}
+mod qualification_paths;
+pub use qualification_paths::{canonical_qualification_path, qualification_storage_path};
 
 /// Both checked observations and canonical qualification coordinates consume
 /// this one applied field/case/index grammar and substitution environment.
@@ -374,7 +295,7 @@ impl<'program> ObservationTypeCursor<'program> {
                 indexed_element_type_reference(program, current, &self.projection.substitutions)
                     .ok_or("index carrier has no collection element")?
             }
-            Segment::RuntimeIndex(_) | Segment::ComputedIndex(_) => {
+            Segment::RuntimeIndex(_) | Segment::ComputedIndex(_) | Segment::AllElements => {
                 if self.selected_case.is_some() {
                     return Err("index interrupts a selected case payload");
                 }
