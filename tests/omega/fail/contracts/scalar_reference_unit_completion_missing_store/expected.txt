@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit
+output == 0

@@ -57,6 +57,15 @@ pub(crate) fn proves_exit<'program>(
                         typed_trees::statement::TransitionTargetNode::Named { .. } => return None,
                     }
                 }
+                None if !exit.transition_target.is_valid()
+                    && exit.statement_index
+                        == program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .len() =>
+                {
+                    None
+                }
                 _ => return None,
             };
             let mut values = CurrentScalarValues::at(
