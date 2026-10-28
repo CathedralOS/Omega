@@ -438,8 +438,8 @@ pub(super) fn validate_literal_default_domain(
     if data_definition.where_facts.is_empty() {
         return;
     }
-    // A type-wide fact may read only the data's common fields; case payloads
-    // are indexed by the active case and are never in scope here.
+    // The logical subject retains its active case. Bare field binders remain
+    // common-only; guarded payload projections use the complete subject.
     let declared = common_field_symbols(program, data_definition);
     validate_literal_facts(
         program,
@@ -658,31 +658,56 @@ fn validate_literal_facts(
                 }
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
-                let field_name =
-                    crate::expression_traversal::name_path_last_member(program, membership.value);
-                let authored_value = field_name.and_then(|wanted| {
+                let selected =
+                    super::selected_construction_definition(program, expression, literal)
+                        .and_then(|receiving| {
+                            crate::proof_contracts::default_domains::membership_field(
+                                program,
+                                receiving,
+                                membership.value,
+                            )
+                        })
+                        .and_then(|field| {
+                            super::selected_construction_field(
+                                program,
+                                expression,
+                                literal,
+                                field.symbol,
+                            )
+                        });
+                let field_name = selected.map(|field| field.name.as_str());
+                let authored_value = selected.and_then(|wanted| {
                     program
                         .expression_table
                         .struct_fields(literal.fields)
                         .iter()
-                        .find(|field| field.name.as_str() == wanted)
+                        .find(|field| {
+                            super::selected_construction_field(
+                                program,
+                                expression,
+                                literal,
+                                field.field_symbol,
+                            )
+                            .is_some_and(|receiving| receiving.symbol == wanted.symbol)
+                        })
                         .map(|field| field.value)
                 });
-                let proven = authored_value.map_or_else(
-                    || {
-                        crate::proof_contracts::proof_facts::domain_admits_zero_bytes(
-                            program,
-                            membership.domain_symbol,
-                        )
-                    },
-                    |value| {
-                        crate::proof_contracts::proof_facts::string_literal_grants_domain(
-                            program,
-                            value,
-                            membership.domain_symbol,
-                        )
-                    },
-                );
+                let proven = selected.is_some()
+                    && authored_value.map_or_else(
+                        || {
+                            crate::proof_contracts::proof_facts::domain_admits_zero_bytes(
+                                program,
+                                membership.domain_symbol,
+                            )
+                        },
+                        |value| {
+                            crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                                program,
+                                value,
+                                membership.domain_symbol,
+                            )
+                        },
+                    );
                 if !proven {
                     predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_adjective} fact: \

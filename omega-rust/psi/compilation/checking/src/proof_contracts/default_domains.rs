@@ -36,6 +36,7 @@ mod where_fact_intervals;
 
 pub(crate) use float_predicates::float_field_literal_bound_meaning;
 pub use float_predicates::{data_float_predicate, data_predicates_admit_zero};
+pub(crate) use place_queries::membership_field;
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;
 pub(crate) use where_fact_intervals::{
@@ -317,7 +318,8 @@ fn analyze_default_domain_writes_with_frames(
                     // field may hold a prior value and must fold as UNKNOWN (poison ->
                     // directed refusal; cross-state valuation transport is the
                     // precision rung).
-                    let born_zero = |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
+                    let born_zero =
+                        |index: usize| index == 0 && !edges.iter().any(|(_, to)| *to == 0);
                     // R2 rung 3 slice 5: the combined MUST fixpoint -- establishment
                     // (as slice 3) and per-place field VALUATIONS (Kildall constant
                     // propagation: non-boot entries start TOP/unvisited; meet keeps a
@@ -329,7 +331,8 @@ fn analyze_default_domain_writes_with_frames(
                     entry_valuations[0] = Some(Vec::new());
                     // WINDOW TRANSPORT: open windows at each state's entry -- the
                     // MAY-union of predecessor exits (an obligation from ANY path in).
-                    let mut entry_windows: Vec<Vec<InvariantWindow>> = vec![Vec::new(); states.len()];
+                    let mut entry_windows: Vec<Vec<InvariantWindow>> =
+                        vec![Vec::new(); states.len()];
                     // A TERMINAL state (no outgoing transition) is where the machine
                     // returns: its exit is a hard consumption point for open windows.
                     let is_terminal = |index: usize| !edges.iter().any(|(from, _)| *from == index);
@@ -338,7 +341,8 @@ fn analyze_default_domain_writes_with_frames(
                     // after its entry changed. Each walk keeps its own diagnostics and
                     // crash sites; at the fixed point every state's last walk ran on its
                     // final entry, so those are the ones reported.
-                    let mut walks: Vec<Option<StateWalk>> = (0..states.len()).map(|_| None).collect();
+                    let mut walks: Vec<Option<StateWalk>> =
+                        (0..states.len()).map(|_| None).collect();
                     let mut stale = vec![true; states.len()];
                     loop {
                         for (index, state) in states.iter().enumerate() {
@@ -412,12 +416,14 @@ fn analyze_default_domain_writes_with_frames(
                                 }
                             }
                             window_union.sort_by(|left, right| {
-                                (&left.0, &left.1, left.2.arena_index(), left.2.generation()).cmp(&(
-                                    &right.0,
-                                    &right.1,
-                                    right.2.arena_index(),
-                                    right.2.generation(),
-                                ))
+                                (&left.0, &left.1, left.2.arena_index(), left.2.generation()).cmp(
+                                    &(
+                                        &right.0,
+                                        &right.1,
+                                        right.2.arena_index(),
+                                        right.2.generation(),
+                                    ),
+                                )
                             });
                             if window_union != entry_windows[index] {
                                 entry_windows[index] = window_union;

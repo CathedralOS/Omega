@@ -11,8 +11,8 @@ use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
     expression_root_symbol, fact_mentions_any_field, fact_span_mentions_field,
-    field_is_where_mentioned, is_data_rooted, is_subplace, membership_field_name,
-    place_spelling_covers, place_spellings_may_overlap, write_place_spelling,
+    field_is_where_mentioned, is_data_rooted, is_subplace, membership_field, place_spelling_covers,
+    place_spellings_may_overlap, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -353,14 +353,9 @@ pub(crate) fn handle_assignment<'program>(
     // Interval-only facts each bound one field, and every store to that field
     // is range-checked against it, so they hold after any accepted store.
     let store_checked = super::data_where_field_intervals(program, place.definition).is_some();
-    // A TYPE-WIDE fact naming no field constrains the declaration's CONST
-    // PARAMETERS alone, and the specialization decided it once:
-    // `FixedBuffer<const N: u64> where N > 0 && N <= 8` is settled when 4 is
-    // substituted, not re-proved at every write to `used`. The valuation
-    // below carries field values, so folding such a fact can only answer
-    // "unknown" -- which would open an invariant window no later store could
-    // close. A CASE fact is not filtered this way: its names are the
-    // variant's payload bindings, which are not members of the data.
+    // Const-only clauses settle at application. A tag-only clause is also
+    // preserved by a scalar field store; whole-value replacement owns its
+    // tag and complete default-domain construction obligation separately.
     let definition = place.definition;
     // A collection-predicate fact over other fields is untouched by this
     // store; its element windows are tracked separately.
@@ -450,8 +445,8 @@ pub(crate) fn handle_assignment<'program>(
                 }
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
-                let mentioned = membership_field_name(program, membership.value);
-                if mentioned == Some(field_name.as_str()) {
+                let mentioned = membership_field(program, place.definition, membership.value);
+                if mentioned.is_some_and(|field| Some(field.symbol) == written_field) {
                     if !crate::proof_contracts::proof_facts::string_literal_grants_domain(
                         program,
                         value,
@@ -459,7 +454,7 @@ pub(crate) fn handle_assignment<'program>(
                     ) {
                         all_hold = false;
                     }
-                } else if !place.established || place.any_window_open() {
+                } else if mentioned.is_none() || !place.established || place.any_window_open() {
                     // A write to another field preserves a previously true
                     // membership, but cannot manufacture a missing one.
                     all_hold = false;

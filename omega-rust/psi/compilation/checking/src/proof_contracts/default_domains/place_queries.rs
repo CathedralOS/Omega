@@ -358,12 +358,10 @@ pub(super) fn fact_span_mentions_field(
         .any(|fact| fact_names_field(program, definition, fact, field))
 }
 
-/// Whether a single fact names any FIELD of `definition`. A `where` fact that
-/// names none is a constraint over the declaration's const parameters alone:
-/// `FixedBuffer<const N: u64> where N > 0 && N <= 8` is decided once, when the
-/// specialization substitutes 4, and it is not a runtime invariant the
-/// synthesized record's field writes re-prove. Folding such a fact against a
-/// FIELD valuation can only answer "unknown".
+/// Field-store dependencies, including active payload projections. A tag-only
+/// clause has no scalar field dependency: field stores preserve the tag, while
+/// whole-value replacement retires it and proves construction independently.
+/// Const-only clauses likewise need no field-store reproof.
 pub(super) fn fact_mentions_any_field(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
@@ -389,9 +387,6 @@ pub(super) fn fact_names_field(
 #[derive(Default)]
 struct PredicateReadSet {
     fields: Vec<symbols::SymbolHandle>,
-    // Classification depends on the discriminant, not every payload byte.
-    // Whole-value replacement is checked independently at construction.
-    tag: bool,
 }
 
 fn declared_predicate_fields<'program>(
@@ -523,7 +518,6 @@ fn predicate_read_set(
                 } else if definition.predicate_subject_symbol.is_valid()
                     && path.symbol == definition.predicate_subject_symbol && whole_subject
                 {
-                    reads.tag = true;
                     for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
                 }
             }
@@ -556,8 +550,7 @@ fn predicate_read_set(
                 for symbol in static_references.symbols.drain(..) {
                     if let Some(field) = receiving_field(symbol) { if !reads.fields.contains(&field) { reads.fields.push(field); } }
                     else if definition.predicate_subject_symbol.is_valid() && symbol == definition.predicate_subject_symbol {
-                        reads.tag = true;
-                        for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
+                            for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
                     }
                 }
             }
@@ -567,7 +560,6 @@ fn predicate_read_set(
                         selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::CaseMembership)
                 }) =>
             {
-                reads.tag = true;
                 pending.push((binary.left, false));
             }
             node => crate::expression_traversal::children(program, node, |child| pending.push((child, true))),
@@ -576,9 +568,40 @@ fn predicate_read_set(
     reads
 }
 
-pub(super) fn membership_field_name(
-    program: &dyn crate::CheckingInput,
+/// Resolve the selected field before treating a membership operand as supplied
+/// or omitted. A non-field selector is never an implicit zero field.
+pub(crate) fn membership_field<'program>(
+    program: &'program dyn crate::CheckingInput,
+    definition: &'program DataDefinition,
     value: ExpressionHandle,
-) -> Option<&str> {
-    crate::expression_traversal::name_path_last_member(program, value)
+) -> Option<&'program typed_trees::data::DataField> {
+    let symbol = match program.expression_table.expression(value) {
+        ExpressionNode::Name(path) => path.symbol,
+        ExpressionNode::Member(member) => {
+            let path = program.expression_table.name_path_node(member.receiver)?;
+            let (source, _) = program.any_field_owner(member.member_symbol)?;
+            if !source.predicate_subject_symbol.is_valid()
+                || path.symbol != source.predicate_subject_symbol
+            {
+                return None;
+            }
+            member.member_symbol
+        }
+        _ => return None,
+    };
+    let declared = declared_predicate_fields(program, definition);
+    if let Some(field) = declared.iter().find(|field| field.symbol == symbol) {
+        return Some(*field);
+    }
+    let reference = definition
+        .generic_instance
+        .unwrap_or(definition.predicate_subject_type);
+    if !reference.is_valid() {
+        return None;
+    }
+    let (source, _) = program.any_field_owner(symbol)?;
+    let selected = program.data_constructor_field(reference, source.symbol, symbol)?;
+    declared
+        .into_iter()
+        .find(|field| field.symbol == selected.symbol)
 }
