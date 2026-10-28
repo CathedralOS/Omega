@@ -18,8 +18,9 @@ use terminal_psi::{
 
 use super::{
     FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue, NodeLocation,
-    OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
-    ScalarConstantValue, ValueDefinition,
+    OptimizationBlock, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, ScalarConstantValue,
+    ValueDefinition, ValueDefinitionSite,
 };
 
 /// The establishing operation the place's operation-result producer resolves
@@ -1197,11 +1198,8 @@ pub fn proof_basis(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
-    bound_place: &dyn Fn(&PsiOptimizationFunction, PlaceId) -> Option<PlaceId>,
 ) -> Option<(StructuralCaseId, Option<OperationId>)> {
-    if let Some((producer, case)) =
-        established_case_at(unit, function, declaration, &[], bound_place)
-    {
+    if let Some((producer, case)) = established_case_at(unit, function, declaration, &[]) {
         return Some((case, Some(producer)));
     }
     sole_case(unit, function, declaration).map(|case| (case, None))
@@ -1231,7 +1229,6 @@ pub fn established_case_at(
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
     path: &[StructuralPathSegment],
-    bound_place: &dyn Fn(&PsiOptimizationFunction, PlaceId) -> Option<PlaceId>,
 ) -> Option<(OperationId, StructuralCaseId)> {
     let mut place = declaration.id;
     let mut producer = root_producer(function, declaration);
@@ -1403,16 +1400,12 @@ pub fn established_case_at(
 /// lifetime — an owned binding transfers the storage itself, and a shared
 /// loan freezes the bound place's contents for the borrow — so the bound
 /// place's establishment is the parameter's own.
-pub fn bound_place(
-    function: &PsiOptimizationFunction,
-    place: PlaceId,
-    rewrites: &dyn Fn(&O, PlaceId) -> bool,
-) -> Option<PlaceId> {
+pub fn bound_place(function: &PsiOptimizationFunction, place: PlaceId) -> Option<PlaceId> {
     let StructuralPlaceKind::BlockParameter { block, .. } = function.structural_place(place)?.kind
     else {
         return None;
     };
-    if place_is_rewritten(function, place, rewrites) {
+    if place_is_rewritten(function, place) {
         return None;
     }
     let mut bound = None;
@@ -1439,14 +1432,10 @@ pub fn bound_place(
 /// binding: a store or vacating move naming it, a mutable or pathed
 /// structural argument re-lending it, or an atomic event joining its
 /// residence each break the uniform-binding proof.
-fn place_is_rewritten(
-    function: &PsiOptimizationFunction,
-    place: PlaceId,
-    rewrites: &dyn Fn(&O, PlaceId) -> bool,
-) -> bool {
+fn place_is_rewritten(function: &PsiOptimizationFunction, place: PlaceId) -> bool {
     function.blocks.iter().any(|block| {
         block.nodes.iter().any(|node| {
-            rewrites(&node.operation, place)
+            operation_rewrites_place(&node.operation, place)
                 || node.successors.iter().any(|edge| {
                     edge.structural_bindings
                         .iter()
@@ -1467,6 +1456,60 @@ pub fn argument_rewrites_place(argument: &StructuralArgument, place: PlaceId) ->
                 argument.access,
                 terminal_psi::exclusive_borrow_pair_pattern!()
             ))
+}
+/// Whether `operation` writes or vacates `place`, or re-lends it with
+/// authority another party can write through: a bare-place destination that
+/// replaces or re-establishes the contents, a parameter-row destination, a
+/// vacating move source, an atomic event joining the residence, or a
+/// structural argument the operation carries that gives the place away.
+/// Every establishing shape's stored-whole children are structural
+/// arguments — record and case initializers, array elements, element-view
+/// and reference sources, a reseating store's delivered value, and call
+/// argument rows — so one roster of operands answers for all of them.
+fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
+    if match operation {
+        // Bare-place destinations that replace or re-establish contents.
+        O::PrimitiveLocalStore { destination, .. }
+        | abstract_operations::byte_sequence_write_pair_pattern!(destination, ..)
+        | abstract_operations::byte_sequence_store_pair_pattern!(destination, ..)
+        | O::EstablishElementView { destination, .. } => *destination == place,
+        // Parameter-row destinations and vacating move sources.
+        O::WriteOnlyPrimitiveStore { destination, .. } => destination.place() == place,
+        O::StoreStructuralField { destination, .. } => destination.place() == place,
+        O::StructuralScalarFieldStore { destination, .. } => destination.place() == place,
+        O::MoveStructuralField { source, .. } => source.place() == place,
+        // An atomic resident's contents may change under another event.
+        O::AtomicEvent { event, .. } => event.place() == Some(place),
+        _ => false,
+    } {
+        return true;
+    }
+    structural_argument_operands(operation).any(|argument| argument_rewrites_place(argument, place))
+}
+/// Every structural-argument operand `operation` carries: record and case
+/// initializers stored whole, array elements, element-view and reference
+/// sources, a reseating store's delivered value, and call argument rows.
+fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &StructuralArgument> {
+    let mut operands: Vec<&StructuralArgument> = Vec::new();
+    match operation {
+        O::EstablishStructuralArray { elements, .. } => operands.extend(elements),
+        abstract_operations::establish_case_or_record_fields_pattern!(fields) => {
+            for initializer in fields {
+                if let Some(argument) = initializer.value.as_structural() {
+                    operands.push(argument);
+                }
+            }
+        }
+        O::EstablishElementView { source, .. } | O::EstablishReference { source, .. } => {
+            operands.push(source);
+        }
+        O::StoreStructuralField { value, .. } => operands.push(value),
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
+            operands.extend(structural_arguments.iter())
+        }
+        _ => {}
+    }
+    operands.into_iter()
 }
 /// The establishment basis: the chain of establishing producers along `path`
 /// proves the field's stored scalar by name. `Some(Initializer(..))` when
@@ -1494,7 +1537,6 @@ fn establishment_scalar(
     function: &PsiOptimizationFunction,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
-    bound_place: &dyn Fn(&PsiOptimizationFunction, PlaceId) -> Option<PlaceId>,
 ) -> Option<EstablishmentScalar> {
     let mut place = evidence.declaration.id;
     let mut producer = evidence.root_producer;
@@ -1674,23 +1716,12 @@ pub(crate) fn proven_field_value(
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
     kind: ObservedFieldKind,
-    bound_place: &dyn Fn(&PsiOptimizationFunction, PlaceId) -> Option<PlaceId>,
-    forwarded_resolution: &dyn Fn(
-        &PsiOptimizationFunction,
-        &FunctionAnalysis,
-        &OptimizationBlock,
-        usize,
-        &OptimizationNode,
-        ValueId,
-        ScalarType,
-        ValueId,
-    ) -> Option<ForwardedFieldValue>,
 ) -> Option<ProvenFieldValue> {
     let declaration = observed_field_declaration(unit, evidence, path, field)?;
     if !matches_observed_kind(declaration, kind) {
         return None;
     }
-    let establishment = establishment_scalar(unit, evidence, function, path, field, bound_place);
+    let establishment = establishment_scalar(unit, evidence, function, path, field);
     match establishment {
         // A zeroed establishment fixes the leaf at literal zero outright —
         // there is no initializer operand to fold or forward.
@@ -1718,7 +1749,7 @@ pub(crate) fn proven_field_value(
     let EstablishmentScalar::Initializer(producer, initializer) = establishment? else {
         return None;
     };
-    forwarded_resolution(
+    forwarded_field_value(
         function,
         analysis,
         block,
@@ -1736,11 +1767,10 @@ pub(crate) fn proven_field_value(
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
 /// `StructuralScalarFieldRead` observing the evidence's place whose stored
-/// value the unit proves. `None` for every other node. The bound-place and
-/// forward-resolution policies are the caller's own: the admission and
-/// replay sides each supply theirs, and the node gate itself is the shared
-/// derivation.
-pub fn admit_field_node(
+/// value the unit proves. `None` for every other node. Private because
+/// `field_value_reads` is the roster every caller wants; a second entry that
+/// admits one node at a time would let a caller sweep its own order.
+fn admit_field_node(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
@@ -1748,17 +1778,6 @@ pub fn admit_field_node(
     block: &OptimizationBlock,
     node_index: usize,
     node: &OptimizationNode,
-    bound_place: &dyn Fn(&PsiOptimizationFunction, PlaceId) -> Option<PlaceId>,
-    forwarded_resolution: &dyn Fn(
-        &PsiOptimizationFunction,
-        &FunctionAnalysis,
-        &OptimizationBlock,
-        usize,
-        &OptimizationNode,
-        ValueId,
-        ScalarType,
-        ValueId,
-    ) -> Option<ForwardedFieldValue>,
 ) -> Option<FieldValueRow> {
     let O::StructuralScalarFieldRead {
         psi_operation,
@@ -1788,8 +1807,6 @@ pub fn admit_field_node(
         path,
         *field,
         kind,
-        bound_place,
-        forwarded_resolution,
     )?;
     Some(FieldValueRow {
         site: NodeLocation {
@@ -1805,4 +1822,274 @@ pub fn admit_field_node(
         producer: proven.producer,
         resolution: proven.resolution,
     })
+}
+
+/// The full admissible read roster for `place`: every Boolean or integer
+/// `StructuralScalarFieldRead` observing the evidence's place whose stored
+/// value the unit proves, in node order. A plan with no reads means the place
+/// is proven but currently unobserved. This is the one roster a producer
+/// publishes and a replay re-derives, so the two can never disagree about
+/// which observations an admissible plan names.
+pub fn field_value_reads(
+    unit: &PsiOptimizationUnit,
+    evidence: &FieldEvidence<'_>,
+    function: &PsiOptimizationFunction,
+) -> Vec<FieldValueRow> {
+    let analysis = function_analysis(function);
+    let mut reads = Vec::new();
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let Some(row) =
+                admit_field_node(unit, evidence, function, &analysis, block, node_index, node)
+            else {
+                continue;
+            };
+            reads.push(row);
+        }
+    }
+    reads.sort_by_key(|row| row.site);
+    reads
+}
+
+/// The `Forward` resolution for one nonconstant-initialized read, or `None`
+/// when the substitution cannot retire the observation exactly: the
+/// initializer must resolve to a same-function definition of the read's own
+/// scalar type and dominate every use site, every scalar-operand use of the
+/// read's result must sit in an operation the substitution lane rewrites,
+/// and the observation node itself must be cleanly removable — exactly its
+/// result definition, no successors, no ownership events, a following node
+/// to absorb its custody, and no shared provenance with that receiver. Field
+/// observations emit no optimization facts, so no fact custody is owed.
+#[allow(clippy::too_many_arguments)]
+fn forwarded_field_value(
+    function: &PsiOptimizationFunction,
+    analysis: &FunctionAnalysis,
+    block: &OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    result: ValueId,
+    scalar_type: ScalarType,
+    initializer: ValueId,
+) -> Option<ForwardedFieldValue> {
+    if initializer == result {
+        return None;
+    }
+    let definition = analysis.definitions.get(&initializer)?;
+    if definition.scalar_type != scalar_type {
+        return None;
+    }
+    if !retirable_scalar_node(block, node_index, node, result, scalar_type) {
+        return None;
+    }
+    if !receiver_custody_distinct(block, node_index, node) {
+        return None;
+    }
+    // Every site that references the read's result: the tracked scalar-operand
+    // uses, which include each runtime-selected path element's selector. A
+    // use inside a byte-sequence operation, or as a runtime selector whose
+    // accepted certificate names that exact value, is outside the lane, so
+    // the row is inadmissible rather than partially substituted.
+    let mut uses = BTreeSet::new();
+    for use_block in &function.blocks {
+        for (use_index, use_node) in use_block.nodes.iter().enumerate() {
+            let referenced = use_node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == result);
+            if !referenced {
+                continue;
+            }
+            if use_node.operation.operates_on_byte_sequence_storage()
+                || use_node
+                    .operation
+                    .runtime_indices()
+                    .iter()
+                    .any(|(index, _)| *index == result)
+            {
+                return None;
+            }
+            let site = NodeLocation {
+                machine: function.machine,
+                block: use_block.id,
+                node: u32::try_from(use_index).ok()?,
+            };
+            let dominates = match definition.site {
+                ValueDefinitionSite::FunctionParameter(_) => true,
+                ValueDefinitionSite::BlockParameter {
+                    block: defining, ..
+                } => analysis
+                    .dominators
+                    .get(&use_block.id)
+                    .is_some_and(|set| set.contains(&defining)),
+                ValueDefinitionSite::Node {
+                    block: defining,
+                    node: defined_at,
+                } => {
+                    if defining == use_block.id {
+                        defined_at < site.node
+                    } else {
+                        analysis
+                            .dominators
+                            .get(&use_block.id)
+                            .is_some_and(|set| set.contains(&defining))
+                    }
+                }
+            };
+            if !dominates {
+                return None;
+            }
+            uses.insert(site);
+        }
+    }
+    Some(ForwardedFieldValue {
+        initializer,
+        scalar_type,
+        uses: uses.into_iter().collect(),
+    })
+}
+
+/// The shape a scalar-node retirement requires at its own coordinate: the node
+/// carries exactly the one result definition the patch names, no successors,
+/// no ownership events, and a following node to absorb the vacated custody.
+/// The layer that rewrites the unit owns the judgment, so every family that
+/// removes one scalar node and substitutes its live result — the dead-scalar
+/// elimination, the total scalar identity, the proof-certified scalar
+/// identity, and the field-value forward resolution — reads it here instead of
+/// re-deriving it. Callers keep their own evidence reconstruction and their own
+/// rejection class.
+pub fn retirable_scalar_node(
+    block: &OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    result: ValueId,
+    scalar_type: ScalarType,
+) -> bool {
+    let Ok(coordinate) = u32::try_from(node_index) else {
+        return false;
+    };
+    let definition = ValueDefinition {
+        value: result,
+        scalar_type,
+        site: ValueDefinitionSite::Node {
+            block: block.id,
+            node: coordinate,
+        },
+    };
+    node.definitions == [definition]
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+        && node_index
+            .checked_add(1)
+            .is_some_and(|next| block.nodes.get(next).is_some())
+}
+
+/// The receiver of a vacated coordinate must not already carry any of the
+/// retired node's provenance sources, or the fuse counts one occurrence twice.
+pub fn receiver_custody_distinct(
+    block: &OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+) -> bool {
+    node_index.checked_add(1).is_some_and(|next| {
+        block.nodes.get(next).is_some_and(|receiver| {
+            !receiver
+                .provenance
+                .iter()
+                .any(|source| node.provenance.contains(source))
+        })
+    })
+}
+
+/// The exact block region and node custody a read roster carries, computed
+/// from the input function's coordinates. A `Constant` row folds its
+/// observation in place: the read's own provenance and fuel stay realized at
+/// the same node. A `Forward` row retires its observation node: the read's
+/// custody lands at the node that inherits the vacated index — the next
+/// surviving input node — and every later node in the block shifts down one
+/// coordinate per earlier retirement. Because effects are a function-wide
+/// sequence, every block at or after the earliest retired-node block is inside
+/// the region, and every provenance-bearing node in a region block whose
+/// custody moved — or whose own operation changed — gets one ledger row.
+/// `None` only when a node coordinate does not fit the ledger's `u32` index.
+pub fn field_value_accounting(
+    input_function: &PsiOptimizationFunction,
+    rows: &[FieldValueRow],
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let machine = input_function.machine;
+    let mut removals: BTreeMap<BlockId, BTreeSet<u32>> = BTreeMap::new();
+    let mut fold_sites: BTreeSet<(BlockId, u32)> = BTreeSet::new();
+    let mut use_sites: BTreeSet<(BlockId, u32)> = BTreeSet::new();
+    for row in rows {
+        match &row.resolution {
+            FieldValueResolution::Constant(_) => {
+                fold_sites.insert((row.site.block, row.site.node));
+            }
+            FieldValueResolution::Forward(forwarded) => {
+                removals
+                    .entry(row.site.block)
+                    .or_default()
+                    .insert(row.site.node);
+                for site in &forwarded.uses {
+                    use_sites.insert((site.block, site.node));
+                }
+            }
+        }
+    }
+    let earliest_removal = input_function
+        .blocks
+        .iter()
+        .position(|block| removals.contains_key(&block.id));
+    let mut affected = BTreeSet::new();
+    let mut provenance = Vec::new();
+    for (block_position, block) in input_function.blocks.iter().enumerate() {
+        let removal = removals.get(&block.id);
+        let first_removed = removal.and_then(|set| set.iter().next().copied());
+        let in_suffix = earliest_removal.is_some_and(|position| block_position > position);
+        let mut block_affected = removal.is_some() || in_suffix;
+        for (index, node) in block.nodes.iter().enumerate() {
+            let node_index = u32::try_from(index).ok()?;
+            let coordinate = (block.id, node_index);
+            if fold_sites.contains(&coordinate) || use_sites.contains(&coordinate) {
+                block_affected = true;
+            }
+            let retired = removal.is_some_and(|set| set.contains(&node_index));
+            let shifted = first_removed.is_some_and(|first| node_index > first);
+            if !retired
+                && !shifted
+                && !in_suffix
+                && !fold_sites.contains(&coordinate)
+                && !use_sites.contains(&coordinate)
+            {
+                continue;
+            }
+            if !retired && node.provenance.is_empty() {
+                continue;
+            }
+            let input_site = PsiRealizationSite::Node(NodeLocation {
+                machine,
+                block: block.id,
+                node: node_index,
+            });
+            let earlier_removals = removal
+                .map(|set| set.iter().filter(|removed| **removed < node_index).count())
+                .unwrap_or(0);
+            let output_index = node_index.checked_sub(u32::try_from(earlier_removals).ok()?)?;
+            let output_site = PsiRealizationSite::Node(NodeLocation {
+                machine,
+                block: block.id,
+                node: output_index,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: input_site,
+                disposition: ProvenanceDisposition::RealizedAt(output_site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+        if block_affected {
+            affected.insert(block.id);
+        }
+    }
+    provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
+    Some((affected.into_iter().collect(), provenance))
 }

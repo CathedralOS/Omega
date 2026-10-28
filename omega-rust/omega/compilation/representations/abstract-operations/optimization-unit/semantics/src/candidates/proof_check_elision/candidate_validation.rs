@@ -14,9 +14,10 @@ use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, contract,
-    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, sweep_output_nodes,
+    accept_region_rewrite, candidate_block, candidate_function, contract, retire_node_custody,
+    sweep_output_nodes,
 };
+use optimization_unit::{receiver_custody_distinct, retirable_scalar_node};
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
