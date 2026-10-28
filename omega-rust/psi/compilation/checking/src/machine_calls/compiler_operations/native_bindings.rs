@@ -53,6 +53,57 @@ pub fn native_binding_widths(
         .map_err(|message| vec![Diagnostic::error(message)])
 }
 
+/// The exact SDK sum prescribes zero for unused locator coordinates. This is
+/// a declaration-owned equation, independent of the constructor's caller.
+pub fn native_locator_unused_widths(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    case: SymbolHandle,
+) -> Option<[bool; 3]> {
+    if let Ok(definition) = exact_vocabulary(typed, symbol, "DllImport") {
+        let parameters = exact_width_parameters(typed, definition).ok()?;
+        validate_dll_import_shape(typed, definition, parameters).ok()?;
+        let ordinal = typed.data_members(definition).iter().position(|member| {
+            member
+                .as_variant()
+                .is_some_and(|variant| variant.symbol == case)
+        })?;
+        return [
+            [false, false, true],
+            [false, true, true],
+            [false; 3],
+            [false, false, true],
+        ]
+        .get(ordinal)
+        .copied();
+    }
+    let definition = exact_vocabulary(typed, symbol, "ForeignBinding").ok()?;
+    let widths = exact_width_parameters(typed, definition).ok()?;
+    let import_symbol = typed
+        .data_members(definition)
+        .first()?
+        .as_variant()
+        .and_then(|variant| typed.data_payload_fields(variant).first())
+        .and_then(|field| {
+            match typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            {
+                TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+                _ => None,
+            }
+        })?;
+    let import = exact_vocabulary(typed, import_symbol, "DllImport").ok()?;
+    validate_dll_import_shape(typed, import, exact_width_parameters(typed, import).ok()?).ok()?;
+    validate_binding_shape(typed, definition, widths, import_symbol).ok()?;
+    let ordinal = typed.data_members(definition).iter().position(|member| {
+        member
+            .as_variant()
+            .is_some_and(|variant| variant.symbol == case)
+    })?;
+    [[false; 3], [true; 3]].get(ordinal).copied()
+}
+
 fn exact_vocabulary<'a>(
     typed: &'a TypedTrees,
     symbol: SymbolHandle,

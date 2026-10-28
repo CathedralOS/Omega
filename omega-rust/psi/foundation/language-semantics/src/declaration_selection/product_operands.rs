@@ -52,6 +52,9 @@ pub struct ProductStaticApplication {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ProductOperandType {
+    /// Already evaluated, typed const actual from a checked specialization.
+    /// Ordinary const replay validates its independent receiving carrier.
+    CanonicalConst(crate::const_value::CanonicalConstValue),
     #[default]
     Invalid,
     Unit,
@@ -210,6 +213,8 @@ pub enum ProductUnaryOperator {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProductBinaryOperator {
+    /// Typed tag observation; its exact right case remains in the owned graph.
+    CaseMembership,
     Add,
     And,
     BitwiseAnd,
@@ -270,4 +275,35 @@ pub enum ProductMatchFieldAction {
 pub struct ProductProofSelector {
     pub output: Handle<ProductOperandName>,
     pub binding: Handle<ProductOperandName>,
+}
+
+/// Actual static substitutions of the checked helper activation that executed
+/// an inert Product request. Arena handles belong only to this owned graph;
+/// source declaration coordinates preserve exact binder and supplier scopes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProductStaticEnvironment {
+    /// Canonical comparison input from the exact specialization receipt, not
+    /// an alternate type/value decoder. Semantic actuals remain in `graph`.
+    pub identity: Vec<u8>,
+    pub template: Option<SourceSpan>,
+    pub lexical_owner: Option<SourceSpan>,
+    pub graph: ProductStaticOperandGraph,
+    pub bindings: Arena<ProductStaticEnvironmentBinding>,
+    pub lifetimes: Arena<ProductStaticEnvironmentLifetime>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProductStaticEnvironmentBinding {
+    pub parameter: SourceSpan,
+    pub argument: Handle<ProductStaticOperand>,
+    pub lexical_owner: SourceSpan,
+    pub declared_type: Handle<ProductOperandType>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProductStaticEnvironmentLifetime {
+    pub parameter_owner: SourceSpan,
+    pub parameter_ordinal: u32,
+    pub argument: Handle<ProductOperandName>,
+    pub lexical_owner: SourceSpan,
 }

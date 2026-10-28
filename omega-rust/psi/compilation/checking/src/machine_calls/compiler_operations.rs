@@ -10,7 +10,7 @@ pub use build_declarations::{
     build_operation, build_product_request_intrinsic, is_build_declaration_selection,
     resolve_build_static_operand,
 };
-pub use native_bindings::native_binding_widths;
+pub use native_bindings::{native_binding_widths, native_locator_unused_widths};
 
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,

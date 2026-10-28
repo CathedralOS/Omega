@@ -58,6 +58,29 @@ impl Lower<'_> {
         }
         self.active_expressions.push(handle);
         let value = self.graph.expressions.get(handle).clone();
+        if let ProductExpressionKind::Name(names) = &value.kind
+            && names.count() == 1
+            && let Some(name) = names.handles().next()
+            && let Some(actual) = self.environment_argument(name)?
+        {
+            let declared = actual.declared_type.ok_or_else(|| {
+                self.error("a static type or callable actual cannot become a const value")
+            })?;
+            let reference = self
+                .program
+                .static_operand_type_reference_in_scope(&actual.argument, actual.owner)
+                .map_err(|reason| self.error(reason))?;
+            let node = crate::monomorphization::materialize_static_value(
+                self.program,
+                reference,
+                declared,
+            )
+            .ok_or_else(|| self.error("completed static actual has no ordinary const value"))?;
+            let result = self.program.expression_table.insert(node);
+            self.expressions.push((handle, result));
+            self.active_expressions.pop();
+            return Ok(result);
+        }
         let node = match value.kind {
             ProductExpressionKind::Invalid => {
                 return Err(self.error("designated constant expression has an invalid node"));
@@ -404,6 +427,7 @@ impl Lower<'_> {
 }
 fn binary(value: ProductBinaryOperator) -> expr::BinaryOperator {
     match value {
+        ProductBinaryOperator::CaseMembership => expr::BinaryOperator::CaseMembership,
         ProductBinaryOperator::Add => expr::BinaryOperator::Add,
         ProductBinaryOperator::And => expr::BinaryOperator::And,
         ProductBinaryOperator::BitwiseAnd => expr::BinaryOperator::BitwiseAnd,

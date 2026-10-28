@@ -45,6 +45,8 @@ pub struct ExecutedNativeBinding {
     pub target: super::ProductTarget,
     pub locator: NativeBindingValue,
     pub widths: [u64; 3],
+    pub static_environment:
+        Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
 }
 
 /// Decode a complete, independently type-authenticated locator value. Field

@@ -1,6 +1,9 @@
 //! Resolve a Build operation's static operand path to its declaration symbol
 //! over the typed program.
 
+mod static_environment;
+pub use static_environment::capture_static_environment;
+
 use crate::expression::StaticMachineArgument;
 use crate::typed_trees::TypedTrees;
 use symbols::{JoinedPath, SymbolHandle};

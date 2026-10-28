@@ -171,11 +171,23 @@ pub fn admit_native_binding(
         .strip_prefix(&source.package_root)
         .map_err(|_| "native binding source is outside its immutable package")?;
     let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.invocation.sha256.v2\0",
+        b"omega.build-native-binding.invocation.sha256.v3\0",
     );
     hash.raw(observation.identity().as_bytes());
     hash.bytes(producer.as_bytes());
     hash.bytes(requirement_identity.as_bytes());
+    match &event.static_environment {
+        None => hash.byte(0),
+        Some(environment) => {
+            if environment.identity.is_empty() {
+                return Err(
+                    "native helper environment lost its exact specialization identity".into(),
+                );
+            }
+            hash.byte(1);
+            hash.bytes(&environment.identity);
+        }
+    }
     hash.bytes(relative.to_string_lossy().as_bytes());
     hash.bytes(source.source.as_bytes());
     hash.u64(source_span.span.start as u64);
@@ -347,7 +359,7 @@ pub fn admit_native_binding(
         _ => target::ForeignLocatorIdentityDigest::from_digest(invocation),
     };
     let mut materialization = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.materialization.sha256.v2\0",
+        b"omega.build-native-binding.materialization.sha256.v3\0",
     );
     materialization.raw(&invocation);
     materialization.raw(&locator_identity.as_bytes());
@@ -372,7 +384,7 @@ pub fn admit_native_binding(
         2, // Schema 2: the authenticated, engine-tagged sponsoring Build context.
         retained_usage,
         EvaluatedBindingEvaluationDigest::from_bytes(invocation)?,
-        2,
+        3,
         EvaluatedBindingMaterializationDigest::from_bytes(materialization)?,
         locator_identity,
     )?;

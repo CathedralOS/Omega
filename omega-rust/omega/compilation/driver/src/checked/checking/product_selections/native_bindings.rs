@@ -41,7 +41,11 @@ pub(super) fn admit(
             event.selecting_machine,
         )
         .map_err(|reason| refuse(&reason))?;
-        let prepared = source.prepare_product_requirement_operand(operand, author)?;
+        let prepared = source.prepare_product_requirement_operand(
+            operand,
+            author,
+            event.static_environment.as_deref(),
+        )?;
         resolved.push((ordinal, event, prepared, author));
     }
     let typed = source.typed();

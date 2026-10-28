@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v5\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v6\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -127,6 +127,18 @@ impl BuildOutputIdentity<'_> {
             self.product_request(&event.request)?;
             self.occurrence(event.selecting_machine)?;
             self.product_target(Some(event.target));
+            match &event.static_environment {
+                None => self.digest.byte(0),
+                Some(environment) => {
+                    if environment.identity.is_empty() {
+                        return Err(
+                            "native helper environment lost its specialization identity".into()
+                        );
+                    }
+                    self.digest.byte(1);
+                    self.digest.bytes(&environment.identity);
+                }
+            }
             for width in event.widths {
                 self.digest.u64(width);
             }

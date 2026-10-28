@@ -237,7 +237,7 @@ impl TypedTrees {
         {
             return None;
         }
-        let provider = self.declaration_scope_parent(machine.symbol);
+        let provider = self.symbols.symbol_module(machine.symbol);
         if machine.attached_data.is_some()
             || !provider.is_valid()
             || self.symbols.get(provider).kind != symbols::SymbolKind::Module

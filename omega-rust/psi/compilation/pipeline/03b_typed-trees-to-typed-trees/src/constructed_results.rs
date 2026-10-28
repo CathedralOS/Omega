@@ -391,6 +391,31 @@ fn retain_constructor_result_type(
     scope: ValueTypeOwner,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    let defaults = program
+        .expression_table
+        .struct_literal_node(expression)
+        .and_then(|literal| {
+            validation::compiler_operations::native_locator_unused_widths(
+                program,
+                literal.type_symbol,
+                literal.case_symbol?,
+            )
+        });
+    let zero = if defaults.is_some_and(|defaults| defaults.into_iter().any(|unused| unused)) {
+        let retained = program.type_reference_table.named_references().find_map(
+            |(reference, symbol, name)| (!symbol.is_valid() && name == "0").then_some(reference),
+        );
+        retained.unwrap_or_else(|| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: symbols::SymbolHandle::invalid(),
+                    name: typed_trees::name::Identifier::generated("0"),
+                })
+        })
+    } else {
+        TypeReferenceHandle::invalid()
+    };
     let literal = program.expression_table.struct_literal_node(expression)?;
     let owner = program.unique_data_definition_by_symbol(literal.type_symbol)?;
     let parameters = program.data_type_parameters(owner);
@@ -517,6 +542,16 @@ fn retain_constructor_result_type(
             }
             _ => return None,
         };
+        if proposals.is_empty()
+            && let Some(defaults) = defaults
+            && const_parameters
+                .iter()
+                .position(|(symbol, _, _)| *symbol == parameter.symbol)
+                .is_some_and(|ordinal| defaults[ordinal])
+        {
+            arguments.push(zero);
+            continue;
+        }
         let first = *proposals.first()?;
         let identity =
             typed_trees::type_identity::applied_type_identity(program, first, scope.symbol(), &[])?;

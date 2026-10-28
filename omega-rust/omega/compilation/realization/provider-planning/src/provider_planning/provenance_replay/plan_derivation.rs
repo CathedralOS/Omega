@@ -12,7 +12,7 @@
 //! executable tuple separately, without inflating original schema coverage.
 
 use crate::ProviderPlanningContext;
-use crate::provider_planning::operator_provider_evidence::{
+use crate::provider_identity::{
     provider_owner_package_identity, provider_owner_path, provider_owner_symbol,
 };
 use crate::provider_planning::provenance_replay::requirement_identities::{
@@ -670,10 +670,6 @@ fn checked_adapter_draft(
         machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
     }
 }
-
-/// The provider binding an exact evaluated via-binding row supplies for a
-/// machine's `via` conformance clause: the evaluated table's recorded
-/// binding when the row exists.
 
 /// The position of the derived plan keyed by its name, provider and origin
 /// package identities, schema declaration and provider symbol — inserting the

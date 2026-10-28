@@ -137,7 +137,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     let adapter = exact_checked_adapter(context, plan, row)?;
     let declaration = match crate::provider_identity::named_provider(context, plan) {
         Some(owner) => owner.symbol,
-        None => super::super::operator_provider_evidence::provider_owner_symbol(typed, adapter)
+        None => crate::provider_identity::provider_owner_symbol(typed, adapter)
             .unwrap_or_else(symbols::SymbolHandle::invalid),
     };
     if !declaration.is_valid() || !context.contains(declaration) {
@@ -232,7 +232,7 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    if super::super::operator_provider_evidence::provider_owner_symbol(typed, adapter)
+    if crate::provider_identity::provider_owner_symbol(typed, adapter)
         .is_some_and(|owner| !context.contains(owner))
     {
         return Err(diagnostics::Diagnostic::error(format!(

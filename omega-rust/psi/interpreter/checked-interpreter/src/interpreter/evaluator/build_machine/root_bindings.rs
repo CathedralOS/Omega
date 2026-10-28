@@ -295,6 +295,12 @@ impl<'program> Evaluator<'program> {
                     .map_err(Halt::Trap)?;
                 SourceBuildSelection::Native(
                     language_semantics::declaration_selection::ExecutedNativeBinding {
+                        static_environment:
+                            typed_trees::product_operand::capture_static_environment(
+                                self.program,
+                                frame.machine_symbol,
+                            )
+                            .map_err(Halt::Trap)?,
                         request,
                         target,
                         locator,
@@ -330,6 +336,12 @@ impl<'program> Evaluator<'program> {
                 };
                 SourceBuildSelection::Native(
                     language_semantics::declaration_selection::ExecutedNativeBinding {
+                        static_environment:
+                            typed_trees::product_operand::capture_static_environment(
+                                self.program,
+                                frame.machine_symbol,
+                            )
+                            .map_err(Halt::Trap)?,
                         request,
                         target,
                         locator,
@@ -361,6 +373,7 @@ impl<'program> Evaluator<'program> {
                 let bytes = u64::try_from(bytes)
                     .map_err(|_| Halt::Trap("native demand bytes exceeds u64".into()))?;
                 SourceBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
+                        static_environment: typed_trees::product_operand::capture_static_environment(self.program,frame.machine_symbol).map_err(Halt::Trap)?,
                     request, target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3],
                     selecting_machine:author_coordinate.ok_or_else(||Halt::Trap("native demand lost its selecting owner".into()))?,
                 })

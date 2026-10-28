@@ -47,8 +47,8 @@ pub struct Machine {
     /// strict effect and operational ceilings without changing supply mode.
     pub is_public: bool,
     /// Structural package exposure, independent of name visibility and supply.
-    /// An external boundary retains its exported contract even when its supply
-    /// is ExternalRealization rather than Boundary. Authored once in resolution.
+    /// A boundary declaration retains its structural contract independently
+    /// of whether its name is exported. Authored once in resolution.
     pub interface_exposure:
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     /// Populated once at syntax-to-resolved lowering and copied downstream;

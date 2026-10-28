@@ -2583,6 +2583,7 @@ dependencies = [
  "phase-profile",
  "proof",
  "representation-selections",
+ "source",
  "symbols",
  "typed-trees",
  "validation",

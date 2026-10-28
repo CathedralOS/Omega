@@ -40,6 +40,11 @@ pub struct TerminalBuildBindingCall {
     pub request: TerminalBuildSelectionRequest,
     pub selecting_machine: Option<source::SourceSpan>,
     pub locator_widths: Option<[u64; 3]>,
+    pub static_environment: Option<
+        std::sync::Arc<
+            language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+    >,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -189,6 +194,24 @@ pub(super) fn capture(
         } else {
             None
         };
+        let static_environment = checked
+            .machines()
+            .iter()
+            .find(|machine| {
+                checked
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == occurrence.source_state)
+            })
+            .map(|machine| {
+                typed_trees::product_operand::capture_static_environment(
+                    &checked.typed,
+                    machine.symbol,
+                )
+            })
+            .transpose()
+            .map_err(diagnostics::Diagnostic::error)?
+            .flatten();
         calls.push(TerminalBuildBindingCall {
             operation,
             boundary,
@@ -214,6 +237,7 @@ pub(super) fn capture(
             })?,
             selecting_machine,
             locator_widths,
+            static_environment,
         });
     }
     Ok(calls)

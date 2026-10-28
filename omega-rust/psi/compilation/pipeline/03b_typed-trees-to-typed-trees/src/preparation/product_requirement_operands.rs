@@ -15,6 +15,7 @@ use typed_trees::{
     types::{self, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod environment;
 mod expressions;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +31,7 @@ pub fn prepare_product_requirement_operand(
     program: &mut TypedTrees,
     operand: &ProductDeclarationOperand,
     author: SymbolHandle,
+    static_environment: Option<&ProductStaticEnvironment>,
 ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
     let refuse =
         |reason: &str| vec![Diagnostic::error(reason).with_source_span(operand.source_span)];
@@ -49,10 +51,13 @@ pub fn prepare_product_requirement_operand(
             refuse("native binding must name one exact visible package-owned requirement")
         });
     };
+    let author = environment::supplier_owner(program, static_environment, author)?;
     let mut lower = Lower {
         program,
         graph,
         author,
+        static_environment,
+        active_bindings: Vec::new(),
         types: Vec::new(),
         expressions: Vec::new(),
         subjects: Vec::new(),
@@ -283,6 +288,8 @@ struct Lower<'a> {
     program: &'a mut TypedTrees,
     graph: &'a ProductStaticOperandGraph,
     author: SymbolHandle,
+    static_environment: Option<&'a ProductStaticEnvironment>,
+    active_bindings: Vec<source::SourceSpan>,
     types: Vec<(Handle<ProductOperandType>, TypeReferenceHandle)>,
     expressions: Vec<(Handle<ProductOperandExpression>, expr::ExpressionHandle)>,
     subjects: Vec<(
@@ -470,7 +477,9 @@ impl Lower<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(expr::StaticSymbolApplication {
             arguments: arguments.into_boxed_slice(),
-            lifetime_arguments: self.identifiers(value.lifetimes).into_boxed_slice(),
+            lifetime_arguments: self
+                .lifetime_identifiers(value.lifetimes)?
+                .into_boxed_slice(),
             member: Handle::invalid(),
         })
     }
@@ -495,7 +504,9 @@ impl Lower<'_> {
         };
         Ok(expr::StaticSymbolApplication {
             arguments: arguments.into_boxed_slice(),
-            lifetime_arguments: self.identifiers(value.lifetimes).into_boxed_slice(),
+            lifetime_arguments: self
+                .lifetime_identifiers(value.lifetimes)?
+                .into_boxed_slice(),
             member,
         })
     }
@@ -508,6 +519,17 @@ impl Lower<'_> {
         }
         self.active_operands.push(handle);
         let value = self.graph.operands.get(handle).clone();
+        if value.path.count() == 1
+            && !value.application.is_valid()
+            && !value.structural_type.is_valid()
+        {
+            if let Some(name) = value.path.handles().next()
+                && let Some(actual) = self.environment_argument(name)?
+            {
+                self.active_operands.pop();
+                return Ok(actual.argument);
+            }
+        }
         let type_reference = self.ty_optional(value.structural_type)?;
         let application = value
             .application
@@ -574,7 +596,26 @@ impl Lower<'_> {
             return Err(self.error("designated type graph contains a cycle"));
         }
         self.active_types.push(handle);
+        if let ProductOperandType::Named(name) = self.graph.types.get(handle)
+            && let Some(actual) = self.environment_argument(*name)?
+        {
+            let reference = self
+                .program
+                .static_operand_type_reference_in_scope(&actual.argument, actual.owner)
+                .map_err(|reason| self.error(reason))?;
+            self.program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, actual.owner)
+                .map_err(|reason| self.error(reason))?;
+            self.types.push((handle, reference));
+            self.active_types.pop();
+            return Ok(reference);
+        }
         let node = match self.graph.types.get(handle).clone() {
+            ProductOperandType::CanonicalConst(value) => TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(value.atom()),
+            },
             ProductOperandType::Invalid => {
                 return Err(self.error("designated type graph contains an invalid node"));
             }
@@ -590,7 +631,7 @@ impl Lower<'_> {
             } => TypeReferenceNode::Generic {
                 base_symbol: self.symbol(name)?,
                 base_name: self.identifier(name),
-                lifetime_arguments: self.identifiers(lifetimes),
+                lifetime_arguments: self.lifetime_identifiers(lifetimes)?,
                 arguments: self.type_arguments(arguments)?,
             },
             ProductOperandType::Dynamic { name, arguments } => TypeReferenceNode::DynamicTrait {
@@ -605,7 +646,9 @@ impl Lower<'_> {
             } => TypeReferenceNode::Reference {
                 referee: self.ty(referee)?,
                 access,
-                lifetime: lifetime.map(|name| self.identifier(name)),
+                lifetime: lifetime
+                    .map(|name| self.lifetime_identifier(name))
+                    .transpose()?,
             },
             ProductOperandType::Array { element, length } => TypeReferenceNode::FixedArray {
                 element_type: self.ty(element)?,

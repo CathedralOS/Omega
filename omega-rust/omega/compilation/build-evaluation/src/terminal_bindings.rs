@@ -463,6 +463,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 locator,
                 widths,
                 selecting_machine,
+                static_environment: call.static_environment.clone(),
             },
         ));
         state.pending[ticket] = None;
@@ -625,6 +626,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                         target,
                         locator,
                         widths: [0; 3],
+                        static_environment: call.static_environment.clone(),
                         selecting_machine: call
                             .selecting_machine
                             .ok_or_else(|| refuse("typed table binding lost its authored owner"))?,
@@ -652,7 +654,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 let bytes =
                     u64::try_from(*bytes).map_err(|_| refuse("native demand exceeds u64"))?;
                 ExecutedBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
-                    request:Arc::clone(request), target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3],
+                    request:Arc::clone(request), target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3], static_environment:call.static_environment.clone(),
                     selecting_machine:call.selecting_machine.ok_or_else(||refuse("native demand lost its authored owner"))?,
                 })
             }
