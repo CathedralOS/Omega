@@ -294,9 +294,6 @@ impl StructuralJudge<'_> {
         self.integer_term_fits(value, target)
     }
 
-    /// The caller supplies an independently formed mathematical integer. This
-    /// does not create a runtime carrier or acquire fit from an operation's own
-    /// result. Both observed casts and anonymous operand landing share it.
     /// An unrelated, unavailable arithmetic premise cannot hide an already
     /// formed contradiction. Admit each retained rewrite in an isolated fork;
     /// failed projection or formation discards all of that fork's registrations.
@@ -336,6 +333,9 @@ impl StructuralJudge<'_> {
         false
     }
 
+    /// The caller supplies an independently formed mathematical integer. This
+    /// does not create a runtime carrier or acquire fit from an operation's own
+    /// result. Both observed casts and anonymous operand landing share it.
     pub(in crate::proof_contracts::contract_entailment) fn integer_term_fits(
         &self,
         value: StructuralTerm,

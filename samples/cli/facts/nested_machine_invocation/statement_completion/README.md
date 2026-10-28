@@ -73,3 +73,13 @@ separate from unavailable Windows native execution.
 The parent outcome remains open for its other normal-return/cycle obligations,
 product frontend migration, and broader custody/WCSU acceptance. The separate
 borrowed representation-view composition refusal is not claimed by this row.
+
+The real standard-library replay also retains the five Windows filesystem
+helper result guarantees. Its source admission is distinct from Windows native
+execution. A [UTF path regression](../../../../../tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg)
+retains independent numeric guards across captured decoder values and indexed
+stores. Its [index control](../../../../../tests/omega/fail/arithmetic/sparse_captured_utf_path_unbounded_index/main.omg)
+rejects an inclusive upper bound; an [unformed subtraction control](../../../../../tests/omega/fail/arithmetic/unformed_contradiction_cannot_hide_overflow/main.omg)
+cannot manufacture a contradiction to hide its own operand formation. These
+supplemental controls protect the bounded arithmetic workflow repair, rather
+than adding another transport row.
