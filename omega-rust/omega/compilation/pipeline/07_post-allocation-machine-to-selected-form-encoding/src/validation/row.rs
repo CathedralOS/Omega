@@ -17,6 +17,20 @@ use machine_code::{
 mod normalized_foreign_call;
 mod scalar_call;
 
+/// Reduce one arm's decoded row onto the footprint the interned row must
+/// match. Both ISAs spell the same three-part projection, so the reduction
+/// has one owner; only the ISA error mapping stays with the caller.
+macro_rules! decoded_row_footprint {
+    ($decoded:expr, $map:expr) => {{
+        let decoded = $decoded.map_err($map)?;
+        decoded_footprint(
+            &decoded.footprint().register_reads,
+            &decoded.footprint().register_writes,
+            &decoded.footprint().encoded,
+        )
+    }};
+}
+
 pub(crate) fn validate(
     target: NativeTarget,
     selected_function: &selected_instructions::SelectedFunction,
@@ -108,13 +122,8 @@ pub(crate) fn validate(
                         address.displacement,
                         bytes,
                     )
-                }
-                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-                decoded_footprint(
-                    &encoded.footprint().register_reads,
-                    &encoded.footprint().register_writes,
-                    &encoded.footprint().encoded,
-                )
+                };
+                decoded_row_footprint!(encoded, OptimizedSelectedFormEncodingError::Aarch64)
             } else {
                 let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
                 {
@@ -160,13 +169,8 @@ pub(crate) fn validate(
                         address.displacement,
                         bytes,
                     )
-                }
-                .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-                decoded_footprint(
-                    &encoded.footprint().register_reads,
-                    &encoded.footprint().register_writes,
-                    &encoded.footprint().encoded,
-                )
+                };
+                decoded_row_footprint!(encoded, OptimizedSelectedFormEncodingError::X86_64)
             };
             admit_decoded_footprint(selected.id, machine, bytes.len(), footprint, &decoded)?;
             Ok(())
@@ -349,13 +353,10 @@ fn validate_baseline(
                     &views,
                     bytes,
                 )
-            }
-            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            decoded_footprint(
-                &decoded.footprint().register_reads,
-                &decoded.footprint().register_writes,
-                &decoded.footprint().encoded,
-            )
+            };
+            decoded_row_footprint!(decoded, |_| {
+                OptimizedSelectedFormEncodingError::ArtifactMismatch
+            })
         }
         Architecture::Aarch64 => {
             let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
@@ -375,13 +376,10 @@ fn validate_baseline(
                     &views,
                     bytes,
                 )
-            }
-            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-            decoded_footprint(
-                &decoded.footprint().register_reads,
-                &decoded.footprint().register_writes,
-                &decoded.footprint().encoded,
-            )
+            };
+            decoded_row_footprint!(decoded, |_| {
+                OptimizedSelectedFormEncodingError::ArtifactMismatch
+            })
         }
     };
     admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
