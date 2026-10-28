@@ -21,6 +21,21 @@ fn structural_bindings(
         .collect()
 }
 
+fn value_bindings(
+    parameters: &[terminal_psi::ValueDeclaration],
+    arguments: &[semantic_vocabulary::ValueId],
+) -> Vec<ValueBinding> {
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| ValueBinding {
+            parameter: parameter.id,
+            argument: *argument,
+            scalar_type: parameter.scalar_type,
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_terminator(
     module: &terminal_psi::TerminalModule,
@@ -79,16 +94,7 @@ pub(super) fn lower_terminator(
                     &target_block.structural_parameters,
                     structural_arguments,
                 ),
-                bindings: target_block
-                    .parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| ValueBinding {
-                        parameter: parameter.id,
-                        argument: *argument,
-                        scalar_type: parameter.scalar_type,
-                    })
-                    .collect(),
+                bindings: value_bindings(&target_block.parameters, arguments),
                 cleanup_actions: runtime_cleanup_actions(module, cleanup_actions),
             });
         }
@@ -119,16 +125,7 @@ pub(super) fn lower_terminator(
                         &target_block.structural_parameters,
                         &successor.structural_arguments,
                     ),
-                    bindings: target_block
-                        .parameters
-                        .iter()
-                        .zip(&successor.arguments)
-                        .map(|(parameter, argument)| ValueBinding {
-                            parameter: parameter.id,
-                            argument: *argument,
-                            scalar_type: parameter.scalar_type,
-                        })
-                        .collect(),
+                    bindings: value_bindings(&target_block.parameters, &successor.arguments),
                     cleanup_actions: runtime_cleanup_actions(module, &successor.cleanup_actions),
                 })
             };
