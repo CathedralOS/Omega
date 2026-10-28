@@ -1685,9 +1685,16 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         Some(Err(message)) => (None, Some(message)),
         None => (None, None),
     };
+    let (requests_target_cohort, target_provision_error) =
+        match terminal_execution::compiled_target_provisions(&fixture_dir) {
+            Ok(requested) => (requested, None),
+            Err(message) => (false, Some(message)),
+        };
     let mut realized = false;
     let mut outcome = if let Some(errors) = discovery_error {
         Err(errors)
+    } else if let Some(message) = target_provision_error {
+        Err(vec![diagnostics::Diagnostic::error(message)])
     } else {
         match (&rollback_error, tier, &realization) {
             (Some(message), _, _) => Err(vec![diagnostics::Diagnostic::error(message.clone())]),
@@ -1757,7 +1764,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             }
             // An authored installation matrix observes one exact portable product,
             // not separately compiled native products for its named target rows.
-            (_, _, _) if terminal_target_oracle => {
+            (_, _, _) if terminal_target_oracle && !requests_target_cohort => {
                 shared_interpreter_request = !checked_interpreter_leg();
                 let check_target = check_leg_realization_target(&targets);
                 let leg = produce_terminal_semantic(
@@ -1800,11 +1807,11 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             // (`CHECK_LEG_TARGET_PREFERENCE`).
             (_, _, _) => {
                 let check_target = check_leg_realization_target(&targets);
-                let interpretation = (!checked_interpreter_leg()
-                    && check_target.is_some()
-                    && check_target == interpreter_target)
+                let interpretation = (check_target.is_some()
+                    && (terminal_target_oracle
+                        || (!checked_interpreter_leg() && check_target == interpreter_target)))
                     .then(|| {
-                        shared_interpreter_request = true;
+                        shared_interpreter_request = !checked_interpreter_leg();
                         (fixture_dir.as_path(), &mut interpreter_observation)
                     });
                 let check_outcome = match (&declared_rollback, &check_target) {
