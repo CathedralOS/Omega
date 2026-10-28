@@ -407,21 +407,15 @@ impl<'program> Engine<'program> {
     /// Range queries mint endpoint terms before installing their hypotheses.
     /// Recompute dependent intervals in mint order once those facts are live:
     /// an inner quotient must tighten before an outer quotient reads it.
+    /// This updates only derived interval metadata. Correlated operation laws
+    /// and hypothesis/matrix publication belong to their admission owners;
+    /// refreshing a candidate cannot establish its own formation premises.
     pub(super) fn refresh_opaque_intervals(&mut self) {
         if self.opaque_terms.is_empty() {
             return;
         }
         for position in 0..self.opaque_terms.len() {
             let (atom, term) = self.opaque_terms[position].clone();
-            let operation = match &term {
-                OpaqueTerm::Quotient { dividend, divisor } => {
-                    Some((BinaryOperator::Divide, dividend.clone(), divisor.clone()))
-                }
-                OpaqueTerm::Remainder {
-                    operand, modulus, ..
-                } => Some((BinaryOperator::Modulo, operand.clone(), modulus.clone())),
-                _ => None,
-            };
             let interval = match term {
                 OpaqueTerm::IntegerPolicy {
                     primitive,
@@ -454,17 +448,8 @@ impl<'program> Engine<'program> {
                     signed,
                 } => self.bitwise_interval(operator, &left, &right, bits, signed),
             };
-            self.arithmetic_intervals.insert(atom.clone(), interval);
-            if let Some((operator, left, right)) = operation {
-                self.install_integer_operation_bounds(
-                    operator,
-                    &left,
-                    &right,
-                    &Polynomial::atom(atom),
-                );
-            }
+            self.arithmetic_intervals.insert(atom, interval);
         }
-        self.refresh_difference_bounds();
     }
 
     /// Both operands mapped through the argument map together — `None` when
@@ -935,9 +920,9 @@ impl<'program> Engine<'program> {
         if !self.install_hypotheses(comparisons) {
             return false;
         }
-        // Scoped observations retain admitted integer operations. Once their
-        // live premises are installed, recover operand/result correlations as
-        // well as intervals before asking whether the goal's complement fits.
+        // Recompute derived intervals under the new live premises. Operation
+        // correlations were published separately by their formation owner;
+        // refreshing a candidate cannot donate a new hypothesis here.
         self.refresh_opaque_intervals();
         if self.requires_unsatisfiable
             || equalities

@@ -92,3 +92,43 @@ The row remains pending fresh source/runtime/canonical and reject qualification.
 It closes neither product subject migration nor the full owning task. Other
 integer conversions, floating conversion policies and higher-order or cyclic
 private inference retain their own acceptance; there is no count/width matrix.
+
+## Selected-operation formation controls
+
+The [selected-operation positive](controls/selected_operations/main.omg) narrows
+completed Trapping add, subtract, multiply, divide, remainder and both shift
+results from the same bounded private input. Seven disjoint byte lanes in one
+`u64` make each result observable without adding an aggregate ABI. Inputs 1, 7
+and 15 check all lanes; 0 and 16 check the guard-false route and untouched marker.
+Every call also checks the nonzero neighbor canaries.
+
+Its [twin](controls/selected_operations/invalid/main.omg) changes only the upper
+guard from 15 to 16, admitting an actual 256 result for multiplication and left
+shift. Selected Trapping policy remains recorded: mathematical consequences are
+available only after independent, child-first carrier/operation landing checks;
+the receiving `u8` goal never establishes those children.
+
+The [unsafe Exact-child reject](controls/unsafe_exact_intermediate/main.omg)
+explicitly erases the source policy before an overflowing Exact addition. A later
+multiplication by zero cannot hide that child's formation obligation. This is
+not a claim that Trapping overflow must reject statically; its runtime crash
+semantics remain unchanged. Exact `64ce` baseline refusals and fresh candidate
+acceptance belong to the retained qualification records.
+
+## Guarded normal Trapping results
+
+The [guarded-result compatibility positive](controls/guarded_trapping_result/main.omg)
+forms `computed = value + 1` under Trapping policy without an upper requirement,
+then guards its completed normal result below 256 before calling private
+`narrow`. Its actual inputs 0, 7 and 254 produce 1, 8 and 255; 255 and 300 take
+fallback zero. The program does not execute MAX, whose addition may trap.
+Retained `64ce` Source and native/Terminal execution already accept this program,
+and its canonical artifact reloads successfully.
+
+A prospective mathematical denotation may be unavailable when no independent
+NoTrap proof exists. That must preserve the already observed opaque normal
+result, its carrier and the dominating guard. It cannot turn existing accepted
+source into a mandatory no-overflow proof or erase Trapping semantics.
+The [twin](controls/guarded_trapping_result/invalid/main.omg) changes only the
+guard to below 257, allowing the actual completed value 256 into the narrowing;
+`64ce` rejects its exact cast. New candidate checks must preserve both outcomes.

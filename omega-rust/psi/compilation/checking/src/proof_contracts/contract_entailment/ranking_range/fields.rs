@@ -551,6 +551,20 @@ fn completed_source_value(
     source: &super::super::completed_values::CompletedValueSource,
     suffix: &[facts::PlaceSegment],
 ) -> Option<Polynomial> {
+    let mut admitted = engine.clone();
+    let value = completed_source_value_in(program, machine, state, &mut admitted, source, suffix)?;
+    *engine = admitted;
+    Some(value)
+}
+
+fn completed_source_value_in(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    engine: &mut Engine<'_>,
+    source: &super::super::completed_values::CompletedValueSource,
+    suffix: &[facts::PlaceSegment],
+) -> Option<Polynomial> {
     use super::super::completed_values::CompletedValueSource;
     match source {
         CompletedValueSource::Parameter { symbol, path } => {
@@ -590,25 +604,9 @@ fn completed_source_value(
                 return None;
             }
             let [left, right] = operands.as_ref();
-            let left = completed_source_value(program, machine, state, engine, left, &[])?;
-            let right = completed_source_value(program, machine, state, engine, right, &[])?;
-            let value = engine.selected_integer_binary_value(
-                *operator,
-                *meaning,
-                left.clone(),
-                right.clone(),
-            )?;
-            if !engine.integer_operation_lands(
-                *operator,
-                meaning.map(|(primitive, _)| primitive),
-                &left,
-                &right,
-                &value,
-            ) {
-                return None;
-            }
-            engine.install_integer_operation_bounds(*operator, &left, &right, &value);
-            Some(value)
+            let left = completed_source_value_in(program, machine, state, engine, left, &[])?;
+            let right = completed_source_value_in(program, machine, state, engine, right, &[])?;
+            engine.admit_selected_integer_operation(*operator, *meaning, &left, &right, None)
         }
         _ => None,
     }

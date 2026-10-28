@@ -207,6 +207,9 @@ impl Engine<'_> {
     /// The count is an independently completed integer, including when its
     /// own arithmetic policy is Wrapping. Bitwise AND has no overflow policy;
     /// its children still owe their individually selected formation.
+    /// Exact and Trapping operations share a candidate integer denotation when
+    /// their operands and result fit. Consumers must admit that landing before
+    /// installing any consequence; this does not alter raw policy evaluation.
     pub(in crate::proof_contracts::contract_entailment) fn integer_operation_meaning(
         operator: BinaryOperator,
         meaning: [(PrimitiveType, ArithmeticDomain); 2],
@@ -215,9 +218,11 @@ impl Engine<'_> {
         if builtin_integer_result_carrier(operator, [left, right]).is_none() {
             return false;
         }
+        let preserves_formed_value =
+            |policy| matches!(policy, ArithmeticDomain::Exact | ArithmeticDomain::Trapping);
         match operator {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
-                left_policy == ArithmeticDomain::Exact
+                preserves_formed_value(left_policy)
             }
             BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
                 true
@@ -227,7 +232,7 @@ impl Engine<'_> {
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
             | BinaryOperator::Modulo => {
-                left_policy == ArithmeticDomain::Exact && right_policy == ArithmeticDomain::Exact
+                preserves_formed_value(left_policy) && preserves_formed_value(right_policy)
             }
             _ => false,
         }
@@ -274,18 +279,17 @@ impl Engine<'_> {
         left: Polynomial,
         right: Polynomial,
     ) -> Option<Polynomial> {
-        let value = match operator {
+        // Candidate denotation is not admission. In particular quotient and
+        // remainder laws must not enter the engine while this operation's
+        // divisor, child formation or carrier fit is still being proved.
+        match operator {
             BinaryOperator::Add => Some(left.add(&right)),
             BinaryOperator::Subtract => Some(left.sub(&right)),
             BinaryOperator::Multiply => left.checked_mul(&right),
-            BinaryOperator::Divide => self.integer_quotient(left.clone(), right.clone()),
-            BinaryOperator::Modulo => self.integer_remainder(left.clone(), right.clone(), true),
+            BinaryOperator::Divide => self.integer_quotient(left, right),
+            BinaryOperator::Modulo => self.integer_remainder(left, right, true),
             _ => None,
-        }?;
-        if matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo) {
-            self.install_integer_operation_bounds(operator, &left, &right, &value);
         }
-        Some(value)
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn integer_value_lands(
@@ -312,7 +316,7 @@ impl Engine<'_> {
         )
     }
 
-    /// Selected builtin Exact meaning and already formed children belong to the
+    /// Selected builtin integer meaning and already formed children belong to the
     /// caller. These obligations apply before any consequence of this operation
     /// is installed; result bounds alone do not establish remainder formation.
     pub(in crate::proof_contracts::contract_entailment) fn integer_operation_lands(
@@ -323,13 +327,26 @@ impl Engine<'_> {
         right: &Polynomial,
         value: &Polynomial,
     ) -> bool {
-        let [primitive, right_primitive] = primitives;
         let Some(result) = builtin_integer_result_carrier(operator, primitives) else {
             return false;
         };
-        if !self.integer_value_lands(primitive, left)
+        self.integer_operation_inputs_land(operator, primitives, left, right)
+            && self.integer_value_lands(result, value)
+    }
+
+    /// Only independently available operand facts can justify creating a
+    /// candidate. No result atom or interval exists at this admission cut.
+    fn integer_operation_inputs_land(
+        &self,
+        operator: BinaryOperator,
+        primitives: [PrimitiveType; 2],
+        left: &Polynomial,
+        right: &Polynomial,
+    ) -> bool {
+        let [primitive, right_primitive] = primitives;
+        if builtin_integer_result_carrier(operator, primitives).is_none()
+            || !self.integer_value_lands(primitive, left)
             || !self.integer_value_lands(right_primitive, right)
-            || !self.integer_value_lands(result, value)
         {
             return false;
         }
@@ -375,6 +392,48 @@ impl Engine<'_> {
             }
         }
         true
+    }
+
+    /// Build and publish one selected operation transactionally. Failed
+    /// operand, definedness or result judgments leave the original engine
+    /// unchanged, including opaque intervals and contradiction state.
+    pub(in crate::proof_contracts::contract_entailment) fn admit_selected_integer_operation(
+        &mut self,
+        operator: BinaryOperator,
+        meaning: [(PrimitiveType, ArithmeticDomain); 2],
+        left: &Polynomial,
+        right: &Polynomial,
+        binding: Option<&Polynomial>,
+    ) -> Option<Polynomial> {
+        let primitives = meaning.map(|(primitive, _)| primitive);
+        if !Self::integer_operation_meaning(operator, meaning)
+            || !self.integer_operation_inputs_land(operator, primitives, left, right)
+        {
+            return None;
+        }
+        let result = builtin_integer_result_carrier(operator, primitives)?;
+        let mut admitted = self.clone();
+        let value = admitted.selected_integer_binary_value(
+            operator,
+            meaning,
+            admitted.substituted(left),
+            admitted.substituted(right),
+        )?;
+        if !admitted.integer_value_lands(result, &value) {
+            return None;
+        }
+        admitted.install_integer_operation_bounds(operator, left, right, &value);
+        if let Some(binding) = binding
+            && !admitted.install_hypotheses(vec![(
+                BinaryOperator::Equal,
+                binding.clone(),
+                value.clone(),
+            )])
+        {
+            return None;
+        }
+        *self = admitted;
+        Some(value)
     }
 
     /// Correlated consequences of an independently admitted integer operation.

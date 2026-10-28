@@ -62,18 +62,23 @@ where
                 || arrivals.cycle_entries.contains(&candidate.symbol)
         })
         .collect::<Vec<_>>();
-    // Each recorded caller is a stored state in an exact executable
-    // application. Do not replace that identity with its source template or
-    // choose an arbitrary machine when storage membership is ambiguous.
-    let caller_roots = immediate_callers(program, &arrivals);
-    if let Some(caller_roots) = caller_roots
-        && !same_frontier(&caller_roots, &roots)
-        // Ranked mathematical induction retains the original lexical/cycle
-        // owner. The shortcut introduces only arbitrary runtime invocations.
-        && caller_roots
+    // Each cached frontier replaces every non-anchor owner with all of its
+    // incoming owners. Every trial starts from the original query state;
+    // failed overapproximations cannot publish a negative judgment.
+    for indices in &arrivals.caller_frontiers {
+        let Some(caller_roots) = indices
             .iter()
-            .all(|caller| !classification.is_proof_machine(program, caller))
-    {
+            .map(|&index| program.machines().get(index))
+            .collect::<Option<Vec<_>>>()
+        else {
+            continue;
+        };
+        if same_frontier(&caller_roots, &roots)
+            // Ranked mathematical induction retains its original owner.
+            || caller_roots.iter().any(|caller| classification.is_proof_machine(program, caller))
+        {
+            continue;
+        }
         let mut trial = requirement.clone();
         if observe_frontier(
             program,
@@ -98,20 +103,6 @@ where
         case_facts_only,
         &arrivals,
     ))
-}
-
-fn immediate_callers<'program>(
-    program: &'program dyn crate::CheckingInput,
-    arrivals: &ClosedArrivals,
-) -> Option<Vec<&'program Machine>> {
-    let machines = program.machines();
-    let roots = arrivals
-        .caller_machine_indices
-        .as_ref()?
-        .iter()
-        .map(|&index| machines.get(index))
-        .collect::<Option<Vec<_>>>()?;
-    (!roots.is_empty()).then_some(roots)
 }
 
 fn same_frontier(left: &[&Machine], right: &[&Machine]) -> bool {
