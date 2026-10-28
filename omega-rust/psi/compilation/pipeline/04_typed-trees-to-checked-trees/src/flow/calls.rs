@@ -877,16 +877,11 @@ fn result_identity_rows(
     domains
 }
 
-fn append_ensures_result_rows(
+fn visit_qualified_ensures(
     program: &dyn ::validation::CheckingInput,
-    parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
     qualification_contract: &validation::CallQualificationContract<'_>,
-    domains: &mut Vec<(
-        Vec<facts::PlaceSegment>,
-        SymbolHandle,
-        language_semantics::SemanticDomainId,
-    )>,
+    mut visit: impl FnMut(&typed_trees::typed_trees::declarations::domain::ProofMembershipFact),
 ) {
     for contract in contracts
         .iter()
@@ -908,28 +903,44 @@ fn append_ensures_result_rows(
             {
                 continue;
             }
-            // This occurrence is already selected from this exact callable's
-            // ensures, including bodyless trait requirements. It must be the
-            // reserved result form, never a same-spelled parameter.
-            if !program
-                .expression_table
-                .names_reserved_result(membership.value)
-                || parameters.is_some_and(|parameters| {
-                    !language_core::signature_reserves_result(
-                        parameters.iter().map(|parameter| parameter.name.as_str()),
-                    )
-                })
-            {
-                continue;
-            }
-            let row = (
-                Vec::new(),
-                membership.domain_symbol,
-                membership.semantic_domain,
-            );
-            crate::collections::push_unique(&mut *domains, row);
+            visit(membership);
         }
     }
+}
+
+fn append_ensures_result_rows(
+    program: &dyn ::validation::CheckingInput,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    contracts: &[&typed_trees::signature::SignatureContract],
+    qualification_contract: &validation::CallQualificationContract<'_>,
+    domains: &mut Vec<(
+        Vec<facts::PlaceSegment>,
+        SymbolHandle,
+        language_semantics::SemanticDomainId,
+    )>,
+) {
+    visit_qualified_ensures(program, contracts, qualification_contract, |membership| {
+        // This occurrence is already selected from this exact callable's
+        // ensures, including bodyless trait requirements. It must be the
+        // reserved result form, never a same-spelled parameter.
+        if !program
+            .expression_table
+            .names_reserved_result(membership.value)
+            || parameters.is_some_and(|parameters| {
+                !language_core::signature_reserves_result(
+                    parameters.iter().map(|parameter| parameter.name.as_str()),
+                )
+            })
+        {
+            return;
+        }
+        let row = (
+            Vec::new(),
+            membership.domain_symbol,
+            membership.semantic_domain,
+        );
+        crate::collections::push_unique(&mut *domains, row);
+    });
 }
 
 /// The out-parameter obligation vocabulary for the provisional publisher and
@@ -997,38 +1008,18 @@ fn parameter_identity_rows(
     qualification_contract: &validation::CallQualificationContract<'_>,
 ) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let mut rows = Vec::new();
-    for contract in contracts
-        .iter()
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
-    {
-        for (fact_handle, fact) in contract
-            .facts
-            .handles()
-            .zip(program.proof_facts.span_or_empty(contract.facts))
-        {
-            let Some(membership) = fact.as_membership() else {
-                continue;
-            };
-            if qualification_contract
-                .fact_source(contract.kind.clone(), fact)
-                .is_none()
-                && !qualification_contract
-                    .declares_membership_obligation(contract.kind.clone(), fact_handle)
-            {
-                continue;
-            }
-            let Some(position) = ensured_parameter_position(program, parameters, membership.value)
-            else {
-                continue;
-            };
-            let row = (
-                position,
-                membership.domain_symbol,
-                membership.semantic_domain,
-            );
-            crate::collections::push_unique(&mut rows, row);
-        }
-    }
+    visit_qualified_ensures(program, contracts, qualification_contract, |membership| {
+        let Some(position) = ensured_parameter_position(program, parameters, membership.value)
+        else {
+            return;
+        };
+        let row = (
+            position,
+            membership.domain_symbol,
+            membership.semantic_domain,
+        );
+        crate::collections::push_unique(&mut rows, row);
+    });
     rows
 }
 
