@@ -46,6 +46,11 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// A demanded domain has no retained theory for any selected carrier.
+    MissingUnitDomainPlan {
+        domain: language_semantics::SemanticDomainId,
+        name: String,
+    },
     MissingUnitStructuralDomainCarrier {
         domain: language_semantics::SemanticDomainId,
         carrier: semantic_vocabulary::StructuralTypeId,
