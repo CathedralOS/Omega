@@ -17,6 +17,7 @@ use selected_instructions::{
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
+use crate::codec_bytes::push_encoded;
 use crate::machine_effects::aarch64_selected_abi;
 
 pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
@@ -160,14 +161,8 @@ pub fn encode_aarch64_selected_normalized_foreign_call_template(
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => (boundary, ordinal),
         _ => return Err(Aarch64NormalizedForeignCallTemplateError::InstructionKindMismatch),
     };
-    let mut bytes = Vec::new();
-    for destination in callback_destinations {
-        bytes.extend_from_slice(
-            &callback_group_bytes(*destination)
-                .ok_or(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)?,
-        );
-    }
-    crate::codec_bytes::push_encoded(&mut bytes, 0x9400_0000_u32.to_le_bytes());
+    let bytes = canonical_call_bytes(callback_destinations)
+        .ok_or(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)?;
     let fixup = callback_fixup(boundary, ordinal, callback_destinations)
         .ok_or(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)?;
     validate_aarch64_selected_normalized_foreign_call_template(
@@ -269,14 +264,8 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
     if destinations != callback_destinations {
         return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
     }
-    let mut expected_bytes = Vec::new();
-    for destination in callback_destinations {
-        expected_bytes.extend_from_slice(
-            &callback_group_bytes(*destination)
-                .ok_or(Aarch64NormalizedForeignCallTemplateError::MalformedTemplate)?,
-        );
-    }
-    crate::codec_bytes::push_encoded(&mut expected_bytes, 0x9400_0000_u32.to_le_bytes());
+    let expected_bytes = canonical_call_bytes(callback_destinations)
+        .ok_or(Aarch64NormalizedForeignCallTemplateError::MalformedTemplate)?;
     if bytes != expected_bytes.as_slice() {
         return Err(Aarch64NormalizedForeignCallTemplateError::MalformedTemplate);
     }
@@ -295,48 +284,55 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
     })
 }
 
-/// One callback's materialization group: `adrp`/`add` pair into the
-/// destination register — or the scratch `x16` for a field destination —
-/// followed by `str x16, [xRoot, #off]` for field destinations.
-fn callback_group_bytes(destination: Aarch64CallbackMaterializationDestination) -> Option<Vec<u8>> {
-    match destination {
-        Aarch64CallbackMaterializationDestination::Register(register) => {
-            let calling_conventions::MachineRegister::Aarch64X(index) = register else {
-                return None;
-            };
-            if index > 30 {
-                return None;
+/// The canonical unresolved word stream: one materialization group per
+/// callback destination in roster order — `adrp`/`add` into the destination
+/// register (or the scratch `x16` plus its store) — then `BL #0`.
+fn canonical_call_bytes(
+    destinations: &[Aarch64CallbackMaterializationDestination],
+) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    for destination in destinations {
+        match *destination {
+            Aarch64CallbackMaterializationDestination::Register(register) => {
+                let calling_conventions::MachineRegister::Aarch64X(index) = register else {
+                    return None;
+                };
+                if index > 30 {
+                    return None;
+                }
+                let index = u32::from(index);
+                let adrp = (0x9000_0000_u32 | index).to_le_bytes();
+                let add = (0x9100_0000_u32 | (index << 5) | index).to_le_bytes();
+                push_encoded(&mut bytes, adrp);
+                push_encoded(&mut bytes, add);
             }
-            let adrp = (0x9000_0000_u32 | u32::from(index)).to_le_bytes();
-            let add = (0x9100_0000_u32 | (u32::from(index) << 5) | u32::from(index)).to_le_bytes();
-            Some(vec![
-                adrp[0], adrp[1], adrp[2], adrp[3], add[0], add[1], add[2], add[3],
-            ])
-        }
-        Aarch64CallbackMaterializationDestination::RecordField {
-            root_register,
-            byte_offset,
-        } => {
-            let calling_conventions::MachineRegister::Aarch64X(root_index) = root_register else {
-                return None;
-            };
-            if root_index > 30 || byte_offset % 8 != 0 || byte_offset / 8 >= 4096 {
-                return None;
+            Aarch64CallbackMaterializationDestination::RecordField {
+                root_register,
+                byte_offset,
+            } => {
+                let calling_conventions::MachineRegister::Aarch64X(root_index) = root_register
+                else {
+                    return None;
+                };
+                if root_index > 30 || byte_offset % 8 != 0 || byte_offset / 8 >= 4096 {
+                    return None;
+                }
+                let scratch = 16_u32;
+                let adrp = (0x9000_0000_u32 | scratch).to_le_bytes();
+                let add = (0x9100_0000_u32 | (scratch << 5) | scratch).to_le_bytes();
+                let store = (0xF900_0000_u32
+                    | ((byte_offset / 8) << 10)
+                    | (u32::from(root_index) << 5)
+                    | scratch)
+                    .to_le_bytes();
+                push_encoded(&mut bytes, adrp);
+                push_encoded(&mut bytes, add);
+                push_encoded(&mut bytes, store);
             }
-            let scratch = 16_u32;
-            let adrp = (0x9000_0000_u32 | scratch).to_le_bytes();
-            let add = (0x9100_0000_u32 | (scratch << 5) | scratch).to_le_bytes();
-            let store = (0xF900_0000_u32
-                | ((byte_offset / 8) << 10)
-                | (u32::from(root_index) << 5)
-                | scratch)
-                .to_le_bytes();
-            Some(vec![
-                adrp[0], adrp[1], adrp[2], adrp[3], add[0], add[1], add[2], add[3], store[0],
-                store[1], store[2], store[3],
-            ])
         }
     }
+    push_encoded(&mut bytes, 0x9400_0000_u32.to_le_bytes());
+    Some(bytes)
 }
 
 fn callback_fixup(
@@ -422,16 +418,7 @@ mod tests {
         };
         let record = record(darwin, input_layout, result);
         let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-        let operands = row
-            .operands
-            .iter()
-            .map(|operand| operand.fixed_view.unwrap())
-            .collect::<Vec<_>>();
-        let accesses = row
-            .operands
-            .iter()
-            .map(|operand| operand.access)
-            .collect::<Vec<_>>();
+        let (operands, accesses) = row_operand_columns(&row);
         let effects = MachineEncodedEffects {
             external_operand_reads: row.operand_reads(),
             external_operand_writes: row.operand_writes(),
@@ -452,6 +439,19 @@ mod tests {
             effects,
             record,
         )
+    }
+
+    /// The row's operand view and access columns, in roster order.
+    fn row_operand_columns(
+        row: &register_model::RegisterInstructionConstraint,
+    ) -> (Vec<RegisterViewId>, Vec<RegisterOperandAccess>) {
+        let views = row
+            .operands
+            .iter()
+            .map(|operand| operand.fixed_view.unwrap())
+            .collect();
+        let accesses = row.operands.iter().map(|operand| operand.access).collect();
+        (views, accesses)
     }
 
     /// These records carry physical call inputs only; source ownership and
@@ -785,16 +785,7 @@ mod tests {
             );
             assert_eq!(alternative.encoded.external_operand_reads, vec![0]);
             assert_eq!(alternative.encoded.external_operand_writes, vec![1]);
-            let operands = row
-                .operands
-                .iter()
-                .map(|operand| operand.fixed_view.unwrap())
-                .collect::<Vec<_>>();
-            let accesses = row
-                .operands
-                .iter()
-                .map(|operand| operand.access)
-                .collect::<Vec<_>>();
+            let (operands, accesses) = row_operand_columns(&row);
             let template = encode_aarch64_selected_normalized_foreign_call_template(
                 target,
                 &physical,
