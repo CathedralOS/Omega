@@ -722,37 +722,54 @@ impl<'base> ConstantSelection<'base> {
             name.source_span(),
         )?;
         let reference = self.symbols.symbol_source_span(selected)?;
+        let selected_kind = self.symbols.get(selected).kind;
+        let selected_name = self.symbols.name(selected);
         let parameters = |forest: &SyntaxTrees| {
-            forest.root_items().find_map(|item| {
-                let (declaration, parameters) = match item {
-                    Item::Data(data) => (&data.name, data.type_parameters),
-                    Item::Machine(machine) => (&machine.name, machine.type_parameters),
-                    Item::Conformance(conformance) => {
-                        (conformance.alias.as_ref()?, conformance.type_parameters)
+            let mut declarations = forest.root_items().filter_map(|item| {
+                let (kind, declaration, parameters) = match item {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                    Item::Machine(machine) => {
+                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
                     }
+                    Item::Conformance(conformance) => (
+                        SymbolKind::Conformance,
+                        conformance.alias.as_ref()?,
+                        conformance.type_parameters,
+                    ),
                     _ => return None,
                 };
-                (declaration.source_span() == reference).then(|| {
-                    forest
-                        .items
-                        .type_parameters(parameters)
-                        .iter()
-                        .map(|parameter| match parameter.kind {
-                            syntax_trees::item::TypeParameterKind::Const { type_reference } => {
-                                Some(type_reference)
-                            }
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>()
-                })
-            })
+                (kind == selected_kind
+                    && declaration.source_span() == reference
+                    && declaration.as_str(forest) == selected_name)
+                    .then_some(parameters)
+            });
+            let Some(parameters) = declarations.next() else {
+                return Ok(None);
+            };
+            if declarations.next().is_some() {
+                return Err(());
+            }
+            Ok(Some(
+                forest
+                    .items
+                    .type_parameters(parameters)
+                    .iter()
+                    .map(|parameter| match parameter.kind {
+                        syntax_trees::item::TypeParameterKind::Const { type_reference } => {
+                            Some(type_reference)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ))
         };
-        if let Some(parameters) = parameters(syntax) {
+        if let Some(parameters) = parameters(syntax).ok()? {
             return Some(parameters);
         }
         let forest = declaration_syntax?;
         Some(
-            parameters(forest)?
+            parameters(forest)
+                .ok()??
                 .into_iter()
                 .map(|carrier| {
                     carrier.map(|carrier| syntax.copy_type_reference_handle(forest, carrier))
