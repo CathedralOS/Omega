@@ -179,7 +179,7 @@ fn project_with_binders(
     requirement_machine: symbols::SymbolHandle,
     root_binders: &[(symbols::SymbolHandle, String)],
     application_scope: Option<scope::ApplicationScope>,
-    local: Option<typed_trees::ClosedRequirementApplication<'_>>,
+    local: Option<typed_trees::typed_trees::ClosedRequirementApplication<'_>>,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let roots = compilation
         .traits()
