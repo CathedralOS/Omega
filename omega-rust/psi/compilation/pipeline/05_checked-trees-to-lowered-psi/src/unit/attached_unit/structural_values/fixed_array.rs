@@ -160,13 +160,11 @@ impl emission::Emission<'_, '_, '_> {
             Vec::new(),
             OperationKind::EstablishScalarArray { elements },
         )?;
-        self.environment.private_places.push(
-            super::super::operation_frame::operation_result_declaration(
-                place,
-                operation,
-                self.structural_type,
-            ),
-        );
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         Ok(place)
     }
 
