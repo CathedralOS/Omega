@@ -172,6 +172,26 @@ pub fn validate_authored_static_arguments(
         ) {
             diagnostics.push(error);
         }
+        // An issued Product operand can retain a complete method tuple
+        // without any executable call. Its source recipes still owe ordinary
+        // formation before their normalized bindings specialize the signature.
+        for (parameter, argument) in program
+            .state_signature_type_parameters(signature)
+            .iter()
+            .zip(arguments)
+        {
+            if let TypeParameterKind::Const { type_reference } = parameter.kind
+                && let Some(expression) = const_expression_argument(program, argument)
+                && let Err(mut failures) = crate::check_closed_const_expression(
+                    program,
+                    source.lexical_owner,
+                    expression,
+                    type_reference,
+                )
+            {
+                diagnostics.append(&mut failures);
+            }
+        }
         requirement_predicates::validate_where_facts(
             program,
             owner,

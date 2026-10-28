@@ -101,6 +101,23 @@ pub fn prepare_product_requirement_operand(
             reference,
             operand.source_span,
         );
+        // Closure consumes a derived tuple. Keep the source reference above
+        // intact so immutable checking still judges every supplying recipe.
+        crate::monomorphization::body_rewriting::normalize_const_arguments(
+            lower.program,
+            author,
+            std::slice::from_mut(&mut owner_argument),
+        )
+        .map_err(|reason| refuse(&reason))?;
+        let reference = lower
+            .program
+            .static_operand_type_reference_in_scope(&owner_argument, author)
+            .map_err(refuse)?;
+        lower.program.retain_designated_static_type_argument(
+            author,
+            reference,
+            operand.source_span,
+        );
         let scope = AppliedTraitScope::from_type_reference(lower.program, reference, author)
             .ok_or_else(|| {
                 refuse("native requirement has an invalid or incomplete outer application")
@@ -147,6 +164,13 @@ pub fn prepare_product_requirement_operand(
         })?;
         (requirement, None, root.application)
     };
+    // This newly joined source occurrence may introduce a previously unused
+    // outer telescope. Prepare its logical signatures through the same owner
+    // as ordinary applied requirement calls before requesting an instance.
+    lower
+        .program
+        .prepare_applied_callable_signatures()
+        .map_err(|reason| refuse(&reason))?;
     let Some((owner, signature)) = lower.program.trait_machine_signature(requirement) else {
         return Err(refuse(
             "an applied native declaration must be a public requirement member",
@@ -188,11 +212,18 @@ pub fn prepare_product_requirement_operand(
         .transpose()
         .map_err(refuse)?;
     if supplied.is_some() || (has_outer && parameters.is_empty()) {
-        let supplied = supplied.unwrap_or(expr::StaticSymbolApplication {
+        let mut supplied = supplied.unwrap_or(expr::StaticSymbolApplication {
             lifetime_arguments: Box::new([]),
             arguments: Box::new([]),
             member: Handle::invalid(),
         });
+        let authored_arguments = supplied.arguments.clone();
+        crate::monomorphization::body_rewriting::normalize_const_arguments(
+            lower.program,
+            author,
+            &mut supplied.arguments,
+        )
+        .map_err(|reason| refuse(&reason))?;
         let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
             lower.program,
             &parameters,
@@ -211,7 +242,7 @@ pub fn prepare_product_requirement_operand(
         let application = lower
             .program
             .expression_table
-            .retain_static_machine_application(requirement, name, &supplied.arguments);
+            .retain_static_machine_application(requirement, name, &authored_arguments);
         let source = lower
             .program
             .expression_table
@@ -386,7 +417,9 @@ impl Lower<'_> {
                 .find_top_level_by_name_and_kinds_from_source(
                     &name.text,
                     &[symbols::SymbolKind::BuiltinType, symbols::SymbolKind::Data],
-                    name.source_span,
+                    self.program
+                        .symbols
+                        .rejoin_product_occurrence(name.source_span),
                 )
             && self.program.symbols.builtin_type_atom(symbol).is_some()
         {
