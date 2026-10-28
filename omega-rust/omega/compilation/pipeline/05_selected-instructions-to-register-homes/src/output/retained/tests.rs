@@ -3,8 +3,19 @@
 #[test]
 fn every_retained_constructor_checks_the_recovery_selection_before_capture() {
     let source = include_str!("../retained.rs");
+    // One owner row spells the six default conversions — one per staged result
+    // that carries no recorded recovery prefix — and runtime spill is the
+    // seventh constructor, spelled out because it binds the recorded prefix.
+    let rows = source
+        .split("retained_allocation_from_staged!(")
+        .nth(1)
+        .expect("the staged-result row list")
+        .split(");")
+        .next()
+        .expect("the row list body");
+    assert_eq!(rows.matches("StagedOptimized").count(), 6);
     let constructors = source.split("impl TryFrom<").skip(1).collect::<Vec<_>>();
-    assert_eq!(constructors.len(), 7);
+    assert_eq!(constructors.len(), 2);
     for constructor in &constructors {
         assert!(constructor.contains("Self::capture("));
     }
@@ -26,7 +37,7 @@ fn every_retained_constructor_checks_the_recovery_selection_before_capture() {
         source
             .matches("Self::capture(&source.project_allocation(), None)")
             .count(),
-        6
+        1
     );
     assert!(source.contains("source.recovery_prefix_selection(),"));
     // Allocation is consumed as produced: no constructor replays a source.

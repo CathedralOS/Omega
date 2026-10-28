@@ -49,8 +49,7 @@ pub(super) fn scan_instruction(
                     view: home.view,
                 },
             )?;
-        scan_units(
-            traversal,
+        traversal.scan_units(
             &view.write_units,
             CalleeSavedModificationWitness::OperandDefinition {
                 block,
@@ -63,52 +62,13 @@ pub(super) fn scan_instruction(
             units,
         )?;
     }
-    scan_implicit(
-        traversal,
+    traversal.scan_implicit(
         block,
         instruction.id,
         &instruction.implicit_defs,
         &instruction.clobbers,
         units,
     )
-}
-
-pub(super) fn scan_implicit(
-    traversal: &mut ReplayTraversal<'_>,
-    block: SelectedBlockId,
-    instruction: selected_instructions::SelectedInstructionId,
-    definitions: &[RegisterUnitId],
-    clobbers: &[RegisterUnitId],
-    units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
-) -> Result<(), AllocatedCalleeSavedRequirementError> {
-    scan_units(
-        traversal,
-        definitions,
-        CalleeSavedModificationWitness::ImplicitDefinition { block, instruction },
-        units,
-    )?;
-    scan_units(
-        traversal,
-        clobbers,
-        CalleeSavedModificationWitness::ImplicitClobber { block, instruction },
-        units,
-    )
-}
-
-fn scan_units(
-    traversal: &mut ReplayTraversal<'_>,
-    writes: &[RegisterUnitId],
-    witness: CalleeSavedModificationWitness,
-    units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
-) -> Result<(), AllocatedCalleeSavedRequirementError> {
-    for unit in writes {
-        traversal.write_count = add(traversal.write_count, 1)?;
-        if traversal.callee_saved.contains(unit) {
-            traversal.witness_count = add(traversal.witness_count, 1)?;
-            units.entry(*unit).or_default().push(witness);
-        }
-    }
-    Ok(())
 }
 
 pub(super) fn index_homes(
