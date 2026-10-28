@@ -190,6 +190,23 @@ pub(super) fn state_result_origins<'program>(
         inference,
         include_shared,
     );
+    eprintln!(
+        "ORIGIN RESULT machine={} {:?} state={} {:?} owner={:?} result={:?}",
+        machine.name,
+        machine.symbol,
+        state.name,
+        state.symbol,
+        program
+            .machine_holding_state(state.symbol)
+            .map(|owner| (&owner.name, owner.symbol)),
+        result.as_ref().map(|r| (
+            &r.moves,
+            r.references
+                .iter()
+                .map(|leaf| (&leaf.local_suffix, &leaf.origin))
+                .collect::<Vec<_>>()
+        ))
+    );
     inference.active_states.pop();
     result
 }
