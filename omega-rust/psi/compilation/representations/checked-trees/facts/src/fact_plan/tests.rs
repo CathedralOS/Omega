@@ -301,6 +301,8 @@ fn expression_places_resolve_attached_data_members() {
     program.push_data_definition(typed_trees::data::DataDefinition {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
+        predicate_subject_symbol: SymbolHandle::invalid(),
+        predicate_subject_type: TypeReferenceHandle::invalid(),
         is_public: false,
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
@@ -317,6 +319,8 @@ fn expression_places_resolve_attached_data_members() {
     let mut main_data = typed_trees::data::DataDefinition {
         symbol: main_data_symbol,
         name: Identifier::generated("Main"),
+        predicate_subject_symbol: SymbolHandle::invalid(),
+        predicate_subject_type: TypeReferenceHandle::invalid(),
         is_public: false,
         supply_mode: Default::default(),
         lifetime_parameters: Vec::new(),
