@@ -28,8 +28,9 @@ use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_u
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::candidates::{
-    accept_region_rewrite, candidate_function, canonicalize_provenance, land_folded_nodes,
-    receiver_custody_distinct, retirable_scalar_node, retire_node_custody, sweep_output_nodes,
+    accept_region_rewrite, candidate_block, candidate_function, candidate_node,
+    canonicalize_provenance, land_folded_nodes, receiver_custody_distinct, retirable_scalar_node,
+    retire_node_custody, sweep_output_nodes,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
@@ -197,12 +198,7 @@ fn folded_node(
     row: &FieldValueRow,
     function: &PsiOptimizationFunction,
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
-    let index = usize::try_from(row.site.node)
-        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let node = function
-        .block(row.site.block)
-        .and_then(|block| block.nodes.get(index))
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = candidate_node(candidate_block(function, row.site.block)?, row.site.node)?;
     let O::StructuralScalarFieldRead {
         psi_operation,
         result: read_result,

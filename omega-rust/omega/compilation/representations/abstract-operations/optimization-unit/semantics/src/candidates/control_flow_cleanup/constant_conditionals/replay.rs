@@ -4,7 +4,7 @@ use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, canonicalize_provenance,
     require_realized_rows, sweep_output_nodes,
 };
-use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
+use crate::candidates::{candidate_node, proven_unreachable_at_own_site, realized_at_own_site};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
@@ -28,10 +28,7 @@ pub(super) fn validate(
     }
     let function = candidate_function(input, patch.location.machine)?;
     let block = candidate_block(function, patch.location.block)?;
-    let node = block
-        .nodes
-        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = candidate_node(block, patch.location.node)?;
     let O::Conditional {
         condition,
         when_true,
@@ -179,14 +176,12 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
         .collect::<BTreeSet<_>>();
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
-    let mut realized = vec![provenance_realized_at(
-        selected_site,
+    let mut realized = vec![realized_at_own_site(
         selected_site,
         &selected.provenance,
         &selected.fuel,
     )];
-    let mut unreachable = vec![provenance_proven_unreachable_at(
-        rejected_site,
+    let mut unreachable = vec![proven_unreachable_at_own_site(
         rejected_site,
         &rejected.provenance,
         &rejected.fuel,
@@ -202,8 +197,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 };
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    unreachable.push(provenance_proven_unreachable_at(
-                        site,
+                    unreachable.push(proven_unreachable_at_own_site(
                         site,
                         &node.provenance,
                         &node.fuel,
@@ -214,8 +208,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                         machine: function.machine,
                         edge: edge.psi_edge,
                     };
-                    unreachable.push(provenance_proven_unreachable_at(
-                        site,
+                    unreachable.push(proven_unreachable_at_own_site(
                         site,
                         &edge.provenance,
                         &edge.fuel,
@@ -236,12 +229,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(
-                        site,
-                        site,
-                        &node.provenance,
-                        &node.fuel,
-                    ));
+                    realized.push(realized_at_own_site(site, &node.provenance, &node.fuel));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

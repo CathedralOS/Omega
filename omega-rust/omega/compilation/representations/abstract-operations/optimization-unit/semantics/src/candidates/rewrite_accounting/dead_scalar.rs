@@ -1,4 +1,6 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at, realize_node_provenance};
+use crate::candidates::{
+    canonicalize_provenance, provenance_realized_at, realize_node_provenance, realized_at_own_site,
+};
 use optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, PsiOptimizationFunction, PsiRealizationSite,
 };
@@ -13,8 +15,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;
     block.nodes.get(node_position.checked_add(1)?)?;
-    let mut provenance = vec![provenance_realized_at(
-        PsiRealizationSite::Node(patch.location),
+    let mut provenance = vec![realized_at_own_site(
         PsiRealizationSite::Node(patch.location),
         &removed.provenance,
         &removed.fuel,

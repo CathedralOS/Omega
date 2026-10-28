@@ -12,8 +12,7 @@ use crate::optimization_unit::identity::structural_encoding::encode_structural_o
 use super::{AbstractOperation, CanonicalBytes};
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
-    AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicModificationAfter,
-    AtomicReadsFrom,
+    AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicResidencyEdge,
 };
 use language_core::atomic::{
     AtomicCompareExchangeOutcomeIdentity, AtomicObservingCompareExchangeOperation,
@@ -155,27 +154,23 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     }
     // The retained ordering-relation edges are coherence evidence like the
     // retained ordering: identity changes when either claimed edge changes.
-    match reads_from {
-        Some(AtomicReadsFrom::AfterEffect { operation }) => {
-            bytes.u8(4);
-            bytes.id(*operation);
-        }
+    // One edge vocabulary serves both rosters, so one encoding does too.
+    encode_residency_edge(bytes, reads_from);
+    encode_residency_edge(bytes, modification_after);
+}
+
+/// One retained residency edge: absent, the pre-activation residency, or the
+/// named member — the operation identity alone, per variant.
+fn encode_residency_edge(bytes: &mut CanonicalBytes, edge: &Option<AtomicResidencyEdge>) {
+    match edge {
         None => bytes.u8(1),
-        Some(AtomicReadsFrom::InitialResidency) => bytes.u8(2),
-        Some(AtomicReadsFrom::Write { operation }) => {
+        Some(AtomicResidencyEdge::InitialResidency) => bytes.u8(2),
+        Some(AtomicResidencyEdge::Write { operation }) => {
             bytes.u8(3);
             bytes.id(*operation);
         }
-    }
-    match modification_after {
-        Some(AtomicModificationAfter::AfterEffect { operation }) => {
+        Some(AtomicResidencyEdge::AfterEffect { operation }) => {
             bytes.u8(4);
-            bytes.id(*operation);
-        }
-        None => bytes.u8(1),
-        Some(AtomicModificationAfter::InitialResidency) => bytes.u8(2),
-        Some(AtomicModificationAfter::Write { operation }) => {
-            bytes.u8(3);
             bytes.id(*operation);
         }
     }
