@@ -119,14 +119,12 @@ pub(super) fn validate_source_recipes(
         let Some(arguments) = application.argument.application.as_ref() else {
             continue;
         };
-        if application.environment.is_none() {
-            let Some(context) = occurrence(program, application, &occurrences) else {
-                diagnostics.push(
-                    Diagnostic::error("Product const recipe lost its exact original source state")
-                        .with_source_span(application.operand.source_span),
-                );
-                continue;
-            };
+        // Open recipes need their exact original state assumptions. Closed
+        // recipes are independently formed without caller facts, including
+        // when a Build body is no longer an executable Product root.
+        if application.environment.is_none()
+            && let Some(context) = occurrence(program, application, &occurrences)
+        {
             let Some(machine) = program.machine(context.machine) else {
                 continue;
             };
@@ -143,9 +141,9 @@ pub(super) fn validate_source_recipes(
                 formation_obligations,
             );
         } else {
-            // The original recipe and the ordinary helper invocation are judged
-            // independently. A reached substitution must now be closed; no
-            // unrelated template-state fact can form a supplying expression.
+            // No state assumptions are available here. The original recipe
+            // and ordinary supplying invocation remain separate obligations;
+            // only an independently closed expression can form this operand.
             let source = typed
                 .expression_table
                 .static_machine_application(application.supplying_application);
@@ -165,7 +163,7 @@ pub(super) fn validate_source_recipes(
                     Ok(Some(_)) => {}
                     Ok(None) => diagnostics.push(
                         Diagnostic::error(
-                            "executed Product const operand is not independently closed",
+                            "Product const recipe requires its exact original source state or an independently closed expression",
                         )
                         .with_source_span(application.operand.source_span),
                     ),
