@@ -105,7 +105,12 @@ fn capture(
     {
         plan.write(&mut output)?;
         semantic_schema.write(&mut output)?;
-        write_values(row_executions, &mut output)?;
+        output.sequence(row_executions.len())?;
+        for execution in *row_executions {
+            execution
+                .filter(|execution| !execution.is_numeric())
+                .write(&mut output)?;
+        }
     }
     boundaries.calling_applications.write(&mut output)?;
     native_target.write(&mut output)?;

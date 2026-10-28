@@ -1558,26 +1558,30 @@ fn recognize_structural_state_leaves_from<'a>(
             if requirement.is_some() {
                 return Some(Vec::new());
             }
-            if !matches!(
-                program
-                    .type_reference_table
-                    .type_reference(state.return_type),
-                typed_trees::types::TypeReferenceNode::Unit
-            ) {
-                return None;
-            }
-            return Some(vec![finalize_structural_case_arm(
-                program,
-                machine,
-                judge,
-                classification,
-                diagnostics,
-                parameter_names,
-                case_hypotheses,
-                case_equations,
-                pending_citations,
-                StructuralTerm::Opaque("()".to_owned()),
-            )]);
+            let completions = judge.terminal_completion_paths(
+                &TransitionTargetNode::Terminal,
+                &environment,
+                (invocation, state, state.return_type),
+            )?;
+            return Some(
+                completions
+                    .into_iter()
+                    .map(|outcome| {
+                        finalize_structural_case_arm(
+                            program,
+                            machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            parameter_names,
+                            case_hypotheses.clone(),
+                            case_equations.clone(),
+                            pending_citations.clone(),
+                            outcome.value,
+                        )
+                    })
+                    .collect(),
+            );
         }
         // Arms test their guards in order. A later arm observes each earlier
         // Boolean guard as false, while the chosen arm alone receives its
@@ -1911,20 +1915,24 @@ fn recognize_structural_state_leaves_from<'a>(
                         leaves.extend(completed);
                     }
                 } else {
-                    let TransitionTargetNode::Value(value) = target else {
-                        return None;
-                    };
-                    if requirement.is_some() {
+                    if requirement.is_some() && matches!(target, TransitionTargetNode::Value(_)) {
                         continue;
                     }
                     let mut branch_judge =
                         structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
                     let judge = &mut branch_judge;
-                    for outcome in judge.normal_return_paths(
-                        *value,
+                    let completions = judge.terminal_completion_paths(
+                        target,
                         &branch_environment,
                         (invocation, state, state.return_type),
-                    )? {
+                    )?;
+                    // A non-calling Unit arm closes only its own path. Keep
+                    // visiting every alternative that can reach the queried
+                    // occurrence, including repeated visits to one call site.
+                    if requirement.is_some() {
+                        continue;
+                    }
+                    for outcome in completions {
                         leaves.push(finalize_structural_case_arm(
                             program,
                             machine,
@@ -2016,9 +2024,9 @@ fn state_prefix_reachability_destinations(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
-        for site in
-            crate::machine_calls::calls::collect_call_sites_in_statement(program, owner, state, index)
-        {
+        for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+            program, owner, state, index,
+        ) {
             let selected = site.target_symbol(program);
             if selected.is_valid()
                 && matches!(

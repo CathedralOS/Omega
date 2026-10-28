@@ -32,24 +32,6 @@ impl Default for FinalImage {
 }
 
 impl FinalImage {
-    pub fn with_roots(
-        target: NativeTarget,
-        memory: FinalImageMemory,
-        symbol_table: FinalImageSymbolTable,
-        relocation_table: FinalImageRelocationTable,
-        executable_regions: Vec<FinalExecutableRegion>,
-        data_regions: Vec<FinalDataRegion>,
-    ) -> Self {
-        Self {
-            target,
-            memory,
-            symbol_table,
-            relocation_table,
-            executable_regions,
-            data_regions,
-        }
-    }
-
     pub fn with_capacity(
         target: NativeTarget,
         memory: FinalImageMemory,
@@ -58,14 +40,18 @@ impl FinalImage {
         import_capacity: usize,
         relocation_capacity: usize,
     ) -> Self {
-        Self::with_roots(
+        Self {
             target,
             memory,
-            FinalImageSymbolTable::with_capacity(entry_symbol, symbol_capacity, import_capacity),
-            FinalImageRelocationTable::with_capacity(relocation_capacity),
-            Vec::new(),
-            Vec::new(),
-        )
+            symbol_table: FinalImageSymbolTable::with_capacity(
+                entry_symbol,
+                symbol_capacity,
+                import_capacity,
+            ),
+            relocation_table: FinalImageRelocationTable::with_capacity(relocation_capacity),
+            executable_regions: Vec::new(),
+            data_regions: Vec::new(),
+        }
     }
 }
 

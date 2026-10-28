@@ -2,7 +2,7 @@
 //! Inputs survive; early-clobber cursor and byte temporaries own every write.
 
 use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
-use crate::selected_form_encoding::selected_forms::resolve_registers;
+use crate::selected_form_encoding::selected_forms::request_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
@@ -13,25 +13,15 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 5], Aarch64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::CopyBytes,
-                variant: 0,
-            })
-    {
-        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-    }
-    let registers: [u8; 5] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-    if registers[3] == registers[4]
-        || registers[..3].contains(&registers[3])
-        || registers[..3].contains(&registers[4])
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    Ok(registers)
+    // The cursor and the loaded byte are written before the inputs are read,
+    // so neither may share a home with an input or with the other.
+    request_registers(
+        physical,
+        alternative,
+        MachineAlternativeFamily::CopyBytes,
+        operands,
+        3,
+    )
 }
 
 pub(super) fn encode(

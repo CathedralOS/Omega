@@ -7,7 +7,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::*;
 
-fn module(meaning: NumericIntrinsic) -> TerminalModule {
+pub(super) fn module(meaning: NumericIntrinsic) -> TerminalModule {
     let machine = MachineId::new(1).unwrap();
     let mut module = TerminalModule::for_entry(machine);
     module.machines.push(unit_machine(machine));

@@ -375,6 +375,7 @@ impl TerminalNativeRealizationProposal {
                 intrinsic_provenance.into_iter(),
                 &demands,
                 &module.boundary_machines,
+                &module.external_providers,
                 &module.identities,
             )?;
         // Builtin occurrences bind the actual boundary IDs, including family

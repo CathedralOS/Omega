@@ -3,7 +3,7 @@
 //! only register write, and every stored byte comes from the zero register.
 
 use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
-use crate::selected_form_encoding::selected_forms::resolve_registers;
+use crate::selected_form_encoding::selected_forms::request_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
@@ -19,24 +19,15 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 3], Aarch64SelectedFormEncodingError> {
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::ZeroBytes,
-                variant: 0,
-            })
-    {
-        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-    }
-    let registers: [u8; 3] = resolve_registers(physical, operands)?
-        .try_into()
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     // The cursor is written before either input is read, so it may not share
     // a home with the destination or the count.
-    if registers[..2].contains(&registers[2]) {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
-    Ok(registers)
+    request_registers(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ZeroBytes,
+        operands,
+        2,
+    )
 }
 
 pub(super) fn encode(

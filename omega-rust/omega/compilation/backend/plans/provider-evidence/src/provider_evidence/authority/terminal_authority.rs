@@ -105,6 +105,17 @@ impl From<language_semantics::numeric_intrinsics::NumericIntrinsic>
 }
 
 impl CompilerIntrinsicExecutionIdentity {
+    /// Numeric semantics are carried by Terminal, not by a native custody row.
+    pub fn is_numeric(self) -> bool {
+        matches!(
+            self,
+            Self::PrimitiveFloatBinary { .. }
+                | Self::PrimitiveIntegerComparison { .. }
+                | Self::NamedFloatNegation(_)
+                | Self::NamedFloatConversion { .. }
+        ) || matches!(self, Self::BuiltinFunction(function) if function.is_float_family())
+    }
+
     /// Fixed-register instructions already have exact compiler-owned builtin
     /// coordinates. Normalize to those closed identities, retaining both the
     /// register and direction rather than creating a foreign/physical alias.

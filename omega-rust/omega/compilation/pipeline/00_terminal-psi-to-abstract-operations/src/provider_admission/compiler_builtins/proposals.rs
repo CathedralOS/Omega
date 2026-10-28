@@ -7,6 +7,7 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
+use super::external_satisfaction::{reconcile_numeric_meaning, selected_execution};
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderPlan, ServiceSchema};
@@ -25,6 +26,7 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
+    row: &'a effects::provider_plan::ProviderPlanRow,
     semantic_schema: &'a ServiceSchema,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
@@ -34,10 +36,11 @@ struct SelectedIntrinsicRow<'a> {
 /// Provenance stays borrowed and source-free; every plan is checked even
 /// without demand. The receiving target catalog admits these proposals later.
 pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &'a effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+    external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
@@ -65,6 +68,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
+                    row,
                     semantic_schema: retained.semantic_schema,
                     execution: *execution,
                 });
@@ -116,9 +120,23 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        if let Err(reason) =
-            reconcile_numeric_meaning(boundary.numeric_intrinsic, selected_row.execution)
-        {
+        let execution = match selected_execution(
+            external_providers,
+            identities,
+            &boundary.owner,
+            &plans[selected_row.plan_index],
+            selected_row.row,
+            selected_row.execution,
+        ) {
+            Ok(execution) => execution,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "Terminal boundary `{requirement}` {reason}"
+                )));
+                continue;
+            }
+        };
+        if let Err(reason) = reconcile_numeric_meaning(boundary.numeric_intrinsic, execution) {
             diagnostics.push(Diagnostic::error(format!(
                 "Terminal boundary `{requirement}` {reason}"
             )));
@@ -127,7 +145,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         let format = boundary
             .numeric_intrinsic
             .and_then(|meaning| meaning.builtin_format());
-        let settlement = match selected_row.execution {
+        let settlement = match execution {
             None => super::TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
             Some(execution) => match compiler_builtin_execution(execution, format) {
                 Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution(execution),
@@ -586,34 +604,6 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. } => return None,
     };
     Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
-}
-
-/// Portable meaning never replaces selected-provider custody. In particular,
-/// a forged numeric boundary cannot turn an unsupported selected row into an
-/// executable provider, and a numeric provider cannot omit its portable meaning.
-fn reconcile_numeric_meaning(
-    meaning: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
-    selected: Option<CompilerIntrinsicExecutionIdentity>,
-) -> Result<(), &'static str> {
-    use CompilerIntrinsicExecutionIdentity as Execution;
-    let selected_numeric = matches!(
-        selected,
-        Some(
-            Execution::PrimitiveFloatBinary { .. }
-                | Execution::PrimitiveIntegerComparison { .. }
-                | Execution::NamedFloatNegation(_)
-                | Execution::NamedFloatConversion { .. }
-        )
-    ) || matches!(selected, Some(Execution::BuiltinFunction(function)) if function.is_float_family());
-    match (meaning, selected, selected_numeric) {
-        (Some(meaning), Some(execution), _)
-            if meaning.signature().is_some() && Execution::from(meaning) == execution =>
-        {
-            Ok(())
-        }
-        (None, _, false) => Ok(()),
-        _ => Err("numeric meaning disagrees with selected provider custody"),
-    }
 }
 
 #[cfg(test)]

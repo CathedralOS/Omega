@@ -15,6 +15,7 @@ pub(crate) mod canonical_order;
 pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
 pub(crate) mod dynamic_result_admission;
+mod external_provider_wire;
 pub(crate) mod integer_math_term_wire;
 mod machine_declaration_wire;
 pub(crate) mod machine_wire;
@@ -38,6 +39,8 @@ pub(crate) mod wire;
 
 #[cfg(test)]
 mod counted_collection_bound_tests;
+#[cfg(test)]
+mod external_provider_tests;
 #[cfg(test)]
 mod numeric_intrinsic_tests;
 #[cfg(test)]
@@ -130,7 +133,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // inherited scalar memberships; neither independent marker-196 layout suffices.
 // Machines retain authored runtime ordering across scalar and structural lanes.
 // Task frames retain alternative state and crossing storage, not a flat sum.
-pub(crate) const FORMAT_MARKER: u16 = 200;
+pub(crate) const FORMAT_MARKER: u16 = 201;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

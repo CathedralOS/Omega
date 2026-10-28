@@ -22,6 +22,8 @@ mod retained;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
 pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
+mod external_satisfaction;
+pub(crate) use external_satisfaction::{selected_execution, validate_external_provider_owners};
 pub(crate) use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 

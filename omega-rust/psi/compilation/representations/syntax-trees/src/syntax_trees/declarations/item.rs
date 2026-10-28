@@ -1,5 +1,6 @@
 use crate::identifier::Identifier;
-use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
+use crate::syntax_trees::paged_roster::paged_roster;
+use arena::{Handle, HandleSpan};
 use language_core::operator_spelling::OperatorSpelling;
 
 pub type ItemHandle = Handle<Item>;
@@ -242,108 +243,56 @@ pub struct PackageDeclaration {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
-pub struct ItemTable {
-    items: Arena<Item>,
-    /// Top-level `let`/`boundary let` declarations, kept beside `items` on
-    /// their own root collection until the separately owned resolution leg
-    /// admits them into `Item` dispatch.
-    mathematical_definitions: Arena<MathematicalDefinition>,
-    state_storage: StateStorage,
-    declaration_storage: DeclarationStorage,
+paged_roster! {
+    /// The item roster: `items`, the top-level `let`/`boundary let`
+    /// `mathematical_definitions` kept beside them on their own root collection
+    /// until the separately owned resolution leg admits them into `Item`
+    /// dispatch, and the state and declaration storages they point into.
+    pub struct ItemTable => pub(crate) ItemTableAppendCheckpoint {
+        arena items: Item,
+        arena mathematical_definitions: MathematicalDefinition,
+        roster state_storage: StateStorage => StateStorageAppendCheckpoint,
+        roster declaration_storage: DeclarationStorage => DeclarationStorageAppendCheckpoint,
+    }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
-struct StateStorage {
-    parameters: Arena<StateParameterNode>,
-    signatures: Arena<StateSignature>,
-    states: Arena<State>,
-    parameter_handles: Arena<StateParameterHandle>,
-    state_handles: Arena<StateHandle>,
-    signature_handles: Arena<StateSignatureHandle>,
-    statement_handles: Arena<crate::statement::StatementHandle>,
-    machines: Arena<MachineNode>,
-    traits: Arena<TraitNode>,
+paged_roster! {
+    struct StateStorage => pub(crate) StateStorageAppendCheckpoint {
+        arena parameters: StateParameterNode,
+        arena signatures: StateSignature,
+        arena states: State,
+        arena parameter_handles: StateParameterHandle,
+        arena state_handles: StateHandle,
+        arena signature_handles: StateSignatureHandle,
+        arena statement_handles: crate::statement::StatementHandle,
+        arena machines: MachineNode,
+        arena traits: TraitNode,
+    }
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
-struct DeclarationStorage {
-    identifier_path_members: Arena<Identifier>,
-    conformance_members: Arena<ConformanceMember>,
-    satisfies_clauses: Arena<SatisfiesClause>,
-    type_parameters: Arena<TypeParameter>,
-    capability_members: Arena<CapabilityMember>,
-    capability_contracts: Arena<CapabilityContract>,
-    data_members: Arena<DataMember>,
-    data_payload_fields: Arena<DataField>,
-    operators: Arena<OperatorDefinition>,
-    measures: Arena<MeasureDefinition>,
-    proof_facts: Arena<ProofFact>,
-    proof_fact_source_spans: Arena<Option<source::SourceSpan>>,
-    mathematical_types: Arena<MathematicalTypeNode>,
-    mathematical_parameters: Arena<MathematicalParameterNode>,
-    mathematical_parameter_handles: Arena<MathematicalParameterHandle>,
-}
-
-pub(crate) struct ItemTableAppendCheckpoint {
-    items: arena::PagedArenaFrontier<Item>,
-    mathematical_definitions: arena::PagedArenaFrontier<MathematicalDefinition>,
-    state_storage: StateStorageAppendCheckpoint,
-    declaration_storage: DeclarationStorageAppendCheckpoint,
+paged_roster! {
+    struct DeclarationStorage => pub(crate) DeclarationStorageAppendCheckpoint {
+        arena identifier_path_members: Identifier,
+        arena conformance_members: ConformanceMember,
+        arena satisfies_clauses: SatisfiesClause,
+        arena type_parameters: TypeParameter,
+        arena capability_members: CapabilityMember,
+        arena capability_contracts: CapabilityContract,
+        arena data_members: DataMember,
+        arena data_payload_fields: DataField,
+        arena operators: OperatorDefinition,
+        arena measures: MeasureDefinition,
+        arena proof_facts: ProofFact,
+        arena proof_fact_source_spans: Option<source::SourceSpan>,
+        arena mathematical_types: MathematicalTypeNode,
+        arena mathematical_parameters: MathematicalParameterNode,
+        arena mathematical_parameter_handles: MathematicalParameterHandle,
+    }
 }
 
 impl ItemTable {
-    pub(crate) fn append_checkpoint(&self) -> ItemTableAppendCheckpoint {
-        ItemTableAppendCheckpoint {
-            items: self.items.frontier(),
-            mathematical_definitions: self.mathematical_definitions.frontier(),
-            state_storage: self.state_storage.append_checkpoint(),
-            declaration_storage: self.declaration_storage.append_checkpoint(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: ItemTableAppendCheckpoint) {
-        self.items.rewind_appended(checkpoint.items);
-        self.mathematical_definitions
-            .rewind_appended(checkpoint.mathematical_definitions);
-        self.state_storage.rewind_appended(checkpoint.state_storage);
-        self.declaration_storage
-            .rewind_appended(checkpoint.declaration_storage);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.items.share_pages();
-        self.mathematical_definitions.share_pages();
-        self.state_storage.share_pages();
-        self.declaration_storage.share_pages();
-    }
-
     pub fn new() -> Self {
         Self::new_with_generation(1)
-    }
-
-    pub fn new_with_generation(generation: u32) -> Self {
-        Self {
-            items: Arena::with_generation(generation),
-            mathematical_definitions: Arena::with_generation(generation),
-            state_storage: StateStorage::new_with_generation(generation),
-            declaration_storage: DeclarationStorage::new_with_generation(generation),
-        }
-    }
-
-    pub(crate) fn adopt(&mut self, other: Self) {
-        self.items.adopt(other.items);
-        self.mathematical_definitions
-            .adopt(other.mathematical_definitions);
-        self.state_storage.adopt(other.state_storage);
-        self.declaration_storage.adopt(other.declaration_storage);
-    }
-
-    pub(crate) fn begin_page(&mut self, generation: u32) {
-        self.items.begin_page(generation);
-        self.mathematical_definitions.begin_page(generation);
-        self.state_storage.begin_page(generation);
-        self.declaration_storage.begin_page(generation);
     }
 
     pub(crate) fn page_count(&self) -> usize {
@@ -713,246 +662,6 @@ impl ItemTable {
 impl Default for ItemTable {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-pub(crate) struct StateStorageAppendCheckpoint {
-    parameters: arena::PagedArenaFrontier<StateParameterNode>,
-    signatures: arena::PagedArenaFrontier<StateSignature>,
-    states: arena::PagedArenaFrontier<State>,
-    parameter_handles: arena::PagedArenaFrontier<StateParameterHandle>,
-    state_handles: arena::PagedArenaFrontier<StateHandle>,
-    signature_handles: arena::PagedArenaFrontier<StateSignatureHandle>,
-    statement_handles: arena::PagedArenaFrontier<crate::statement::StatementHandle>,
-    machines: arena::PagedArenaFrontier<MachineNode>,
-    traits: arena::PagedArenaFrontier<TraitNode>,
-}
-
-impl StateStorage {
-    pub(crate) fn append_checkpoint(&self) -> StateStorageAppendCheckpoint {
-        StateStorageAppendCheckpoint {
-            parameters: self.parameters.frontier(),
-            signatures: self.signatures.frontier(),
-            states: self.states.frontier(),
-            parameter_handles: self.parameter_handles.frontier(),
-            state_handles: self.state_handles.frontier(),
-            signature_handles: self.signature_handles.frontier(),
-            statement_handles: self.statement_handles.frontier(),
-            machines: self.machines.frontier(),
-            traits: self.traits.frontier(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: StateStorageAppendCheckpoint) {
-        self.parameters.rewind_appended(checkpoint.parameters);
-        self.signatures.rewind_appended(checkpoint.signatures);
-        self.states.rewind_appended(checkpoint.states);
-        self.parameter_handles
-            .rewind_appended(checkpoint.parameter_handles);
-        self.state_handles.rewind_appended(checkpoint.state_handles);
-        self.signature_handles
-            .rewind_appended(checkpoint.signature_handles);
-        self.statement_handles
-            .rewind_appended(checkpoint.statement_handles);
-        self.machines.rewind_appended(checkpoint.machines);
-        self.traits.rewind_appended(checkpoint.traits);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.parameters.share_pages();
-        self.signatures.share_pages();
-        self.states.share_pages();
-        self.parameter_handles.share_pages();
-        self.state_handles.share_pages();
-        self.signature_handles.share_pages();
-        self.statement_handles.share_pages();
-        self.machines.share_pages();
-        self.traits.share_pages();
-    }
-
-    fn new_with_generation(generation: u32) -> Self {
-        Self {
-            parameters: Arena::with_generation(generation),
-            signatures: Arena::with_generation(generation),
-            states: Arena::with_generation(generation),
-            parameter_handles: Arena::with_generation(generation),
-            state_handles: Arena::with_generation(generation),
-            signature_handles: Arena::with_generation(generation),
-            statement_handles: Arena::with_generation(generation),
-            machines: Arena::with_generation(generation),
-            traits: Arena::with_generation(generation),
-        }
-    }
-
-    fn adopt(&mut self, other: Self) {
-        self.parameters.adopt(other.parameters);
-        self.signatures.adopt(other.signatures);
-        self.states.adopt(other.states);
-        self.parameter_handles.adopt(other.parameter_handles);
-        self.state_handles.adopt(other.state_handles);
-        self.signature_handles.adopt(other.signature_handles);
-        self.statement_handles.adopt(other.statement_handles);
-        self.machines.adopt(other.machines);
-        self.traits.adopt(other.traits);
-    }
-
-    fn begin_page(&mut self, generation: u32) {
-        self.parameters.begin_page(generation);
-        self.signatures.begin_page(generation);
-        self.states.begin_page(generation);
-        self.parameter_handles.begin_page(generation);
-        self.state_handles.begin_page(generation);
-        self.signature_handles.begin_page(generation);
-        self.statement_handles.begin_page(generation);
-        self.machines.begin_page(generation);
-        self.traits.begin_page(generation);
-    }
-}
-
-pub(crate) struct DeclarationStorageAppendCheckpoint {
-    identifier_path_members: arena::PagedArenaFrontier<Identifier>,
-    conformance_members: arena::PagedArenaFrontier<ConformanceMember>,
-    satisfies_clauses: arena::PagedArenaFrontier<SatisfiesClause>,
-    type_parameters: arena::PagedArenaFrontier<TypeParameter>,
-    capability_members: arena::PagedArenaFrontier<CapabilityMember>,
-    capability_contracts: arena::PagedArenaFrontier<CapabilityContract>,
-    data_members: arena::PagedArenaFrontier<DataMember>,
-    data_payload_fields: arena::PagedArenaFrontier<DataField>,
-    operators: arena::PagedArenaFrontier<OperatorDefinition>,
-    measures: arena::PagedArenaFrontier<MeasureDefinition>,
-    proof_facts: arena::PagedArenaFrontier<ProofFact>,
-    proof_fact_source_spans: arena::PagedArenaFrontier<Option<source::SourceSpan>>,
-    mathematical_types: arena::PagedArenaFrontier<MathematicalTypeNode>,
-    mathematical_parameters: arena::PagedArenaFrontier<MathematicalParameterNode>,
-    mathematical_parameter_handles: arena::PagedArenaFrontier<MathematicalParameterHandle>,
-}
-
-impl DeclarationStorage {
-    pub(crate) fn append_checkpoint(&self) -> DeclarationStorageAppendCheckpoint {
-        DeclarationStorageAppendCheckpoint {
-            identifier_path_members: self.identifier_path_members.frontier(),
-            conformance_members: self.conformance_members.frontier(),
-            satisfies_clauses: self.satisfies_clauses.frontier(),
-            type_parameters: self.type_parameters.frontier(),
-            capability_members: self.capability_members.frontier(),
-            capability_contracts: self.capability_contracts.frontier(),
-            data_members: self.data_members.frontier(),
-            data_payload_fields: self.data_payload_fields.frontier(),
-            operators: self.operators.frontier(),
-            measures: self.measures.frontier(),
-            proof_facts: self.proof_facts.frontier(),
-            proof_fact_source_spans: self.proof_fact_source_spans.frontier(),
-            mathematical_types: self.mathematical_types.frontier(),
-            mathematical_parameters: self.mathematical_parameters.frontier(),
-            mathematical_parameter_handles: self.mathematical_parameter_handles.frontier(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: DeclarationStorageAppendCheckpoint) {
-        self.identifier_path_members
-            .rewind_appended(checkpoint.identifier_path_members);
-        self.conformance_members
-            .rewind_appended(checkpoint.conformance_members);
-        self.satisfies_clauses
-            .rewind_appended(checkpoint.satisfies_clauses);
-        self.type_parameters
-            .rewind_appended(checkpoint.type_parameters);
-        self.capability_members
-            .rewind_appended(checkpoint.capability_members);
-        self.capability_contracts
-            .rewind_appended(checkpoint.capability_contracts);
-        self.data_members.rewind_appended(checkpoint.data_members);
-        self.data_payload_fields
-            .rewind_appended(checkpoint.data_payload_fields);
-        self.operators.rewind_appended(checkpoint.operators);
-        self.measures.rewind_appended(checkpoint.measures);
-        self.proof_facts.rewind_appended(checkpoint.proof_facts);
-        self.proof_fact_source_spans
-            .rewind_appended(checkpoint.proof_fact_source_spans);
-        self.mathematical_types
-            .rewind_appended(checkpoint.mathematical_types);
-        self.mathematical_parameters
-            .rewind_appended(checkpoint.mathematical_parameters);
-        self.mathematical_parameter_handles
-            .rewind_appended(checkpoint.mathematical_parameter_handles);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.identifier_path_members.share_pages();
-        self.conformance_members.share_pages();
-        self.satisfies_clauses.share_pages();
-        self.type_parameters.share_pages();
-        self.capability_members.share_pages();
-        self.capability_contracts.share_pages();
-        self.data_members.share_pages();
-        self.data_payload_fields.share_pages();
-        self.operators.share_pages();
-        self.measures.share_pages();
-        self.proof_facts.share_pages();
-        self.proof_fact_source_spans.share_pages();
-        self.mathematical_types.share_pages();
-        self.mathematical_parameters.share_pages();
-        self.mathematical_parameter_handles.share_pages();
-    }
-
-    fn new_with_generation(generation: u32) -> Self {
-        Self {
-            identifier_path_members: Arena::with_generation(generation),
-            conformance_members: Arena::with_generation(generation),
-            satisfies_clauses: Arena::with_generation(generation),
-            type_parameters: Arena::with_generation(generation),
-            capability_members: Arena::with_generation(generation),
-            capability_contracts: Arena::with_generation(generation),
-            data_members: Arena::with_generation(generation),
-            data_payload_fields: Arena::with_generation(generation),
-            operators: Arena::with_generation(generation),
-            measures: Arena::with_generation(generation),
-            proof_facts: Arena::with_generation(generation),
-            proof_fact_source_spans: Arena::with_generation(generation),
-            mathematical_types: Arena::with_generation(generation),
-            mathematical_parameters: Arena::with_generation(generation),
-            mathematical_parameter_handles: Arena::with_generation(generation),
-        }
-    }
-
-    fn adopt(&mut self, other: Self) {
-        self.identifier_path_members
-            .adopt(other.identifier_path_members);
-        self.conformance_members.adopt(other.conformance_members);
-        self.satisfies_clauses.adopt(other.satisfies_clauses);
-        self.type_parameters.adopt(other.type_parameters);
-        self.capability_members.adopt(other.capability_members);
-        self.capability_contracts.adopt(other.capability_contracts);
-        self.data_members.adopt(other.data_members);
-        self.data_payload_fields.adopt(other.data_payload_fields);
-        self.operators.adopt(other.operators);
-        self.measures.adopt(other.measures);
-        self.proof_facts.adopt(other.proof_facts);
-        self.proof_fact_source_spans
-            .adopt(other.proof_fact_source_spans);
-        self.mathematical_types.adopt(other.mathematical_types);
-        self.mathematical_parameters
-            .adopt(other.mathematical_parameters);
-        self.mathematical_parameter_handles
-            .adopt(other.mathematical_parameter_handles);
-    }
-
-    fn begin_page(&mut self, generation: u32) {
-        self.identifier_path_members.begin_page(generation);
-        self.conformance_members.begin_page(generation);
-        self.satisfies_clauses.begin_page(generation);
-        self.type_parameters.begin_page(generation);
-        self.capability_members.begin_page(generation);
-        self.capability_contracts.begin_page(generation);
-        self.data_members.begin_page(generation);
-        self.data_payload_fields.begin_page(generation);
-        self.operators.begin_page(generation);
-        self.measures.begin_page(generation);
-        self.proof_facts.begin_page(generation);
-        self.proof_fact_source_spans.begin_page(generation);
-        self.mathematical_types.begin_page(generation);
-        self.mathematical_parameters.begin_page(generation);
-        self.mathematical_parameter_handles.begin_page(generation);
     }
 }
 

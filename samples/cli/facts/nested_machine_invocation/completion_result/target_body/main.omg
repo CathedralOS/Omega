@@ -1,0 +1,14 @@
+// Every normal completion supplies the declared u8 result, so transporting the selected result preserves its value.
+// Expected exit: 0
+boundary trait Select { machine apply(ready: bool) -> u8 reaches; }
+Selected satisfies Select {
+    machine apply(ready: bool) -> u8 {
+        transition ready { true -> 37u8 false -> 19u8 }
+    }
+}
+machine main() crashes Trap {
+    let value: u8 = Select::apply(false);
+    let alternate: u8 = Select::apply(true);
+    transition value == 19 && alternate == 37 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}

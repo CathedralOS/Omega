@@ -58,8 +58,8 @@ mod unit_returns;
 mod write_frames;
 pub(crate) use write_frames::provider_completion_covers_writable_slots;
 
-pub(crate) use unit_returns::call_completes_unit_state;
 pub use unit_returns::machine_has_unit_result;
+pub(crate) use unit_returns::{call_completes_unit_state, unit_type};
 pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
 
 use argument_bounds::report_argument_bounds;
@@ -895,6 +895,7 @@ fn validate_value_call_arguments(
 
 mod topology;
 pub use topology::target_family_members;
+pub(crate) use topology::target_normal_completion_possible;
 pub use topology::{
     CompletingTransfer, call_target_entry_symbol, call_target_has_checked_body_contract,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,

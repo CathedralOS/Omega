@@ -3,6 +3,8 @@
 mod applications;
 mod conformances;
 mod declarations;
+mod external_providers;
+pub use external_providers::{ExternalProviderConformance, ExternalProviderOwner};
 mod numeric_intrinsics;
 pub use numeric_intrinsics::validate_numeric_intrinsic_signature;
 mod dynamic_dispatch;

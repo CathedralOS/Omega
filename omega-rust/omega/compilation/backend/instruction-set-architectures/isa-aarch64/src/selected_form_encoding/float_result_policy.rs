@@ -353,13 +353,10 @@ pub(crate) fn validate(
     {
         return Err(Error::OperandCountMismatch);
     }
-    let (chunks, remainder) = bytes.as_chunks::<4>();
-    if !remainder.is_empty() {
-        return Err(Error::MalformedEncoding);
-    }
-    let decoded = chunks
-        .iter()
-        .map(|word| decode_word(u32::from_le_bytes(*word)))
+    let decoded = super::word_stream(bytes)
+        .ok_or(Error::MalformedEncoding)?
+        .into_iter()
+        .map(decode_word)
         .collect::<Option<Vec<_>>>()
         .ok_or(Error::MalformedEncoding)?;
     if decoded != program(form, registers) {

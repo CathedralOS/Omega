@@ -5,7 +5,8 @@
 use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
 use crate::statement::StatementHandle;
-use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
+use crate::syntax_trees::paged_roster::paged_roster;
+use arena::{Handle, HandleSpan};
 
 #[derive(
     Debug,
@@ -63,68 +64,16 @@ pub enum AssemblyExit {
     EnclosingTransition,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
-pub(crate) struct AssemblyTable {
-    graphs: Arena<AssemblyControlFlow>,
-    blocks: Arena<AssemblyBlock>,
-    instructions: Arena<StatementHandle>,
-    expressions: Arena<ExpressionHandle>,
-}
-
-pub(crate) struct AssemblyTableAppendCheckpoint {
-    graphs: arena::PagedArenaFrontier<AssemblyControlFlow>,
-    blocks: arena::PagedArenaFrontier<AssemblyBlock>,
-    instructions: arena::PagedArenaFrontier<StatementHandle>,
-    expressions: arena::PagedArenaFrontier<ExpressionHandle>,
+paged_roster! {
+    pub(crate) struct AssemblyTable => pub(crate) AssemblyTableAppendCheckpoint {
+        arena graphs: AssemblyControlFlow,
+        arena blocks: AssemblyBlock,
+        arena instructions: StatementHandle,
+        arena expressions: ExpressionHandle,
+    }
 }
 
 impl AssemblyTable {
-    pub(crate) fn append_checkpoint(&self) -> AssemblyTableAppendCheckpoint {
-        AssemblyTableAppendCheckpoint {
-            graphs: self.graphs.frontier(),
-            blocks: self.blocks.frontier(),
-            instructions: self.instructions.frontier(),
-            expressions: self.expressions.frontier(),
-        }
-    }
-
-    pub(crate) fn rewind_appended(&mut self, checkpoint: AssemblyTableAppendCheckpoint) {
-        self.graphs.rewind_appended(checkpoint.graphs);
-        self.blocks.rewind_appended(checkpoint.blocks);
-        self.instructions.rewind_appended(checkpoint.instructions);
-        self.expressions.rewind_appended(checkpoint.expressions);
-    }
-
-    pub(crate) fn share_pages(&mut self) {
-        self.graphs.share_pages();
-        self.blocks.share_pages();
-        self.instructions.share_pages();
-        self.expressions.share_pages();
-    }
-
-    pub(crate) fn new(generation: u32) -> Self {
-        Self {
-            graphs: Arena::with_generation(generation),
-            blocks: Arena::with_generation(generation),
-            instructions: Arena::with_generation(generation),
-            expressions: Arena::with_generation(generation),
-        }
-    }
-
-    pub(crate) fn adopt(&mut self, other: Self) {
-        self.graphs.adopt(other.graphs);
-        self.blocks.adopt(other.blocks);
-        self.instructions.adopt(other.instructions);
-        self.expressions.adopt(other.expressions);
-    }
-
-    pub(crate) fn begin_page(&mut self, generation: u32) {
-        self.graphs.begin_page(generation);
-        self.blocks.begin_page(generation);
-        self.instructions.begin_page(generation);
-        self.expressions.begin_page(generation);
-    }
-
     pub(crate) fn insert_graph(
         &mut self,
         graph: AssemblyControlFlow,
