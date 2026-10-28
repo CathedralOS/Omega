@@ -34,65 +34,65 @@ fail/borrows/nested_machine_unit_output_no_descent_rejected rejected 3668ms expe
 fail/borrows/nested_machine_unit_output_unwritten_branch_rejected rejected 3681ms expected @1e18830ea024+wt
 	statement 4 mutates `old.value` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
 	statement 5 reads `old.canary` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/calls/static_machine_required_input_overwritten_local rejected 618ms expected @281deee08b6f
+fail/calls/static_machine_required_input_overwritten_local rejected 661ms expected @e12c034a9fc8
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
-fail/calls/static_machine_required_input_unguarded_alternative rejected 610ms expected @281deee08b6f
+fail/calls/static_machine_required_input_unguarded_alternative rejected 655ms expected @e12c034a9fc8
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
-fail/calls/static_machine_required_input_widened_guard rejected 618ms expected @281deee08b6f
+fail/calls/static_machine_required_input_widened_guard rejected 678ms expected @e12c034a9fc8
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
-fail/calls/static_machine_required_input_wrong_guard rejected 633ms expected @281deee08b6f
+fail/calls/static_machine_required_input_wrong_guard rejected 667ms expected @e12c034a9fc8
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result rejected 648ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result rejected 688ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name rejected 656ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name rejected 724ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/changed_index rejected 639ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/changed_index rejected 717ms expected @e12c034a9fc8
 	cannot prove index `changed` is within length 4
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/pending_constructor rejected 282ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/pending_constructor rejected 320ms expected @e12c034a9fc8
 	data `Table` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/field rejected 636ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/field rejected 743ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/local rejected 653ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/local rejected 724ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/match_join rejected 646ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/match_join rejected 724ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/other_machine rejected 652ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/other_machine rejected 706ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/other_state rejected 638ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/other_state rejected 706ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/parameter rejected 666ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/parameter rejected 716ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/private_bounds/admitted_domain/target_body rejected 664ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/private_bounds/admitted_domain/target_body rejected 785ms expected @735966803fab
 	cannot prove index `index` is within length 4 in read::entry
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/call_result rejected 690ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/call_result rejected 696ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/const_name rejected 663ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/const_name rejected 720ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/field rejected 653ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/field rejected 716ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/fresh_mutable_borrow rejected 664ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/fresh_mutable_borrow rejected 705ms expected @e12c034a9fc8
 	state `update` receives `owned` as both mutable and read-only
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/later_mutable_observation rejected 687ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/later_mutable_observation rejected 733ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/local rejected 651ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/local rejected 710ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/match_join rejected 688ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/match_join rejected 692ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/ordinary_returning_call rejected 669ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/ordinary_returning_call rejected 713ms expected @e12c034a9fc8
 	state `update` receives `cell` as both mutable and read-only
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/other_machine rejected 655ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/other_machine rejected 715ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/other_state rejected 659ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/other_state rejected 722ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/parameter rejected 711ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/parameter rejected 734ms expected @e12c034a9fc8
 	state `update` receives `cell` as mutable more than once
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/retained_shared_input rejected 679ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/retained_shared_input rejected 710ms expected @e12c034a9fc8
 	state `update` receives `cell` as both mutable and read-only
-fail/facts/nested_machine_invocation/terminal_reference_snapshot/target_body rejected 647ms expected @281deee08b6f
+fail/facts/nested_machine_invocation/terminal_reference_snapshot/target_body rejected 785ms expected @735966803fab
 	state `update` receives `cell` as mutable more than once
 fail/facts/nested_machine_unit_output_slot_call_result_rejected rejected 3630ms expected @1e18830ea024+wt
 	statement 4 mutates `old.value` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
@@ -121,58 +121,58 @@ fail/facts/nested_machine_unit_output_slot_parameter_rejected rejected 3614ms ex
 fail/facts/nested_machine_unit_output_slot_target_body_rejected rejected 3558ms expected @1e18830ea024+wt
 	statement 4 mutates `old.value` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
 	statement 5 reads `old.canary` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/machines/private_division_changed_storage_control rejected 272ms expected @281deee08b6f
+fail/machines/private_division_changed_storage_control rejected 326ms expected @e12c034a9fc8
 	division by zero in machine `divided` state `entry` terminal expression: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
-fail/machines/private_division_mixed_arrival_control rejected 280ms expected @281deee08b6f
+fail/machines/private_division_mixed_arrival_control rejected 324ms expected @e12c034a9fc8
 	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_division_self_formation_control rejected 281ms expected @281deee08b6f
+fail/machines/private_division_self_formation_control rejected 368ms expected @e12c034a9fc8
 	partial wrapping division in machine `quotient` state `entry` local `__transition_subject#5`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_division_signed_pair_control rejected 279ms expected @281deee08b6f
+fail/machines/private_division_signed_pair_control rejected 325ms expected @e12c034a9fc8
 	partial exact division in machine `divided` state `entry` terminal expression: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_division_zero_divisor_control rejected 276ms expected @281deee08b6f
+fail/machines/private_division_zero_divisor_control rejected 363ms expected @e12c034a9fc8
 	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_frontier_cycle_unsafe_backedge rejected 682ms expected @281deee08b6f
+fail/machines/private_frontier_cycle_unsafe_backedge rejected 722ms expected @e12c034a9fc8
 	cannot prove requires contract for call compare from find: index < 16 (needs fact `index < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/machines/private_frontier_cycle_unsafe_initial rejected 656ms expected @281deee08b6f
+fail/machines/private_frontier_cycle_unsafe_initial rejected 709ms expected @e12c034a9fc8
 	cannot prove requires contract for call candidate from run: index < 16 (needs fact `index < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/machines/private_frontier_enum_guard_invalid_bound rejected 671ms expected @281deee08b6f
+fail/machines/private_frontier_enum_guard_invalid_bound rejected 709ms expected @e12c034a9fc8
 	cannot prove requires contract for call capture from typed: place - 1 < 256 (needs fact `index < 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/machines/private_frontier_enum_guard_missing_bound rejected 661ms expected @281deee08b6f
+fail/machines/private_frontier_enum_guard_missing_bound rejected 742ms expected @e12c034a9fc8
 	cannot prove requires contract for call capture from typed: place - 1 < 256 (needs fact `index < 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/machines/private_frontier_guarded_counter_cycle_invalid rejected 301ms expected @281deee08b6f
+fail/machines/private_frontier_guarded_counter_cycle_invalid rejected 340ms expected @e12c034a9fc8
 	machine `copy` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/machines/private_trapping_missing_prior_guard rejected 679ms expected @281deee08b6f
+fail/machines/private_trapping_missing_prior_guard rejected 766ms expected @e12c034a9fc8
 	call from `locate` to `payload` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/machines/private_trapping_reversed_prior_guard rejected 692ms expected @281deee08b6f
+fail/machines/private_trapping_reversed_prior_guard rejected 714ms expected @e12c034a9fc8
 	call from `locate` to `payload` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/machines/private_trapping_signed_pair_missing rejected 628ms expected @281deee08b6f
+fail/machines/private_trapping_signed_pair_missing rejected 652ms expected @e12c034a9fc8
 	call from `divide` to `quotient` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/borrows/nested_machine_unit_output_completed_operand_exit checked 5718ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_local_destination_exit checked 5669ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit checked 4135ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 4085ms check-target:macos_arm64 @1e18830ea024+wt
-pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 1667ms check-target:macos_arm64 @281deee08b6f
-pass/calls/static_machine_required_input_crash_refinement_exit checked 1727ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result checked 1602ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name checked 1686ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/unrelated_write checked 1684ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/field checked 1622ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/local checked 1573ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/match_join checked 1573ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/other_machine checked 1595ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/other_state checked 1582ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/parameter checked 1586ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/private_bounds/admitted_domain/target_body checked 1596ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/call_result checked 1567ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/const_name checked 1573ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/field checked 1571ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/local checked 1568ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/match_join checked 1577ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/other_machine checked 1574ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/other_state checked 1570ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/parameter checked 1584ms check-target:macos_arm64 @281deee08b6f
-pass/facts/nested_machine_invocation/terminal_reference_snapshot/target_body checked 1549ms check-target:macos_arm64 @281deee08b6f
+pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 1128ms check-target:macos_arm64 @e12c034a9fc8
+pass/calls/static_machine_required_input_crash_refinement_exit checked 1140ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result checked 956ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name checked 1007ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/unrelated_write checked 974ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/field checked 952ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/local checked 993ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/match_join checked 1023ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/other_machine checked 941ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/other_state checked 988ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/parameter checked 947ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/private_bounds/admitted_domain/target_body checked 1272ms check-target:macos_arm64 @735966803fab
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/call_result checked 1007ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/const_name checked 941ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/field checked 997ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/local checked 946ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/match_join checked 983ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/other_machine checked 982ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/other_state checked 997ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/parameter checked 959ms check-target:macos_arm64 @e12c034a9fc8
+pass/facts/nested_machine_invocation/terminal_reference_snapshot/target_body checked 1272ms check-target:macos_arm64 @735966803fab
 pass/facts/nested_machine_unit_output_slot_call_result_exit checked 4162ms check-target:macos_arm64 @1e18830ea024+wt
 pass/facts/nested_machine_unit_output_slot_const_name_exit checked 4162ms check-target:macos_arm64 @1e18830ea024+wt
 pass/facts/nested_machine_unit_output_slot_field_exit checked 4427ms check-target:macos_arm64 @1e18830ea024+wt
@@ -3276,7 +3276,7 @@ fail/control_flow/state_result_differs_from_machine_result rejected 1648ms expec
 	machine `Main::main` state `checked` declares result `named(name(i32))`, which differs from the machine's no result
 fail/control_flow/sum_tuple_matrix_uncovered_rejected rejected 3147ms expected @a92f16431042
 	transition pattern matrix in `Main::main` does not cover (`Direction::Right`, `Outcome::Miss`); add an arm or `_`
-fail/control_flow/terminal_unit_linear_local_cleanup rejected 880ms expected @bc368540ef79
+fail/control_flow/terminal_unit_linear_local_cleanup rejected 926ms expected @e12c034a9fc8
 	linear value `frame` reaches scope exit without being consumed or transferred in machine `drive` state `entry`
 fail/control_flow/termination_countdown_stalled_decrease rejected 4198ms expected @a92f16431042
 	terminating machine Main::countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -17925,7 +17925,7 @@ pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-t
 pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
 pass/calls/runtime_fused_child_computed_borrow_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
 pass/calls/runtime_guarded_terminal_record_field_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 942ms check-target:macos_arm64 @bc368540ef79
+pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 1000ms check-target:macos_arm64 @e12c034a9fc8
 pass/facts/case_where_equality_data_predicate_direct_exit checked 1911ms check-target:macos_arm64 @6d4edb1c9d50
 pass/facts/case_where_equality_data_predicate_formed_call_exit checked 1946ms check-target:macos_arm64 @6d4edb1c9d50
 pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit checked 1782ms check-target:macos_arm64 @6d4edb1c9d50
@@ -31916,31 +31916,31 @@ pass/machines/hold_state_call checked 2320ms @a92f16431042
 pass/machines/machine_param_data checked 2295ms @a92f16431042
 pass/machines/machine_type_equations checked 2307ms @a92f16431042
 pass/machines/nonreturning_unit checked 2282ms @a92f16431042
-pass/machines/private_completion_console_loop_exit checked 6851ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_completion_console_loop_no_normal_exit checked 5489ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_completion_console_value_exit checked 5496ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_completion_nested_wildcard_no_normal_exit checked 5487ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_completion_wildcard_no_normal_exit checked 5464ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_exact_pair_excluded_exit checked 1552ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_exact_pair_exit checked 1540ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_saturating_exit checked 1574ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_saturating_pair_exit checked 1599ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_signed_exit checked 1581ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_signed_remainder_exit checked 1554ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_snapshot_before_write_exit checked 1586ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_unsigned_exit checked 1524ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_unsigned_remainder_exit checked 1559ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_division_wrapping_pair_exit checked 1589ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_cycle_counter_exit checked 1598ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_cycle_exit checked 1607ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_cycle_reordered_exit checked 1549ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_enum_guard_disjunction_exit checked 1567ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_enum_guard_observable_exit checked 1588ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_guarded_counter_cycle_exit checked 1561ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_frontier_guarded_trapping_payload_exit checked 1596ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_trapping_closed_division_exit checked 1566ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_trapping_proven_safe_exit checked 1634ms check-target:macos_arm64 @281deee08b6f
-pass/machines/private_trapping_signed_pair_excluded_exit checked 1548ms check-target:macos_arm64 @281deee08b6f
+pass/machines/private_completion_console_loop_exit checked 5787ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_completion_console_loop_no_normal_exit checked 5822ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_completion_console_value_exit checked 4435ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_completion_nested_wildcard_no_normal_exit checked 4466ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_completion_wildcard_no_normal_exit checked 4310ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_exact_pair_excluded_exit checked 933ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_exact_pair_exit checked 905ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_saturating_exit checked 927ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_saturating_pair_exit checked 982ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_signed_exit checked 927ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_signed_remainder_exit checked 933ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_snapshot_before_write_exit checked 946ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_unsigned_exit checked 943ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_unsigned_remainder_exit checked 940ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_division_wrapping_pair_exit checked 923ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_cycle_counter_exit checked 927ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_cycle_exit checked 927ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_cycle_reordered_exit checked 922ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_enum_guard_disjunction_exit checked 929ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_enum_guard_observable_exit checked 941ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_guarded_counter_cycle_exit checked 925ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_frontier_guarded_trapping_payload_exit checked 947ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_trapping_closed_division_exit checked 934ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_trapping_proven_safe_exit checked 919ms check-target:macos_arm64 @e12c034a9fc8
+pass/machines/private_trapping_signed_pair_excluded_exit checked 937ms check-target:macos_arm64 @e12c034a9fc8
 pass/machines/runtime_explicit_data_parameter_exit checked 2275ms check-target:macos_arm64 @a92f16431042
 pass/machines/static_namespace_constant_exit checked 2131ms check-target:macos_arm64 @a92f16431042
 pass/machines/write_state_forward checked 2121ms @a92f16431042
