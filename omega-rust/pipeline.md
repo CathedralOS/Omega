@@ -273,6 +273,13 @@ the artifact itself, including after reload. There is no late Psi signature quer
 for these adapters. Other checked-source inputs to product coordination remain
 part of the migration; this does not claim the entire driver is source-free.
 
+Entry custody retains declared arguments and physical/semantic calling contracts,
+not synthesized service fields on an application record. Provider roots come from
+actual calls and callback demand. Selected entries, private native derivation
+records and runtime provisions carry no synthetic field-establishment roster;
+older private records reject at their schema boundary. Ordinary provider
+admission, placed-view inputs and physical entry adapters remain independent.
+
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the
 ordinary provider catalog join, which checks agreement with imported and explicit

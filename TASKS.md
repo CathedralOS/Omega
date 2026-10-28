@@ -514,7 +514,7 @@ narrows realization only.
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
   - Convert the remaining install-phase joins in `execution_settlement.rs`
     (selected dispatch, component progress, intrinsic review,
-    fused entry establishments, and deferred constant recipes for
+    and deferred constant recipes for
     arrays/const-generics) from typed/checked records to canonical Terminal Psi
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations

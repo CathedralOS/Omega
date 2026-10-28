@@ -84,7 +84,6 @@ impl NativeExecutionScope {
         input: &crate::VerifiedPsiOptimizationInput,
         selected: &[SelectedProviderAdapter],
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
-        receiving_provider_roots: &[BoundaryMachineId],
         callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, NativeExecutionScopeError> {
         let plan = input.plan();
@@ -138,16 +137,6 @@ impl NativeExecutionScope {
             boundaries_set: std::collections::BTreeSet::new(),
             selected_candidate_positions: Vec::new(),
         };
-        for boundary in receiving_provider_roots {
-            scope.retain_boundary(
-                input,
-                &index,
-                assumptions,
-                &function_positions,
-                *boundary,
-                &mut pending,
-            )?;
-        }
         while let Some(machine) = pending.pop() {
             let position = function_positions
                 .binary_search_by_key(&machine, |(identity, _)| *identity)

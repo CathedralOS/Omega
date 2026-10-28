@@ -29,9 +29,6 @@ pub fn validate_native_program_entry_settlement(
     if slot.owner.native_target() != target {
         return Err(NativeProgramEntrySettlementError::TargetDrift);
     }
-    program_entry
-        .validate_fused_service_establishments_for_target()
-        .map_err(|_| NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
     let admitted_calling_plans = program_entry
         .validate_for_target(target)
         .map_err(|_| NativeProgramEntrySettlementError::CallingPlanPairingDrift)?;
@@ -102,7 +99,6 @@ pub fn validate_native_program_entry_settlement(
         admitted_calling_plans,
         physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
-        fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
         // Executable input supplies these loans, not declaration settlement.
         placed_view_establishments: Vec::new(),
         private_entry_ram: Vec::new(),
