@@ -22,6 +22,36 @@ mod pointer_tests;
 #[cfg(test)]
 mod replay_battery;
 
+/// Resolves a placed-scalar access to the ordinary memory form it aliases.
+fn placed_scalar_target(
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+) -> Result<Option<(SelectedInstructionKind, MachineAlternativeKey)>, X86_64SelectedFormEncodingError>
+{
+    let SelectedInstructionKind::PlacedScalarAccess {
+        form, byte_offset, ..
+    } = kind
+    else {
+        return Ok(None);
+    };
+    if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
+        || alternative.variant != 0
+    {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    let ordinary = form
+        .ordinary_kind(byte_offset)
+        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+    let family = form
+        .ordinary_semantic()
+        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?
+        .into();
+    Ok(Some((
+        ordinary,
+        MachineAlternativeKey { family, variant: 0 },
+    )))
+}
+
 pub fn encode_x86_64_selected_memory_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
@@ -29,25 +59,7 @@ pub fn encode_x86_64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    if let SelectedInstructionKind::PlacedScalarAccess {
-        form, byte_offset, ..
-    } = kind
-    {
-        if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
-            || alternative.variant != 0
-        {
-            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let ordinary = form
-            .ordinary_kind(byte_offset)
-            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let semantic = form
-            .ordinary_semantic()
-            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let alternative = MachineAlternativeKey {
-            family: semantic.into(),
-            variant: 0,
-        };
+    if let Some((ordinary, alternative)) = placed_scalar_target(kind, alternative)? {
         return encode_x86_64_selected_memory_form(
             physical,
             ordinary,
@@ -129,25 +141,7 @@ pub fn validate_x86_64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    if let SelectedInstructionKind::PlacedScalarAccess {
-        form, byte_offset, ..
-    } = kind
-    {
-        if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
-            || alternative.variant != 0
-        {
-            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let ordinary = form
-            .ordinary_kind(byte_offset)
-            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let semantic = form
-            .ordinary_semantic()
-            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let alternative = MachineAlternativeKey {
-            family: semantic.into(),
-            variant: 0,
-        };
+    if let Some((ordinary, alternative)) = placed_scalar_target(kind, alternative)? {
         return validate_x86_64_selected_memory_form(
             physical,
             ordinary,
