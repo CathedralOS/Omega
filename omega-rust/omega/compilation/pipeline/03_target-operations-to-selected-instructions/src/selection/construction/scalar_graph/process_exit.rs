@@ -101,26 +101,7 @@ pub(super) fn build(
                 ..Default::default()
             },
         )?;
-        // A checked completion has no normal successor even if a malformed
-        // installed body returns. Keep the same physical fail-stop used for
-        // an admitted non-returning foreign call.
-        builder.emit(
-            SelectedInstructionKind::Crash,
-            builder.constraints.keys.crash,
-            &[],
-            SelectedInstructionProvenance {
-                edges: vec![*psi_edge],
-                ..Default::default()
-            },
-        )?;
-        return Ok(Some(SelectedTerminator::HostedExitProcess {
-            instruction: builder
-                .instructions
-                .last()
-                .cloned()
-                .ok_or_else(SelectedInstructionError::custody)?,
-            completion_edge: *psi_edge,
-        }));
+        return trap_returning_completion(builder, *psi_edge);
     }
     let target_operations::ExternalCompletionBinding::Boundary(binding) = binding else {
         return Err(SelectedInstructionError::custody());
@@ -167,26 +148,7 @@ pub(super) fn build(
             environment,
             builder,
         )?;
-        // The selected provider promises external completion. If it violates
-        // that premise and returns, trap physically; this is not a source Crash
-        // outcome and cannot establish crash permission or a normal successor.
-        builder.emit(
-            SelectedInstructionKind::Crash,
-            builder.constraints.keys.crash,
-            &[],
-            SelectedInstructionProvenance {
-                edges: vec![*psi_edge],
-                ..Default::default()
-            },
-        )?;
-        return Ok(Some(SelectedTerminator::HostedExitProcess {
-            instruction: builder
-                .instructions
-                .last()
-                .cloned()
-                .ok_or(SelectedInstructionError::custody())?,
-            completion_edge: *psi_edge,
-        }));
+        return trap_returning_completion(builder, *psi_edge);
     }
     if !matches!(
         binding.realization,
@@ -231,12 +193,40 @@ pub(super) fn build(
             ..Default::default()
         },
     )?;
+    hosted_exit_process(builder, *psi_edge)
+}
+
+/// A checked completion and a non-returning foreign call share one physical
+/// fail-stop. Either promise has no normal successor if the callee returns.
+/// The trap is not a source Crash outcome: it establishes neither crash
+/// permission nor a normal successor.
+#[track_caller]
+fn trap_returning_completion(
+    builder: &mut Builder<'_>,
+    completion_edge: semantic_vocabulary::EdgeId,
+) -> Result<Option<SelectedTerminator>, SelectedInstructionError> {
+    builder.emit(
+        SelectedInstructionKind::Crash,
+        builder.constraints.keys.crash,
+        &[],
+        SelectedInstructionProvenance {
+            edges: vec![completion_edge],
+            ..Default::default()
+        },
+    )?;
+    hosted_exit_process(builder, completion_edge)
+}
+
+#[track_caller]
+fn hosted_exit_process(
+    builder: &Builder<'_>,
+    completion_edge: semantic_vocabulary::EdgeId,
+) -> Result<Option<SelectedTerminator>, SelectedInstructionError> {
+    let Some(instruction) = builder.instructions.last().cloned() else {
+        return Err(SelectedInstructionError::custody());
+    };
     Ok(Some(SelectedTerminator::HostedExitProcess {
-        instruction: builder
-            .instructions
-            .last()
-            .cloned()
-            .ok_or(SelectedInstructionError::custody())?,
-        completion_edge: *psi_edge,
+        instruction,
+        completion_edge,
     }))
 }
