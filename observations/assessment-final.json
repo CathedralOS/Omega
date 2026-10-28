@@ -1,7 +1,7 @@
 {
   "schema": "omega-qualification-summary-v1",
   "state": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/private-index-probe/qualification.json",
-  "revision": 7,
+  "revision": 8,
   "base": "baf1b6ea0633681bcc2cf34d563d748a47fadb36",
   "qualification_revision": "b7dd6b93124c5912f1f6b9d48b2c522e8819e7a3",
   "running": null,
@@ -24,9 +24,9 @@
     "checks": [
       {
         "check": "integrated-acceptance",
-        "action": "rerun",
+        "action": "reuse",
         "reasons": [
-          "environment_changed"
+          "reviewed_inputs_unchanged"
         ],
         "evidence": "b7399f20783645408c558f96fa00cfd1",
         "observed_revision": "05e1922eb7b4d554a7d5ee84e47f99ebb3304827"
@@ -4657,8 +4657,8 @@
       "wiki/spec/terminal-psi/encoding.md",
       "wiki/spec/terminal-psi/product.md"
     ],
-    "duration_seconds": 2.571151875,
-    "reused": 0,
-    "invalidated": 1
+    "duration_seconds": 2.7074171660000004,
+    "reused": 1,
+    "invalidated": 0
   }
 }

@@ -5,6 +5,7 @@ from corpus_gate import retain_record_source
 r=Path('build/wrapping-integration');state_path=Path('build/private-index-probe/qualification.json');s=json.loads(state_path.read_text());head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
 assert s['running'] is None and s['runs'][-1]['revision']==head and s['runs'][-1]['exit']==0 and not s['runs'][-1]['invalidations']
 assert s['base']=='baf1b6ea0633681bcc2cf34d563d748a47fadb36'
+assert all(a['action']=='reuse' for a in s['assessments'][-1]['checks'])
 files={}
 for source,name in [(state_path,'state.json.gz'),(r/'qualification-config.json','config.json.gz')]:
  p=r/name
@@ -30,4 +31,4 @@ manifest=dict(submitted_head=head,fixed_base=s['base'],integration=json.loads((r
 env=dict(os.environ,GIT_INDEX_FILE=str((r/'evidence.index').resolve()));subprocess.run(['git','read-tree','--empty'],env=env,check=True)
 for name,path in files.items():
  blob=subprocess.check_output(['git','hash-object','-w',str(path)],text=True).strip();subprocess.run(['git','update-index','--add','--cacheinfo',f'100644,{blob},{name}'],env=env,check=True)
-tree=subprocess.check_output(['git','write-tree'],env=env,text=True).strip();commit=subprocess.check_output(['git','commit-tree',tree],input='psi: retain integrated finite arithmetic execution evidence\n',text=True).strip();ref='work/nested-wrapping-index-integrated-evidence';subprocess.run(['git','push','origin',f'{commit}:refs/heads/{ref}'],check=True);(r/'evidence-publication.json').write_text(json.dumps(dict(commit=commit,ref=ref),indent=2)+'\n');print(commit)
+tree=subprocess.check_output(['git','write-tree'],env=env,text=True).strip();parent=json.loads((r/'evidence-publication.json').read_text())['commit'];commit=subprocess.check_output(['git','commit-tree',tree,'-p',parent],input='psi: retain integrated finite arithmetic execution evidence\n',text=True).strip();ref='work/nested-wrapping-index-integrated-evidence';subprocess.run(['git','push','origin',f'{commit}:refs/heads/{ref}'],check=True);(r/'evidence-publication.json').write_text(json.dumps(dict(commit=commit,ref=ref),indent=2)+'\n');print(commit)
