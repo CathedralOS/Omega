@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v5\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v6\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -595,6 +595,8 @@ impl BuildOutputIdentity<'_> {
     fn provider_identity(&mut self, identity: &ProviderSelectionIdentity) -> Result<(), String> {
         let ProviderSelectionIdentity {
             symbol,
+            application: _,
+            application_identity,
             package,
             canonical_path,
             authored_path,
@@ -603,6 +605,10 @@ impl BuildOutputIdentity<'_> {
         self.package(*package);
         self.digest.string(canonical_path);
         self.digest.string(authored_path);
+        self.digest.bool(application_identity.is_some());
+        if let Some(identity) = application_identity {
+            self.digest.string(identity);
+        }
         Ok(())
     }
 

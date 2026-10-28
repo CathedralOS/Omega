@@ -8,6 +8,11 @@ pub use language_semantics::declaration_selection::CompositionMode;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelectionIdentity {
     pub symbol: SymbolHandle,
+    /// Arena-local prepared source application. Zero is an unapplied declaration.
+    pub application: arena::Handle<typed_trees::product_operand::ProductOperandApplication>,
+    /// Canonical complete application projected by its typing owner. None is a
+    /// declaration choice with no Type/Const telescope, never an erased tuple.
+    pub application_identity: Option<String>,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
     pub authored_path: String,
@@ -283,9 +288,13 @@ impl ProviderSelectionSubject {
 
     pub fn same_declaration_as(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => left.symbol == right.symbol,
+            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => {
+                left.symbol == right.symbol
+                    && left.application_identity == right.application_identity
+            }
             (Self::BoundaryRequirement(left), Self::BoundaryRequirement(right)) => {
                 left.symbol == right.symbol
+                    && left.application_identity == right.application_identity
             }
             (Self::BoundaryOperatorFamily(left), Self::BoundaryOperatorFamily(right)) => {
                 left.package == right.package && left.canonical_path == right.canonical_path

@@ -35,6 +35,69 @@ pub struct ProductOperandApplication {
 }
 
 impl TypedTrees {
+    /// Canonical complete application, projected for a serialization boundary.
+    /// Provider identity includes its own entire telescope, even phantom inputs
+    /// absent from the satisfied trait. Compact conformance commitments are not
+    /// portable application identities.
+    pub fn product_operand_application_identity(
+        &self,
+        handle: Handle<ProductOperandApplication>,
+    ) -> Result<Option<crate::type_identity::NormalizedTypeIdentity>, &'static str> {
+        let application = self.product_operand_applications.get(handle);
+        let (parameters_empty, lifetimes_empty) = match application.role {
+            Some(ProductOperandRole::BoundarySubject) => {
+                let declaration = self
+                    .trait_definition_by_symbol(application.declaration)
+                    .ok_or("Product boundary application lost its declaration")?;
+                (
+                    self.trait_type_parameters(declaration).is_empty(),
+                    declaration.lifetime_parameters.is_empty(),
+                )
+            }
+            Some(ProductOperandRole::Provider) => {
+                let declaration = self
+                    .conformance_by_symbol(application.declaration)
+                    .ok_or("Product implementation application lost its declaration")?;
+                (
+                    self.conformance_type_parameters(declaration).is_empty(),
+                    declaration.lifetime_parameters.is_empty(),
+                )
+            }
+            _ => return Err("Product application has no nominal declaration role"),
+        };
+        // Empty telescopes are the same declaration whether an empty <> was
+        // authored or omitted. Nonempty applied telescopes retain every input.
+        if parameters_empty && lifetimes_empty {
+            return Ok(None);
+        }
+        let identity = match application.role {
+            Some(ProductOperandRole::BoundarySubject) => application
+                .scope
+                .scope(self)
+                .and_then(|scope| scope.portable_application_identity(self)),
+            Some(ProductOperandRole::Provider) => {
+                let source = self
+                    .expression_table
+                    .static_machine_application(application.supplying_application);
+                let [selected] = self
+                    .expression_table
+                    .static_machine_application_arguments(application.supplying_application)
+                else {
+                    return Err("Product implementation lost its whole selected application");
+                };
+                crate::type_identity::portable_applied_index_identity(
+                    self,
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(selected),
+                    source.lexical_owner,
+                    &[],
+                )
+            }
+            _ => unreachable!("nominal role checked above"),
+        }
+        .ok_or("Product application has no complete portable static identity")?;
+        Ok(Some(identity))
+    }
+
     pub fn prepared_product_operand(
         &self,
         operand: &ProductDeclarationOperand,
