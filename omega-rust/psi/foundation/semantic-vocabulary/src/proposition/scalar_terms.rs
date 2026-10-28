@@ -13,7 +13,7 @@ use crate::{
 mod validation;
 mod value_queries;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ScalarType {
     Boolean,
     Integer(IntegerType),
@@ -42,7 +42,7 @@ impl ScalarType {
 /// proposition. Field steps use verifier-owned structural-field identities;
 /// fixed indices retain the exact literal array element; case steps enter one
 /// exact sum payload namespace before a following field step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CanonicalStructuralPathSegment {
     Field(StructuralFieldId),
     FixedIndex(u64),
@@ -54,7 +54,7 @@ pub enum CanonicalStructuralPathSegment {
 
 /// Exact IEEE interchange format retained by target-neutral scalar execution
 /// and structural predicates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IeeeFloatFormat {
     Binary32,
     Binary64,
@@ -73,7 +73,7 @@ impl IeeeFloatFormat {
 /// One exact runtime IEEE interchange value. Raw bits are semantic payload:
 /// signed zero and NaN representation are not reconstructed through a host
 /// floating-point conversion.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IeeeFloatValue {
     Binary32(u32),
     Binary64(u64),
@@ -89,7 +89,7 @@ impl IeeeFloatValue {
 }
 
 /// Source IEEE comparison retained without mathematical-equality laws.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IeeeFloatComparisonKind {
     Equal,
     NotEqual,
@@ -142,7 +142,7 @@ macro_rules! canonical_field_accessors {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct IeeeFloatStructuralField {
     pub(crate) root: PlaceId,
     pub(crate) path: Vec<CanonicalStructuralPathSegment>,
@@ -165,7 +165,7 @@ impl IeeeFloatStructuralField {
 /// One nonempty canonical path to a byte-sequence field below a Terminal
 /// structural root. Equality observes only the live length and byte prefix;
 /// native descriptor identity and unused bounded capacity are not semantic.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ByteSequenceStructuralField {
     pub(crate) root: PlaceId,
     pub(crate) path: Vec<CanonicalStructuralPathSegment>,
@@ -173,7 +173,7 @@ pub struct ByteSequenceStructuralField {
 
 /// One structural subject whose active sum case can be observed.
 /// The path may be empty when the subject is the structural root itself.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct StructuralCaseSubject {
     pub(crate) root: PlaceId,
     path: Vec<CanonicalStructuralPathSegment>,
@@ -183,7 +183,7 @@ pub struct StructuralCaseSubject {
 /// frame, not a storage address or an executable comparison operand. Transport
 /// must establish correspondence to that frame; a surviving path alone never
 /// carries an identity assumption across a mutation.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct StructuralIdentitySubject {
     pub(crate) root: PlaceId,
     path: Vec<CanonicalStructuralPathSegment>,
@@ -251,7 +251,7 @@ impl ByteSequenceStructuralField {
 /// An observation path keeps declaration geometry separate from evaluated
 /// selectors. Index operands are scalar terms, never executable syntax or a
 /// claim that the selected storage is readable or in bounds.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ScalarReadProjection {
     /// An explicit live descriptor crossing, never inline field geometry or
     /// permission to observe storage without its retained loan custody.
@@ -277,7 +277,7 @@ impl From<CanonicalStructuralPathSegment> for ScalarReadProjection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ScalarTerm {
     /// A current scalar observation at an exact root and ordered projection.
     /// Only supplied premises establish its relation to an SSA value; this

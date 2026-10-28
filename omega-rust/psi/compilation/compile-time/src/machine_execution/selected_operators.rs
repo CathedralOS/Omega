@@ -19,7 +19,7 @@ use typed_trees::{
 /// ordinary call shape checked-side settlement publishes -- so the checked
 /// interpreter runs the real provider body and the caller's result is
 /// installed only after the provider returns.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SelectedBuildTimeProviderBody {
     /// The authored operator expression or its normalized requirement call.
     pub expression: ExpressionHandle,

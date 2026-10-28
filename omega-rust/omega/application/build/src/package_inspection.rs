@@ -15,7 +15,7 @@ pub fn inspect_packages(
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     let transaction = PackageInspectionTransaction::open(options)?;
     let mut session =
-        BuildSession::create(&transaction.project_root().join("build/package-manager"))?;
+        BuildSession::create_retained(&transaction.project_root().join("build/package-manager"))?;
     let result = (|| {
         let mut inspection = transaction.prepare(None)?;
         let (sources, mut completed) = match resolve_inspection_sources(&inspection, &mut session) {

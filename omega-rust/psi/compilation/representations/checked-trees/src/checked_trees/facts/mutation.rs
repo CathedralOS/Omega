@@ -4,7 +4,7 @@
 use arena::Arena;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MutationFacts {
     /// One entry per checked machine, in machine-table order.
     pub machines: Vec<MachineMutationFact>,
@@ -17,7 +17,7 @@ pub struct MutationFacts {
 /// occurrences remain distinct even when they target the same place or a later
 /// write restores the entry value. Missing value provenance is unproven, never
 /// an empty effect; opaque destination frames remain explicit rows.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PerformedIntegerWrite {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -39,14 +39,14 @@ impl MutationFacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineMutationFact {
     pub machine: SymbolHandle,
     /// Exact state-symbol frames in that machine's state-table order.
     pub state_write_frames: Vec<StateWriteFramePlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateWriteFramePlan {
     pub state: SymbolHandle,
     pub frame: facts::NormalizedWriteFrame,

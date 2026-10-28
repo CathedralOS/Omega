@@ -14,7 +14,7 @@ pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 /// The completed value a dispatch retains before testing its alternatives.
 /// A structural place is existing custody, not a fresh owned copy. A nonzero
 /// `value` establishes computed storage once before the place can be used.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedDispatchSubject {
     Scalar(CheckedScalarComputationHandle),
     Structural {
@@ -53,7 +53,7 @@ impl CheckedDispatchSubject {
 /// A real structural value whose scalar payload is evaluated in authored order.
 /// Field and case symbols retain nominal identity; no tag occupies a scalar
 /// parameter slot, and evaluation is not permission to copy an affine value.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseConstruction {
     pub expression: typed_trees::expression::ExpressionHandle,
     pub type_reference: typed_trees::types::TypeReferenceHandle,
@@ -61,7 +61,7 @@ pub struct CheckedScalarCaseConstruction {
     pub fields: HandleSpan<CheckedScalarCaseComputationField>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarCaseComputationField {
     pub symbol: SymbolHandle,
     pub value: CheckedScalarComputationHandle,
@@ -70,7 +70,7 @@ pub struct CheckedScalarCaseComputationField {
 /// Call operands name existing storage or retained structural expression roots.
 /// A membership observation may also carry a direct case construction. Neither
 /// representation invents source locals or gives structural values scalar slots.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarComputationStructuralArgument {
     Place(CheckedUnitStructuralArgumentPlan),
     Case(CheckedScalarCaseConstruction),
@@ -97,7 +97,7 @@ impl CheckedScalarComputationStructuralArgument {
 /// The exact maximal complement may be empty; the row still names the dying
 /// owner's normal continuation. Each action either discards a cleanup-free
 /// subtree or invokes its checked nominal hook; their order stays intact.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputationTemporaryCleanup {
     /// None selects the call's authority value; Some selects an ordinary
     /// structural formal. Authority never consumes a formal position.
@@ -117,7 +117,7 @@ pub struct CheckedScalarComputationTemporaryCleanup {
 /// One actual value completed before a scoped scalar consumer. Scalar
 /// observations capture their value without copying the structural carrier;
 /// owned dependencies retain the ordinary value producer and its custody.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarEvaluationOperand {
     Scalar(CheckedScalarComputationHandle),
     Structural(super::structural_values::CheckedStructuralValueHandle),
@@ -129,7 +129,7 @@ impl Default for CheckedScalarEvaluationOperand {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
     pub projection_selectors: Arena<CheckedProjectionSelectorRoot>,
@@ -374,7 +374,7 @@ impl CheckedScalarComputationPlans {
 
 /// One exact authored projection occurrence. Child computations live in the
 /// ordinary operand arena; frozen execution planning borrows this published span.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProjectionSelectorRoot {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -395,7 +395,7 @@ impl Default for CheckedProjectionSelectorRoot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputationRoot {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -416,7 +416,7 @@ impl Default for CheckedScalarComputationRoot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarComputation {
     /// Exact authored expression for a destination or call-argument root.
     /// Other intermediate nodes use the zero handle; source spans are not identity.
@@ -519,7 +519,7 @@ impl CheckedScalarComputation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarComputationKind {
     /// Expose the checked current referent. The numeric result owns no loan;
     /// its operand retains ordinary storage access and selector obligations.
@@ -729,7 +729,7 @@ impl CheckedScalarComputationKind {
 
 /// Which executable one scalar invocation enters. Operand order, custody and
 /// temporary retirement are independent of the callee kind.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarCallee {
     /// A checked body in this program.
     Body {
@@ -803,7 +803,7 @@ impl CheckedScalarCallee {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedScalarDispatchArm {
     /// Zero for builtin comparisons; otherwise the exact implicit arm use.
     pub equality_use: Handle<crate::CheckedOperatorUseFact>,
@@ -812,7 +812,7 @@ pub struct CheckedScalarDispatchArm {
     pub value: CheckedScalarComputationHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarDispatchPattern {
     Value(CheckedScalarComputationHandle),
     /// A case/field/domain predicate over the already captured subject.

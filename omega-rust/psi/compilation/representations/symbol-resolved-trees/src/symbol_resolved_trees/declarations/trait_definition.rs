@@ -4,7 +4,7 @@ use arena::HandleSpan;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
@@ -15,7 +15,7 @@ pub struct TraitDefinition {
     pub storage: TraitStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitStorage {
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
@@ -32,7 +32,7 @@ pub struct TraitStorage {
     pub refinement_clauses: Vec<TraitRefinementClause>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitRefinementClause {
     /// The authored base requirement name; `None` for the `machine *`
     /// wildcard covering every base requirement.
@@ -51,7 +51,7 @@ pub struct TraitRefinementClause {
 /// One named implementation: a closed map from every inherited requirement to
 /// exactly one realization row. The implementation has no data subject; its
 /// trait application's types are ordinary arguments.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Conformance {
     pub symbol: SymbolHandle,
     /// Source visibility retained independently from trait and rows.
@@ -70,7 +70,7 @@ pub struct Conformance {
     pub rows: Vec<ConformanceRow>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConformanceRow {
     /// Exact declaring trait after normalization. Inline short names begin
     /// with an invalid symbol and empty diagnostic name, then resolve against
@@ -98,7 +98,7 @@ pub struct ConformanceRow {
     pub source: ConformanceRowSource,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ConformanceRowSource {
     Inline,
     Reference,
@@ -117,7 +117,7 @@ impl ConformanceRowSource {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,

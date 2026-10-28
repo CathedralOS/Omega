@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::{SourceId, SourceSpan, Span};
 use semantic_vocabulary::PackageKeyIdentity;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SourceOrigin {
     #[default]
     User,
@@ -25,7 +25,7 @@ pub enum SourceOrigin {
 /// review root, where its generated units are the current activation's
 /// extension, and again inside every consumer, where they arrive through a
 /// bundle. Both routes must reach the same resolution verdict.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SourceResolutionStratum {
     #[default]
     Base,
@@ -46,14 +46,16 @@ pub enum SourceResolutionStratum {
 /// authority (wiki/spec/build/scoped_execution.md, "Two checked contexts").
 /// This is deliberately independent of [`SourceResolutionStratum`], which is
 /// an activation-visibility boundary, not a dependency context.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub enum DependencyScope {
     #[default]
     Product,
     Build,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceFile {
     pub source_id: SourceId,
     pub path: PathBuf,

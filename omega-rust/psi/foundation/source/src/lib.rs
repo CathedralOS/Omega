@@ -62,7 +62,7 @@ pub fn display_literal_bytes(bytes: &[u8]) -> String {
     output
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, compiler_storage::Record)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -75,12 +75,12 @@ impl Span {
 }
 
 /// Identity of one loaded source within a `SourceMap`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct SourceId(pub usize);
 
 /// A span inside one loaded source: the coordinate every token and diagnostic
 /// carries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, compiler_storage::Record)]
 pub struct SourceSpan {
     pub source_id: SourceId,
     pub span: Span,

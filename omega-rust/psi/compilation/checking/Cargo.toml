@@ -10,6 +10,7 @@ name = "validation"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../foundation/compiler-storage" }
 access-plans = { path = "../../foundation/access-plans" }
 arena = { path = "../../foundation/arena" }
 checked-trees = { path = "../representations/checked-trees" }

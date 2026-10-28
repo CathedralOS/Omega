@@ -9,6 +9,7 @@ name = "language_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 build-time-values = { path = "../build-time-values" }
 optimization = { path = "../optimization-selections" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }

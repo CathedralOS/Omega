@@ -17,7 +17,7 @@ use super::indices::{BindingSourceIndex, PreparedModuleImport, SourceLookupScope
 use super::{SourceScopedTopLevelBinding, SymbolLookup, SymbolTable};
 use crate::{Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(super) struct ModuleImport {
     pub(super) path: Arc<str>,
     package_prefix_members: usize,

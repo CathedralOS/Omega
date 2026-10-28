@@ -40,3 +40,17 @@ impl AsRef<TypedTrees> for FrozenTypedTrees {
         &self.0
     }
 }
+
+impl compiler_storage::Record for FrozenTypedTrees {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.0, output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        <TypedTrees as compiler_storage::Record>::read(input).map(Self::from)
+    }
+}

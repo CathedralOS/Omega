@@ -73,6 +73,30 @@ pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
 
+/// Capture the same complete anonymous namespace that source assembly consumes.
+/// Callers may compare a private checkpoint before parsing, then pass this exact
+/// capture into assembly. Capture grants neither Build nor package authority.
+pub fn capture_anonymous_compilation_source(
+    root_path: &std::path::Path,
+) -> Result<CapturedLocalSource, Vec<diagnostics::Diagnostic>> {
+    let root = if root_path.is_dir() {
+        root_path
+    } else {
+        root_path
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| std::path::Path::new("."))
+    };
+    package_source::local::operations::capture_local_source_input(
+        root,
+        package_source::LocalSourceLimits::default(),
+    )
+    .map_err(|reason| {
+        vec![diagnostics::Diagnostic::error(format!(
+            "cannot capture anonymous source: {reason}"
+        ))]
+    })
+}
 pub use package_compilation::{
     NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,
     PackageNativeBindingBundle, PackageNativeBindingOrigin,

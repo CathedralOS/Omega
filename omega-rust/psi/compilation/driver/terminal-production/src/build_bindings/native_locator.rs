@@ -10,25 +10,25 @@ use std::{
 };
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildNativeLocator {
     pub structural_type: StructuralTypeId,
     pub widths: [u64; 3],
     pub shape: Arc<TerminalBuildValueShape>,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalBuildValueShape {
     Scalar(ScalarType),
     Array { length: u64, element: Arc<Self> },
     Sum { cases: Vec<TerminalBuildValueCase> },
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildValueCase {
     pub id: StructuralCaseId,
     pub name: String,
     pub fields: Vec<TerminalBuildValueField>,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildValueField {
     pub id: StructuralFieldId,
     pub name: String,

@@ -10,14 +10,14 @@ use symbols::SymbolHandle;
 
 /// Frontend completion, distinct from whether source authors a body or which
 /// supply rule it declares. Deferred declarations cannot supply execution.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MachineBodyStatus {
     Deferred,
     #[default]
     Complete,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Machine {
     pub symbol: SymbolHandle,
     /// Exact enclosing declaration before symbol assignment. Zero for a module
@@ -134,7 +134,7 @@ impl Machine {
 /// Compiler-owned derivation, separate from trait-default selection partitions.
 /// The declaration token settles to one original template and one closed data
 /// owner before typed lowering can suppress substituted signature occurrences.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct GenericDataMachineOrigin {
     pub template_source: DiagnosticName,
     pub template: SymbolHandle,
@@ -146,7 +146,7 @@ pub struct GenericDataMachineOrigin {
 /// `declaring_trait`, so bare requirement names in it keep that trait's
 /// lexical scope instead of the instantiating carrier's. Both fields are empty
 /// on authored machines and other synthesis families.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitDefaultOrigin {
     /// Logical trait path spelled by default synthesis.
     pub trait_source: DiagnosticName,
@@ -154,7 +154,7 @@ pub struct TraitDefaultOrigin {
     pub declaring_trait: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineStorage {
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
@@ -179,7 +179,7 @@ pub struct MachineStorage {
 
 /// A structural type equation from this declaration's own generic contract.
 /// Both sides acquire ordinary lexical declaration identities in resolution.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DeclaredTypeEquation {
     pub parameter: TypeReference,
     pub definition: TypeReference,
@@ -189,7 +189,7 @@ pub struct DeclaredTypeEquation {
 /// an implementation parameter; its argument is one named conformance whose
 /// trait application equals this one after substitution. No parameter is a
 /// data subject.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct GenericConformanceBound {
     /// The binder's `ConformanceParameter` symbol.
     pub binder: SymbolHandle,
@@ -202,7 +202,7 @@ pub struct GenericConformanceBound {
 
 deref_to_storage!(Machine => MachineStorage);
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -210,7 +210,7 @@ pub struct OwnedData {
     pub initial_value: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,

@@ -17,13 +17,13 @@ pub type StaticMachineApplicationHandle = Handle<StaticMachineApplication>;
 
 /// Derived selection at one authored occurrence. The ordinal rejoins the
 /// explicit operand; this is neither callable admission nor a trust receipt.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticConformanceSelection {
     pub operand_ordinal: u32,
     pub application: Option<Box<crate::typed_trees::ClosedConformanceApplication>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineApplication {
     /// The authored operation, possibly a trait requirement, never its private
     /// executable realization or instance.
@@ -52,7 +52,7 @@ pub struct StaticMachineApplication {
     pub conformance_selection: Option<Box<StaticConformanceSelection>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineLifetimeBinding {
     pub parameter: Identifier,
     pub argument: Identifier,
@@ -60,14 +60,14 @@ pub struct StaticMachineLifetimeBinding {
 
 /// One known substitution for a source declaration's binder. Missing bindings
 /// are absent rows, not claims that an open tuple satisfies its requirements.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineBinding {
     /// Always the original callee binder, even when a caller body is cloned.
     pub parameter: SymbolHandle,
     pub value: StaticMachineBindingValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum StaticMachineBindingValue {
     Type(TypeReferenceHandle),
     Const(TypeReferenceHandle),

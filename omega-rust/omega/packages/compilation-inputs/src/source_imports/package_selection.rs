@@ -30,7 +30,7 @@ pub(crate) enum ReconciledPackageImport {
 ///
 /// Physical source lookup is target-independent. Generated-source selection
 /// and physical/generated collision rejection remain exact-child work.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ReconciledPackageImportRequest {
     pub(super) package: semantic_vocabulary::PackageKeyIdentity,
     pub(super) expected_root: PathBuf,
@@ -49,7 +49,7 @@ pub(crate) struct ReconciledPackageImportRequest {
 /// This is diagnostic metadata only. It never adds the edge or resolves the
 /// import; the compile still rejects, but by naming the declaration that would
 /// close the gap instead of an unresolvable requester-relative source path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct MissingDependencyEdge {
     authored_path: String,
     alias: String,

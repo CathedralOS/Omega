@@ -10,13 +10,13 @@ use crate::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 use arena::Handle;
 use source::SourceSpan;
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct FloatSpelling {
     text: FloatSpellingText,
     source_span: SourceSpan,
 }
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 enum FloatSpellingText {
     Owned(Box<str>),
     SourceBacked(Handle<RetainedSource>),

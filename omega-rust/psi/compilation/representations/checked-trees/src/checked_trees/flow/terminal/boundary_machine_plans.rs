@@ -14,7 +14,7 @@ use typed_trees::types::PrimitiveType;
 /// Exact result role of one bodyless boundary declaration. Unit, primitive,
 /// and structural results are distinct identities; an absent result is never
 /// reused to mean an empty structural result.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBoundaryMachineResultPlan {
     Unit,
     Scalar(PrimitiveType),
@@ -48,7 +48,7 @@ impl CheckedBoundaryMachineResultPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderAttachmentRequirementPlan {
     pub field_identity: CheckedMemberIdentity,
     pub provider_type_identity: TypeIdentityId,
@@ -58,7 +58,7 @@ pub struct CheckedProviderAttachmentRequirementPlan {
 /// A normal-return fact in the boundary's input/result scalar namespace.
 /// Conditional consequences retain their premise as proof structure rather
 /// than converting it into executable Boolean control or losing it in a union.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBoundaryScalarGuarantee {
     Predicate(crate::CheckedBooleanExpression),
     Implication {
@@ -69,7 +69,7 @@ pub enum CheckedBoundaryScalarGuarantee {
 
 /// Normal completion promises a reference, not a spatial relation to an input.
 /// Parameter positions here are authored positions, before lane packing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryReferenceOutput {
     pub destination: CheckedBoundaryReferenceDestination,
     pub path: Vec<super::CheckedUnitStructuralPathSegment>,
@@ -77,12 +77,12 @@ pub struct CheckedBoundaryReferenceOutput {
     pub dependencies: Vec<CheckedBoundaryLifetimeDependency>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBoundaryReferenceDestination {
     Parameter(u32),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBoundaryLifetimeDependency {
     Referent {
         parameter_index: u32,
@@ -98,7 +98,7 @@ pub enum CheckedBoundaryLifetimeDependency {
 /// A nominal scalar admission obligation, independent of its numeric predicate.
 /// The predicate uses one declaration-local subject at position zero; parameter
 /// packing never changes the retained domain application or issuer identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryScalarDomainRequirementPlan {
     pub argument_index: u32,
     pub domain_symbol: SymbolHandle,
@@ -107,7 +107,7 @@ pub struct CheckedBoundaryScalarDomainRequirementPlan {
     pub predicate: crate::CheckedBooleanExpression,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryMachinePlan {
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub machine: SymbolHandle,

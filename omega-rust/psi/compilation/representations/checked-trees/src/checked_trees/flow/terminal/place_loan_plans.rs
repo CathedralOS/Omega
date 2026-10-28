@@ -11,7 +11,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 /// One silent place loan of a state, in the plan that owns the state's
 /// structural parameter roster.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPlaceLoanPlan {
     /// The `let` that declares the loan local.
     pub statement_index: u32,
@@ -41,7 +41,7 @@ pub struct CheckedPlaceLoanPlan {
 }
 
 /// The storage a silent place loan names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedPlaceLoanRoot {
     /// Dense index into the state's structural parameter roster.
     StructuralParameter { parameter_index: u32 },

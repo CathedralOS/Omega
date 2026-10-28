@@ -12,7 +12,7 @@ use crate::typed_trees::declarations::operator::type_matching::type_reference_ma
 /// One declaration-ordered, closed operator telescope argument inferred from
 /// the exact operand tuple. Const identity deliberately excludes display text;
 /// the independently retained declared carrier is rechecked by validation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ClosedOperatorApplicationArgument {
     Type {
         binder_symbol: SymbolHandle,
@@ -41,7 +41,7 @@ pub struct SymbolicOperatorTypeApplicationArgument {
 /// retains declaration ordinal, while each argument retains the exact binder
 /// symbol/category and structural type or canonical const custody needed for
 /// independent replay after generic specialization.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedOperatorRealizationApplication {
     pub requirement_symbol: SymbolHandle,
     pub arguments: Vec<ClosedOperatorApplicationArgument>,

@@ -1,18 +1,18 @@
 use arena::{Arena, HandleSpan};
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDependencyPathFact {
     pub segments: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDependencyFact {
     pub domain_symbol: SymbolHandle,
     pub dependencies: HandleSpan<DomainDependencyPathFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainFacts {
     pub segments: Arena<facts::PlaceSegment>,
     pub dependency_paths: Arena<DomainDependencyPathFact>,

@@ -21,7 +21,7 @@ use target::TargetProfile;
 /// Supplier presence is only a source-routing observation: checkpoint reuse
 /// still validates live custody, and source sealing rechecks the consumed bytes
 /// before issuing a checked product. This key cannot attest filesystem contents.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceAssemblyInputs {
     build_execution_profile: Option<TargetProfile>,
     package: Option<PackageSourceContent>,
@@ -52,7 +52,7 @@ impl SourceAssemblyInputs {
 /// binding admissions do not partition source assembly, resolution, or typing;
 /// entry contract source selection is already recorded in `SourceAssemblyInputs`,
 /// and custody/semantic bindings are still admitted per occurrence.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductSourceInputs {
     assembly: SourceAssemblyInputs,
 }
@@ -72,7 +72,7 @@ impl ProductSourceInputs {
 /// retain only the scope, package and bytes assembly consumes. Their producing
 /// target, dependency closure and source commitment remain admission evidence
 /// on PackageCompilationInputs, checked separately for each child.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageSourceContent {
     purpose: DependencyPurpose,
     source: Arc<PackageCompilationSourceInputs>,
@@ -96,7 +96,7 @@ impl PackageSourceContent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct GeneratedSourceContent {
     scope: DependencyPurpose,
     package: PackageKeyIdentity,

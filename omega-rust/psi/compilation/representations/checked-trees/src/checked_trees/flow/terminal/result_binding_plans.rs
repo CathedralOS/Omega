@@ -14,7 +14,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// Unit-effect body. The local has no structural place or cleanup action; its
 /// dense binding ordinal is the scalar value namespace used by later checked
 /// call arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitScalarResultBindingPlan {
     pub statement_index: u32,
     pub binding_ordinal: u32,
@@ -24,7 +24,7 @@ pub struct CheckedUnitScalarResultBindingPlan {
 /// Exact whole structural operation result in the shared dense value namespace.
 /// Its statement may bind an immutable local or directly supply completion.
 /// Claim-free construction carries neither a fabricated claim nor a projected path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralResultBindingPlan {
     pub statement_index: u32,
     pub binding_ordinal: u32,
@@ -41,7 +41,7 @@ pub struct CheckedUnitStructuralResultBindingPlan {
 /// value, a computed dispatch subject, a nested operand, an explicitly
 /// discarded call, a call whose result a store consumes, or the call result
 /// a descriptor local's first store reads after its home is established.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedInitializedLocal {
     pub symbol: SymbolHandle,
     /// The local's declared type. Claim paths, closed-sum subjects and byte
@@ -72,7 +72,7 @@ impl Default for CheckedInitializedLocal {
 }
 
 /// Pure byte values retain authored evaluation order through arena children.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedByteSequenceValuePlan {
     pub nodes: arena::Arena<CheckedByteSequenceValue>,
     pub root: arena::Handle<CheckedByteSequenceValue>,
@@ -115,7 +115,7 @@ impl CheckedByteSequenceValuePlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedByteSequenceValue {
     Literal(Vec<u8>),
     /// A completed descriptor value, distinct from a byte-content snapshot.

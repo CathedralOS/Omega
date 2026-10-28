@@ -11,7 +11,7 @@ use typed_trees::references::DeclarationSelection;
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
 /// operand must never promote a Product implementation into callable context.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub(crate) struct EvaluationDomain {
     work: DeclarationSelection,
     execution: DeclarationSelection,
@@ -197,13 +197,16 @@ pub fn evaluate_pre_resolution(
     // and invocation admission used by ordinary static arguments.
     if syntax_trees.root_item_handles().len() > roots_before_generic {
         syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
-        syntax_trees =
-            const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
+        syntax_trees = const_generic_calls::evaluate_const_generic_calls(
+            syntax_trees,
+            source_context.clone(),
+        )?;
     }
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
         pre_check: PreCheckEvaluation {
+            recorded_authority: None,
             domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
             placed_view_records,
@@ -235,6 +238,9 @@ pub struct SelectedBuildTimeOperators<'a> {
 /// predecessor but never participate in each other's normalization.
 #[derive(Clone, Default)]
 pub struct BuildTimeSources<'a> {
+    /// Parsed declaration context, separate from the cohort being elaborated.
+    /// Lookup still selects through the receiving namespace and authority.
+    pub declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
     pub sources: Option<Arc<source::SourceMap>>,
     pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
@@ -329,6 +335,7 @@ impl PreResolutionEvaluation {
 #[derive(Clone)]
 #[must_use = "the matching typed tree must consume this pre-check continuation"]
 pub struct PreCheckEvaluation {
+    recorded_authority: Option<validation::RecordedDeclarationAuthority>,
     /// Work roots, never an arena copy: folded types, evidence and fresh
     /// instances publish in the canonical frontend's original storage.
     domain: EvaluationDomain,
@@ -375,11 +382,141 @@ impl EvaluatedPreCheck {
 }
 
 impl PreCheckEvaluation {
+    /// A disk candidate has no live authority. Only an equal recorded package
+    /// scope and the matching typed source owner permit rebinding it.
+    pub fn rejoin_source_authority(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Result<(), String> {
+        if let Some(recorded) = &self.recorded_authority {
+            self.selection_authority = match recorded {
+                // A continuation can carry pre-reconciliation jobs beside
+                // later package-owned jobs. Fresh evaluation preserves each
+                // producer's mode; the enclosing source context separately
+                // rejoins its complete current authority. Absence here is not
+                // a wildcard in that outer comparison.
+                validation::RecordedDeclarationAuthority::Absent => None,
+                validation::RecordedDeclarationAuthority::Packages(_) => {
+                    // Inherited jobs keep their projected work and executable
+                    // roster when another source adds Product declarations.
+                    // Compare every requester in both rosters, including any
+                    // explicit selected realization outside those roots. An
+                    // All execution roster deliberately remains conservative.
+                    let declarations =
+                        typed_trees::references::collect_program_declarations(program)
+                            .into_iter()
+                            .filter(|symbol| {
+                                self.domain.work.contains(*symbol)
+                                    || self.domain.execution.contains(*symbol)
+                            })
+                            .chain(
+                                self.selected_operators
+                                    .iter()
+                                    .map(|operator| operator.requirement),
+                            )
+                            .chain(self.provider_bodies.iter().flat_map(|provider| {
+                                [
+                                    provider.requirement,
+                                    provider.provider_machine,
+                                    provider.provider_state,
+                                    provider.provider_declaration,
+                                ]
+                            }));
+                    let mut sites = declarations
+                        .filter_map(|symbol| program.symbols.symbol_provenance_source_span(symbol))
+                        .collect::<Vec<_>>();
+                    let uses = self
+                        .selected_operators
+                        .iter()
+                        .map(|operator| {
+                            (
+                                operator.expression,
+                                operator.origin,
+                                operator.operands.as_slice(),
+                            )
+                        })
+                        .chain(self.provider_bodies.iter().map(|provider| {
+                            (
+                                provider.expression,
+                                provider.origin,
+                                provider.operands.as_slice(),
+                            )
+                        }));
+                    let mut needs_full_scope = false;
+                    for (expression, origin, operands) in uses {
+                        if let Some(machine) = origin.machine_symbol() {
+                            match program.symbols.symbol_provenance_source_span(machine) {
+                                Some(site) => sites.push(site),
+                                None => needs_full_scope = true,
+                            }
+                        }
+                        let parent = match origin {
+                            checked_trees::CheckedValueOrigin::NestedExpression { parent } => {
+                                Some(parent)
+                            }
+                            _ => None,
+                        };
+                        for occurrence in std::iter::once(expression)
+                            .chain(parent)
+                            .chain(operands.iter().copied())
+                        {
+                            match program.expression_table.try_source_span(occurrence) {
+                                Some(site) if site.span.start < site.span.end => sites.push(site),
+                                _ => needs_full_scope = true,
+                            }
+                        }
+                    }
+                    // A shared synthesized layout can have several callers in
+                    // different packages. Each application retains its own
+                    // requester even though the policy result has one owner.
+                    sites.extend(
+                        self.placed_view_records
+                            .iter()
+                            .flat_map(|record| record.invocation_sources.iter().copied()),
+                    );
+                    sites.extend(
+                        self.plan_laid_records
+                            .iter()
+                            .flat_map(|record| record.invocation_sources.iter().copied()),
+                    );
+                    recorded.require_current_sites(
+                        authority.as_deref(),
+                        program,
+                        sites.into_iter(),
+                    )?;
+                    if needs_full_scope {
+                        let sources = program
+                            .symbols
+                            .source_map()
+                            .ok_or("retained selected use has no complete source context")?;
+                        recorded.require_current(authority.as_deref(), &sources)?;
+                    }
+                    // Descriptor lookup is inert, but its original source
+                    // custody still participates in the comparison. Keep that
+                    // frontier conservative until its exact demands narrow it.
+                    if let Some(frontier) = &self.domain.product_frontier {
+                        let sources = frontier
+                            .symbols
+                            .source_map()
+                            .ok_or("retained Product descriptor frontier has no source context")?;
+                        recorded.require_current(authority.as_deref(), &sources)?;
+                    }
+                    authority
+                }
+            };
+            self.recorded_authority = None;
+        }
+        Ok(())
+    }
+
     /// Compare pending work from the same source-preparation owner. An authority
     /// object is opaque: only a shared object can establish the same selection
     /// context here. This is input matching, never permission to execute work.
     pub fn same_pending_work(&self, other: &Self) -> bool {
-        self.domain == other.domain
+        self.recorded_authority.is_none()
+            && other.recorded_authority.is_none()
+            && self.domain == other.domain
             && self.wire_schema_frontier == other.wire_schema_frontier
             && self.placed_view_records == other.placed_view_records
             && self.plan_laid_records == other.plan_laid_records
@@ -484,6 +621,7 @@ impl PreCheckEvaluation {
                 )]
             })?;
         Ok(Self {
+            recorded_authority: self.recorded_authority.clone(),
             domain,
             wire_schema_frontier: self.wire_schema_frontier,
             placed_view_records,
@@ -521,6 +659,11 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         let defer = {
             let _g = phase_profile::guard("evaluate_or_defer.check_defer");
             phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
@@ -612,6 +755,11 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
@@ -632,6 +780,11 @@ impl PreCheckEvaluation {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "restored pre-check has not rejoined current declaration authority",
+            )]);
+        }
         self.evaluate_work(typed)?.finish(typed)
     }
 
@@ -640,13 +793,16 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
-        phase_profile::scope("evaluate_or_defer.evaluate_work.const_array_lengths", || {
-            const_lengths::evaluate_const_array_lengths_in(
-                typed,
-                self.selection_authority.clone(),
-                &self.domain,
-            )
-        })?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.const_array_lengths",
+            || {
+                const_lengths::evaluate_const_array_lengths_in(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            },
+        )?;
         phase_profile::scope("evaluate_or_defer.evaluate_work.range_endpoints", || {
             range_endpoints::evaluate_selected_range_endpoints(
                 typed,
@@ -709,12 +865,58 @@ impl PreCheckEvaluation {
         typed.retain_symbolic_constant_recipes();
         // Installed view plans bind their accessor targets before any later
         // continuation consumes them; initializer settlement waits for queries.
-        phase_profile::scope("evaluate_or_defer.evaluate_work.dynamic_call_targets", || {
-            validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())
-        })?;
+        phase_profile::scope(
+            "evaluate_or_defer.evaluate_work.dynamic_call_targets",
+            || validation::resolve_selected_dynamic_call_targets(typed, self.domain.work()),
+        )?;
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
+        })
+    }
+}
+
+impl compiler_storage::Record for PreCheckEvaluation {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.domain.write(output)?;
+            self.wire_schema_frontier.write(output)?;
+            self.placed_view_records.write(output)?;
+            self.plan_laid_records.write(output)?;
+            let captured;
+            let authority = match &self.recorded_authority {
+                Some(authority) => authority,
+                None => {
+                    captured = validation::RecordedDeclarationAuthority::capture(
+                        self.selection_authority.as_deref(),
+                    )
+                    .map_err(|reason| output.error(reason))?;
+                    &captured
+                }
+            };
+            authority.write(output)?;
+            self.selected_operators.write(output)?;
+            self.provider_bodies.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            Ok(Self {
+                domain: compiler_storage::Record::read(input)?,
+                wire_schema_frontier: compiler_storage::Record::read(input)?,
+                placed_view_records: compiler_storage::Record::read(input)?,
+                plan_laid_records: compiler_storage::Record::read(input)?,
+                recorded_authority: Some(compiler_storage::Record::read(input)?),
+                selection_authority: None,
+                selected_operators: compiler_storage::Record::read(input)?,
+                provider_bodies: compiler_storage::Record::read(input)?,
+            })
         })
     }
 }

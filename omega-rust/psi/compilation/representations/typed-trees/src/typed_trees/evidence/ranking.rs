@@ -10,7 +10,7 @@ use symbols::JoinedPath;
 /// identity and diagnostics. Checked semantics must not use that text to
 /// rediscover source expressions, so lowering retains the exact typed handles
 /// separately here.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RankingExpressionCustody {
     pub machine: symbols::SymbolHandle,
     pub subjects: Vec<ExpressionHandle>,

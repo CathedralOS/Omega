@@ -13,13 +13,13 @@ use std::fmt;
 
 use source::SourceSpan;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub struct Identifier {
     text: IdentifierText,
     source_span: SourceSpan,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 enum IdentifierText {
     #[default]
     Missing,

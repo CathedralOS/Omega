@@ -6,19 +6,19 @@
 use crate::{Symbol, SymbolHandle};
 use arena::{Arena, Handle, HandleSpan};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct ChildBatch {
     children: HandleSpan<Symbol>,
     next: Handle<ChildBatch>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 struct ChildChain {
     first: Handle<ChildBatch>,
     last: Handle<ChildBatch>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(super) struct SupplementalChildren {
     batches: Arena<ChildBatch>,
     parents: Vec<ChildChain>,

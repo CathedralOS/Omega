@@ -10,7 +10,7 @@ use std::cmp::Ordering;
 
 use crate::bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct FloatSpecialValues {
     pub signed_zero: bool,
     pub subnormals: bool,
@@ -18,7 +18,7 @@ pub struct FloatSpecialValues {
     pub nan: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct FloatFormat {
     pub radix: u32,
     pub precision: u32,

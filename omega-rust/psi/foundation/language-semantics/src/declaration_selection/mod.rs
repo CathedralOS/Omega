@@ -2,7 +2,7 @@ use source::SourceSpan;
 use symbols::SymbolHandle;
 
 /// Resolver-certified correspondence before executable call transformations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedAuthoredCallBinding {
     /// The resolved callable; executable copies may rebase this declaration.
     pub selected: SymbolHandle,
@@ -24,7 +24,7 @@ pub use product_target::ProductTarget;
 
 /// Whether an authored declaration selection contributes only to an
 /// implementation or is exposed through a package's published surface.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionExposure {
     #[default]
     PrivateImplementation,
@@ -36,7 +36,7 @@ pub enum AuthoredDeclarationSelectionExposure {
 /// These kinds describe source authority only. Compiler-planned layout,
 /// movement, and automatic cleanup are semantic dependencies and do not belong
 /// in this ledger.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionKind {
     TypeReference,
     StaticPathSegment,
@@ -65,7 +65,7 @@ pub enum AuthoredDeclarationSelectionKind {
 ///
 /// A late-bound occurrence is explicit ledger state. It must not be encoded as
 /// a resolved target containing an invalid symbol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionLateBinding {
     CheckedStaticPathSegment,
     CheckedMember,
@@ -84,7 +84,7 @@ pub enum AuthoredDeclarationSelectionLateBinding {
 ///
 /// The private field prevents callers from constructing a resolved target with
 /// `SymbolHandle::invalid()` and accidentally bypassing later finalization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedAuthoredDeclarationSelection {
     selected_symbol: SymbolHandle,
 }
@@ -101,7 +101,7 @@ impl ResolvedAuthoredDeclarationSelection {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionTarget {
     Resolved(ResolvedAuthoredDeclarationSelection),
     Intrinsic(AuthoredDeclarationSelectionIntrinsic),
@@ -188,7 +188,7 @@ impl CollectionMeasure {
 ///
 /// Omega's `build.omg` dependency-row grammar (`depend`, `depend_as`, ...)
 /// is a different vocabulary and stays with Omega's build declarations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildOperation {
     /// Prepare the explicitly named Build dependency backing for a known requirement.
     ProviderReadiness,
@@ -345,7 +345,7 @@ impl BuildOperation {
 /// package declaration. Intrinsics finalize explicitly so package admission
 /// never invents a declaration symbol or leaves a successful selection
 /// unresolved.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildNativeBinding,
     BuildProviderReadiness,
@@ -444,7 +444,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
 /// text, diagnostic rendering, or a mutable IR handle. Compiler-generated
 /// clones may deliberately retain the same identity because they derive from
 /// the same authored occurrence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AuthoredDeclarationSelectionOccurrenceId(u64);
 
 impl AuthoredDeclarationSelectionOccurrenceId {
@@ -461,7 +461,7 @@ impl AuthoredDeclarationSelectionOccurrenceId {
 /// separates those applications while source coordinates remain shared. It is
 /// compiler-internal join custody and must never enter canonical package
 /// evidence, lock identity, or diagnostics as semantic identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CompilerDerivedSelectionPartition(u64);
 
 impl CompilerDerivedSelectionPartition {
@@ -554,7 +554,7 @@ impl AuthoredDeclarationSelectionSuffixRebase {
 /// One authored occurrence retained while its source location and exposure are
 /// still exact. Package ownership is intentionally absent and is joined by a
 /// later compiler integration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredDeclarationSelection {
     occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
     source_span: SourceSpan,
@@ -639,7 +639,7 @@ impl AuthoredDeclarationSelection {
 
 /// Append-only authored-selection custody in deterministic source traversal
 /// order.
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredDeclarationSelections {
     rows: Vec<AuthoredDeclarationSelection>,
     /// Row positions by source span, in row order; derived from `rows`.
@@ -657,7 +657,7 @@ impl std::fmt::Debug for AuthoredDeclarationSelections {
 
 /// Row positions by source span. It is derived entirely from the rows, so it
 /// never distinguishes two ledgers.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 struct SpanIndex(std::collections::HashMap<SourceSpan, Vec<u32>>);
 
 impl PartialEq for SpanIndex {

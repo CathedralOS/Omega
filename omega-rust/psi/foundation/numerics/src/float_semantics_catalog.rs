@@ -146,7 +146,7 @@ impl FloatSemanticValueKind {
 
 /// Source-free identity of one sealed semantic-definition row and the catalog
 /// against which its complete signature was checked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct FloatSemanticContractIdentity {
     pub row: u8,
     pub catalog_version: u16,

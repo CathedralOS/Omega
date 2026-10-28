@@ -10,7 +10,7 @@
 //! owner; their coordinates cannot substitute for portable package ownership.
 
 use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct NominalDeclarationIdentity(TerminalIdentityIndex);
 
 impl NominalDeclarationIdentity {

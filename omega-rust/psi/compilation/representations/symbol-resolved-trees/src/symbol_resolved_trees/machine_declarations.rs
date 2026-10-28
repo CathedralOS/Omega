@@ -12,7 +12,7 @@ use arena::{OrderedRootArena, OwnedIndex};
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineDeclarations {
     arena: OrderedRootArena<Machine>,
     positions: OwnedIndex<Vec<(SymbolHandle, usize)>, ()>,

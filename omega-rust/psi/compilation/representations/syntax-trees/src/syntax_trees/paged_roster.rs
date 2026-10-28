@@ -21,7 +21,7 @@ macro_rules! paged_roster {
         }
     ) => {
         $(#[$table_meta])*
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
         $table_vis struct $table {
             $( $field: arena::PagedArenaSet<$ty>, )*
             $( $nested: $nested_ty, )*

@@ -13,7 +13,7 @@ pub type SymbolHandle = Handle<Symbol>;
 pub type SymbolSpan = HandleSpan<SymbolHandle>;
 pub type SymbolNameHandle = Handle<SymbolName>;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Symbol {
     pub parent: SymbolHandle,
     /// Authored declaration scope when physical allocation uses another parent.

@@ -16,7 +16,7 @@ mod measurements;
 
 /// Derived lookup storage, never fact identity. Dense group ordinals keep
 /// prepared selections independent of the point map and stable across sealing.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 struct ContextIndex {
     points: HashMap<ProgramPoint, FactContextGroup>,
     members: Vec<Vec<FactContextHandle>>,
@@ -33,7 +33,7 @@ struct ContextIndex {
 /// Membership vectors are derived lookup storage, not a second fact graph.
 /// They preserve per-point encounter order, including reverse page adoption;
 /// hash iteration never selects fact order. Actual facts remain arena-owned.
-#[derive(Default)]
+#[derive(Default, compiler_storage::Record)]
 pub struct FactContexts {
     contexts: Arena<FactContext>,
     baseline: Arc<ContextIndex>,
@@ -69,7 +69,7 @@ impl Clone for FactContexts {
 /// Existing selections observe later appends, even after every old row is freed.
 /// Sealing preserves ordinals; selections after sibling divergence are local
 /// to that sibling, just like the contexts they name.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactContextGroup {
     ordinal: usize,
 }

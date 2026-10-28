@@ -14,7 +14,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// the descriptor occurrence, never a new allocation or spatial separation.
 /// The existing typed call-site owner resolves this state/statement/ordinal
 /// coordinate. Target, expression and applied carrier are not duplicated here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct InvocationOutputIdentity {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
@@ -47,7 +47,7 @@ impl InvocationOutputIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum PlaceRoot {
     #[default]
     Unknown,
@@ -108,7 +108,7 @@ impl PlaceRoot {
     );
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum PlaceSegment {
     Field {
         symbol: SymbolHandle,
@@ -172,13 +172,13 @@ impl Default for PlaceSegment {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Place {
     pub root: PlaceRoot,
     pub segments: HandleSpan<PlaceSegment>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FactPlace {
     #[default]
     Unknown,

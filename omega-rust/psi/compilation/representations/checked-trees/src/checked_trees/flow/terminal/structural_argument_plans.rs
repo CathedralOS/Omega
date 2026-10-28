@@ -14,7 +14,7 @@ use typed_trees::types::PrimitiveType;
 /// A view begins at the source's actual projected address. Aggregate views
 /// obtain field encodings from their authored structural catalog; scalar views
 /// carry their codec independently of the callee's logical parameter type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, compiler_storage::Record)]
 pub enum CheckedReferenceStorage {
     #[default]
     Declared,
@@ -65,7 +65,7 @@ impl PartialOrd for CheckedReferenceStorage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitEntryClaimPlan {
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     /// Dense index into `structural_parameters`.
@@ -76,14 +76,14 @@ pub struct CheckedUnitEntryClaimPlan {
     pub carry: CarryPolicy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitCallCoordinate {
     pub statement_index: u32,
     pub call_ordinal: u32,
 }
 
 /// One scalar operand of an invocation, construction, or view formation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedCallScalarArgument {
     Pure(CheckedScalarExpression),
     /// Exact node selected by the operand coordinate's checked computation root.
@@ -92,7 +92,7 @@ pub enum CheckedCallScalarArgument {
 
 /// One scalar formal of a call target or an erased scalar formal of a body:
 /// its authored parameter position and primitive carrier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralScalarParameterPlan {
     pub source_position: u32,
     pub primitive_type: PrimitiveType,
@@ -107,7 +107,7 @@ impl CheckedCallScalarArgument {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// The exact source home captured when this checked selection evaluated.
     /// A later store to the declaration cannot redirect this occurrence's death.
@@ -198,7 +198,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralArgumentPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     /// Ordered declaration-resolved projection of the original source. A

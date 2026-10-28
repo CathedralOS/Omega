@@ -13,7 +13,7 @@ pub use float_predicate::FloatPredicate;
 /// definition. The ordinary semantic fact remains the flow-facing row; this
 /// record binds that row back to its typed fact and retains every structural
 /// expression place used to interpret the public predicate.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinitionFactRecord {
     pub domain_symbol: SymbolHandle,
     pub fact: Handle<ProofFact>,
@@ -21,7 +21,7 @@ pub struct DomainDefinitionFactRecord {
     pub dependencies: Vec<DomainDefinitionFactDependency>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinitionFactDependency {
     pub expression: ExpressionHandle,
     pub place: PlaceHandle,
@@ -31,7 +31,7 @@ pub struct DomainDefinitionFactDependency {
 /// definition. The semantic fact remains the flow-facing row; this record
 /// binds it to the exact data declaration and typed proof fact while retaining
 /// every structural field place needed to interpret the invariant.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionFactRecord {
     pub data_symbol: SymbolHandle,
     pub fact: Handle<ProofFact>,
@@ -39,12 +39,12 @@ pub struct DataDefinitionFactRecord {
     pub dependencies: Vec<DataDefinitionFactDependency>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionFactDependency {
     pub expression: ExpressionHandle,
     pub place: PlaceHandle,
 }
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FactOrigin {
     #[default]
     Unknown,
@@ -112,7 +112,7 @@ pub enum FactOrigin {
 /// These identities describe source establishment, independently of a target's
 /// provider selection. Execution authority belongs to the selected provider
 /// plans; binding those plans must not rewrite portable qualification evidence.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct QualificationEvidence {
     pub origin: language_semantics::QualificationEvidenceOrigin,
     pub source_symbol: SymbolHandle,
@@ -143,7 +143,7 @@ impl QualificationEvidence {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContractFactKind {
     #[default]
     Requires,
@@ -154,12 +154,12 @@ pub enum ContractFactKind {
 /// expression handles remain owned by the immutable checked program, so flow
 /// elaboration records the canonical caller-term label in this fact-owned
 /// arena instead of pretending the callee expression handle changed meaning.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct InstantiatedExpression {
     pub label: String,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofObligationKind {
     #[default]
     BoundedAssignment,
@@ -174,13 +174,13 @@ pub enum ProofObligationKind {
 /// Performed events consumed by the checked effect proof. An operation names
 /// neither a storage authority nor a resource disposal; the captured flow
 /// occurrence supplies operands and the ordinary claim ledger owns discharge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum InstructionEffectOperation {
     Register(language_core::inline_assembly::AsmRegisterOperation),
     AtomicReleaseStore,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum FactPayload {
     /// One completed catalog operation. `Fact::point` names its exact flow
     /// invocation; operands keep their independently captured completion facts.
@@ -444,7 +444,7 @@ impl Default for FactPayload {
 /// statement transfer. Expression operands and contract wrappers identify the
 /// source occurrence, not the carried qualification, so they do not enter
 /// correspondence identity.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum QualificationPayloadIdentity {
     DomainMembership {
         domain: HandleSpan<Identifier>,
@@ -483,7 +483,7 @@ impl QualificationPayloadIdentity {
 
 /// Target-neutral mathematical value of an already-rendered scalar. Unknown
 /// is the zero arena entry and never supplies a proof premise.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ScalarValue {
     #[default]
     Unknown,
@@ -493,7 +493,7 @@ pub enum ScalarValue {
 
 /// Inclusive mathematical integer bounds. The consumer must establish both
 /// endpoint ordering and the source of the bounds before using this vocabulary.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct IntegerRange {
     pub minimum: numerics::bignum::BigInt,
     pub maximum: numerics::bignum::BigInt,
@@ -502,7 +502,7 @@ pub struct IntegerRange {
 /// Checked-only proof ledger row for one qualification-preserving statement
 /// transfer. This is separate from ordinary flow facts and grants no
 /// qualification by itself.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct QualificationCorrespondence {
     pub source_fact: FactHandle,
     pub destination_fact: FactHandle,
@@ -517,7 +517,7 @@ pub struct QualificationCorrespondence {
     pub evidence: QualificationEvidence,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Fact {
     pub place: FactPlace,
     pub point: ProgramPoint,
