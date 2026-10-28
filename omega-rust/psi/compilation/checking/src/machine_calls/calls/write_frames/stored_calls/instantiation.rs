@@ -9,7 +9,7 @@ pub(super) struct InstantiatedSlots {
     /// Exact input prefixes discovered while instantiating demanded effects.
     /// Keeping them beside the result avoids querying an argument a second
     /// time or counting a callee-authored suffix as argument growth.
-    pub(super) substitutions: Vec<(SymbolHandle, FrameSourcePlace)>,
+    pub(super) substitutions: Vec<(FrameSourcePlace, FrameSourcePlace)>,
 }
 
 pub(super) fn instantiate(
@@ -77,8 +77,15 @@ pub(super) fn instantiate(
             );
             return None;
         };
-        if !substitutions.contains(&(effect.root, input.clone())) {
-            substitutions.push((effect.root, input));
+        let formal = FrameSourcePlace {
+            segments: effect.segments.clone(),
+            ..FrameSourcePlace::parameter_root(
+                &parameters
+                    [typed_trees::signature::state_parameter_position(parameters, effect.root)?],
+            )
+        };
+        if !substitutions.contains(&(formal.clone(), input.clone())) {
+            substitutions.push((formal, input));
         }
         let mut sources = Vec::new();
         for supplied in effect.sources.as_ref()? {

@@ -163,6 +163,7 @@ fn solve_state_effects<'program>(
                             None
                         })?;
                         retain_demanded_substitutions(
+                            program,
                             equation.state,
                             equations[*target].state,
                             &instantiated.substitutions,
@@ -281,30 +282,65 @@ fn solve_state_effects<'program>(
 /// Ordered argument effects have already established each selected edge's slot
 /// inventory. The same growing-cycle law still bounds every demanded root.
 fn retain_demanded_substitutions(
+    program: &dyn crate::CheckingInput,
     source: &State,
     target: &State,
-    demanded: &[(SymbolHandle, FrameSourcePlace)],
+    demanded: &[(FrameSourcePlace, FrameSourcePlace)],
     substitutions: &mut frames::cycle_substitutions::Substitutions,
 ) -> Option<()> {
-    for (parameter, actual) in demanded {
+    for (formal, actual) in demanded {
         if !actual.builtin_coordinates {
             return None;
         }
         if actual.is_static() {
             continue;
         }
-        if !actual.root.is_valid() {
-            return None;
-        }
-        let from = substitutions.parameter(target.symbol, *parameter);
-        let to = substitutions.parameter(source.symbol, actual.root);
+        let formal_leaf = reference_frontier(program, target, formal)?;
+        let actual_leaf = reference_frontier(program, source, actual)?;
+        let from = substitutions.parameter_leaf(target.symbol, formal.root, &formal_leaf);
+        let to = substitutions.parameter_leaf(source.symbol, actual.root, &actual_leaf);
+        // Selecting a descriptor inside an owned record does not descend into
+        // its referent. That finite leaf identity must survive the dependency
+        // join, or forwarding `incoming.cell` looks like a growing root cycle.
+        // Actual prefixes beyond the descriptor still grow and remain refused.
         substitutions.insert(
             from,
             to,
-            !actual.segments.is_empty() || !actual.recasts.is_empty(),
+            actual.segments.len() > actual_leaf.len()
+                || !actual.recasts.is_empty()
+                || actual.representation.is_some(),
         );
     }
     substitutions.is_finite().then_some(())
+}
+
+fn reference_frontier(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    source: &FrameSourcePlace,
+) -> Option<Vec<PlaceSegment>> {
+    let parameter = program.state_parameter_by_symbol(state, source.root)?;
+    let declared = stored_origins::declared_origins_for_query(
+        program,
+        parameter.symbol,
+        parameter.name.as_str(),
+        parameter.type_reference,
+        true,
+    )?;
+    declared
+        .references
+        .iter()
+        .filter(|leaf| {
+            matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_))
+                && leaf.local_segments.iter().all(|segment| {
+                    matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
+                        || matches!(segment, PlaceSegment::Case { variant } if variant.is_valid())
+                        || matches!(segment, PlaceSegment::FixedIndex { .. })
+                })
+                && source.segments.starts_with(&leaf.local_segments)
+        })
+        .min_by_key(|leaf| leaf.local_segments.len())
+        .map(|leaf| leaf.local_segments.clone())
 }
 
 fn collect_exit(
