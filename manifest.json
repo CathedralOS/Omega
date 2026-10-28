@@ -1,0 +1,11 @@
+{
+  "revision": "3891c5e16c34bb2cbb28da078d245822875b5b18",
+  "bundle": "/Users/zcanann/Omega-build/retained-routed-handback-2026-10-28/record-five-new-fixtures-3891c5e16c3/3891c5e16c34bb2cbb28da078d245822875b5b18.bundle",
+  "sha256": "08811efc8968a9cf04e78018467047b979d87438d82308bd79c67cad55d94039",
+  "bytes": 85808,
+  "local_ref": "refs/corpus-observations/3891c5e16c34bb2cbb28da078d245822875b5b18",
+  "actual_producer": "796a65b12e4fefaa9694f020ad0e062d1f7e5620",
+  "pr": 488,
+  "record_command_sha256": "f6c5e40b9abcd2285a3337adcbb9a4b24b8c941bd23722da82b40360d4cabebf",
+  "purpose": "Exportable source of the five clean3891 fixture outcome stamps; actual optimized compiler inputs are796 and unchanged by documentation. Retain this evidence branch through product squash cleanup."
+}
