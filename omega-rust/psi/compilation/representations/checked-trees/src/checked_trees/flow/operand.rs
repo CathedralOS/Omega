@@ -146,11 +146,26 @@ pub struct FlowOperandLifetimeContract {
 /// Nonspatial input obligations of one admitted parameter-output generation.
 /// Descriptor invalidation cannot turn this into a pointer association. The
 /// borrowing ledger must independently select this exact generation at release.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlowOutputLifetimeSources {
     pub output: facts::InvocationOutputIdentity,
     pub owner_path: HandleSpan<facts::PlaceSegment>,
     pub sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
+}
+
+impl Default for FlowOutputLifetimeSources {
+    fn default() -> Self {
+        Self {
+            output: facts::InvocationOutputIdentity {
+                state_symbol: Handle::invalid(),
+                statement_index: 0,
+                call_ordinal: 0,
+                parameter_symbol: Handle::invalid(),
+            },
+            owner_path: HandleSpan::empty(),
+            sources: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

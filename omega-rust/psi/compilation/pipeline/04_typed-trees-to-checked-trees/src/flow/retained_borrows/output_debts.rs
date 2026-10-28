@@ -13,7 +13,7 @@ use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceHandle;
 use validation::CanonicalPlace;
 
-pub(super) fn sources(
+pub(in crate::flow) fn sources(
     program: &dyn validation::CheckingInput,
     borrow: &BorrowFacts,
     control: &FlowControlFacts,
