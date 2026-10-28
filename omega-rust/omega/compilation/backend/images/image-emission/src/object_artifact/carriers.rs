@@ -434,10 +434,10 @@ pub struct ObjectForeignCall {
     pub scalar_result: Option<machine_code::ForeignCallScalarResultRecord>,
     /// Absolute object-text intervals proving complete MXCSR preservation for
     /// this returning x86 foreign call.
-    pub x86_floating_control: Option<machine_code::X86ForeignCallFloatingControlRecord>,
+    pub x86_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
     /// Absolute object-text intervals proving complete FPCR preservation for
     /// this returning AArch64 foreign call.
-    pub aarch64_floating_control: Option<machine_code::Aarch64ForeignCallFloatingControlRecord>,
+    pub aarch64_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
     /// Absolute object-text offset of the import relocation field, or of the
     /// complete supervisor-entry instruction for a kernel binding.
     pub text_offset: usize,
