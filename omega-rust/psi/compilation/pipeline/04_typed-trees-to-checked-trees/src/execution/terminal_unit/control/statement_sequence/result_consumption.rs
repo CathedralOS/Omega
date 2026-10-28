@@ -492,6 +492,28 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     )?;
     let mut pending = Vec::new();
     let mut retired = Vec::new();
+    // Frontier arguments change between calls. The other fields are this statement.
+    macro_rules! statement_retirement {
+        ($completed_operations:expr, $pending:expr, $at_exit:expr, $returned:expr) => {
+            super::reference_retirement::Retirement {
+                program,
+                facts,
+                prepared_calls,
+                machine,
+                state: authored_state,
+                order: &order,
+                statement_index,
+                results,
+                operations,
+                completed_operations: $completed_operations,
+                pending: $pending,
+                at_exit: $at_exit,
+                uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
+                returned: $returned,
+                transported_loans: &transported_loans,
+            }
+        };
+    }
     // Receiving carriers retire before their retained supplying descriptors.
     // Call inputs have the same statement boundaries as standalone producers;
     // leaving them to exit cleanup can outlive their borrowed local backing.
@@ -502,23 +524,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     {
         trace.phase("reference retirement: selected complements");
         let complements = super::reference_retirement::selections::complement_completions(
-            &super::reference_retirement::Retirement {
-                program,
-                facts,
-                prepared_calls,
-                machine,
-                state: authored_state,
-                order: &order,
-                statement_index,
-                results,
-                operations,
-                completed_operations: operations.len(),
-                pending: &pending,
-                at_exit: false,
-                uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-                returned: None,
-                transported_loans: &transported_loans,
-            },
+            &statement_retirement!(operations.len(), &pending, false, None),
         )?;
         for (position, complement) in complements {
             trace.phase("reference retirement: complement receiver");
@@ -533,23 +539,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         }
         trace.phase("reference retirement: stored occurrences");
         let stored_releases = super::reference_retirement::stores::releases(
-            &super::reference_retirement::Retirement {
-                program,
-                facts,
-                prepared_calls,
-                machine,
-                state: authored_state,
-                order: &order,
-                statement_index,
-                results,
-                operations,
-                completed_operations: operations.len(),
-                pending: &pending,
-                at_exit: false,
-                uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-                returned: None,
-                transported_loans: &transported_loans,
-            },
+            &statement_retirement!(operations.len(), &pending, false, None),
             operation,
         )?;
         pending.extend(stored_releases);
@@ -607,23 +597,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             let boundary =
                 u32::try_from(order.latest(boundary, captured.whole_storage_boundary as usize)?)
                     .ok()?;
-            let retirement = super::reference_retirement::Retirement {
-                program,
-                facts,
-                prepared_calls,
-                machine,
-                state: authored_state,
-                order: &order,
-                statement_index,
-                results,
-                operations,
-                completed_operations: operations.len(),
-                pending: &pending,
-                at_exit: false,
-                uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-                returned: None,
-                transported_loans: &transported_loans,
-            };
+            let retirement = statement_retirement!(operations.len(), &pending, false, None);
             trace.phase("reference retirement: captured loan group");
             if order.at_or_before(boundary as usize, statement_index as usize)
                 && retirement.carrier_children_retired(result)
@@ -773,23 +747,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         };
         let retains_siblings = order.precedes(statement_index as usize, boundary as usize)
             || !transferred_paths.is_empty();
-        let retirement = super::reference_retirement::Retirement {
-            program,
-            facts,
-            prepared_calls,
-            machine,
-            state: authored_state,
-            order: &order,
-            statement_index,
-            results,
-            operations,
-            completed_operations: operations.len(),
-            pending: &pending,
-            at_exit: false,
-            uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-            returned: None,
-            transported_loans: &transported_loans,
-        };
+        let retirement = statement_retirement!(operations.len(), &pending, false, None);
         trace.phase("reference retirement: local loan leaves");
         let local_loans = validation::reference_result_custody::local_record_loans(
             program,
@@ -906,24 +864,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     // storage dependency frontier stops changing, without re-evaluating values.
     loop {
         trace.phase("reference retirement: backing occurrences");
-        let releases = super::reference_retirement::Retirement {
-            program,
-            facts,
-            prepared_calls,
-            machine,
-            state: authored_state,
-            order: &order,
-            statement_index,
-            results,
-            operations,
-            completed_operations: operations.len(),
-            pending: &pending,
-            at_exit: false,
-            uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-            returned: None,
-            transported_loans: &transported_loans,
-        }
-        .backing_releases()?;
+        let releases =
+            statement_retirement!(operations.len(), &pending, false, None).backing_releases()?;
         if releases.is_empty() {
             break;
         }
@@ -1147,24 +1089,29 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     // holders participate in the same fixed point rather than a later pass.
     trace.phase("statement sequence: completion carrier retirement order");
     let mut scheduled = Vec::new();
-    loop {
-        let retirement = super::reference_retirement::Retirement {
-            program,
-            facts,
-            prepared_calls,
-            machine,
-            state: authored_state,
-            order: &order,
-            statement_index,
-            results,
-            operations,
-            completed_operations: operations.len(),
-            pending: &scheduled,
-            at_exit: true,
-            uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-            returned,
-            transported_loans: &transported_loans,
+    macro_rules! statement_retirement {
+        ($completed_operations:expr, $pending:expr, $at_exit:expr, $returned:expr) => {
+            super::reference_retirement::Retirement {
+                program,
+                facts,
+                prepared_calls,
+                machine,
+                state: authored_state,
+                order: &order,
+                statement_index,
+                results,
+                operations,
+                completed_operations: $completed_operations,
+                pending: $pending,
+                at_exit: $at_exit,
+                uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
+                returned: $returned,
+                transported_loans: &transported_loans,
+            }
         };
+    }
+    loop {
+        let retirement = statement_retirement!(operations.len(), &scheduled, true, returned);
         let complements =
             super::reference_retirement::selections::complement_completions(&retirement)?;
         if !complements.is_empty() {
@@ -1270,23 +1217,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             // dispositions before moving this descriptor ahead of owner hooks.
             // The existing child-first order makes earlier promotions visible;
             // a deferred descendant or returned holder cannot justify one.
-            let retirement = super::reference_retirement::Retirement {
-                program,
-                facts,
-                prepared_calls,
-                machine,
-                state: authored_state,
-                order: &order,
-                statement_index,
-                results,
-                operations,
-                completed_operations: insertion,
-                pending: &scheduled[..index],
-                at_exit: false,
-                uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
-                returned: None,
-                transported_loans: &transported_loans,
-            };
+            let retirement = statement_retirement!(insertion, &scheduled[..index], false, None);
             if retirement.carrier_children_retired(captured.result)
                 && captured
                     .storage_loans
