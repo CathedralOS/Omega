@@ -34,6 +34,13 @@ fail/borrows/nested_machine_unit_output_no_descent_rejected rejected 3668ms expe
 fail/borrows/nested_machine_unit_output_unwritten_branch_rejected rejected 3681ms expected @1e18830ea024+wt
 	statement 4 mutates `old.value` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
 	statement 5 reads `old.canary` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/build/provider_nested_type_application_conflict rejected 305ms expected @bad69cc2a485
+	build selects two provider types for slot `Reading`: `SecondReading` and `SecondReading`
+fail/build/provider_product_call_unavailable_in_build rejected 226ms expected @bad69cc2a485
+	designated static operand `value` has no exact visible source declaration
+fail/build/provider_unused_const_divisor_rejected rejected 438ms expected @bad69cc2a485
+	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+	partial exact division in closed const argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/calls/static_machine_required_input_overwritten_local rejected 661ms expected @e12c034a9fc8
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
@@ -152,6 +159,8 @@ pass/borrows/nested_machine_unit_output_completed_operand_exit checked 5718ms ch
 pass/borrows/nested_machine_unit_output_local_destination_exit checked 5669ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit checked 4135ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 4085ms check-target:macos_arm64 @1e18830ea024+wt
+pass/build/provider_applied_const29_exit checked 2345ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @bad69cc2a485
+pass/build/provider_nested_type_application_exit checked 2654ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @bad69cc2a485
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 1128ms check-target:macos_arm64 @e12c034a9fc8
 pass/calls/static_machine_required_input_crash_refinement_exit checked 1140ms check-target:macos_arm64 @e12c034a9fc8
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result checked 956ms check-target:macos_arm64 @e12c034a9fc8
