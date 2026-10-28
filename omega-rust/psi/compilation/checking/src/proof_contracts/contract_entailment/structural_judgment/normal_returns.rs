@@ -8,6 +8,7 @@
 
 mod array_elements;
 mod collection_extents;
+mod match_captures;
 mod operand_types;
 mod owned_arguments;
 
@@ -863,6 +864,20 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
+        if let ExpressionNode::SavedSubject(saved) = node
+            && program
+                .expression_table
+                .contains_value_capture(saved.capture)
+            && matches!(
+                program.expression_table.value_capture(saved.capture).owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            )
+        {
+            let value = self.completed_match_subject(saved)?;
+            return Some(vec![
+                NormalReturnPath::observed(value, self).at_expression(expression, demand),
+            ]);
+        }
         if program.saved_argument_source(expression).is_some() {
             // The argument scheduler has completed this exact predecessor.
             // Missing completion is absence of evidence, never source replay.
@@ -981,6 +996,72 @@ impl<'program> StructuralJudge<'program> {
                 NormalReturnPath::observed(StructuralTerm::Integer(value), self)
                     .at_expression(expression, demand),
             ]);
+        }
+
+        // A classifier observes a tag and returns Bool; its case head is not
+        // evaluated as a partial constructor. Unknown tags retain both paths.
+        if let ExpressionNode::Binary(binary) = node
+            && let Some((source_definition, source_variant)) =
+                super::super::structural_terms::case_guard_classifier(
+                    program,
+                    scope.0,
+                    Some(scope.1),
+                    expression,
+                )
+        {
+            let subject_type = self.normal_value_type_reference(binary.left, scope)?;
+            let definition =
+                program.data_constructor_definition(subject_type, source_definition.symbol)?;
+            let variant = program.data_constructor_case(
+                subject_type,
+                source_definition.symbol,
+                source_variant.symbol,
+            )?;
+            let mut outcomes = Vec::new();
+            for subject in self.evaluate_normal_paths(
+                binary.left,
+                environment,
+                scope,
+                depth + 1,
+                requested_operations,
+                entries,
+                NormalValueDemand::Value,
+            )? {
+                let judgment = subject.judge.judge_case(
+                    subject.value.clone(),
+                    definition.symbol,
+                    variant.symbol,
+                );
+                for truth in [false, true] {
+                    if (truth && matches!(judgment, StructuralJudgment::Refuted))
+                        || (!truth && matches!(judgment, StructuralJudgment::Proven))
+                    {
+                        continue;
+                    }
+                    let mut selected = subject.judge.clone();
+                    if truth {
+                        selected.intake_case_guarantee(&super::CaseGuarantee {
+                            subject: subject.value.clone(),
+                            data: definition.symbol,
+                            case: variant.symbol,
+                        });
+                        selected.intake_completed_match_case(
+                            expression,
+                            binary.left,
+                            &subject.value,
+                            subject_type,
+                            scope.0,
+                            scope.1,
+                            environment,
+                        );
+                    }
+                    outcomes.push(
+                        NormalReturnPath::observed(boolean_term(truth), selected)
+                            .at_expression(expression, demand),
+                    );
+                }
+            }
+            return Some(outcomes);
         }
 
         if let ExpressionNode::Binary(binary) = node
@@ -1125,6 +1206,14 @@ impl<'program> StructuralJudge<'program> {
                 entries,
                 NormalValueDemand::Value,
             )?;
+            for subject in &mut remaining {
+                subject.value = subject.judge.complete_match_subject(
+                    expression,
+                    dispatch,
+                    subject.value.clone(),
+                    scope,
+                )?;
+            }
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut next_remaining = Vec::new();
                 for subject in remaining {
@@ -1210,19 +1299,6 @@ impl<'program> StructuralJudge<'program> {
                             let mut selected = tested.judge;
                             if predicate {
                                 selected.assume_normal_equation(tested.value, boolean_term(true));
-                                if let Some(subject_type) =
-                                    selected.normal_value_type_reference(dispatch.subject, scope)
-                                {
-                                    selected.intake_completed_match_case(
-                                        pattern,
-                                        dispatch.subject,
-                                        &subject.value,
-                                        subject_type,
-                                        scope.0,
-                                        scope.1,
-                                        environment,
-                                    );
-                                }
                             } else if equation_meaning {
                                 selected
                                     .assume_normal_equation(subject.value.clone(), tested.value);
@@ -1257,6 +1333,9 @@ impl<'program> StructuralJudge<'program> {
                 if matches!(arm.pattern, MatchPattern::Wildcard) {
                     break;
                 }
+            }
+            for outcome in &mut outcomes {
+                outcome.judge.retire_match_subject(dispatch);
             }
             return Some(outcomes);
         }

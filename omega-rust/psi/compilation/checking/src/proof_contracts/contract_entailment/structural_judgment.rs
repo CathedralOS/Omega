@@ -344,6 +344,15 @@ struct StaticObservations<'scope> {
     body_parameters: &'scope [typed_trees::data::TypeParameter],
 }
 
+/// Admission belongs to one completed owned snapshot, inside its Match scope.
+/// A source name or equal reconstructed value cannot recover this receipt.
+#[derive(Clone)]
+struct CompletedNominalCapture {
+    anchor: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+}
+
 pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
@@ -362,6 +371,7 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    completed_nominal_captures: Arc<Vec<CompletedNominalCapture>>,
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
@@ -429,6 +439,7 @@ impl Clone for StructuralJudge<'_> {
             body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            completed_nominal_captures: Arc::clone(&self.completed_nominal_captures),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
@@ -481,6 +492,7 @@ impl<'program> StructuralJudge<'program> {
             && self.captured_result_equations.len() == base.captured_result_equations.len()
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
+            && self.completed_nominal_captures.len() == base.completed_nominal_captures.len()
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()
     }
@@ -692,6 +704,28 @@ impl<'program> StructuralJudge<'program> {
             }
             rejoined.normal_results = Arc::new(intersected);
         }
+        rejoined.completed_nominal_captures = Arc::new(
+            first
+                .completed_nominal_captures
+                .iter()
+                .filter(|row| {
+                    let Some(key) = row.value.observation_identity_key() else {
+                        return false;
+                    };
+                    outcomes.iter().all(|judge| {
+                        judge.completed_nominal_captures.iter().any(|other| {
+                            other.anchor == row.anchor
+                                && other.reference == row.reference
+                                && other.value.observation_identity_key().as_ref() == Some(&key)
+                        })
+                    }) && rejoined.normal_results.iter().any(|(anchor, value)| {
+                        *anchor == row.anchor
+                            && value.observation_identity_key().as_ref() == Some(&key)
+                    })
+                })
+                .cloned()
+                .collect(),
+        );
         rejoined
     }
 
@@ -824,6 +858,7 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            completed_nominal_captures: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
@@ -2282,6 +2317,22 @@ impl<'program> StructuralJudge<'program> {
             .find(|(source, _)| *source == expression)
         {
             return Some(value.clone());
+        }
+        if let ExpressionNode::SavedSubject(saved) =
+            self.program.expression_table.expression(expression)
+            && self
+                .program
+                .expression_table
+                .contains_value_capture(saved.capture)
+            && matches!(
+                self.program
+                    .expression_table
+                    .value_capture(saved.capture)
+                    .owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            )
+        {
+            return self.completed_match_subject(saved);
         }
         if let Some(value) = self.completed_descriptor_place(scope, expression, environment) {
             return Some(value);

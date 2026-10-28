@@ -505,10 +505,18 @@ fn pending_data_subject<'program>(
     if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
         return None;
     }
+    let mut visited = Vec::new();
     loop {
+        if !expression.is_valid() || visited.contains(&expression) {
+            return Some(definition);
+        }
+        visited.push(expression);
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
                 return (path.symbol == definition.predicate_subject_symbol).then_some(definition);
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                expression = program.saved_value_source(saved)?
             }
             ExpressionNode::Borrow(borrow) => expression = borrow.target,
             ExpressionNode::Cast(cast) => expression = cast.value,

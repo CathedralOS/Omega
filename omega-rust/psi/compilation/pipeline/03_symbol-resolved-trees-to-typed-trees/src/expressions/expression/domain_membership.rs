@@ -182,12 +182,24 @@ fn is_pending_data_subject(
                                 && !definition.where_facts.is_empty()
                         });
             }
+            // This private lowering capture may still be under construction.
+            // Its source is dependency/type custody, never permission to read
+            // or execute it. Refusal must survive before expansion can erase it.
+            typed::expression::ExpressionNode::SavedSubject(saved) => {
+                if !target
+                    .expression_table
+                    .contains_value_capture(saved.capture)
+                {
+                    return true;
+                }
+                value = target.expression_table.value_capture(saved.capture).subject;
+            }
             typed::expression::ExpressionNode::Borrow(borrow) => value = borrow.target,
             typed::expression::ExpressionNode::Cast(cast) => value = cast.value,
             _ => return false,
         }
     }
-    false
+    value.is_valid()
 }
 
 pub(super) fn lower_domain_membership_expression(

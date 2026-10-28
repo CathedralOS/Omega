@@ -72,6 +72,7 @@ impl<'program> StructuralJudge<'program> {
         // captured equations/predicates remain detached values, not a license
         // to reevaluate a caller expression through new callee bindings.
         self.normal_results = std::sync::Arc::new(Vec::new());
+        self.completed_nominal_captures = std::sync::Arc::new(Vec::new());
         self.premise_facts.clear();
         self.declaration_state = entry.symbol;
         let (callee, _) = self.runtime_declaration_scope()?;

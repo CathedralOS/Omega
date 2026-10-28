@@ -282,7 +282,7 @@ impl StructuralJudge<'_> {
         }
     }
 
-    fn has_admitted_nominal_subject(
+    pub(super) fn has_admitted_nominal_subject(
         &self,
         expression: ExpressionHandle,
         subject: &StructuralTerm,
@@ -290,9 +290,14 @@ impl StructuralJudge<'_> {
     ) -> bool {
         if !self.runtime_body_values
             || !self.declaration_state.is_valid()
-            || self.storage_observation_invalidated(expression)
             || super::super::structural_terms::term_is_unobserved_descriptor(self.program, subject)
         {
+            return false;
+        }
+        if self.completed_match_nominal_admission(expression, subject, reference) {
+            return true;
+        }
+        if self.storage_observation_invalidated(expression) {
             return false;
         }
         let program = self.program;
