@@ -172,6 +172,11 @@ pub fn capture_package_native_bindings(
                     .identity()
                     .digest(),
                 producer_callable,
+                producer_recipe: row
+                    .receipt_source
+                    .as_ref()
+                    .ok_or("own native export lost its immutable producer recipe")?
+                    .producer_recipe(),
                 receipt,
             })
         })

@@ -62,10 +62,11 @@ pub struct RetainedNativeBinding {
     /// digest must remain identical; no receiving Build callable is substituted.
     pub producer_callable: String,
     pub receipt: EvaluatedBindingReceipt,
+    pub producer_recipe: super::native_receipts::NativeBindingProducerRecipe,
 }
 
 impl RetainedNativeBinding {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self) -> Result<(), String> {
         if !matches!(
             self.requirement.kind(),
             symbols::SymbolKind::State | symbols::SymbolKind::Machine
@@ -78,7 +79,8 @@ impl RetainedNativeBinding {
             || self.receipt.producer_package() != self.origin.author().source().package_identity
         {
             return Err(
-                "retained native intent has incomplete declaration, invocation or supplier custody",
+                "retained native intent has incomplete declaration, invocation or supplier custody"
+                    .into(),
             );
         }
         if let RetainedNativeApplication::Applied { outer, local } = &self.application {
@@ -92,7 +94,7 @@ impl RetainedNativeBinding {
                         .any(String::is_empty)
                 })
             {
-                return Err("retained native application has an incomplete portable tuple");
+                return Err("retained native application has an incomplete portable tuple".into());
             }
         }
         let table_locator = matches!(
@@ -103,7 +105,7 @@ impl RetainedNativeBinding {
             || (table_locator && self.widths != [0; 3])
             || matches!(self.raw_locator, NativeBindingValue::SameStackDemand { .. })
         {
-            return Err("retained native locator and designated field disagree");
+            return Err("retained native locator and designated field disagree".into());
         }
         if let Some(table) = &self.table {
             if table.table.kind() != symbols::SymbolKind::Data
@@ -111,7 +113,9 @@ impl RetainedNativeBinding {
                 || table.table_identity.is_empty()
                 || table.field_identity.is_empty()
             {
-                return Err("retained native table lost its exact data and field designation");
+                return Err(
+                    "retained native table lost its exact data and field designation".into(),
+                );
             }
         }
         if let Some(demand) = &self.same_stack_demand {
@@ -121,9 +125,18 @@ impl RetainedNativeBinding {
                 || demand.origin.author().source().package_identity
                     != self.origin.author().source().package_identity
             {
-                return Err("retained native footprint has a different activation or supplier");
+                return Err(
+                    "retained native footprint has a different activation or supplier".into(),
+                );
             }
         }
+        super::native_receipts::NativeBindingReceiptRecipe::new(
+            self.receipt.producer_package(),
+            self.producer_callable.clone(),
+            self.producer_recipe,
+            self.receipt.locator_identity_digest(),
+        )
+        .validate_receipt(&self.receipt, self.observation, self.usage)?;
         let usage = self.receipt.evaluation_usage();
         if usage.usage_schema_version() != self.usage.usage_schema_version
             || usage.step_schedule_marker() != self.usage.step_schedule_marker
@@ -136,7 +149,7 @@ impl RetainedNativeBinding {
             || usage.result_cells() != self.usage.result_storage_cells
             || usage.result_text_bytes() != self.usage.result_payload_bytes
         {
-            return Err("retained native receipt and sponsoring Build usage disagree");
+            return Err("retained native receipt and sponsoring Build usage disagree".into());
         }
         Ok(())
     }

@@ -15,6 +15,7 @@ mod dependency_graph;
 mod errors;
 mod native_bindings;
 mod native_evaluation;
+pub mod native_receipts;
 pub use native_evaluation::NativeBuildEvaluation;
 pub mod native_output_codec;
 pub mod native_selection_codec;

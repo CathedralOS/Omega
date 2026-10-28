@@ -59,7 +59,7 @@ pub use package_compilation::{
 };
 #[doc(hidden)]
 pub use package_compilation::{
-    native_selection_codec, provider_selection_codec, retained_native_bindings,
+    native_receipts, native_selection_codec, provider_selection_codec, retained_native_bindings,
 };
 pub use review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,

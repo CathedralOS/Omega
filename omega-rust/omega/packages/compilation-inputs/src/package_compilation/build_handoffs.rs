@@ -172,20 +172,35 @@ impl PackageBuildHandoff {
         self,
         bindings: Vec<super::retained_native_bindings::RetainedNativeBinding>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, String> {
         if !bindings.is_empty() && evaluation.is_none() {
-            return Err("native package intent lost its completed Terminal Build code");
+            return Err("native package intent lost its completed Terminal Build code".into());
         }
         if let Some(evaluation) = &evaluation {
-            evaluation.usage.validate().map_err(|_| "native package evaluation has inconsistent accounting")?;
-            if !matches!(evaluation.usage.measurement, evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }) {
-                return Err("native package intent requires its actual Terminal evaluation");
+            evaluation
+                .usage
+                .validate()
+                .map_err(|_| "native package evaluation has inconsistent accounting")?;
+            if !matches!(
+                evaluation.usage.measurement,
+                evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
+            ) {
+                return Err("native package intent requires its actual Terminal evaluation".into());
             }
-            if self.selection_observation().is_some_and(|provider| provider != evaluation.observation_digest) {
-                return Err("one package handoff mixes different original Build observations");
+            if self
+                .selection_observation()
+                .is_some_and(|provider| provider != evaluation.observation_digest)
+            {
+                return Err(
+                    "one package handoff mixes different original Build observations".into(),
+                );
             }
-            if bindings.iter().any(|row| row.observation != evaluation.observation_digest || row.usage != evaluation.usage) {
-                return Err("native package code and retained rows disagree on their original Build invocation");
+            if bindings.iter().any(|row| {
+                row.observation != evaluation.observation_digest
+                    || row.usage != evaluation.usage
+                    || row.producer_recipe.terminal_code != evaluation.terminal_code
+            }) {
+                return Err("native package code and retained rows disagree on their original Build invocation".into());
             }
         }
         for (position, binding) in bindings.iter().enumerate() {
@@ -194,7 +209,7 @@ impl PackageBuildHandoff {
                 .iter()
                 .any(|prior| prior.origin == binding.origin)
             {
-                return Err("native package intent repeats an executed Build occurrence");
+                return Err("native package intent repeats an executed Build occurrence".into());
             }
             if binding.origin.activation().source().package_identity != Some(self.package())
                 || binding.origin.event_ordinal().is_none()
@@ -203,16 +218,14 @@ impl PackageBuildHandoff {
                     != binding.origin.author().source().package_identity
                 || binding.usage.validate().is_err()
             {
-                return Err(
-                    "native package intent lost its checked activation, supplier or Build observation",
-                );
+                return Err("native package intent lost its checked activation, supplier or Build observation".into());
             }
             if let Some(first) = bindings.first()
                 && (first.origin.activation() != binding.origin.activation()
                     || first.observation != binding.observation
                     || first.usage != binding.usage)
             {
-                return Err("native package intents mix sponsoring Build invocations");
+                return Err("native package intents mix sponsoring Build invocations".into());
             }
             if let Some(demand) = &binding.same_stack_demand
                 && (demand.bytes == 0
@@ -220,9 +233,7 @@ impl PackageBuildHandoff {
                     || demand.origin.author().source().package_identity
                         != binding.origin.author().source().package_identity)
             {
-                return Err(
-                    "native package footprint differs from its original binding activation or supplier",
-                );
+                return Err("native package footprint differs from its original binding activation or supplier".into());
             }
         }
         let mut contents = Arc::unwrap_or_clone(self.contents);

@@ -15,7 +15,7 @@ use language_semantics::declaration_selection::{
     BuildSelectionOrigin, NativeBindingValue, ProductTarget,
 };
 
-const MAGIC: &[u8] = b"OMG-BUILD-NATIVE-CHOICES\x03";
+const MAGIC: &[u8] = b"OMG-BUILD-NATIVE-CHOICES\x04";
 
 fn pool(rows: &[RetainedNativeBinding]) -> SelectionSources {
     let mut sources = Vec::new();
@@ -55,7 +55,7 @@ pub fn package_native_bindings_digest(
 ) -> [u8; 32] {
     let pool = pool(rows);
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-choices-v3\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-choices-v4\0");
     digest.u64(pool.sources.len() as u64);
     for source in &pool.sources {
         let relative = source
@@ -147,6 +147,20 @@ fn encode_rows(pool: &SelectionSources, rows: &[RetainedNativeBinding], out: &mu
         crate::build_execution::build_record_codec::encode_build_evaluation_usage(&row.usage, out);
         out.extend_from_slice(&row.observation);
         text(&row.producer_callable, out);
+        out.extend_from_slice(&row.producer_recipe.source_choices);
+        out.extend_from_slice(
+            &row.producer_recipe
+                .terminal_code
+                .vocabulary_marker
+                .get()
+                .to_le_bytes(),
+        );
+        out.extend_from_slice(
+            row.producer_recipe
+                .terminal_code
+                .program_fingerprint
+                .as_bytes(),
+        );
         receipt(&row.receipt, out);
     }
 }
@@ -378,6 +392,15 @@ pub fn decode_package_native_bindings(
         )?;
         let observation = digest(&mut cursor)?;
         let producer_callable = read_text(&mut cursor)?;
+        let producer_recipe = super::native_receipts::NativeBindingProducerRecipe {
+            source_choices: digest(&mut cursor)?,
+            terminal_code: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::new(cursor.u16()?)?,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes(
+                    cursor.bytes(32)?.try_into().ok()?,
+                ),
+            },
+        };
         let receipt = read_receipt(&mut cursor, &producer_callable)?;
         let row = RetainedNativeBinding {
             requirement,
@@ -394,6 +417,7 @@ pub fn decode_package_native_bindings(
             usage,
             observation,
             producer_callable,
+            producer_recipe,
             receipt,
         };
         row.validate().ok()?;

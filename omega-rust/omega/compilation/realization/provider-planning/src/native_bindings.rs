@@ -244,10 +244,8 @@ pub fn admit_native_binding(
         .strip_prefix(&source.package_root)
         .map_err(|_| "native binding source is outside its immutable package")?;
     let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.source.sha256.v5\0",
+        b"omega.build-native-binding.source-choices.sha256.v6\0",
     );
-    hash.raw(&terminal_code.vocabulary_marker.get().to_le_bytes());
-    hash.raw(terminal_code.program_fingerprint.as_bytes());
     hash.bytes(producer.as_bytes());
     hash.bytes(requirement_identity.as_bytes());
     match &event.static_environment {
@@ -427,7 +425,10 @@ pub fn admit_native_binding(
     let receipt_source = std::sync::Arc::new(receipt::ReceiptSource::new(
         typed.symbols.symbol_package_identity(selecting_machine),
         producer,
-        source_digest,
+        package_compilation::native_receipts::NativeBindingProducerRecipe {
+            source_choices: source_digest,
+            terminal_code,
+        },
         locator_identity,
     ));
     let receipt = receipt_source.materialize(observation, usage, identities)?;

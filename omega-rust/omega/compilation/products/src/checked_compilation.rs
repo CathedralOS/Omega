@@ -245,7 +245,6 @@ impl CheckedCompilation {
                 )?,
                 self.build().config.native_binding_evaluation.clone(),
             )
-            .map_err(str::to_owned)
     }
 
     pub const fn timings(&self) -> &CompileTimings {
