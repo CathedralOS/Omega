@@ -2,7 +2,7 @@
 // Expected exit: 0
 use reading_provider::main::Reading;
 machine journey(expected: u64) reaches Reading crashes Trap {
-    let total: u64 = Reading::total();
+    let total: u64 = Reading<17u64>::total();
     let difference: u64 = total - 1000u64;
     transition difference == expected { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }

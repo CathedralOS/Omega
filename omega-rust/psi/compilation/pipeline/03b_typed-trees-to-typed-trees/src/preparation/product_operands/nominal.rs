@@ -11,6 +11,39 @@ enum NominalDeclaration {
     Retained(SymbolHandle),
 }
 
+fn require_application_inputs(
+    program: &mut TypedTrees,
+    arguments: &[expr::StaticMachineArgument],
+    lexical_owner: SymbolHandle,
+    demand: ProductApplicationDemand,
+) -> Result<(), Vec<Diagnostic>> {
+    let references = arguments
+        .iter()
+        .map(|argument| program.static_operand_type_reference_in_scope(argument, lexical_owner))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let result = match demand {
+        ProductApplicationDemand::FormationOnly => {
+            program.require_declared_application_operands(&references, lexical_owner)
+        }
+        ProductApplicationDemand::Selected => {
+            program.require_owned_application_operands(&references, lexical_owner)
+        }
+    };
+    result.map_err(|reason| vec![Diagnostic::error(reason)])
+}
+
+fn require_trait_inputs(
+    program: &TypedTrees,
+    scope: &AppliedTraitScope<'_>,
+    demand: ProductApplicationDemand,
+) -> Result<(), &'static str> {
+    match demand {
+        ProductApplicationDemand::FormationOnly => program.require_declared_trait_operands(scope),
+        ProductApplicationDemand::Selected => program.require_receiving_trait_operands(scope),
+    }
+}
+
 pub fn prepare_retained_product_application(
     program: &mut TypedTrees,
     operand: &ProductDeclarationOperand,
@@ -79,9 +112,35 @@ fn prepare(
     if let Some(existing) =
         program.prepared_product_operand(operand, static_environment, author, role)
     {
-        let retained = program.product_operand_applications.get_mut(existing);
         if demand == ProductApplicationDemand::Selected {
-            retained.demand = demand;
+            let retained = program.product_operand_applications.get(existing);
+            let supplying = retained.supplying_application;
+            let lexical_owner = program
+                .expression_table
+                .static_machine_application(supplying)
+                .lexical_owner;
+            let [whole] = program
+                .expression_table
+                .static_machine_application_arguments(supplying)
+            else {
+                return Err(refuse("Product application lost its whole closed operand"));
+            };
+            let arguments = whole
+                .application
+                .as_ref()
+                .ok_or_else(|| refuse("Product application lost its static telescope"))?
+                .arguments
+                .clone();
+            let retained_scope = retained.scope;
+            require_application_inputs(program, &arguments, lexical_owner, demand)?;
+            let scope = retained_scope
+                .scope(program)
+                .ok_or_else(|| refuse("Product application lost its receiving scope"))?;
+            require_trait_inputs(program, &scope, demand).map_err(refuse)?;
+            program
+                .product_operand_applications
+                .get_mut(existing)
+                .demand = demand;
         }
         return Ok(Some(existing));
     }
@@ -191,6 +250,7 @@ fn prepare(
         .application
         .as_ref()
         .expect("normalization retains a nominal application");
+    require_application_inputs(lower.program, &arguments.arguments, lexical_owner, demand)?;
     let (scope, implementation) = match role {
         ProductOperandRole::BoundarySubject => {
             let reference = lower
@@ -202,10 +262,7 @@ fn prepare(
                     .ok_or_else(|| {
                         refuse("boundary application has an invalid or incomplete telescope")
                     })?;
-            lower
-                .program
-                .require_receiving_trait_operands(&scope)
-                .map_err(refuse)?;
+            require_trait_inputs(lower.program, &scope, demand).map_err(refuse)?;
             (
                 scope.environment().retain(lower.program).map_err(refuse)?,
                 None,
@@ -244,10 +301,7 @@ fn prepare(
             .ok_or_else(|| {
                 refuse("implementation application lost its exact satisfied boundary scope")
             })?;
-            lower
-                .program
-                .require_receiving_trait_operands(&scope)
-                .map_err(refuse)?;
+            require_trait_inputs(lower.program, &scope, demand).map_err(refuse)?;
             (
                 scope.environment().retain(lower.program).map_err(refuse)?,
                 Some(application),
