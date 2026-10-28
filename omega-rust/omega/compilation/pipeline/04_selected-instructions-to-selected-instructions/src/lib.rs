@@ -148,6 +148,55 @@ macro_rules! work_defect_conversion {
     )+};
 }
 
+/// One owner row for a validated analysis carrier: the admitted plan, its
+/// receipt, and the two projections every consumer reads — `plan()` and the
+/// receipt's own accessor rows. Each analysis names its carrier, plan and
+/// receipt types instead of restating the shell.
+macro_rules! validated_plan_carrier {
+    ($carrier:ident : $plan:ty, $receipt:ty) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $carrier {
+            pub(crate) plan: $plan,
+            pub(crate) receipt: $receipt,
+        }
+
+        impl $carrier {
+            pub const fn plan(&self) -> &$plan {
+                &self.plan
+            }
+
+            receipt_accessor_rows!(ref $carrier {
+                receipt: $receipt,
+            });
+        }
+    };
+}
+
+/// The whole seal of a freshly produced plan: every receipt row is copied from
+/// the plan root the producer just built, and that plan becomes the validated
+/// carrier. A bounded pass names its plan, carrier, receipt, identity function
+/// and the plan fields its receipt records instead of restating the body.
+macro_rules! seal_plan {
+    (
+        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident
+            = $identity:path, $error:ty
+        { $($field:ident),* $(,)? }
+    ) => {
+        /// Admit a freshly produced plan with its receipt; the producer calls
+        /// this instead of replaying its own output.
+        pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
+            let receipt = $receipt {
+                identity: $identity(&candidate),
+                $($field: candidate.$field,)*
+            };
+            Ok($carrier {
+                plan: candidate,
+                receipt,
+            })
+        }
+    };
+}
+
 /// `Display` for the crate's `<context> failed: {self:?}` error convention.
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {

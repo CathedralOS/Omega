@@ -6,7 +6,6 @@
 
 mod compute;
 mod error;
-mod validation;
 
 use crate::WorkDefect;
 pub(crate) use error::FixedPrecoloredSplitRequirementError;
@@ -29,8 +28,27 @@ pub(crate) fn analyze_fixed_precolored_split_requirements(
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let plan = compute::compute(ranges, legality, fixed, policy, budget)?;
-    validation::seal_fixed_precolored_split_requirements(plan)
+    seal_fixed_precolored_split_requirements(plan)
 }
+
+seal_plan!(
+    seal_fixed_precolored_split_requirements(FixedPrecoloredSplitRequirementPlan)
+        -> ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementValidationReceipt
+        = register_homes::fixed_precolored_split_requirement_plan_identity,
+        FixedPrecoloredSplitRequirementError
+    {
+        fixed_intervals,
+        ranges,
+        legality,
+        register_environment,
+        allocator_availability,
+        optimization_unit,
+        fuel_schedule,
+        target,
+        policy,
+        usage
+    }
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedPrecoloredSplitRequirementValidationReceipt {
@@ -58,20 +76,10 @@ impl FixedPrecoloredSplitRequirementValidationReceipt {
     shared_analysis_identity_accessors!(pub);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedFixedPrecoloredSplitRequirements {
-    pub(crate) plan: FixedPrecoloredSplitRequirementPlan,
-    pub(crate) receipt: FixedPrecoloredSplitRequirementValidationReceipt,
-}
-
-impl ValidatedFixedPrecoloredSplitRequirements {
-    pub const fn plan(&self) -> &FixedPrecoloredSplitRequirementPlan {
-        &self.plan
-    }
-    receipt_accessor_rows!(ref ValidatedFixedPrecoloredSplitRequirements {
-        receipt: FixedPrecoloredSplitRequirementValidationReceipt,
-    });
-}
+validated_plan_carrier!(
+    ValidatedFixedPrecoloredSplitRequirements: FixedPrecoloredSplitRequirementPlan,
+    FixedPrecoloredSplitRequirementValidationReceipt
+);
 
 /// Sort key for a virtual fixed-constraint site — the total order both the
 /// compute pass and the replay checker build their cut tables on.
