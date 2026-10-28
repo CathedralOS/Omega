@@ -563,6 +563,7 @@ impl Lowerer<'_> {
                 evaluated_value: declaration.evaluated_value.clone(),
                 authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
                 materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),
+                evaluation_entry: Default::default(),
             });
         Ok(())
     }

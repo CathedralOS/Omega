@@ -1212,6 +1212,22 @@ pub(super) fn append_probe(
     expression: ExpressionHandle,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
+    let machine = create_probe(program, owner, name, expression, destination);
+    let symbol = machine.symbol;
+    program.push_machine(machine);
+    symbol
+}
+
+/// Construct an evaluation entry without granting runtime-body status. The
+/// caller owns whether it belongs to a private evaluation forest or remains
+/// detached with a source declaration awaiting exact scalar checking.
+pub(super) fn create_probe(
+    program: &mut TypedTrees,
+    owner: symbols::SymbolHandle,
+    name: String,
+    expression: ExpressionHandle,
+    destination: typed_trees::types::TypeReferenceHandle,
+) -> Machine {
     let symbol =
         program
             .symbols
@@ -1245,6 +1261,5 @@ pub(super) fn append_probe(
         ..Default::default()
     };
     program.push_machine_state(&mut machine, state);
-    program.push_machine(machine);
-    symbol
+    machine
 }

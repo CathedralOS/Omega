@@ -664,6 +664,7 @@ impl PreCheckEvaluation {
                 "restored pre-check has not rejoined current declaration authority",
             )]);
         }
+        const_initializers::retain_deferred_entries(typed, &self.domain);
         let defer = {
             let _g = phase_profile::guard("evaluate_or_defer.check_defer");
             phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
@@ -786,6 +787,7 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
+        const_initializers::retain_deferred_entries(typed, &self.domain);
         phase_profile::scope(
             "evaluate_or_defer.evaluate_work.const_array_lengths",
             || {
