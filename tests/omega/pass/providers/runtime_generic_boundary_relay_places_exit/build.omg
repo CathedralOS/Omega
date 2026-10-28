@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_generic_boundary_relay_places_exit");
-    Build::select_provider<Forward, Identity>(builder);
+    Build::select_provider<Forward, Identity>(builder, linux_arm64);
+    Build::select_provider<Forward, Identity>(builder, linux_x86_64);
+    Build::select_provider<Forward, Identity>(builder, macos_arm64);
+    Build::select_provider<Forward, Identity>(builder, macos_x86_64);
+    Build::select_provider<Forward, Identity>(builder, windows_x86_64);
+    Build::select_provider<Forward, Identity>(builder, uefi_x86_64);
+    Build::select_provider<Forward, Identity>(builder, cross_platform_cli);
+    Build::select_provider<Forward, Identity>(builder, local_unchecked);
+    Build::select_provider<Forward, Identity>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

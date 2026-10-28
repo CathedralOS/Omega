@@ -2,7 +2,15 @@ machine build(builder: &mut Build) {
     Build::application(builder, "extent_root_provider_adapter");
     Ordinary::accept_boundary<u32>(7);
     Build::accept_boundary<ExtentRootProvider>(builder);
-    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, linux_arm64);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, linux_x86_64);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, macos_arm64);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, macos_x86_64);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, windows_x86_64);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, uefi_x86_64);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, cross_platform_cli);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, local_unchecked);
+    Build::select_provider<ExtentRootProvider, ExtentRootProviderImpl>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

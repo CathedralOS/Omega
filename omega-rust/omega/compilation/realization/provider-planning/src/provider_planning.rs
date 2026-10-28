@@ -129,7 +129,7 @@ pub fn bind_selected_provider_plan_facts(
 /// its derivation provenance and the authority that selected it.
 pub fn select_derived_provider_plans(
     derived: &[DerivedProviderPlan],
-    selected_target: target::NativeTarget,
+    selected_target: target::TargetProfile,
     defaults: &[crate::ProviderSelection],
     requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanWithProvenance>, Vec<diagnostics::Diagnostic>> {

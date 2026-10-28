@@ -134,7 +134,9 @@ pub(super) fn validate(
                     .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
                 match operation {
                     "prepare" | "select" => 1,
-                    "select_mode" if binding.operation == BuildOperation::ProviderSelection => 2,
+                    "select_provider" if binding.operation == BuildOperation::ProviderSelection => {
+                        3
+                    }
                     _ => {
                         return Err(Diagnostic::error(
                             "Product selection commit disagrees with its declaration operation",

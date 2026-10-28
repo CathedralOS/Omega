@@ -8,7 +8,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "crash_exclusion");
     Build::depend(builder, Source::Path { location: "assert-kit" });
-    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, linux_arm64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, linux_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, macos_arm64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, macos_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, windows_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, uefi_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, cross_platform_cli);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, local_unchecked);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>(builder, alpha_bootstrap);
     Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     Build::exclude_crash(builder, CrashCause::Trap);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

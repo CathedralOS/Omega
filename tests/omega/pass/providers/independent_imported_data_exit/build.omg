@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "independent_imported_data");
     Build::depend_as(builder, "provider", Source::Path { location: "provider" });
-    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, linux_arm64, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, linux_x86_64, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, macos_arm64, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, macos_x86_64, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, windows_x86_64, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, uefi_x86_64, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, cross_platform_cli, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, local_unchecked, CompositionMode::Independent);
+    Build::select_provider<provider::Probe, provider::ProbeProvider>(builder, alpha_bootstrap, CompositionMode::Independent);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

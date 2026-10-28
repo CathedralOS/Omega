@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "allocation_producer");
-    Build::select_provider<RawAllocation, RawAllocationProvider>(builder);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, linux_arm64);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, linux_x86_64);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, macos_arm64);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, macos_x86_64);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, windows_x86_64);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, uefi_x86_64);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, cross_platform_cli);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, local_unchecked);
+    Build::select_provider<RawAllocation, RawAllocationProvider>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
 }

@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "scalar_field_write_requires_issuer");
-    Build::select_provider<Consume, Actual>(builder);
+    Build::select_provider<Consume, Actual>(builder, linux_arm64);
+    Build::select_provider<Consume, Actual>(builder, linux_x86_64);
+    Build::select_provider<Consume, Actual>(builder, macos_arm64);
+    Build::select_provider<Consume, Actual>(builder, macos_x86_64);
+    Build::select_provider<Consume, Actual>(builder, windows_x86_64);
+    Build::select_provider<Consume, Actual>(builder, uefi_x86_64);
+    Build::select_provider<Consume, Actual>(builder, cross_platform_cli);
+    Build::select_provider<Consume, Actual>(builder, local_unchecked);
+    Build::select_provider<Consume, Actual>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

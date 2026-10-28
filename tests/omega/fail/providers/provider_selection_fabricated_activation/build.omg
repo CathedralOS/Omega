@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "provider_selection_fabricated_activation");
     let counterfeit: Build;
-    Build::select_provider<Echo, EchoProvider>(&mut counterfeit);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, linux_arm64);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, linux_x86_64);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, macos_arm64);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, macos_x86_64);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, windows_x86_64);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, uefi_x86_64);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, cross_platform_cli);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, local_unchecked);
+    Build::select_provider<Echo, EchoProvider>(&mut counterfeit, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
