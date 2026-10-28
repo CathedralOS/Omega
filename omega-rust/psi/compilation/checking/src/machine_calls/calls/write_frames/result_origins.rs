@@ -230,7 +230,11 @@ fn state_equation<'program>(
         include_shared,
         symbols,
         inference,
-    )?;
+    )
+    .or_else(|| {
+        eprintln!("ORIGIN FROZEN REFUSAL {}", machine.name);
+        None
+    })?;
     let statements = program.statement_table.statements(state.statement_nodes);
     // Every borrowed origin must retain its declaration. The shared transfer
     // below decides whether a reborrow exposes an unresolved binding or writes
@@ -314,7 +318,11 @@ fn state_equation<'program>(
                 }
                 _ => false,
             },
-        )?;
+        )
+        .or_else(|| {
+            eprintln!("ORIGIN PREFIX REFUSAL {}", machine.name);
+            None
+        })?;
         for local in &context.stored {
             inference.record_local(local);
         }
@@ -353,11 +361,19 @@ fn state_equation<'program>(
                         })
                 })
             {
+                let applied_result =
+                    crate::machine_calls::calls::call_result_type(program, result)?;
                 if !super::isolation::aggregate_storage_types_match(
                     program,
-                    transfer.state.return_type,
+                    applied_result,
                     expected_result,
                 ) {
+                    eprintln!(
+                        "ORIGIN RESULT TYPE REFUSAL {} applied={:?} expected={:?}",
+                        machine.name,
+                        program.type_reference_table.type_reference(applied_result),
+                        program.type_reference_table.type_reference(expected_result)
+                    );
                     return None;
                 }
                 edges.push(state_equations::Edge {
