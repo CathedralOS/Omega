@@ -20,16 +20,13 @@ pub(super) struct ObservedPolicyValue {
 impl<'program> IntegerObservations<'program> {
     pub(super) fn defer_policy_value(&mut self, position: usize, representative: Polynomial) {
         let source = &self.atoms[position];
-        if crate::proof_contracts::contract_entailment::struct_trace() {
-            eprintln!("STRUCT policy-operand source={source:?}");
-        }
         let StructuralTerm::ScalarBinary {
             operator, meaning, ..
         } = source
         else {
             return;
         };
-        if Engine::integer_policy_operation_carrier(*operator, *meaning).is_some()
+        if Engine::integer_policy_operation_meaning(*operator, *meaning).is_some()
             && !self
                 .policy_values
                 .iter()
@@ -96,7 +93,7 @@ fn completed_value<'program>(
     else {
         return None;
     };
-    let primitive = Engine::integer_policy_operation_carrier(*operator, *meaning)?;
+    let (primitive, policy) = Engine::integer_policy_operation_meaning(*operator, *meaning)?;
     if ![left, right].into_iter().zip(references).all(|(operand, reference)| {
         crate::proof_contracts::contract_entailment::structural_terms::scalar_operand_is_observed(
             judge.program,
@@ -119,5 +116,5 @@ fn completed_value<'program>(
         .integer_binary_value(*operator, left, right)?;
     observations
         .engine
-        .integer_policy_value(primitive, meaning[0].1, value)
+        .integer_policy_value(primitive, policy, value)
 }

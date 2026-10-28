@@ -105,14 +105,17 @@ impl Engine<'_> {
     /// Total policy operations share mathematical operands, but their result
     /// is a completed finite value. Division and shifts keep their separate
     /// partial-operand/count obligations; this is no Exact-policy replacement.
-    pub(in crate::proof_contracts::contract_entailment) fn integer_policy_operation_carrier(
+    pub(in crate::proof_contracts::contract_entailment) fn integer_policy_operation_meaning(
         operator: BinaryOperator,
         meaning: [(PrimitiveType, ArithmeticDomain); 2],
-    ) -> Option<PrimitiveType> {
+    ) -> Option<(PrimitiveType, ArithmeticDomain)> {
         let [(left, left_policy), (right, right_policy)] = meaning;
-        if left_policy != right_policy
+        let policy = left_policy.combine(right_policy);
+        if (left_policy != ArithmeticDomain::Exact
+            && right_policy != ArithmeticDomain::Exact
+            && left_policy != right_policy)
             || !matches!(
-                left_policy,
+                policy,
                 ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
             )
             || !matches!(
@@ -122,8 +125,9 @@ impl Engine<'_> {
         {
             return None;
         }
-        builtin_integer_result_carrier(operator, [left, right])
-            .filter(|primitive| primitive.is_fixed_integer())
+        let primitive = builtin_integer_result_carrier(operator, [left, right])
+            .filter(|primitive| primitive.is_fixed_integer())?;
+        Some((primitive, policy))
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn selected_integer_binary_value(
