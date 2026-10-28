@@ -1,0 +1,30 @@
+// Borrowed results retain their checked field domains and selected element, so inspection reads that element.
+// Expected exit: 0
+public domain [u8; 4]::Ascii requires ascii_only(self);
+public data Cell [copy] { storage: [u8; 4] in Ascii; }
+public data Table [copy] { cells: [Cell; 2]; }
+public machine choose(table: &mut Table, index: u64) -> &mut Cell
+requires index < 2 {
+    let cells: &mut [Cell] = &mut table.cells[..];
+    cells[index].storage[0] = 255u8;
+    &mut cells[index]
+}
+public machine relay(table: &mut Table, index: u64) -> &mut Cell
+requires index < 2 { choose(table, index) }
+machine inspect(cell: &Cell) -> u8 { cell.storage[0] }
+machine carry(table: &mut Table, index: u64) -> &mut Cell
+requires index < 2 { relay(table, index) }
+machine observe(table: &mut Table, index: u64) -> u8
+requires index < 2 {
+    inspect(carry(table, index))
+}
+machine main() crashes Trap {
+    let mut table: Table = Table { cells: [Cell { storage: [65u8, 0u8, 0u8, 0u8] }, Cell { storage: [66u8, 0u8, 0u8, 0u8] }] };
+    let first: u8 = observe(&mut table, 0);
+    let second: u8 = observe(&mut table, 1);
+    transition first == 65 && second == 66
+        && table.cells[0].storage[0] == 65 && table.cells[1].storage[0] == 66 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}
