@@ -2962,7 +2962,14 @@ pub(in crate::legalization) fn apply(
         _ => {}
     }
     custody.prune_retired();
-    custody.validate_occurrences()?;
+    custody.validate_occurrences().inspect_err(|_| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE custody-operation-context machine={:?} position={:?} sources={:?}",
+                function.machine, custody.reference_position, custody.borrowed_sources
+            );
+        }
+    })?;
     Ok(())
 }
 
@@ -3148,20 +3155,6 @@ fn transfer_return_custody(
             disposed: !retired.disposals.is_empty(),
         }
     }));
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-        if let Err(reason) = terminal_semantics::validate_reference_result_completion(&occurrences)
-        {
-            eprintln!(
-                "CHECKSITE completion-legalization-refusal machine={:?} reason={:?} occurrences={:?}",
-                function.machine,
-                reason,
-                occurrences
-                    .iter()
-                    .map(|row| (row.identity, &row.parents, row.returned, row.disposed))
-                    .collect::<Vec<_>>()
-            );
-        }
-    }
     terminal_semantics::validate_reference_result_completion(&occurrences)
         .map_err(|reason| LegalizationError::ReferenceCompletion { reason })?;
     custody.leaves.retain(|(carrier, path), _| {
@@ -3348,7 +3341,14 @@ fn apply_cleanup_actions(
         discard_owned(function, custody, types, place, event)?;
     }
     custody.prune_retired();
-    custody.validate_occurrences()?;
+    custody.validate_occurrences().inspect_err(|_| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE custody-operation-context machine={:?} position={:?} sources={:?}",
+                function.machine, custody.reference_position, custody.borrowed_sources
+            );
+        }
+    })?;
     Ok(())
 }
 
@@ -3556,7 +3556,11 @@ pub(in crate::legalization) fn block_entry_states(
                         })
             });
             arrival.prune_retired();
-            arrival.validate_occurrences()?;
+            arrival.validate_occurrences().inspect_err(|_| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!("CHECKSITE custody-arrival-context machine={:?} source_block={:?} edge={:?} target={:?} terminator={:?} scope={:?} sources={:?}", function.machine, block.id, edge.psi_edge, edge.target, terminator.operation, scope, arrival.borrowed_sources);
+                }
+            })?;
             arrivals.push((edge.psi_edge, edge.target, arrival));
         }
         final_arrivals[position] = arrivals;

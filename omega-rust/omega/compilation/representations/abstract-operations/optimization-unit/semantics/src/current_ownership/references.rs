@@ -2584,20 +2584,6 @@ pub(super) fn transfer_return(
             },
         )
         .collect::<Vec<_>>();
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-        if let Err(reason) = terminal_semantics::validate_reference_result_completion(&occurrences)
-        {
-            eprintln!(
-                "CHECKSITE completion-optimization-refusal machine={:?} reason={:?} occurrences={:?}",
-                function.machine,
-                reason,
-                occurrences
-                    .iter()
-                    .map(|row| (row.identity, &row.parents, row.returned, row.disposed))
-                    .collect::<Vec<_>>()
-            );
-        }
-    }
     terminal_semantics::validate_reference_result_completion(&occurrences)
         .map_err(|reason| invalid(function, block, None, reason.description()))?;
     // This removes frame-local ownership rows, not the referents or the loans.
