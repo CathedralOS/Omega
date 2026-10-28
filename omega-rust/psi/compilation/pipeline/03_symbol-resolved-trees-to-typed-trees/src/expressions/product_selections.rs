@@ -139,11 +139,12 @@ pub(crate) fn request(
                 .with_source_span(span));
         }
         let application = nominal_application.then(|| super::capture_product_operands::capture(source, operand).map(std::sync::Arc::new)).transpose()?;
+        let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
+        let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
         Ok(ProductDeclarationOperand {
             application,
             path: operand.path.joined_path(),
-            source_span: source::SourceSpan::new(first.source_id,
-                source::Span::new(first.span.start, last.span.end)),
+            source_span,
         })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
     if let Some(requirement) = requirement {

@@ -22,6 +22,7 @@ pub struct ProductStaticOperandGraph {
     pub applications: Arena<ProductStaticApplication>,
     pub types: Arena<ProductOperandType>,
     pub expressions: Arena<ProductOperandExpression>,
+    pub selections: Arena<ProductOperandSelection>,
     pub constraints: Arena<ProductOperandConstraint>,
     pub fields: Arena<ProductOperandField>,
     pub match_subjects: Arena<ProductMatchSubject>,
@@ -113,7 +114,19 @@ pub enum ProductOperandConstraint {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductOperandExpression {
     pub source_span: SourceSpan,
+    pub authored_selections: HandleSpan<ProductOperandSelection>,
     pub kind: ProductExpressionKind,
+}
+
+/// Coordinates issued from actual expression-to-ledger attachments. Local
+/// occurrence IDs and compiler-copy partition ordinals never escape their
+/// owning program; receiving preparation rejoins these immutable source facts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ProductOperandSelection {
+    pub source_span: SourceSpan,
+    pub exposure: super::AuthoredDeclarationSelectionExposure,
+    /// None is only the arena absence row, never an authored selection kind.
+    pub kind: Option<super::AuthoredDeclarationSelectionKind>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -306,4 +319,61 @@ pub struct ProductStaticEnvironmentLifetime {
     pub parameter_ordinal: u32,
     pub argument: Handle<ProductOperandName>,
     pub lexical_owner: SourceSpan,
+}
+
+impl ProductStaticOperandGraph {
+    /// Rebase retained source coordinates through the owning SourceMap's exact
+    /// correspondence. Graph handles and semantic operands stay unchanged.
+    pub fn remap_source_spans(&mut self, mut remap: impl FnMut(SourceSpan) -> SourceSpan) {
+        self.names.for_each_mut(|_, name| {
+            name.source_span = remap(name.source_span);
+            name.declaration = name.declaration.map(&mut remap);
+        });
+        self.operands.for_each_mut(|_, operand| {
+            operand.declaration = operand.declaration.map(&mut remap);
+        });
+        self.expressions.for_each_mut(|_, expression| {
+            expression.source_span = remap(expression.source_span);
+            if let ProductExpressionKind::Membership {
+                declaration,
+                case_type,
+                case,
+                ..
+            } = &mut expression.kind
+            {
+                *declaration = declaration.map(&mut remap);
+                *case_type = case_type.map(&mut remap);
+                *case = case.map(&mut remap);
+            }
+        });
+        self.selections
+            .for_each_mut(|_, selection| selection.source_span = remap(selection.source_span));
+        self.match_arms
+            .for_each_mut(|_, arm| arm.source_span = remap(arm.source_span));
+    }
+
+    /// The complete authored operand, rather than only its leading name.
+    /// Declaration anchors and foreign supplying expressions do not enlarge
+    /// this source range; their separate coordinates retain their own custody.
+    pub fn authored_operand_span(&self, leading: SourceSpan) -> SourceSpan {
+        let mut end = leading.span.end;
+        let mut include = |span: SourceSpan| {
+            if span.source_id == leading.source_id && span.span.start >= leading.span.start {
+                end = end.max(span.span.end);
+            }
+        };
+        for (_, name) in self.names.iter() {
+            include(name.source_span);
+        }
+        for (_, expression) in self.expressions.iter() {
+            include(expression.source_span);
+        }
+        for (_, arm) in self.match_arms.iter() {
+            include(arm.source_span);
+        }
+        SourceSpan::new(
+            leading.source_id,
+            source::Span::new(leading.span.start, end),
+        )
+    }
 }

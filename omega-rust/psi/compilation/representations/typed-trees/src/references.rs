@@ -719,6 +719,45 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     }
 }
 
+/// Materialized Product recipes are original source inputs. Their exact
+/// supplying scopes and actuals remain obligations after const folding; their
+/// declaration roots describe choices and do not create executable realizers.
+pub fn visit_product_operand_inputs(
+    program: &TypedTrees,
+    roots: &mut impl TypedReferences,
+    owner: SymbolHandle,
+) {
+    let pending = program
+        .product_operand_applications
+        .iter()
+        .filter_map(|(handle, application)| {
+            let source = program
+                .expression_table
+                .static_machine_application(application.supplying_application);
+            (source.lexical_owner == owner).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        return;
+    }
+    let live = program.live_product_operand_applications();
+    for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
+        let application = program.product_operand_applications.get(handle);
+        let source = program
+            .expression_table
+            .static_machine_application(application.supplying_application);
+        roots.enter_lexical_scope(source.lexical_owner);
+        roots.declaration_description_dependency(application.declaration);
+        if let Some(arguments) = &application.argument.application {
+            for argument in arguments.arguments.iter() {
+                visit_static_argument(program, roots, argument);
+            }
+        }
+        application.scope.visit_references(program, roots);
+        roots.leave_lexical_scope();
+    }
+}
+
 pub fn collect_expression_source_owners(
     program: &TypedTrees,
     expression_sources: &[source::SourceSpan],
@@ -1167,11 +1206,12 @@ fn visit_closed_conformance_inner(
 /// Implementation argument occurrences belong to their supplying declaration,
 /// not the ubiquitous receiving trait. Private projections retain only those
 /// owned roots, including the original simultaneous substitution frames.
-fn visit_owned_implementation_arguments(
+fn visit_owned_static_application_inputs(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     owner: SymbolHandle,
 ) {
+    visit_product_operand_inputs(program, retained, owner);
     if program.trait_implementation_applications.is_empty() {
         return;
     }
@@ -1215,7 +1255,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(data.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, data.symbol);
+        visit_owned_static_application_inputs(program, retained, data.symbol);
         visit_symbol(retained, data.symbol);
         if !program.plan_laid_layouts.is_empty() {
             for plan in program
@@ -1289,7 +1329,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, definition.symbol);
+        visit_owned_static_application_inputs(program, retained, definition.symbol);
         visit_symbol(retained, definition.symbol);
         visit_type_parameters(program, retained, definition.type_parameters);
 
@@ -1330,7 +1370,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(conformance.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, conformance.symbol);
+        visit_owned_static_application_inputs(program, retained, conformance.symbol);
         visit_symbol(retained, conformance.symbol);
         visit_type_parameters(program, retained, conformance.type_parameters);
         visit_symbol(retained, conformance.trait_symbol);
@@ -1352,7 +1392,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(proposition.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, proposition.symbol);
+        visit_owned_static_application_inputs(program, retained, proposition.symbol);
         visit_symbol(retained, proposition.symbol);
         for binder in program.proposition_binders(proposition) {
             visit_symbol(retained, binder.symbol);
@@ -1379,7 +1419,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, definition.symbol);
+        visit_owned_static_application_inputs(program, retained, definition.symbol);
         visit_type_parameters(program, retained, definition.binders);
         for parameter in program.mathematical_parameters(definition.parameters) {
             visit_mathematical_type(program, retained, parameter.ty);
@@ -1394,7 +1434,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(measure.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, measure.symbol);
+        visit_owned_static_application_inputs(program, retained, measure.symbol);
         visit_symbol(retained, measure.symbol);
         if let Some(parameter) = &measure.parameter {
             visit_type_reference(program, retained, parameter.type_reference);
@@ -1409,7 +1449,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(declaration.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, declaration.symbol);
+        visit_owned_static_application_inputs(program, retained, declaration.symbol);
         visit_symbol(retained, declaration.symbol);
         visit_type_reference(program, retained, declaration.declared_type);
         visit_expression(program, retained, declaration.authored_initializer);
@@ -1430,7 +1470,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(operator.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, operator.symbol);
+        visit_owned_static_application_inputs(program, retained, operator.symbol);
         visit_symbol(retained, operator.symbol);
         visit_type_parameters(program, retained, operator.type_parameters);
         for parameter in program
@@ -1454,7 +1494,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(domain.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, domain.symbol);
+        visit_owned_static_application_inputs(program, retained, domain.symbol);
         visit_symbol(retained, domain.symbol);
         visit_type_parameters(program, retained, domain.type_parameters);
         if let Some(selection) = &domain.cleanup_selection {
@@ -1485,7 +1525,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(schema.symbol) {
             continue;
         }
-        visit_owned_implementation_arguments(program, retained, schema.symbol);
+        visit_owned_static_application_inputs(program, retained, schema.symbol);
         visit_symbol(retained, schema.symbol);
         for member in program.tables.wire_members.span_or_empty(schema.members) {
             if let crate::wire::WireMember::Field(field) = member {
@@ -2139,7 +2179,7 @@ fn visit_machine_with_sidecars(
     sidecars: Option<&MachineSidecarIndex>,
 ) {
     retained.enter_lexical_scope(machine.symbol);
-    visit_owned_implementation_arguments(program, retained, machine.symbol);
+    visit_owned_static_application_inputs(program, retained, machine.symbol);
     for signature in program.requirement_invocation_signatures(machine.symbol) {
         visit_signature(program, retained, signature);
     }

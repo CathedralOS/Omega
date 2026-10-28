@@ -115,7 +115,11 @@ fn prepare_provider_applications(
         |request: &language_semantics::declaration_selection::ProductDeclarationRequest| {
             let mut owners = occurrences
                 .iter()
-                .filter(|occurrence| *occurrence.request == *request)
+                .filter(|occurrence| {
+                    source
+                        .typed()
+                        .same_product_request_source(&occurrence.request, request)
+                })
                 .map(|occurrence| source.typed().symbols.authored_origin(occurrence.machine));
             let owner = owners.next().ok_or_else(|| {
                 vec![
@@ -138,7 +142,13 @@ fn prepare_provider_applications(
     let formations = computed
         .declared_product_selections
         .iter()
-        .filter(|request| request.operation == BuildOperation::ProviderSelection)
+        .filter(|request| {
+            request.operation == BuildOperation::ProviderSelection
+                && request
+                    .operands
+                    .iter()
+                    .any(|operand| operand.application.is_some())
+        })
         .map(|request| Ok((request.clone(), author_for(request)?)))
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     for (request, author) in formations {
@@ -156,11 +166,14 @@ fn prepare_provider_applications(
             )?;
         }
     }
-    for event in computed
-        .product_selection_requests
-        .iter()
-        .filter(|event| event.request.operation == BuildOperation::ProviderSelection)
-    {
+    for event in computed.product_selection_requests.iter().filter(|event| {
+        event.request.operation == BuildOperation::ProviderSelection
+            && event
+                .request
+                .operands
+                .iter()
+                .any(|operand| operand.application.is_some())
+    }) {
         let author = typed_trees::product_operand::resolve_build_request_author(
             source.typed(),
             event.selecting_machine.ok_or_else(|| {

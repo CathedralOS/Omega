@@ -199,24 +199,32 @@ pub(super) fn capture(
         } else {
             None
         };
-        let static_environment = checked
-            .machines()
+        let static_environment = if request
+            .designated_operands()
             .iter()
-            .find(|machine| {
-                checked
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == occurrence.source_state)
-            })
-            .map(|machine| {
-                typed_trees::product_operand::capture_static_environment(
-                    &checked.typed,
-                    machine.symbol,
-                )
-            })
-            .transpose()
-            .map_err(diagnostics::Diagnostic::error)?
-            .flatten();
+            .any(|operand| operand.application.is_some())
+        {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| {
+                    checked
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == occurrence.source_state)
+                })
+                .map(|machine| {
+                    typed_trees::product_operand::capture_static_environment(
+                        &checked.typed,
+                        machine.symbol,
+                    )
+                })
+                .transpose()
+                .map_err(diagnostics::Diagnostic::error)?
+                .flatten()
+        } else {
+            None
+        };
         calls.push(TerminalBuildBindingCall {
             operation,
             boundary,

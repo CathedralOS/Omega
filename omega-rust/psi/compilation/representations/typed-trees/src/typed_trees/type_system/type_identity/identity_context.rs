@@ -413,6 +413,27 @@ fn generic_reference_identity<'program>(
                     // application equality always keeps the actual subject.
                     return "unit".to_owned();
                 }
+                // Callable operands retain an overload and a source region
+                // telescope even when transported as a generic type payload.
+                // Use the same source operand projection as a direct static
+                // selection; neither representation may erase the other lane.
+                if context.invalid_application.is_some()
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::data::TypeParameterKind::Machine { .. }
+                        )
+                    })
+                {
+                    return match program.static_operand_from_type_reference(*argument) {
+                        Ok(selected) => substitution::index_argument(
+                            program,
+                            super::IndexIdentityArgument::StaticArgument(&selected),
+                            context,
+                        ),
+                        Err(_) => substitution::rejected(context),
+                    };
+                }
                 let is_index = context.invalid_application.is_some()
                     && parameters
                         .get(ordinal)
