@@ -1,5 +1,5 @@
-use super::cursor::Cursor;
 use super::error::FunctionRelativeOptimizationRealizationManifestDecodeError;
+use optimization_core::cursor::Cursor;
 use target::{NativeTarget, TargetWireIdentityError};
 
 pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {

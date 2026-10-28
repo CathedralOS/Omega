@@ -9,46 +9,52 @@
 use super::{BigInt, Engine, Interval, Polynomial, ZERO_ATOM};
 use std::collections::BTreeMap;
 
-struct PreparedBounds<'engine> {
-    exact: Vec<(&'engine Polynomial, &'engine BigInt)>,
-    intervals: Vec<(&'engine str, Interval)>,
+#[derive(Clone)]
+pub(in crate::proof_contracts::contract_entailment) struct PreparedLowerBoundIndex {
+    exact_indices: Vec<u32>,
+    intervals: Vec<(String, Interval)>,
+    proportional: Vec<u32>,
 }
 
-pub(in crate::proof_contracts::contract_entailment) struct LowerBoundQueries<'engine, 'program> {
-    engine: &'engine Engine<'program>,
-    prepared: Option<PreparedBounds<'engine>>,
-}
-
-impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
-    pub(super) fn direct(engine: &'engine Engine<'program>) -> Self {
-        Self {
-            engine,
-            prepared: None,
-        }
-    }
-
-    pub(super) fn prepared(engine: &'engine Engine<'program>) -> Self {
-        let mut exact: Vec<_> = engine
-            .bounds
-            .iter()
-            .map(|(value, bound)| (value, bound))
-            .collect();
-        exact.sort_by(|left, right| left.0.terms.cmp(&right.0.terms));
+impl PreparedLowerBoundIndex {
+    pub(in crate::proof_contracts::contract_entailment) fn new(engine: &Engine<'_>) -> Self {
+        let mut exact: Vec<u32> = (0..engine.bounds.len() as u32).collect();
+        exact.sort_by(|&left, &right| {
+            engine.bounds[left as usize]
+                .0
+                .terms
+                .cmp(&engine.bounds[right as usize].0.terms)
+        });
         // Equal polynomials produce the same residual and scale. Their
         // strongest bound gives the weakest requested residual threshold, so
         // it subsumes every weaker copy for all immutable queries below.
-        let mut strongest: Vec<(&Polynomial, &BigInt)> = Vec::with_capacity(exact.len());
-        for (value, bound) in exact {
-            if let Some((previous_value, previous_bound)) = strongest.last_mut()
-                && *previous_value == value
+        let mut strongest: Vec<u32> = Vec::with_capacity(exact.len());
+        for idx in exact {
+            let (value, bound) = &engine.bounds[idx as usize];
+            if let Some(&previous_idx) = strongest.last()
+                && engine.bounds[previous_idx as usize].0 == *value
             {
-                if bound > *previous_bound {
-                    *previous_bound = bound;
+                if *bound > engine.bounds[previous_idx as usize].1
+                    && let Some(last) = strongest.last_mut()
+                {
+                    *last = idx;
                 }
             } else {
-                strongest.push((value, bound));
+                strongest.push(idx);
             }
         }
+        // Positive proportionality requires exactly the same nonconstant
+        // monomials. Index that necessary condition before comparing coefficients;
+        // unrelated captured scalars cannot match a residual merely because they
+        // occur in the same immutable premise batch. Keep the existing proof body
+        // authoritative within each group, including constants and integer slack.
+        let mut proportional: Vec<u32> = (0..strongest.len() as u32).collect();
+        proportional.sort_by(|&left, &right| {
+            nonconstant_monomials_cmp(
+                &engine.bounds[strongest[left as usize] as usize].0,
+                &engine.bounds[strongest[right as usize] as usize].0,
+            )
+        });
         let mut atoms: Vec<&str> = engine
             .parameter_atoms
             .iter()
@@ -70,14 +76,58 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         // unsigned lower bounds and the matrix's virtual zero diagonal.
         let intervals = atoms
             .into_iter()
-            .map(|atom| (atom, engine.atom_interval(atom)))
+            .map(|atom| (atom.to_owned(), engine.atom_interval(atom)))
             .collect();
         Self {
+            exact_indices: strongest,
+            intervals,
+            proportional,
+        }
+    }
+}
+
+enum PreparedBoundsRef<'a> {
+    Owned(PreparedLowerBoundIndex),
+    Borrowed(&'a PreparedLowerBoundIndex),
+}
+
+pub(in crate::proof_contracts::contract_entailment) struct LowerBoundQueries<'engine, 'program> {
+    engine: &'engine Engine<'program>,
+    prepared: Option<PreparedBoundsRef<'engine>>,
+}
+
+impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
+    pub(super) fn direct(engine: &'engine Engine<'program>) -> Self {
+        Self {
             engine,
-            prepared: Some(PreparedBounds {
-                exact: strongest,
-                intervals,
-            }),
+            prepared: None,
+        }
+    }
+
+    pub(super) fn prepared(engine: &'engine Engine<'program>) -> Self {
+        Self {
+            engine,
+            prepared: Some(PreparedBoundsRef::Owned(PreparedLowerBoundIndex::new(
+                engine,
+            ))),
+        }
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn from_prepared_index(
+        engine: &'engine Engine<'program>,
+        index: &'engine PreparedLowerBoundIndex,
+    ) -> Self {
+        Self {
+            engine,
+            prepared: Some(PreparedBoundsRef::Borrowed(index)),
+        }
+    }
+
+    fn prepared_index(&self) -> Option<&PreparedLowerBoundIndex> {
+        match &self.prepared {
+            Some(PreparedBoundsRef::Owned(index)) => Some(index),
+            Some(PreparedBoundsRef::Borrowed(index)) => Some(index),
+            None => None,
         }
     }
 
@@ -85,18 +135,29 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         self.engine
     }
 
-    pub(super) fn prepared_exact_bounds(&self) -> &[(&'engine Polynomial, &'engine BigInt)] {
-        self.prepared
-            .as_ref()
-            .map_or(&[], |prepared| prepared.exact.as_slice())
+    pub(super) fn prepared_exact_bounds(&self) -> Vec<(&'engine Polynomial, &'engine BigInt)> {
+        self.prepared_index().map_or_else(Vec::new, |prepared| {
+            prepared
+                .exact_indices
+                .iter()
+                .map(|&idx| {
+                    let (poly, bound) = &self.engine.bounds[idx as usize];
+                    (poly, bound)
+                })
+                .collect()
+        })
     }
 
     fn exact_bound_at_least(&self, value: &Polynomial, bound: &BigInt) -> bool {
-        if let Some(prepared) = &self.prepared {
+        if let Some(prepared) = self.prepared_index() {
             prepared
-                .exact
-                .binary_search_by(|(stored, _)| stored.terms.cmp(&value.terms))
-                .is_ok_and(|position| prepared.exact[position].1 >= bound)
+                .exact_indices
+                .binary_search_by(|&idx| {
+                    self.engine.bounds[idx as usize].0.terms.cmp(&value.terms)
+                })
+                .is_ok_and(|position| {
+                    &self.engine.bounds[prepared.exact_indices[position] as usize].1 >= bound
+                })
         } else {
             self.engine
                 .bounds
@@ -106,10 +167,10 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
     }
 
     fn atom_interval(&self, atom: &str) -> Interval {
-        if let Some(prepared) = &self.prepared
+        if let Some(prepared) = self.prepared_index()
             && let Ok(position) = prepared
                 .intervals
-                .binary_search_by_key(&atom, |(stored, _)| *stored)
+                .binary_search_by_key(&atom, |(stored, _)| stored.as_str())
         {
             return prepared.intervals[position].1.clone();
         }
@@ -134,11 +195,11 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
             self.prove_base_lower_bound(&polynomial.sub(stored), &bound.sub(stored_bound))
                 || self.prove_scaled_lower_bound(polynomial, bound, stored, stored_bound)
         };
-        if let Some(prepared) = &self.prepared {
-            prepared
-                .exact
-                .iter()
-                .any(|(stored, stored_bound)| proves_from_bound(stored, stored_bound))
+        if let Some(prepared) = self.prepared_index() {
+            prepared.exact_indices.iter().any(|&idx| {
+                let (stored, stored_bound) = &self.engine.bounds[idx as usize];
+                proves_from_bound(stored, stored_bound)
+            })
         } else {
             self.engine
                 .bounds
@@ -179,10 +240,18 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         let proportional = |stored: &Polynomial, stored_bound: &BigInt| {
             self.prove_proportional_lower_bound(polynomial, bound, stored, stored_bound)
         };
-        let established = if let Some(prepared) = &self.prepared {
-            prepared
-                .exact
+        let established = if let Some(prepared) = self.prepared_index() {
+            let first = prepared.proportional.partition_point(|&position| {
+                let (stored, _) =
+                    &self.engine.bounds[prepared.exact_indices[position as usize] as usize];
+                nonconstant_monomials_cmp(stored, polynomial).is_lt()
+            });
+            prepared.proportional[first..]
                 .iter()
+                .map(|&position| {
+                    &self.engine.bounds[prepared.exact_indices[position as usize] as usize]
+                })
+                .take_while(|(stored, _)| nonconstant_monomials_cmp(stored, polynomial).is_eq())
                 .any(|(stored, bound)| proportional(stored, bound))
         } else {
             self.engine
@@ -460,6 +529,13 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         }
         interval.multiply(&atom_interval.correlated_power(previous_power))
     }
+}
+
+fn nonconstant_monomials_cmp(left: &Polynomial, right: &Polynomial) -> std::cmp::Ordering {
+    left.terms
+        .keys()
+        .filter(|monomial| !monomial.is_empty())
+        .cmp(right.terms.keys().filter(|monomial| !monomial.is_empty()))
 }
 
 /// Positive rational alignment is shared by the exact proportional-premise

@@ -4,47 +4,10 @@
 //! the selection and realization joins, then consumes the resulting execution
 //! identity without recognizing names or repeating signature classification.
 
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use provider_planning::{CompilerIntrinsicExecutionIdentity, IntrinsicRequirement};
 use symbols::SymbolHandle;
-
-/// Every compiler path without a closed catalog child stays unsupported.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedCompilerIntrinsicExecutionIdentity {
-    Closed(CompilerIntrinsicExecutionIdentity),
-    Unsupported,
-}
-
-/// Derive a selected child without treating realization spelling as identity.
-/// Package review uses this same exact join against its supplied candidate.
-pub(crate) fn derive_selected_compiler_intrinsic_execution_identity(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    requirement_symbol: SymbolHandle,
-) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
-    let Some(execution) = selected_numeric_execution(checked, plan, requirement_symbol)? else {
-        return Ok(None);
-    };
-    if let CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) = execution {
-        let symbol = checked.symbols.builtin_function_symbol(function).ok_or_else(|| {
-            Diagnostic::error(format!(
-                "compiler builtin `{}` is absent while deriving selected provider review identity",
-                function.name(),
-            ))
-        })?;
-        if checked.symbols.builtin_function_for_symbol(symbol) != Some(function) {
-            return Err(Diagnostic::error(format!(
-                "compiler builtin `{}` does not round-trip through its exact root slot",
-                function.name(),
-            )));
-        }
-    }
-    Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-        execution,
-    )))
-}
 
 /// Build-time comparison evaluation asks only for the primitive binary lane;
 /// named operations do not become primitive expressions.

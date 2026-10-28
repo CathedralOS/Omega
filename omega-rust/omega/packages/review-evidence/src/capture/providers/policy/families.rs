@@ -163,7 +163,8 @@ fn authored(
             PackageReviewProviderSelectionAuthority::TargetDefault,
             declarations,
         )),
-        ProviderSelectionProvenance::UniqueCoveringCandidate => None,
+        ProviderSelectionProvenance::UniqueCoveringCandidate
+        | ProviderSelectionProvenance::NativeBuild => None,
     }
 }
 

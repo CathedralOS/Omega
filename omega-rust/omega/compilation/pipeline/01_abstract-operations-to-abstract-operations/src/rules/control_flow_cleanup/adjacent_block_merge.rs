@@ -16,7 +16,9 @@ use semantic_vocabulary::BlockId;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
-use crate::rules::control_flow_cleanup::{provenance_realized_at, record_node_provenance};
+use crate::rules::control_flow_cleanup::{
+    provenance_realized_at, record_node_provenance, terminal_jump,
+};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -68,23 +70,10 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
             if target.id == function.entry || !eligible_first {
                 continue;
             }
-            let Some((predecessor_index, predecessor_node)) =
-                predecessor.nodes.iter().enumerate().last()
-            else {
+            let Some(jump) = terminal_jump(function, predecessor) else {
                 continue;
             };
-            let O::Jump {
-                structural_bindings: _,
-                psi_edge: incoming_edge,
-                target: jump_target,
-                bindings,
-                cleanup_actions,
-            } = &predecessor_node.operation
-            else {
-                continue;
-            };
-            if !cleanup_actions.is_empty()
-                || *jump_target != target.id
+            if jump.target != target.id
                 || function
                     .block_edges()
                     .filter(|edge| edge.target == target.id)
@@ -93,35 +82,23 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
             {
                 continue;
             }
-            let Some(ownership_witness) = merge_boundary_ownership_witness(
-                unit,
-                function,
-                frontiers,
-                *incoming_edge,
-                target.id,
-            ) else {
+            let Some(ownership_witness) =
+                merge_boundary_ownership_witness(unit, function, frontiers, jump.edge, target.id)
+            else {
                 continue;
             };
             let Some(substitutions) = merge_substitutions(
                 function.machine,
                 target,
-                bindings,
+                jump.bindings,
                 machine_dominators,
                 use_definitions,
             ) else {
                 continue;
             };
-            let predecessor_location = NodeLocation {
-                machine: function.machine,
-                block: predecessor.id,
-                node: u32::try_from(predecessor_index).expect("optimization node index fits u32"),
-            };
-            let Some((affected_blocks, provenance)) = adjacent_merge_accounting(
-                function,
-                predecessor_location,
-                target.id,
-                &substitutions,
-            ) else {
+            let Some((affected_blocks, provenance)) =
+                adjacent_merge_accounting(function, jump.location, target.id, &substitutions)
+            else {
                 continue;
             };
             candidates.push(
@@ -134,8 +111,8 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
                     ownership_witness,
                     -2,
                     AdjacentBlockMergeRewrite {
-                        predecessor: predecessor_location,
-                        incoming_edge: *incoming_edge,
+                        predecessor: jump.location,
+                        incoming_edge: jump.edge,
                         target: target.id,
                     },
                 )

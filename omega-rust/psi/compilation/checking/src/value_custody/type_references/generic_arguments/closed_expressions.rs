@@ -113,6 +113,12 @@ impl Context<'_> {
         let carrier = carrier.resolved(program);
         let expected = carrier.reference;
         let node = program.expression_table.expression(expression);
+        // Boolean literals are closed independently of their receiving carrier.
+        // The shared canonical validator still checks that carrier before the
+        // value can be published or used as a constructor field.
+        if let ExpressionNode::Boolean(value) = node {
+            return Ok(Some(DecodedCanonicalConstValue::Boolean(*value)));
+        }
         if let ExpressionNode::Name(path) = node {
             if program
                 .data_type_parameter_by_symbol(path.symbol)

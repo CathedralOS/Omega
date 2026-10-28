@@ -7,12 +7,12 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
-use super::BuildOperation;
+use super::{BuildOperation, ProductTarget};
 
 /// Compiler-issued context for one ordinary Build selection call. Entry slots
 /// and declaration choices share activation custody, while retaining their
 /// distinct Product admission obligations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildSelectionRequest<Requirement> {
     ProviderReadiness(ProviderReadinessRequest<Requirement>),
     Entry(RootBindingRequest),
@@ -35,7 +35,8 @@ impl<Requirement> BuildSelectionRequest<Requirement> {
             Self::Exclusion(_) => true,
             Self::Declaration(request) => matches!(
                 request.operation,
-                super::BuildOperation::ServiceExclusion
+                super::BuildOperation::NativeBinding
+                    | super::BuildOperation::ServiceExclusion
                     | super::BuildOperation::BoundaryAcceptance
                     | super::BuildOperation::ServiceAudit
                     | super::BuildOperation::AssumedBindingContract
@@ -93,7 +94,7 @@ impl<Requirement> BuildSelectionRequest<Requirement> {
 
 /// The requirement is already resolved in this source owner. Only the named
 /// dependency backing is deferred; it grants no ordinary import or call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProviderReadinessRequest<Requirement> {
     pub source_span: source::SourceSpan,
     pub requirement: Requirement,
@@ -102,7 +103,7 @@ pub struct ProviderReadinessRequest<Requirement> {
 
 /// Evaluated enum selections use checked Omega helpers to encode the closed
 /// toolchain vocabulary. Codes are protocol values, never guessed layout tags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ExclusionVocabulary {
     CrashCause,
     PhysicalAuthorityClass,
@@ -146,7 +147,7 @@ impl ExclusionVocabulary {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct EnumExclusionRequest {
     pub source_span: source::SourceSpan,
     pub vocabulary: ExclusionVocabulary,
@@ -160,7 +161,7 @@ pub struct ExecutedEnumExclusion {
 }
 
 /// Declaration role required by one exact compiler-owned Build operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductOperandRole {
     BoundarySubject,
     Provider,
@@ -179,7 +180,9 @@ impl BuildOperation {
                 Some(Role::BoundarySubject)
             }
             (Self::ProviderSelection, 1) => Some(Role::Provider),
-            (Self::AssumedBindingContract, 0 | 1) => Some(Role::Requirement),
+            (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
+                Some(Role::Requirement)
+            }
             (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                 Some(Role::Data)
             }
@@ -191,6 +194,7 @@ impl BuildOperation {
 
     pub const fn product_operand_count_valid(self, count: usize) -> bool {
         match self {
+            Self::NativeBinding => count == 1,
             Self::ProviderSelection
             | Self::RepresentationSelection
             | Self::AssumedBindingContract => count == 2,
@@ -203,14 +207,14 @@ impl BuildOperation {
 
 /// Source-authorized locators until the Product join admits their exact roles.
 /// Neither these strings nor a copied request grants declaration visibility.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationRequest {
     pub source_span: source::SourceSpan,
     pub operation: super::BuildOperation,
     pub operands: Box<[ProductDeclarationOperand]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
@@ -272,10 +276,13 @@ pub enum ExecutedBuildSelection {
     Entry(ExecutedRootBinding),
     Declaration(ExecutedProductSelection),
     Exclusion(ExecutedEnumExclusion),
+    Native(ExecutedNativeBinding),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
+    /// Exact evaluated deployment key; only provider choices carry a target.
+    pub target: Option<super::ProductTarget>,
     pub request: std::sync::Arc<ProductDeclarationRequest>,
     pub selecting_machine: Option<source::SourceSpan>,
     /// Provider choices retain the actual evaluated mode. Representation
@@ -283,16 +290,27 @@ pub struct ExecutedProductSelection {
     pub composition: Option<CompositionMode>,
 }
 
+/// One reached package-local native intent. The locator is an owned checked
+/// semantic snapshot, not provider evidence or host execution authority. The
+/// Product join still resolves the exact requirement under this occurrence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedNativeBinding {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub target: super::ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub selecting_machine: source::SourceSpan,
+}
+
 /// Inert designated operands retained under their authored lexical scope.
 /// They are not executable arguments or authority to publish a product.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RootBindingRequest {
     pub source_span: source::SourceSpan,
     pub slot: String,
     pub implementation: RootBindingOperand,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum RootBindingOperand {
     AuthoredPath(String),
     #[default]
@@ -364,4 +382,107 @@ pub struct ExecutedRootBinding {
     pub source_span: source::SourceSpan,
     pub slot: String,
     pub implementation: RootBindingSelection,
+}
+
+/// Stable source coordinates of one reached or declared package-owned native
+/// operation. Captured from checked Build code, never from locator arguments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBindingProducer {
+    pub package: semantic_vocabulary::PackageKeyIdentity,
+    pub declaration_path: String,
+    pub callable_identity: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedNativeDeclaration {
+    pub producer: NativeBindingProducer,
+    pub requirement_path: String,
+    pub source_occurrence_digest: [u8; 32],
+    pub resolution_stratum: source::SourceResolutionStratum,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedNativeIntent {
+    pub declaration: u32,
+    pub target: ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+}
+
+/// Source coordinates captured while checked Build bodies still exist. The
+/// completed output owner seals anonymous root scope only after Build declares
+/// its immutable package. This is inert companion data, not portable authority.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct NativeBindingFormation {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub author: source::SourceSpan,
+    pub author_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub root_scope: bool,
+    pub declaration_path: String,
+    pub callable_identity: String,
+    pub source_occurrence_digest: [u8; 32],
+    pub resolution_stratum: source::SourceResolutionStratum,
+}
+impl NativeBindingFormation {
+    pub fn seal(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+    ) -> Result<CapturedNativeDeclaration, String> {
+        if self.author_package.is_some_and(|owner| owner != package) || !self.root_scope {
+            return Err(
+                "native output cannot substitute another checked Build package's scope".into(),
+            );
+        }
+        let [operand] = self.request.operands.as_ref() else {
+            return Err("native formation lost its requirement".into());
+        };
+        Ok(CapturedNativeDeclaration {
+            producer: NativeBindingProducer {
+                package,
+                declaration_path: self.declaration_path.clone(),
+                callable_identity: self.callable_identity.clone(),
+            },
+            requirement_path: operand.path.clone(),
+            source_occurrence_digest: self.source_occurrence_digest,
+            resolution_stratum: self.resolution_stratum,
+        })
+    }
+}
+
+#[cfg(test)]
+mod native_formation_tests {
+    use super::*;
+    #[test]
+    fn native_output_never_crosses_checked_package_scope() {
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let other = semantic_vocabulary::PackageKeyIdentity::from_digest([8; 32]).unwrap();
+        let mut formation = NativeBindingFormation {
+            request: std::sync::Arc::new(ProductDeclarationRequest {
+                source_span: Default::default(),
+                operation: BuildOperation::NativeBinding,
+                operands: vec![ProductDeclarationOperand {
+                    path: "Raw::read".into(),
+                    source_span: Default::default(),
+                }]
+                .into_boxed_slice(),
+            }),
+            author: Default::default(),
+            author_package: Some(package),
+            root_scope: true,
+            declaration_path: "build".into(),
+            callable_identity: "build(&mut Build)".into(),
+            source_occurrence_digest: [9; 32],
+            resolution_stratum: source::SourceResolutionStratum::Base,
+        };
+        assert_eq!(formation.seal(package).unwrap().producer.package, package);
+        // Equal immutable package identity does not identify another checked
+        // instance (e.g. a Build-purpose helper) as this root's lexical scope.
+        formation.root_scope = false;
+        assert!(formation.seal(package).is_err());
+        formation.root_scope = true;
+        assert!(formation.seal(other).is_err());
+        formation.author_package = None;
+        assert!(formation.seal(package).is_ok());
+        formation.root_scope = false;
+        assert!(formation.seal(package).is_err());
+    }
 }

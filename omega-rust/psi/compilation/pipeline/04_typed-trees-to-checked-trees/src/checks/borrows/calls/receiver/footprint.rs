@@ -168,7 +168,10 @@ fn retained_subject_access(
     machine: &typed_trees::machine::Machine,
 ) -> Option<usize> {
     let target = program.state_by_symbol(call.target_symbol)?;
-    program.data_binding_parameter(machine, program.state_parameters(target))?;
+    let attached = crate::flow::family_attached_data_symbol(program, machine.symbol);
+    program
+        .data_binding_position(attached, program.state_parameters(target))
+        .map(|index| &program.state_parameters(target)[index])?;
     let site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
@@ -210,7 +213,10 @@ fn whole_mutable_jump_machine<'p>(
     super::local_jump(program, state_flow, call)?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
     let target = program.state_by_symbol(call.target_symbol)?;
-    let parameter = program.data_binding_parameter(machine, program.state_parameters(target))?;
+    let attached = crate::flow::family_attached_data_symbol(program, machine.symbol);
+    let parameter = program
+        .data_binding_position(attached, program.state_parameters(target))
+        .map(|index| &program.state_parameters(target)[index])?;
     if !matches!(
         program
             .type_reference_table

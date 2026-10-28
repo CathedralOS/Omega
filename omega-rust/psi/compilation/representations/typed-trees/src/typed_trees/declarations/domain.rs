@@ -6,7 +6,7 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -65,12 +65,12 @@ impl Default for DomainDefinition {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainAliasDefinition {
     pub constituents: Vec<DomainAliasConstituent>,
 }
 
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainAliasConstituent {
     pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
@@ -305,7 +305,7 @@ fn closed_domain_argument_identity(
     ))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
     Membership(ProofMembershipFact),
@@ -344,7 +344,7 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
@@ -617,7 +617,7 @@ pub fn type_selects_semantic_domain(
 /// supplying declaration, static tuple and bounds; executable retargeting never
 /// replaces that source identity. The exact subject prevents one shared helper
 /// from borrowing the first carrier that happened to select it.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CleanupSelection {
     pub application: crate::static_applications::StaticMachineApplicationHandle,
     pub authorization:
@@ -628,7 +628,7 @@ pub struct CleanupSelection {
 
 /// A complete explicit index telescope applied to one immutable authored theory.
 /// Original constraints retain their argument pack and ordinary formation checks.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AppliedDomainApplication {
     pub declaration: SymbolHandle,
     pub arguments: Vec<TypeReferenceHandle>,

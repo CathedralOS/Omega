@@ -9,6 +9,7 @@ name = "effects"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../../../psi/foundation/compiler-storage" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }

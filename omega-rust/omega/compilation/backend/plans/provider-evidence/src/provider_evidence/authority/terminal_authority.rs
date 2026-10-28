@@ -105,6 +105,17 @@ impl From<language_semantics::numeric_intrinsics::NumericIntrinsic>
 }
 
 impl CompilerIntrinsicExecutionIdentity {
+    /// Numeric semantics are carried by Terminal, not by a native custody row.
+    pub fn is_numeric(self) -> bool {
+        matches!(
+            self,
+            Self::PrimitiveFloatBinary { .. }
+                | Self::PrimitiveIntegerComparison { .. }
+                | Self::NamedFloatNegation(_)
+                | Self::NamedFloatConversion { .. }
+        ) || matches!(self, Self::BuiltinFunction(function) if function.is_float_family())
+    }
+
     /// Fixed-register instructions already have exact compiler-owned builtin
     /// coordinates. Normalize to those closed identities, retaining both the
     /// register and direction rather than creating a foreign/physical alias.
@@ -728,7 +739,7 @@ impl From<PortableFilesystemAuthorityFacet> for TerminalAuthorityClass {
 /// Classes are always stored in canonical order without duplicates. An empty
 /// set means only that the mechanism exercises none of D45's classes; it does
 /// not claim purity, trustworthiness, or absence of general side effects.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalAuthorityDisposition {
     classes: Vec<TerminalAuthorityClass>,
 }
@@ -1393,5 +1404,23 @@ mod physical_leaf_tests {
             ),
             Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch)
         );
+    }
+}
+
+impl compiler_storage::Record for TerminalAuthorityClass {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.canonical_tag(), output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let tag = <u8 as compiler_storage::Record>::read(input)?;
+        Self::ALL
+            .into_iter()
+            .find(|class| class.canonical_tag() == tag)
+            .ok_or_else(|| input.error("unknown retained terminal authority class"))
     }
 }

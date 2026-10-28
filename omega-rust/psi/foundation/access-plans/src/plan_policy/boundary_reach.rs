@@ -9,7 +9,7 @@ normalized_identity!(
     "boundary-service reach identity cannot be zero"
 );
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct BoundaryReach {
     services: BTreeSet<BoundaryServiceReachId>,
 }

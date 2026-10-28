@@ -13,7 +13,7 @@ use typed_trees::types::PrimitiveType;
 /// `EdgeCleanupPlan`: executable rows name only whole, claim-free affine
 /// parameters whose checked state-exit events can be realized as terminal-Psi
 /// trivial discards. Composed graphs use exact normal-exit actions instead.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlCleanupPlans {
     pub states: Vec<CheckedStructuralControlStateCleanupPlan>,
 }
@@ -42,7 +42,7 @@ impl CheckedStructuralControlCleanupPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlStateCleanupPlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -51,7 +51,7 @@ pub struct CheckedStructuralControlStateCleanupPlan {
     pub edges: Vec<CheckedStructuralControlEdgeCleanupPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
@@ -61,7 +61,7 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
@@ -144,7 +144,7 @@ impl CheckedStructuralControlSuccessorPlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralScalarArgumentPlan {
     /// Authored target-argument position retained as the checked expression
     /// coordinate.
@@ -165,7 +165,7 @@ impl Default for CheckedStructuralScalarArgumentPlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralScalarArgumentSourcePlan {
     /// Exact source scalar parameter, including its source-name binding checks.
     Parameter { index: u32 },
@@ -174,7 +174,7 @@ pub enum CheckedStructuralScalarArgumentSourcePlan {
     Expression,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlTransferPlan {
     pub source: CheckedStructuralControlTransferSourcePlan,
     pub target_parameter_index: u32,
@@ -208,7 +208,7 @@ impl Default for CheckedStructuralControlTransferPlan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedStructuralControlTransferSourcePlan {
     /// Exact earlier state-local call result; rejoined to its producing operation.
     StructuralResult {

@@ -1,4 +1,4 @@
-use crate::candidates::{canonicalize_provenance, provenance_realized_at};
+use crate::candidates::{canonicalize_provenance, provenance_realized_at, realized_at_own_site};
 use optimization_unit::{
     NodeLocation, PsiOptimizationFunction, PsiRealizationSite, SharedJumpFusionRewrite,
 };
@@ -40,12 +40,7 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
             &terminal.provenance,
             &terminal.fuel,
         ),
-        provenance_realized_at(
-            input_terminal,
-            input_terminal,
-            &terminal.provenance,
-            &terminal.fuel,
-        ),
+        realized_at_own_site(input_terminal, &terminal.provenance, &terminal.fuel),
     ];
     canonicalize_provenance(&mut provenance);
     let mut blocks = vec![patch.predecessor.block, patch.target];

@@ -5,5 +5,13 @@ machine build(builder: &mut Build) {
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::accept_boundary<Identity>(builder);
-    Build::select_provider<Identity, Provider>(builder);
+    Build::select_provider<Identity, Provider>(builder, linux_arm64);
+    Build::select_provider<Identity, Provider>(builder, linux_x86_64);
+    Build::select_provider<Identity, Provider>(builder, macos_arm64);
+    Build::select_provider<Identity, Provider>(builder, macos_x86_64);
+    Build::select_provider<Identity, Provider>(builder, windows_x86_64);
+    Build::select_provider<Identity, Provider>(builder, uefi_x86_64);
+    Build::select_provider<Identity, Provider>(builder, cross_platform_cli);
+    Build::select_provider<Identity, Provider>(builder, local_unchecked);
+    Build::select_provider<Identity, Provider>(builder, alpha_bootstrap);
 }

@@ -1,0 +1,3 @@
+// Expected exit: 0
+machine missing<'a>(value: &'a u8, ready: bool) -> &'a u8 { transition ready { true -> value false -> {} } }
+machine main() {}

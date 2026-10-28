@@ -13,7 +13,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, resolve_registers,
+    ValidatedPhysicalRegisterModel, resolve_registers, word_stream,
 };
 use crate::immediate_offset::{
     ADD_IMMEDIATE, address_words, append_page_steps, decode_address_words,
@@ -140,14 +140,7 @@ pub fn validate(
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
-    let (chunks, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-    }
-    let words = chunks
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = word_stream(bytes).ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
     if alignment_bytes != 1 {
         let member = match kind {
             SelectedInstructionKind::FrameAddress { byte_offset, .. }

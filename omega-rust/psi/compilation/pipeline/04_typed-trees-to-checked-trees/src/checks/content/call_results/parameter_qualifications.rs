@@ -30,6 +30,7 @@ pub(super) struct ParameterQualificationJoin<'program> {
     call_flow: &'program FlowCallFact,
     checked_body: bool,
     subjects: Vec<ParameterSubject>,
+    retained: Vec<crate::flow::RetainedMembership>,
 }
 
 impl<'program> ParameterQualificationJoin<'program> {
@@ -49,7 +50,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             return None;
         };
         let target = match site {
-            CallSite::Expression { call, .. } => call.target_symbol,
+            CallSite::Expression { call, .. } => validation::call_target_symbol(program, call),
             CallSite::Statement(call) => call.target_symbol,
             CallSite::TransitionNamed { path, .. } => path.symbol,
         };
@@ -126,15 +127,11 @@ impl<'program> ParameterQualificationJoin<'program> {
                 referents
                     .iter()
                     .filter_map(|referent| {
-                        Some(CanonicalPlace {
-                            root: referent.root,
-                            segments: facts
-                                .flow
-                                .control
-                                .operand_referent_segments
-                                .span(referent.segments)?
-                                .to_vec(),
-                        })
+                        crate::checks::places::place_in(
+                            &facts.flow.control.operand_referent_segments,
+                            referent.root,
+                            referent.segments,
+                        )
                     })
                     .collect::<Vec<_>>()
             } else {
@@ -167,6 +164,7 @@ impl<'program> ParameterQualificationJoin<'program> {
                 .compare_identity(&right.place)
                 .then_with(|| left.position.cmp(&right.position))
         });
+        let retained = crate::flow::replay_retained_memberships(program, facts, point);
         Some(Self {
             program,
             facts,
@@ -175,6 +173,7 @@ impl<'program> ParameterQualificationJoin<'program> {
             call_flow,
             checked_body,
             subjects,
+            retained,
         })
     }
 
@@ -197,6 +196,16 @@ impl<'program> ParameterQualificationJoin<'program> {
             root,
             segments: path.to_vec(),
         };
+        // A consumed lifetime holder has no direct mutable formal for the
+        // original referent. This separately replayed source receipt, not the
+        // completion's signature or issuer name, admits its exact descendant.
+        if self
+            .retained
+            .iter()
+            .any(|row| row.place == subject && row.domain == domain && row.instance == instance)
+        {
+            return Some(());
+        }
         let start = self
             .subjects
             .partition_point(|row| row.place.compare_identity(&subject).is_lt());

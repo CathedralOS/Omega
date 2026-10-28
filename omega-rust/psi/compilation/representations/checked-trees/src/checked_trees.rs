@@ -176,7 +176,7 @@ pub use values::{
     CheckedValueFacts, CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTrees {
     pub typed: typed_trees::FrozenTypedTrees,
     pub facts: CheckFacts,

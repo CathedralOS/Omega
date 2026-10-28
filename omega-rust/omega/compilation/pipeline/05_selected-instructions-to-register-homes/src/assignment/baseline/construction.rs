@@ -6,13 +6,13 @@ use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
 };
 
-use super::custody::{custody_receipt, post_copy_custody_receipt};
+use super::custody::custody_receipt;
 use super::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };
 
-pub(super) fn construct_with_assignment(
+pub(crate) fn stage_register_homes_with_assignment(
     legality: StagedOptimizedAllocationLegality,
     homes: crate::ValidatedRegisterHomes,
 ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
@@ -39,22 +39,14 @@ pub(super) fn construct_with_assignment(
 /// Assignment probe over the post-copy reanalysis. Computing the assignment
 /// without consuming the reanalysis lets the recovery route answer residual
 /// `NoCompatibleHome` pressure with runtime spill instead of post-copy homes.
-pub(super) fn assign_optimized_register_homes_after_fixed_view_copies(
+pub(crate) fn assign_optimized_register_homes_after_fixed_view_copies(
     reanalysis: &StagedOptimizedSelectedReanalysis,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
     let environment = reanalysis.register_environment();
-    assign_register_homes(
-        reanalysis.legality(),
-        reanalysis.ranges(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
+    assign_register_homes(reanalysis.legality(), reanalysis.ranges(), environment)
 }
 
-pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
+pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
     reanalysis: StagedOptimizedSelectedReanalysis,
     homes: crate::ValidatedRegisterHomes,
 ) -> Result<
@@ -75,7 +67,11 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_as
         &homes,
     )
     .map_err(OptimizedPostCopyRegisterHomeCustodyError::Manifest)?;
-    let custody = post_copy_custody_receipt(source, homes.receipt(), manifest.record().identity);
+    let custody = crate::assignment::PostHomeCustodyReceipt::new(
+        source,
+        homes.receipt(),
+        manifest.record().identity,
+    );
     Ok(StagedOptimizedRegisterHomesAfterFixedViewCopies {
         reanalysis,
         homes,

@@ -101,6 +101,13 @@ fn collect_domain_const_sites<'a>(
 }
 
 pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    if program
+        .domain_definitions()
+        .iter()
+        .all(|domain| domain.type_parameters.is_empty())
+    {
+        return Ok(());
+    }
     let mut sites = Vec::new();
     for (_, _, constraints) in program
         .type_reference_table

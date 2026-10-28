@@ -1,4 +1,5 @@
 use crate::record::PackageReviewNominalIdentity;
+use crate::record::accessors::field_projection_accessors;
 
 /// A normalized finite union, not another service-row expression language.
 /// Each parameter ordinal selects an exact nominal contract in the callable's
@@ -10,11 +11,6 @@ pub struct PackagePolicyServiceReachDependency {
 }
 
 impl PackagePolicyServiceReachDependency {
-    pub fn concrete(&self) -> &[PackageReviewNominalIdentity] {
-        &self.concrete
-    }
-
-    pub fn parameters(&self) -> &[u32] {
-        &self.parameters
-    }
+    field_projection_accessors!(sliced concrete: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced parameters: &[u32]);
 }

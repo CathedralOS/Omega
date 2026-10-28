@@ -45,3 +45,5 @@ pub use package_manager::{
 // The unit tests compile real packages on several threads; mimalloc's
 // per-thread heaps avoid the system allocator's zone locks. Test-only: the
 // product keeps the system allocator.
+
+pub use resolution::source::retain_compiler_source_storage;

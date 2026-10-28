@@ -21,7 +21,7 @@ use target::TargetProfile;
 /// Supplier presence is only a source-routing observation: checkpoint reuse
 /// still validates live custody, and source sealing rechecks the consumed bytes
 /// before issuing a checked product. This key cannot attest filesystem contents.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceAssemblyInputs {
     build_execution_profile: Option<TargetProfile>,
     package: Option<PackageSourceContent>,
@@ -48,13 +48,13 @@ impl SourceAssemblyInputs {
     }
 }
 
-/// Exact source and semantic inputs to a Product frontend. Target attachments
-/// do not partition source work; their custody is still admitted per occurrence.
-#[derive(Clone, PartialEq, Eq)]
+/// Exact source inputs to a Product frontend. Target attachments and semantic
+/// binding admissions do not partition source assembly, resolution, or typing;
+/// entry contract source selection is already recorded in `SourceAssemblyInputs`,
+/// and custody/semantic bindings are still admitted per occurrence.
+#[derive(Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductSourceInputs {
     assembly: SourceAssemblyInputs,
-    semantic_role_discovery: bool,
-    semantic_bindings: Vec<crate::AcceptedSemanticBinding>,
 }
 
 impl ProductSourceInputs {
@@ -64,11 +64,6 @@ impl ProductSourceInputs {
     ) -> Self {
         Self {
             assembly: SourceAssemblyInputs::new(packages, build_execution_profile),
-            semantic_role_discovery: packages
-                .is_some_and(|inputs| inputs.semantic_role_discovery()),
-            semantic_bindings: packages
-                .map(|inputs| inputs.accepted_semantic_bindings().cloned().collect())
-                .unwrap_or_default(),
         }
     }
 }
@@ -77,7 +72,7 @@ impl ProductSourceInputs {
 /// retain only the scope, package and bytes assembly consumes. Their producing
 /// target, dependency closure and source commitment remain admission evidence
 /// on PackageCompilationInputs, checked separately for each child.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageSourceContent {
     purpose: DependencyPurpose,
     source: Arc<PackageCompilationSourceInputs>,
@@ -101,7 +96,7 @@ impl PackageSourceContent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct GeneratedSourceContent {
     scope: DependencyPurpose,
     package: PackageKeyIdentity,

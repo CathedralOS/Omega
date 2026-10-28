@@ -732,6 +732,24 @@ pub(in super::super) fn decode_path(
     Ok(path)
 }
 
+/// Qualification scopes may quantify every element. This metadata entrance
+/// does not make a wildcard an executable address or a reference origin.
+pub(in super::super) fn decode_qualification_path(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<StructuralPathSegment>, FixedViewCopyDecodeError> {
+    let count = cursor.length()?;
+    let mut path = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        let tag = cursor.byte()?;
+        path.push(if tag == 10 {
+            StructuralPathSegment::AllElements
+        } else {
+            decode_projection(cursor, tag)?
+        });
+    }
+    Ok(path)
+}
+
 pub(super) fn decode_reference_origin_path(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, FixedViewCopyDecodeError> {

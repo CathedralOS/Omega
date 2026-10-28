@@ -194,10 +194,11 @@ impl PlanEvidence<'_> {
 
 /// The complete admission of one member node under the current relocation
 /// run — the exact predicate the fixed-point scan and the mutable-borrower
-/// coverage oracle share: every non-leaf arm keeps the non-speculative gate,
-/// then replays the source-shape admission from `validation`. Returns the
-/// operand rewrites, observed-root rebind, and structural-argument rebinds
-/// the relocation records; `None` when the node may not move.
+/// coverage oracle share: the non-speculative gate is stated once at the head,
+/// and every non-leaf arm then replays its own source-shape admission from
+/// `validation`. Returns the operand rewrites, observed-root rebind, and
+/// structural-argument rebinds the relocation records; `None` when the node may
+/// not move.
 fn admit_member_node(
     evidence: &PlanEvidence<'_>,
     member: BlockId,
@@ -207,6 +208,15 @@ fn admit_member_node(
 ) -> Option<MemberAdmission> {
     let function = evidence.function;
     let component = evidence.component;
+    // A node moves only when reaching the preheader guarantees entering the
+    // component and the node's own block executes on every traversal that
+    // leaves it: moving anything else would perform work the source traversal
+    // may never perform. Every arm below keeps this one gate; each states only
+    // its own evidence.
+    if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+        return None;
+    }
+    let effects = evidence.call_effects;
     // Equal contents do not establish equal storage occurrences. Fresh storage
     // may leave a cycle only when no member (including a transitive callee)
     // observes identity. Freeze validation replays this same admission.
@@ -260,9 +270,6 @@ fn admit_member_node(
         // relocated run can see it: visible at the preheader insertion
         // point, produced by a node the same run already covers, or the
         // representative its member structural parameter resolves to.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let root = crate::validation::place_observations::invariant_place_observation_admission(
             function,
             component,
@@ -280,9 +287,6 @@ fn admit_member_node(
         // and `length` must stay paired with a `ByteSequenceLength`
         // measuring the rebound root so the moved operation still validates
         // against its obligation.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let (root, substitution) = crate::validation::place_observations::invariant_byte_read_admission(
             function,
             component,
@@ -306,9 +310,6 @@ fn admit_member_node(
         // byte-exact and each member-internal operand must already be a
         // result the same run preserves. `path`, `field`, and the bounds
         // obligation are not operand positions and stay byte-exact too.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let (root, substitution) = crate::validation::place_observations::invariant_field_byte_read_admission(
             function,
             component,
@@ -328,9 +329,6 @@ fn admit_member_node(
         // a `ByteSequenceLength` on the rebound root. Its structural result
         // is not a definable operand — the moved operation preserves the
         // fresh view place and the bounds obligation byte-exact.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let (root, substitution) = crate::validation::place_observations::invariant_subslice_admission(
             function,
             component,
@@ -354,9 +352,6 @@ fn admit_member_node(
         // traversal would not, so both halves of the non-speculative gate
         // apply and no observation-root or operand evidence exists to
         // re-derive.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         Vec::new()
     } else if crate::validation::invariant_operations::admissible_invariant_primitive_local(node).is_some() {
         // A primitive-local establishment is the byte literal's
@@ -372,9 +367,6 @@ fn admit_member_node(
         // initialized once still reads `value` on every traversal — and `value`
         // itself obeys the scalar substitution. The declared place, structural
         // type, and result custody move byte-exact inside the moved operation.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let substitution = crate::validation::invariant_operations::invariant_primitive_local_admission(
             function, component, node, relocating,
         )?;
@@ -407,9 +399,6 @@ fn admit_member_node(
         // member return. The declared place, structural type,
         // result custody, declaration order, and range obligations move
         // byte-exact inside the moved operation.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         admit_call(crate::validation::invariant_operations::invariant_record_admission(
             function,
             component,
@@ -428,9 +417,6 @@ fn admit_member_node(
         // payload established once still reads its elements on every
         // traversal. The declared place, structural type, and result custody
         // move byte-exact inside the moved operation.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let substitution = crate::validation::invariant_operations::invariant_scalar_array_admission(
             function, component, node, relocating,
         )?;
@@ -454,9 +440,6 @@ fn admit_member_node(
         // shared member-parameter substitution. An unrestricted result is
         // copyable custody instead: the shared no-member-stores bound
         // applies and no edge custody changes.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let substitution = crate::validation::invariant_operations::invariant_scalar_case_admission(
             function, component, node, relocating,
         )?;
@@ -478,9 +461,6 @@ fn admit_member_node(
         // work a bypassed traversal would not, so both halves of the
         // non-speculative gate apply; the operation carries no operands, so
         // there is no substitution to represent.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         crate::validation::invariant_operations::invariant_trivial_affine_local_admission(function, component, node)?;
         Vec::new()
     } else if crate::validation::invariant_calls::admissible_invariant_scalar_call(node).is_some() {
@@ -492,10 +472,6 @@ fn admit_member_node(
         // divergence cannot reorder member work anyone could observe. Each
         // scalar argument then obeys the shared member-parameter
         // substitution.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         let substitution = crate::validation::invariant_calls::invariant_scalar_call_admission(
             function, component, node, relocating, effects,
         )?;
@@ -514,10 +490,6 @@ fn admit_member_node(
         // published crash ceiling must still cover it. The realization
         // rewrites the roster itself, so the candidate records only the
         // shared operand substitution.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         let substitution = crate::validation::invariant_calls::invariant_crash_continuation_call_admission(
             evidence.functions,
             function,
@@ -542,10 +514,6 @@ fn admit_member_node(
         // run can see it — already preheader-visible, resolved through an
         // invariant member structural parameter, or produced by a node the
         // same run already covers.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         admit_call(crate::validation::invariant_calls::invariant_unit_call_admission(
             function,
             component,
@@ -571,10 +539,6 @@ fn admit_member_node(
         // optimizer-side reconstruction does not replay the verifier's
         // canonical structural-path substitution — so the moved call's
         // structural-argument rebind cannot drift the derived roster.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         admit_call(crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(
                 evidence.functions,
                 function,
@@ -593,10 +557,6 @@ fn admit_member_node(
         // the run can see it — and then its preserved scalar result joins
         // `relocating`, so a member node consuming the call's return value
         // relocates behind it in the same run.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         admit_call(crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
                 function,
                 component,
@@ -622,10 +582,6 @@ fn admit_member_node(
         // the moved call's argument rebind from drifting that roster. The
         // preserved scalar result joins `relocating`, so a member node
         // consuming the return value relocates behind it in the same run.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(
                 evidence.functions,
                 function,
@@ -662,10 +618,6 @@ fn admit_member_node(
         // every other call variant's. The declared place joins
         // `relocating_roots`, so a member node anchored on the persistent
         // result relocates behind it in the same run.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         admit_call(crate::validation::invariant_calls::invariant_structural_call_admission(
             function,
             component,
@@ -693,10 +645,6 @@ fn admit_member_node(
         // call's argument rebind from drifting that roster. The declared
         // place joins `relocating_roots`, so a member node anchored on the
         // persistent result relocates behind it in the same run.
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
-        let effects = evidence.call_effects;
         admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(
                 evidence.functions,
                 function,
@@ -707,9 +655,6 @@ fn admit_member_node(
                 effects,
             ))?
     } else {
-        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
-            return None;
-        }
         let substitution = crate::validation::member_blocks::invariant_scalar_operand_substitution(
             function, component, node, relocating,
         )?;

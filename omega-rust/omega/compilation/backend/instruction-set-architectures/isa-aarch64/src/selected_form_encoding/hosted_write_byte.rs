@@ -243,14 +243,7 @@ pub fn aarch64_hosted_write_byte_i32_byte_count(
 
 fn decode(target: NativeTarget, bytes: &[u8]) -> Option<(u8, u32)> {
     let system_call = system_call_words(target)?;
-    let (chunks, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return None;
-    }
-    let words = chunks
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = super::word_stream(bytes)?;
     let first = *words.first()?;
     let (register, displacement) = if first & 0xffc0_03e0 == 0x3900_03e0 {
         (first & 31, (first >> 10) & 4095)

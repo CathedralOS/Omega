@@ -5,14 +5,14 @@ use arena::HandleSpan;
 use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct State {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub storage: StateStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,

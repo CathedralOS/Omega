@@ -1,7 +1,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "carry_permission_provider_adapter");
     Build::accept_boundary<ClaimProvider>(builder);
-    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, linux_arm64);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, linux_x86_64);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, macos_arm64);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, macos_x86_64);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, windows_x86_64);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, uefi_x86_64);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, cross_platform_cli);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, local_unchecked);
+    Build::select_provider<ClaimProvider, ClaimProviderImpl>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

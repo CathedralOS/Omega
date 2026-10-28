@@ -373,23 +373,33 @@ pub fn prepare_const_qualification_selection<'authored>(
     authored: &'authored SyntaxTrees,
     destinations: impl IntoIterator<Item = &'authored syntax_trees::item::ConstDefinition>,
 ) -> Result<Option<ConstInitializerSelection>, Vec<Diagnostic>> {
-    let sources = request.sources.clone();
-    let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
-    let selection = lowerer.constant_selection.as_ref().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "constant qualification lost its declaration selector",
-        )]
-    })?;
+    let destinations = destinations.into_iter().collect::<Vec<_>>();
+    if destinations.is_empty() {
+        return Ok(None);
+    }
+    let ResolutionRequest {
+        mut syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    } = request;
+    preparation::target_families::normalize(&mut syntax, sources.as_deref())?;
+    let constant_selection = preparation::declaration_selection::ConstantSelection::with_shared_base(
+        &syntax,
+        sources.clone(),
+        top_level_bindings.clone(),
+        retained_base.clone(),
+    )?;
+    preparation::generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     let mut demanded = false;
     for definition in destinations {
         if (definition.pending_qualification.is_some()
             || preparation::generic_data::const_destination_requires_proof(
                 authored,
                 definition,
-                Some(selection),
+                Some(&constant_selection),
             ))
-            && constant::pending_const_initializer_leaves(authored, definition, selection)
+            && constant::pending_const_initializer_leaves(authored, definition, &constant_selection)
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
                 })?
@@ -402,7 +412,23 @@ pub fn prepare_const_qualification_selection<'authored>(
     if !demanded {
         return Ok(None);
     }
-    finish_const_initializer_selection(syntax, lowerer, sources, bindings).map(Some)
+    preparation::module_normalization::validate_with_const_resolution_mode(
+        &syntax,
+        &constant_selection,
+        ConstResolutionMode::InitializerSelection,
+    )?;
+    preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
+        &mut syntax,
+        &constant_selection,
+    )?;
+    preparation::machine_equations::validate_declarations(&syntax)?;
+    let mut lowerer = Lowerer::new(sources.clone(), top_level_bindings.clone());
+    lowerer.constant_selection = Some(constant_selection);
+    lowerer.const_resolution_mode = ConstResolutionMode::InitializerSelection;
+    if let Some(base) = retained_base {
+        lowerer.seed_resolved_base(base)?;
+    }
+    finish_const_initializer_selection(syntax, lowerer, sources, top_level_bindings).map(Some)
 }
 
 fn finish_const_initializer_selection(

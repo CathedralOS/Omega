@@ -19,6 +19,7 @@ pub(super) use collection_measures::{
     observed_collection_measure, reference_argument_observation,
 };
 mod constructors;
+pub(crate) use entry_reads::immutable_entry_boolean_projection;
 mod entry_reads;
 mod equality;
 pub use entry_reads::{
@@ -37,8 +38,8 @@ pub(super) use binary::{
     binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
 };
 pub(super) use constructors::{
-    admitted_const_value_term, case_classifier, case_guard_classifier, case_value_term,
-    constructor_literal_term, is_case_observation, zero_value_structural_term,
+    admitted_const_value_term, captured_constructor_term, case_classifier, case_guard_classifier,
+    case_value_term, constructor_literal_term, is_case_observation, zero_value_structural_term,
 };
 pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms};
 pub(super) use scalar_operands::{
@@ -130,30 +131,8 @@ pub(super) fn unfold_constant_applications(
     program: &dyn crate::CheckingInput,
     term: StructuralTerm,
 ) -> StructuralTerm {
+    let unfold = |value: StructuralTerm| unfold_constant_applications(program, value);
     match term {
-        StructuralTerm::IntegerEmbedding { reference, value } => StructuralTerm::IntegerEmbedding {
-            reference,
-            value: Box::new(unfold_constant_applications(program, *value)),
-        },
-        StructuralTerm::MathematicalBinary {
-            operator,
-            left,
-            right,
-        } => StructuralTerm::MathematicalBinary {
-            operator,
-            left: Box::new(unfold_constant_applications(program, *left)),
-            right: Box::new(unfold_constant_applications(program, *right)),
-        },
-        StructuralTerm::ObservedValue {
-            observed_type,
-            value,
-            descriptor,
-        } => StructuralTerm::ObservedValue {
-            observed_type,
-            value: Box::new(unfold_constant_applications(program, *value)),
-            descriptor: descriptor
-                .map(|descriptor| Box::new(unfold_constant_applications(program, *descriptor))),
-        },
         StructuralTerm::Application {
             result_type,
             target,
@@ -182,8 +161,7 @@ pub(super) fn unfold_constant_applications(
             })
         }
         term @ StructuralTerm::CallProjection { .. } => {
-            let term =
-                term.map_argument_terms(|argument| unfold_constant_applications(program, argument));
+            let term = term.map_children(unfold);
             if let StructuralTerm::CallProjection {
                 result_type,
                 target,
@@ -206,52 +184,7 @@ pub(super) fn unfold_constant_applications(
                 unreachable!()
             }
         }
-        StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-            data,
-            case,
-            fields: fields
-                .into_iter()
-                .map(|(name, value)| (name, unfold_constant_applications(program, value)))
-                .collect(),
-        },
-        StructuralTerm::ScalarBinary {
-            references,
-            operator,
-            meaning,
-            left,
-            right,
-        } => StructuralTerm::ScalarBinary {
-            references,
-            operator,
-            meaning,
-            left: Box::new(unfold_constant_applications(program, *left)),
-            right: Box::new(unfold_constant_applications(program, *right)),
-        },
-        StructuralTerm::IndexedValue {
-            element_type,
-            element_identity,
-            collection,
-            index,
-        } => StructuralTerm::IndexedValue {
-            element_type,
-            element_identity,
-            collection: Box::new(unfold_constant_applications(program, *collection)),
-            index: Box::new(unfold_constant_applications(program, *index)),
-        },
-        StructuralTerm::CollectionMeasure {
-            measure,
-            collection,
-        } => StructuralTerm::CollectionMeasure {
-            measure,
-            collection: Box::new(
-                unfold_constant_applications(program, *collection).into_collection_descriptor(),
-            ),
-        },
-        StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
-            subject: Box::new(unfold_constant_applications(program, *subject)),
-            path,
-        },
-        other => other,
+        other => other.map_children(unfold),
     }
 }
 
@@ -618,7 +551,7 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |_, field| {
+            constructor_literal_term(program, expression, literal, |_, field| {
                 let field = field?;
                 structural_term(program, scope, frame, field.value, bindings)
             })

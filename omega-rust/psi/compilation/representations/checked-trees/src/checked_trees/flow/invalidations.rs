@@ -1,7 +1,7 @@
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowInvalidationSource {
     Statement {
         statement_index: usize,
@@ -19,7 +19,7 @@ impl Default for FlowInvalidationSource {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowInvalidationFact {
     pub source: FlowInvalidationSource,
     pub context: facts::FactContextHandle,

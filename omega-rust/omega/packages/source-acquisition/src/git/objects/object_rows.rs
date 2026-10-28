@@ -48,18 +48,31 @@ impl GitBlobBytes {
 }
 
 impl GitTreeEntry {
+    /// Blob transport never follows a foreign repository edge. A manifest is
+    /// ordinary authenticated bytes here; source selection owns its policy.
+    pub(crate) fn validate_blob_entry(&self) -> Result<(), crate::error::SourceResolveError> {
+        if let GitTreeEntryKind::Gitlink = self.kind {
+            return Err(crate::error::SourceResolveError::GitSubmodulesUnsupported {
+                edges: vec![crate::error::GitSubmoduleEdge {
+                    path: self.relative_path.clone(),
+                    commit: Some(self.oid.clone()),
+                }],
+            });
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_source_entry(&self) -> Result<(), crate::error::SourceResolveError> {
-        let commit = matches!(self.kind, GitTreeEntryKind::Gitlink).then(|| self.oid.clone());
-        if commit.is_some()
-            || self
-                .relative_bytes
-                .split(|byte| *byte == b'/')
-                .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
+        self.validate_blob_entry()?;
+        if self
+            .relative_bytes
+            .split(|byte| *byte == b'/')
+            .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
         {
             return Err(crate::error::SourceResolveError::GitSubmodulesUnsupported {
                 edges: vec![crate::error::GitSubmoduleEdge {
                     path: self.relative_path.clone(),
-                    commit,
+                    commit: None,
                 }],
             });
         }

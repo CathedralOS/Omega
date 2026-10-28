@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "extents"
 path = "src/lib.rs"
+
+[dependencies]
+compiler-storage = { path = "../compiler-storage" }

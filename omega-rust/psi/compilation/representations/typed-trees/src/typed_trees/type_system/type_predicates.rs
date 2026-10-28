@@ -111,13 +111,13 @@ impl TypedTrees {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticTypeContexts {
     boolean_equalities: Vec<ExpressionHandle>,
     rows: Vec<(ExpressionHandle, Vec<TypeWorld>)>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 struct TypeWorld {
     bindings: Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
     exclusions: Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,

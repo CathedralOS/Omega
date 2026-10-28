@@ -120,6 +120,19 @@ pub enum CompileResolvedPackageReviewsError {
 }
 
 impl CompileResolvedPackageReviewsError {
+    /// One occurrence's assembled compilation inputs refused. The occurrence
+    /// whose assembly was running owns the refusal, not the dependency that
+    /// contributed the row.
+    pub(super) fn compilation_inputs(
+        package: &PackageKey,
+        errors: Vec<PackageCompilationInputError>,
+    ) -> Self {
+        Self::CompilationInputs {
+            package: package.clone(),
+            errors,
+        }
+    }
+
     /// Preserve pending Build consent at the package boundary rather than
     /// parsing its diagnostic rendering or retrying it as product discovery.
     pub(crate) fn from_compilation(

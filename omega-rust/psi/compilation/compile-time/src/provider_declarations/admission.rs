@@ -106,6 +106,7 @@ pub(super) fn admit(
     boundary_identity: ProviderSelectionIdentity,
     provider_type: ProviderSelectionIdentity,
     composition_mode: CompositionMode,
+    target: Option<language_semantics::declaration_selection::ProductTarget>,
     machine: SymbolHandle,
     source_span: source::SourceSpan,
     previous: &[ProviderSelection],
@@ -114,10 +115,9 @@ pub(super) fn admit(
         subject,
         provider_type,
     } = form(context, boundary_identity, provider_type)?;
-    if let Some(existing) = previous
-        .iter()
-        .find(|selection| selection.subject.same_declaration_as(&subject))
-    {
+    if let Some(existing) = previous.iter().find(|selection| {
+        selection.target == target && selection.subject.same_declaration_as(&subject)
+    }) {
         if existing.provider_type.symbol != provider_type.symbol {
             return Err(Diagnostic::error(format!(
                 "build selects two provider types for slot `{}`: `{}` and `{}`",
@@ -137,6 +137,7 @@ pub(super) fn admit(
         }
     }
     Ok(ProviderSelection {
+        target,
         subject,
         provider_type,
         composition_mode,

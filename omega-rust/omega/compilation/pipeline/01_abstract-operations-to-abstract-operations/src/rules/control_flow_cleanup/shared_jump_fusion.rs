@@ -1,6 +1,5 @@
 //! Fusion of jumps that share one terminal successor.
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
 use optimization_unit::{
     NodeLocation, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
@@ -10,7 +9,7 @@ use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
+use crate::rules::control_flow_cleanup::{provenance_realized_at, terminal_jump};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
@@ -40,36 +39,23 @@ psi_rule_impl!(SharedJumpFusionRule, |unit, analyses| {
             continue;
         };
         for predecessor in &function.blocks {
-            let Some((predecessor_index, predecessor_node)) =
-                predecessor.nodes.iter().enumerate().last()
-            else {
+            let Some(jump) = terminal_jump(function, predecessor) else {
                 continue;
             };
-            let O::Jump {
-                structural_bindings: _,
-                psi_edge: incoming_edge,
-                target: target_id,
-                bindings,
-                cleanup_actions,
-            } = &predecessor_node.operation
-            else {
-                continue;
-            };
-            let Some(target) = function.block(*target_id) else {
+            let Some(target) = function.block(jump.target) else {
                 continue;
             };
             if !function_post_dominators
                 .iter()
                 .find(|(block, _)| *block == predecessor.id)
-                .is_some_and(|(_, blocks)| blocks.contains(target_id))
+                .is_some_and(|(_, blocks)| blocks.contains(&jump.target))
             {
                 continue;
             }
             let [terminal] = target.nodes.as_slice() else {
                 continue;
             };
-            if !cleanup_actions.is_empty()
-                || target.id == function.entry
+            if target.id == function.entry
                 || !terminal.successors.is_empty()
                 || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))
                 || !matches!(
@@ -86,11 +72,7 @@ psi_rule_impl!(SharedJumpFusionRule, |unit, analyses| {
                 .count();
             if incoming_count < 2
                 || !merge_boundary_ownership_is_identity(
-                    unit,
-                    function,
-                    frontiers,
-                    *incoming_edge,
-                    target.id,
+                    unit, function, frontiers, jump.edge, target.id,
                 )
             {
                 continue;
@@ -98,7 +80,7 @@ psi_rule_impl!(SharedJumpFusionRule, |unit, analyses| {
             let Some(mut substitutions) = target
                 .parameters
                 .iter()
-                .zip(bindings)
+                .zip(jump.bindings)
                 .map(|(parameter, binding)| {
                     (binding.parameter == parameter.value
                         && binding.scalar_type == parameter.scalar_type)
@@ -109,22 +91,14 @@ psi_rule_impl!(SharedJumpFusionRule, |unit, analyses| {
                         })
                 })
                 .collect::<Option<Vec<_>>>()
-                .filter(|_| target.parameters.len() == bindings.len())
+                .filter(|_| target.parameters.len() == jump.bindings.len())
             else {
                 continue;
             };
             substitutions.sort();
-            let predecessor_location = NodeLocation {
-                machine: function.machine,
-                block: predecessor.id,
-                node: u32::try_from(predecessor_index).expect("optimization node index fits u32"),
-            };
-            let Some((affected_blocks, provenance)) = shared_terminal_fusion_accounting(
-                function,
-                predecessor_location,
-                *incoming_edge,
-                target.id,
-            ) else {
+            let Some((affected_blocks, provenance)) =
+                shared_terminal_fusion_accounting(function, jump.location, jump.edge, target.id)
+            else {
                 continue;
             };
             candidates.push(
@@ -136,8 +110,8 @@ psi_rule_impl!(SharedJumpFusionRule, |unit, analyses| {
                     provenance,
                     -1,
                     SharedJumpFusionRewrite {
-                        predecessor: predecessor_location,
-                        incoming_edge: *incoming_edge,
+                        predecessor: jump.location,
+                        incoming_edge: jump.edge,
                         target: target.id,
                     },
                 )

@@ -28,7 +28,7 @@ use super::statements::statement_source_span;
 /// One strict check's entailment judgment for a single non-instance machine.
 /// Ordinals index that machine's expression `ensures` list, which is stable
 /// for a matching correspondence and is remapped into the consumer's arena.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DependencyBodyJudgment {
     pub identity: String,
     pub correspondence: u64,

@@ -12,6 +12,14 @@ macro_rules! normalized_extent_identity {
         $(#[$meta])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(u64);
+        impl compiler_storage::Record for $name {
+            fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError> { compiler_storage::Record::write(&self.0, output) }
+            fn read<Context>(input: &mut compiler_storage::RecordReader<'_, Context>) -> Result<Self, compiler_storage::RecordError> {
+                Self::from_normalized_identity(compiler_storage::Record::read(input)?)
+                    .map_err(|_| input.error(concat!($label, " identity has the reserved zero value")))
+            }
+        }
+
 
         impl $name {
             pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
@@ -54,7 +62,7 @@ normalized_extent_identity! { ResidentClaimId, "resident-claim" }
 /// The compact fingerprint remains useful for compatibility reporting, but
 /// consumers must also rejoin the collision-resistant commitment before the
 /// provider's content-validity evidence can be used.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ExtentContentInterpretation {
     compatibility_fingerprint: ExtentContentInterpretationId,
     commitment: [u8; 32],

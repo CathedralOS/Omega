@@ -79,7 +79,7 @@ impl Builder<'_, '_> {
             let mut owners = program.traits().iter().filter(|owner| {
                 owner.is_boundary
                     && program
-                        .trait_machine_instances(owner)
+                        .executable_trait_machine_instances(owner)
                         .any(|signature| signature.symbol == authored_target)
             });
             let owner = owners.next()?;

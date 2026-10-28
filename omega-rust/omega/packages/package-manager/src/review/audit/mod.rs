@@ -2,6 +2,4 @@
 
 mod source_diff;
 
-pub(crate) use source_diff::{
-    PackageSourcePatchError, PackageSourcePatchLimits, render_package_source_patch,
-};
+pub(crate) use source_diff::{PackageSourcePatchError, render_package_source_patch};

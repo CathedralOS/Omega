@@ -24,6 +24,7 @@ pub struct PreparedPackageBuild {
     rollback: OptimizationRollback,
     prepared: PreparedBuild,
     generated_sources: PackageGeneratedSourceBundle,
+    native_bindings: package_compilation::PackageNativeBindingBundle,
 }
 
 impl PreparedPackageBuild {
@@ -42,10 +43,6 @@ impl PreparedPackageBuild {
         let execution = self.prepared.build_sources.build_execution_profile;
         package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
             == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
-            && inputs.semantic_role_discovery() == self.inputs.semantic_role_discovery()
-            && inputs
-                .accepted_semantic_bindings()
-                .eq(self.inputs.accepted_semantic_bindings())
     }
     /// Select a realization context from one completed Build. The source
     /// continuation, executed effects and charges remain shared. Target-local
@@ -83,10 +80,12 @@ impl PreparedPackageBuild {
             && self.prepared.build_sources == other.prepared.build_sources
             // Execution receipts and charges remain on each activation. They
             // cannot partition source work, nor be replaced by a sibling's.
-            && build.config == other_build.config
+            && build.config.same_source_choices(&other_build.config)
             && build.root_binding_requests == other_build.root_binding_requests
             && build.declared_product_selections == other_build.declared_product_selections
             && build.product_selection_requests == other_build.product_selection_requests
+            && build.native_binding_requests == other_build.native_binding_requests
+            && build.native_formations == other_build.native_formations
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
             && build.project_declaration == other_build.project_declaration
@@ -130,6 +129,20 @@ impl PreparedPackageBuild {
                 .generated_sources
                 .clone(),
         )?;
+        let build = &prepared.built.computed_build_config;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                inputs.root(),
+                &build.native_formations,
+                &build.native_binding_requests,
+            )?;
+        let native_bindings = package_compilation::PackageNativeBindingBundle::from_checked(
+            generated_sources.clone(),
+            declarations,
+            intents,
+            build.config.native_binding_evaluation.clone(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {
             root_path,
             target,
@@ -137,11 +150,16 @@ impl PreparedPackageBuild {
             rollback,
             prepared,
             generated_sources,
+            native_bindings,
         })
     }
 
     pub fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
         &self.generated_sources
+    }
+
+    pub fn native_binding_bundle(&self) -> &package_compilation::PackageNativeBindingBundle {
+        &self.native_bindings
     }
 
     pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {

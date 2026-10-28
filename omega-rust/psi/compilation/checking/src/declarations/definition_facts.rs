@@ -171,12 +171,8 @@ fn append_expression_dependency_places<D>(
     if !expression.is_valid() {
         return;
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                append_expression_dependency_places(program, facts, child, dependencies, leaf);
-            }
-        }
+    let node = program.expression_table.expression(expression);
+    match node {
         ExpressionNode::Member(member)
             if matches!(
                 program.expression_table.expression(member.receiver),
@@ -193,58 +189,23 @@ fn append_expression_dependency_places<D>(
                 dependencies,
                 leaf,
             );
+            return;
         }
         ExpressionNode::SavedSubject(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_) => {
             dependencies.push(leaf(facts, expression));
+            return;
         }
-        ExpressionNode::Borrow(inner) => {
-            append_expression_dependency_places(program, facts, inner.target, dependencies, leaf)
-        }
-        ExpressionNode::Atomic(atomic) => {
-            append_expression_dependency_places(program, facts, atomic.value, dependencies, leaf);
-            append_expression_dependency_places(program, facts, atomic.result, dependencies, leaf);
-        }
-        ExpressionNode::Binary(binary) => {
-            append_expression_dependency_places(program, facts, binary.left, dependencies, leaf);
-            append_expression_dependency_places(program, facts, binary.right, dependencies, leaf);
-        }
-        ExpressionNode::Cast(cast) => {
-            append_expression_dependency_places(program, facts, cast.value, dependencies, leaf)
-        }
-        ExpressionNode::Call(call) => {
-            append_expression_dependency_places(program, facts, call.receiver, dependencies, leaf);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                append_expression_dependency_places(program, facts, *argument, dependencies, leaf);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                append_expression_dependency_places(program, facts, *value, dependencies, leaf);
-            }
-        }
-        ExpressionNode::Range(range) => {
-            append_expression_dependency_places(program, facts, range.start, dependencies, leaf);
-            append_expression_dependency_places(program, facts, range.end, dependencies, leaf);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                append_expression_dependency_places(
-                    program,
-                    facts,
-                    field.value,
-                    dependencies,
-                    leaf,
-                );
-            }
-        }
-        ExpressionNode::Unary(unary) => {
-            append_expression_dependency_places(program, facts, unary.operand, dependencies, leaf)
-        }
-        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
+        _ => {}
     }
+    // Every other node contributes only its operand edges; the shared roster
+    // owns that list (record fields, range endpoints, case arms, array elements,
+    // call arguments and a folded carrier).
+    crate::expression_traversal::children(program, node, |child| {
+        append_expression_dependency_places(program, facts, child, dependencies, leaf);
+    });
 }
 
 fn append_data_expression_dependency_places(

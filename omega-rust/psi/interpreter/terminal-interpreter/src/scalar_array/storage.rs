@@ -6,10 +6,14 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::values::TerminalScalarValue;
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
+#[derive(compiler_storage::Record)]
 pub(super) struct ScalarArrayStorage {
     elements: Vec<TerminalScalarValue>,
     // Retire the payload before releasing its logical cells.
+    // A stored receipt retains value/usage, never a prior invocation reservation.
+    #[record(skip)]
     _lease: Option<EvaluationStorageLease>,
+    #[record(skip)]
     account: Option<EvaluationInvocationAccount>,
 }
 

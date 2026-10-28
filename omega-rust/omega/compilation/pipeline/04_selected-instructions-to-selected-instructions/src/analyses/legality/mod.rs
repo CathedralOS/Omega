@@ -127,5 +127,3 @@ failed_display!(
     OptimizedAllocationLegalityCustodyError,
     "optimized allocation-legality staging failed"
 );
-
-impl std::error::Error for OptimizedAllocationLegalityCustodyError {}

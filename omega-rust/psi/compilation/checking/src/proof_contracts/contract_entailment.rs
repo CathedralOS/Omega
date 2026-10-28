@@ -82,6 +82,7 @@ pub(crate) mod collection_bounds;
 pub(crate) mod completed_domains;
 pub(crate) mod completed_observations;
 mod completed_values;
+pub(crate) use completed_values::completed_value_case_at_occurrence;
 mod construction_predicates;
 pub(crate) mod statement_predicates;
 
@@ -1091,6 +1092,7 @@ fn fact_call_targets(
     }
 }
 
+pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 
 pub use structural_terms::{

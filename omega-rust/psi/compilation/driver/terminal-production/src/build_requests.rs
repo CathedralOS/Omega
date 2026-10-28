@@ -6,7 +6,7 @@
 
 use semantic_vocabulary::{BoundaryMachineId, OperationId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalBuildRequestOperation {
     Package,
     Application,
@@ -17,7 +17,7 @@ pub enum TerminalBuildRequestOperation {
     LogLine,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildRequestCall {
     pub operation: OperationId,
     pub boundary: BoundaryMachineId,
@@ -40,7 +40,7 @@ impl TerminalBuildRequests {
 
     pub(super) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
-        calls: Vec<TerminalBuildRequestCall>,
+        calls: impl Into<std::sync::Arc<[TerminalBuildRequestCall]>>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),

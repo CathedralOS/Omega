@@ -2,10 +2,6 @@
 //! of one settled row (console read, write and exit, process exit) and
 //! matching an accepted binding against it.
 
-use crate::{
-    SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity,
-};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
@@ -14,6 +10,13 @@ use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclar
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use target::HostedIntrinsicBundle;
 use typed_trees::types::TypeReferenceNode;
+
+/// Every compiler path without a closed catalog child stays unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedCompilerIntrinsicExecutionIdentity {
+    Closed(CompilerIntrinsicExecutionIdentity),
+    Unsupported,
+}
 
 /// Rederive one selected compiler-intrinsic row from exact checked declaration
 /// symbols and the independently selected canonical target.
@@ -28,6 +31,7 @@ use typed_trees::types::TypeReferenceNode;
 /// consumer binding must additionally own that row.
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     checked: &CheckedTrees,
+    numeric: crate::NumericProviderSelection<'_>,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     row: &ProviderPlanRow,
@@ -39,6 +43,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     row_execution_identity(
         checked,
+        numeric,
         plan,
         schema,
         row,
@@ -74,6 +79,7 @@ impl<'binding> AcceptedRowBinding<'binding> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn row_execution_identity(
     checked: &CheckedTrees,
+    numeric: crate::NumericProviderSelection<'_>,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     row: &ProviderPlanRow,
@@ -130,17 +136,15 @@ pub(crate) fn row_execution_identity(
     // boundary operator or a top-level `boundary requirement` machine.
     if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))
         || (matches!(schema, ProviderSchemaDeclaration::BoundaryRequirement(_))
-            && provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
-                .is_some_and(|requirement| {
-                    requirement.kind
-                        == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
-                }))
+            && numeric.has_requirement_schema(requirement_symbol))
     {
-        return derive_selected_compiler_intrinsic_execution_identity(
-            checked,
-            plan,
-            requirement_symbol,
-        );
+        return numeric
+            .execution(plan, row, requirement_symbol, realization_symbol)
+            .map(|execution| {
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    execution,
+                ))
+            });
     }
     let ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) = schema else {
         return Ok(Some(

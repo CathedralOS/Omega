@@ -174,8 +174,8 @@ the ordinary entry, calling-plan and provider producers against the embedded
 canonical artifact; it never deserializes a validated wrapper. Receiving policy,
 live backing, host bindings and resource charges remain current invocation
 inputs. Same-invocation consumers borrow the produced object directly; encoding
-happens only when component persistence was requested. Checked source graphs
-remain a separate reuse requirement.
+happens only when component persistence was requested. Source/check retention
+uses the separate coupled graph described below.
 Package preparation advances dependency-first rounds across target rosters;
 demanded component continuations enter the same source batch as their siblings,
 rather than completing one target's entire dependency chain first.
@@ -186,9 +186,27 @@ typing and pending evaluations paired while the consumer adds fresh declarations
 Source membership, imports, aliases and declaration authority must still match.
 Anonymous Build-to-Product sealing admits a new source instance and issues its
 exact correspondence; executed descriptions keep their original records and
-Product lookup consumes that correspondence. Retention transfers no checking
-judgment, executed Build return or evaluation charge. Cross-invocation package
-and Terminal product persistence remain separate work.
+Product lookup consumes that correspondence. The correspondence alone transfers
+no checking judgment, executed Build return or evaluation charge.
+
+Compiler-private source retention stores the complete coupled source/check graph:
+source preparation and parsed frontiers, declaration/state/expression coordinates,
+pending source completions, their original accounting, and exact-program checking
+judgments. The application requests disk retention for a compiler invocation;
+short-lived in-memory sessions use the same pipeline without publishing records.
+The compiler/library identity selects a private format namespace. Fresh source
+and dependency observations, full preparation admission, and fresh declaration
+selection authority must match before a retained judgment is used. Recorded
+authority is comparison data, never a restored grant; invocation resources and
+Build admission are reacquired. Invalid, truncated or obsolete records are
+optional misses. Terminal values inside the graph use the canonical Terminal
+codec and rejoin companion receipts through their original producers.
+
+This implements cross-invocation exact-program reuse. It does not admit checked
+dependency judgments into a different consumer from body hashes: cross-consumer
+reuse still needs complete producer-dependency context admission. In-memory
+shared declaration pages, local flow facts and conservative unknown-input
+fallback retain their existing ownership.
 
 | Input → output | Owner |
 | --- | --- |
@@ -293,6 +311,27 @@ Preparation retains a refusal as data until the native handoff demands it, so a
 checking-only stop does not acquire native-only obligations. Physical family
 membership and receiving admission still belong to the Terminal consumer.
 
+Numeric meaning and external satisfaction have one Psi declaration producer,
+shared by Terminal retention and rootless package projection. Checked-provider
+binding retains that projection before selection. Package review prepares its
+supplied candidate independently, then joins nominal requirement, realization
+and selecting-owner identities against immutable custody. A library needs no
+ProgramEntry or executable lowering to review its uncalled supplied declarations.
+Private checking-only coordinates remain invocation-local, never portable owners.
+The selected row no longer duplicates numeric execution identity: review and
+native settlement consume the checked meaning through the shared source-free
+external-satisfaction join. Host/placement authority remains independent.
+Psi also retains the requirement's exact schema, method and owner coordinates.
+Numeric settlement checks these against the selected whole plan through the
+same source-free join; early typed Build planning adapts the source-owned view
+to that shared check. Eligibility is retained independently of numeric meaning,
+so absent meaning cannot fall through into another execution category.
+Earlier typed constant/comparison evaluation, general review call coordinates
+and direct-leaf execution records remain migration work; this does not claim
+that selected dispatch as a whole is source-free. Retaining current declarations
+does not reinstate retired standalone boundary requirements or source `via`
+bindings; their language migration remains separately owned.
+
 The source-producing operation returns each Terminal application with its exact
 Build provider companion. It closes those proposals against the emitted demand
 catalog before returning the product: selecting against all source candidates
@@ -340,9 +379,15 @@ that classification; diagnostic strings do not gate support. Package review
 still independently rejoins its supplied candidate to retained selection
 custody. Psi publishes numeric meaning and its exact IEEE format in canonical
 Terminal boundary declarations; native proposal creation consumes that meaning
-and reconciles it with selected-provider custody rather than inferring the format
-from a result or parameter. Portable decoding validates the complete numeric
-signature. This meaning does not select or authorize a provider. Review-only
+and joins the selected external realization to canonical checked satisfaction
+edges. The module-level catalog is independent of executable call shapes, so
+directly lowered comparisons retain the same relation. It retains requirement,
+realization and selecting-owner
+declarations, authored target membership, package identities and structural binding mechanisms independently
+of target selection. Native retention omits the duplicate numeric execution
+sidecar; host and placement authority judgments remain separate. Portable
+decoding validates declaration coordinates and the complete numeric signature.
+This meaning does not select or authorize a provider. Review-only
 products still use checked source custody: moving their complete conformance
 evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. This is not

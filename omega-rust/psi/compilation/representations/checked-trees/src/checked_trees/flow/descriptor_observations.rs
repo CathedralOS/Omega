@@ -8,13 +8,13 @@ use super::FlowDescriptorContextObservation;
 use arena::{Handle, PagedArenaSet};
 use facts::FactContextHandle;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 struct ContextObservations {
     context: FactContextHandle,
     rows: Vec<Handle<FlowDescriptorContextObservation>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct FlowDescriptorObservationTable {
     rows: PagedArenaSet<FlowDescriptorContextObservation>,
     by_context: Vec<ContextObservations>,

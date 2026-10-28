@@ -2,7 +2,10 @@
 //!
 //! This is structural inspection, not an execution/reachability analysis:
 //! every expression arm is visited, while implicit operator dispatch, cleanup,
-//! and provider selection are not inferred.
+//! and provider selection are not inferred. Statement and named-transition
+//! argument lists belong to StatementTable; expression-call lists belong to
+//! ExpressionTable. Their span coordinates are independent even though the
+//! referenced expression nodes share one owner.
 
 use crate::TypedTrees;
 use crate::expression::ExpressionHandle;
@@ -53,7 +56,7 @@ fn collect_statement_callees(
         StatementNode::Assembly(_) => {} // Its instruction window is visited in source order.
         StatementNode::Call(call) => {
             note_callee(called, call.target_symbol);
-            for argument in typed.expression_table.expression_handles(call.arguments) {
+            for argument in typed.statement_table.expression_handles(call.arguments) {
                 collect_expression_callees(typed, *argument, visited, called);
             }
         }
@@ -100,7 +103,7 @@ fn collect_transition_target_callees(
             path, arguments, ..
         } => {
             note_callee(called, path.symbol);
-            for argument in typed.expression_table.expression_handles(*arguments) {
+            for argument in typed.statement_table.expression_handles(*arguments) {
                 collect_expression_callees(typed, *argument, visited, called);
             }
         }
@@ -184,5 +187,102 @@ fn collect_expression_callees(
             collect_expression_callees(typed, unary.operand, visited, called);
         }
         ExpressionNode::TypeExpression(_) | crate::literal_expression_pattern!() => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expression::{ExpressionNode, TableCallExpression};
+    use crate::statement::{
+        StatementNode, TableCall, TableNamePath, TableTransition, TransitionTargetNode,
+    };
+
+    fn call(program: &mut TypedTrees, symbol: SymbolHandle) -> ExpressionHandle {
+        program
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                authored_call_binding: None,
+                build_selection: Default::default(),
+                authored_machine_application: Default::default(),
+                exact_coercion_target: Default::default(),
+                requirement_application: Default::default(),
+                receiver: Default::default(),
+                target_symbol: symbol,
+                static_machine_parameter: Default::default(),
+                target: crate::name::Identifier::generated("callee"),
+                static_requirement_dispatch: None,
+                machine_arguments: Box::default(),
+                quotient_operation: None,
+                private_layout_operation: None,
+                layout_query: None,
+                native_code_layout: None,
+                arguments: Default::default(),
+                evidence_arguments: Box::default(),
+                operational_acknowledgement: Default::default(),
+            }))
+    }
+
+    fn check_statement_argument_owner(transition: bool) {
+        let mut program = TypedTrees::default();
+        let outer = SymbolHandle::from_parts(1, 1);
+        let legitimate = SymbolHandle::from_parts(2, 1);
+        let distractor = SymbolHandle::from_parts(3, 1);
+        let argument = call(&mut program, legitimate);
+        let unrelated = call(&mut program, distractor);
+        let statement_arguments = program
+            .statement_table
+            .insert_expression_handles([argument]);
+        let expression_arguments = program
+            .expression_table
+            .insert_expression_handles([unrelated]);
+        // The two independent owners may allocate identical coordinates. Their
+        // contents must never be joined by a raw span's numerical position.
+        assert_eq!(statement_arguments, expression_arguments);
+        let statement = if transition {
+            let target =
+                program
+                    .statement_table
+                    .insert_transition_target(TransitionTargetNode::Named {
+                        path: TableNamePath {
+                            symbol: outer,
+                            ..Default::default()
+                        },
+                        arguments: statement_arguments,
+                        static_machine_parameter: Default::default(),
+                        evidence_arguments: Box::default(),
+                        source_span: Default::default(),
+                        authored_call_selection: None,
+                        operational_acknowledgement: Default::default(),
+                    });
+            StatementNode::Transition(TableTransition {
+                target,
+                ..Default::default()
+            })
+        } else {
+            StatementNode::Call(TableCall {
+                target_symbol: outer,
+                arguments: statement_arguments,
+                ..Default::default()
+            })
+        };
+        let state = State {
+            statement_nodes: program.statement_table.insert_statements([statement]),
+            ..Default::default()
+        };
+        assert_eq!(
+            ExplicitStateCallees::default().collect(&program, &state),
+            &[outer, legitimate]
+        );
+    }
+
+    #[test]
+    fn statement_calls_read_their_own_argument_arena() {
+        check_statement_argument_owner(false);
+    }
+
+    #[test]
+    fn named_transitions_read_their_own_argument_arena() {
+        check_statement_argument_owner(true);
     }
 }

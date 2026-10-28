@@ -1,0 +1,29 @@
+// Expected exit: 0
+// A selected terminal call accounts its returned-record scalar operand once.
+data Observation { value: u64; }
+machine observe(counter: &mut u64 in Wrapping) -> Observation {
+    counter = counter + (1u64 as u64 in Wrapping);
+    Observation { value: 7 }
+}
+machine probe(output: &mut u64, counter: &mut u64 in Wrapping, selected: bool) {
+    transition selected {
+        true -> receive(output, observe(counter).value)
+        false -> done()
+    }
+    machine receive(output: &mut u64, value: u64) { output = value; }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let mut observed: u64 = 99;
+    let mut count: u64 in Wrapping = 0;
+    probe(&mut observed, &mut count, true);
+    let first: bool = observed == 7 && count == 1;
+    observed = 99;
+    probe(&mut observed, &mut count, false);
+    transition first && observed == 99 && count == 1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -194,9 +194,7 @@ fn captured_contract_proven(
                     program, facts, state, call, contexts, *required, frames,
                 )
             }) || phase_profile::scope("05.d.7.3b.1d.2.current_values", || {
-                super::super::current_values::proves_call(
-                    program, state, call, *required, frames,
-                )
+                super::super::current_values::proves_call(program, state, call, *required, frames)
             }) || phase_profile::scope("05.d.7.3b.1d.3.structural", || {
                 super::super::entailment::structural_call_requirement(
                     program,

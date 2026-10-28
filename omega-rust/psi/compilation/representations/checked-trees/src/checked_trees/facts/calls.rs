@@ -2,7 +2,7 @@
 /// expression handles rejoin the retained typed call/member tree; all nominal
 /// coordinates are duplicated here so later review cannot accept a merely
 /// shape-compatible projection.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFactCallProjection {
     pub projection_expression: typed_trees::expression::ExpressionHandle,
     pub call_expression: typed_trees::expression::ExpressionHandle,

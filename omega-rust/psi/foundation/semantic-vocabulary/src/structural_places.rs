@@ -7,7 +7,7 @@
 use crate::{BoundaryMachineId, StructuralFieldId, StructuralTypeId};
 
 /// Role of a module-declared structural-place root.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum StructuralPlaceKind {
     Parameter {
         position: u32,
@@ -89,7 +89,7 @@ impl StructuralPlaceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AffineConstructionElement {
     pub root_structural_type: StructuralTypeId,
     pub index: u64,

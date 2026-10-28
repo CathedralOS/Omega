@@ -51,7 +51,10 @@ pub fn parameter_expression_result_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !owner_symbol.is_valid() {
-        return None;
+        // A declaration-field constant has no callable lifetime telescope.
+        // Its constructor still names an exact produced carrier; recovering
+        // that identity does not admit its fields or use the receiving formal.
+        return constructor_result_type_reference(program, expression);
     }
     declaration_expression_result_type_reference(
         program,
@@ -88,6 +91,37 @@ pub fn parameter_expression_result_type_reference(
         },
         expression,
     )
+}
+
+/// Constructors retain their own carrier independently of a callable scope.
+/// This is a type query only: ordinary formation and field admission still
+/// check the value against this identity and the receiving declaration.
+fn constructor_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let node = program.expression_table.expression(expression);
+    if !matches!(
+        node,
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
+    ) {
+        return None;
+    }
+    let reference = program
+        .expression_table
+        .constructed_value_type_reference(expression);
+    reference
+        .is_valid()
+        .then_some(reference)
+        .or_else(|| match node {
+            ExpressionNode::StructLiteral(literal) if literal.type_symbol.is_valid() => program
+                .type_reference_table
+                .find_named_type_reference(literal.type_symbol),
+            ExpressionNode::ArrayLiteral(_) => {
+                crate::declared_constant_array_type(program, expression)
+            }
+            _ => None,
+        })
 }
 
 /// A declaration supplies its exact place types; the shared result walk owns
@@ -379,24 +413,8 @@ fn result_type(
                     )
                 })
         })(),
-        ExpressionNode::StructLiteral(literal) => {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
-            reference.is_valid().then_some(reference).or_else(|| {
-                program
-                    .type_reference_table
-                    .find_named_type_reference(literal.type_symbol)
-            })
-        }
-        ExpressionNode::ArrayLiteral(_) => {
-            let reference = program
-                .expression_table
-                .constructed_value_type_reference(expression);
-            reference
-                .is_valid()
-                .then_some(reference)
-                .or_else(|| crate::declared_constant_array_type(program, expression))
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
+            constructor_result_type_reference(program, expression)
         }
         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             // The target and qualification judgment describe the referent;

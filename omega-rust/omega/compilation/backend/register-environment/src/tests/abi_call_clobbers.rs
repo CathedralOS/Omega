@@ -25,7 +25,7 @@ use register_model::{
 };
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    ValidatedMachineEffectCatalog,
+    MachineSemanticKind, ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
@@ -290,15 +290,21 @@ fn validate_effects(
     }
 }
 
+/// Several semantics share one constraint key — `copy_i64` backs every integer
+/// move and narrow extension, `materialize_boolean` backs every boolean
+/// materialization, and the conditional branches share one row — so a catalog
+/// declaration is addressed by both coordinates: the constraint key its family
+/// selects and the semantic the rule realizes.
 fn declaration_mut(
     catalog: &mut MachineEffectCatalog,
     key: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
 ) -> &mut MachineEffectDeclaration {
     catalog
         .declarations
         .iter_mut()
-        .find(|declaration| declaration.constraint == key)
-        .unwrap_or_else(|| panic!("effect catalog missing declaration {key:?}"))
+        .find(|declaration| declaration.constraint == key && declaration.semantic == semantic)
+        .unwrap_or_else(|| panic!("effect catalog missing {semantic:?} declaration {key:?}"))
 }
 
 #[test]

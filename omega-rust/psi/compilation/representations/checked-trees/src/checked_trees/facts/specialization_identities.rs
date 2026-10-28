@@ -7,7 +7,7 @@
 //! checking-time rewrite of the typed program.
 
 /// One prepared instance's checked portable identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMachineSpecializationIdentity {
     pub instance: symbols::SymbolHandle,
     /// Universal authored contract, never the selected instance's narrowed row.
@@ -17,7 +17,7 @@ pub struct CheckedMachineSpecializationIdentity {
 }
 
 /// Frozen checked conclusions keyed by the complete generational instance handle.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSpecializationIdentities {
     rows: Box<[CheckedMachineSpecializationIdentity]>,
 }

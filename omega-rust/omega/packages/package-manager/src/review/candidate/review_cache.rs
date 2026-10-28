@@ -200,14 +200,8 @@ impl CompiledReviewCache {
     }
 
     fn record_path(&self, key: &[u8; 32]) -> PathBuf {
-        let mut name = String::with_capacity(64 + 4);
-        use std::fmt::Write;
-        for byte in key {
-            let _ = write!(name, "{byte:02x}");
-        }
-        name.push('.');
-        name.push_str(RECORD_EXTENSION);
-        self.directory.join(name)
+        let name = crate::digest_encoder::hex(key);
+        self.directory.join(format!("{name}.{RECORD_EXTENSION}"))
     }
 
     /// Decode the record filed under `key`. Any decode or self-verification

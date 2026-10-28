@@ -15,7 +15,7 @@ use crate::checked_trees::keyed_rows::KeyedRows;
 /// Source labels are deliberately absent. Runtime or otherwise unresolved
 /// selectors may remain as expression handles, but cannot establish a positive
 /// spatial result until a checked tactic understands them.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedPlace {
     /// An admitted entry or completed invocation supplies this opaque
     /// referent occurrence. Zero denotes ordinary storage; a descriptor's
@@ -29,7 +29,7 @@ pub struct CapturedPlace {
 /// Entry inputs retain caller-supplied backing; admitted outputs retain the
 /// exact completion that supplied theirs. Moving a descriptor preserves that
 /// occurrence, rather than creating a borrow of the slot holding its pointer.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct IncomingReferenceIdentity {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -41,7 +41,7 @@ pub struct IncomingReferenceIdentity {
 /// The checked boundary that supplies a reference permission. An invocation
 /// result keeps its exact performed call; it is never its temporary descriptor
 /// slot and never proves spatial separation from another incoming permission.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum IncomingReferenceOrigin {
     /// The invocation's root loan parameter. Writes through it affect the
     /// referent, not the descriptor supplied by the still-incomplete caller.
@@ -119,7 +119,7 @@ pub struct CapturedPlaceCompatibility {
     pub non_interfering: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowRootKind {
     #[default]
     OwnedData,
@@ -127,13 +127,13 @@ pub enum BorrowRootKind {
     MutableParameter,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowWritableRootFact {
     pub symbol: SymbolHandle,
     pub kind: BorrowRootKind,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateBorrowFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -151,7 +151,7 @@ pub struct StateBorrowFact {
 /// One reference leaf formed by a normal return. Its origin is captured while
 /// the statement's current carrier contents and incoming descriptors are known.
 /// These are result leaves, not local activations or lifecycle resource events.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowReturnedLoanFact {
     pub lineage: BorrowLoanLineage,
     pub statement_index: usize,
@@ -166,7 +166,7 @@ pub struct BorrowReturnedLoanFact {
     pub kind: BorrowAccessKind,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowAccessKind {
     #[default]
     Read,
@@ -216,7 +216,7 @@ impl BorrowAccessKind {
 }
 
 /// Exact non-authorizing lifecycle class for one retained direct reborrow.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReborrowAccessEffect {
     /// A shared child of shared authority releases independently; the parent
     /// was never suspended and requires no restoration event.
@@ -230,7 +230,7 @@ pub enum CheckedReborrowAccessEffect {
     ExclusiveSuspension,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowArgumentAccessFact {
     /// The evaluated operand that produced this access in its owning call's
     /// ordered roster. Equal places do not identify equal evaluations.
@@ -257,13 +257,17 @@ pub struct BorrowArgumentAccessFact {
     pub released_at: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
     /// Exact expression invocation. Zero is an explicitly collected statement
     /// call or transition, distinguished by the owning statement schedule.
     pub authored_expression: ExpressionHandle,
+    /// Descriptor generations present immediately before this invocation.
+    /// None is unavailable; the roster contains handles, not inferred places.
+    /// Normal-call custody records it before applying this invocation's stores.
+    pub input_reference_loans: Option<HandleSpan<arena::Handle<BorrowLoanFact>>>,
     /// Complete exact slot relations produced by this normal invocation,
     /// before enclosing control-flow joins. Rows live in reference_slot_effects.
     pub reference_slot_effects: HandleSpan<BorrowCallReferenceSlotEffect>,
@@ -277,7 +281,7 @@ pub struct BorrowCallFact {
     pub accesses: HandleSpan<BorrowArgumentAccessFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowCallReferenceSlotEffect {
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
@@ -288,7 +292,7 @@ pub struct BorrowCallReferenceSlotEffect {
     pub may_select: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
     /// Address admitted with a representation footprint, in this loan's same
@@ -346,7 +350,7 @@ pub struct BorrowLoanFact {
 /// The occurrence identifies sibling results of one invocation, which may
 /// use their distinct referents while external access keeps the whole input
 /// suspended. It never exempts overlapping referents from compatibility.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowRetainedOperand {
     pub formation_expression: ExpressionHandle,
     pub depth: usize,
@@ -357,7 +361,7 @@ pub struct BorrowRetainedOperand {
 /// This classification does not grant authority or change borrow admission.
 /// In particular, `UnretainedDerived` is a fence rather than an inferred
 /// parent relation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowLoanLineage {
     #[default]
     DirectRoot,
@@ -389,7 +393,7 @@ impl BorrowLoanLineage {
 /// This checked-only identity does not create authority. It names the
 /// state-owned root whose already-validated authority is temporarily
 /// constrained by the loan.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBorrowParentLifetime {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -399,7 +403,7 @@ pub struct CheckedDirectBorrowParentLifetime {
 /// A borrowed leaf of one completed call operand. Its owning evaluation and
 /// checked access stay distinct from another operand at equal storage.
 /// Construction records existing authority, not permission to park.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCallBorrowLoanResource {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -419,7 +423,7 @@ pub struct CheckedCallBorrowLoanResource {
     pub backing_path: HandleSpan<facts::PlaceSegment>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedCallBorrowLoanSource {
     /// Transport preserves the exact stored occurrence observed at completion.
     StoredLoan { loan: Handle<BorrowLoanFact> },
@@ -446,7 +450,7 @@ impl Default for CheckedCallBorrowLoanSource {
 /// The row records where checked flow ends the loan and must restore the
 /// parent root's availability. It is not evidence that restoration occurred
 /// and grants no compatibility authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBorrowRestorationObligation {
     pub parent: CheckedDirectBorrowParentLifetime,
     pub weakening_source: crate::FlowInvalidationSource,
@@ -458,7 +462,7 @@ pub struct CheckedDirectBorrowRestorationObligation {
 ///
 /// `lineage` must be `DirectRoot`. Compatibility certificates remain a
 /// separate proof ledger and cannot manufacture one of these rows.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBorrowLoanResource {
     pub loan: Handle<BorrowLoanFact>,
     pub machine_symbol: SymbolHandle,
@@ -479,7 +483,7 @@ pub struct CheckedDirectBorrowLoanResource {
 /// The handle points into one of the two checked-only resource arenas. It
 /// records the immediate resource occurrence and is not authority to use or
 /// reactivate that resource.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedParentBorrowResource {
     DirectRoot {
         resource: Handle<CheckedDirectBorrowLoanResource>,
@@ -502,7 +506,7 @@ impl Default for CheckedParentBorrowResource {
 /// This row binds the child's weakening to its immediate parent occurrence.
 /// It does not prove that the parent remained active, that the two lifetimes
 /// are temporally contained, or that the parent was reactivated.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowRestorationObligation {
     pub child_loan: Handle<BorrowLoanFact>,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -518,7 +522,7 @@ pub struct CheckedReborrowRestorationObligation {
 /// the child activation. This checked-only join says nothing about the parent
 /// after formation: it is not interval containment, reactivation, completed
 /// restoration, or Terminal authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowParentSuspensionBoundary {
     pub child_loan: Handle<BorrowLoanFact>,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -533,7 +537,7 @@ pub struct CheckedReborrowParentSuspensionBoundary {
 /// This classification describes only source/flow liveness. In particular,
 /// `LivePastChild` is not proof of authority reactivation, and a retired parent
 /// does not imply that authority was returned, cascaded, or discarded.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ParentLexicalStatusAtChildEnd {
     RetiredBeforeChild,
     #[default]
@@ -547,7 +551,7 @@ pub enum ParentLexicalStatusAtChildEnd {
 /// from their semantic statement phases rather than arena insertion order.
 /// This checked-only row grants no suspension-containment, restoration,
 /// reactivation, cascade, or Terminal authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowParentEndStatus {
     pub child_loan: Handle<BorrowLoanFact>,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -565,7 +569,7 @@ pub struct CheckedReborrowParentEndStatus {
 /// retire that carrier. In particular, a stored view can be rebound to its own
 /// child without forming a loan from an already retired parent. State exit is
 /// the final boundary. These phases do not grant authority by themselves.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum CheckedBorrowResourceLifecyclePhase {
     #[default]
     LastUseExpired,
@@ -579,7 +583,7 @@ pub enum CheckedBorrowResourceLifecyclePhase {
 /// A retained resource target names an exact loan occurrence. A direct-root
 /// lifetime target names the state-local root beyond the last retired loan
 /// carrier. Neither variant proves that authority was returned to the target.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedBorrowResourceDispositionTarget {
     ParentResource(CheckedParentBorrowResource),
     DirectRootLifetime(CheckedDirectBorrowParentLifetime),
@@ -596,7 +600,7 @@ impl Default for CheckedBorrowResourceDispositionTarget {
 /// These names classify the resource-ledger route required at the boundary;
 /// they are not evidence of completed return, post-return use legality,
 /// cleanup, or Terminal authority.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedReborrowResourceDisposition {
     /// One exclusive branch ended while a sibling still retained its own
     /// projection. This does not restore whole-parent authority.
@@ -622,7 +626,7 @@ pub enum CheckedReborrowResourceDisposition {
 }
 
 /// One retired carrier traversed by a cascading disposition.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRetiredParentResourceDispositionStep {
     pub resource: CheckedParentBorrowResource,
     pub weakening: Handle<crate::FlowBorrowWeakeningFact>,
@@ -639,7 +643,7 @@ pub struct CheckedRetiredParentResourceDispositionStep {
 /// call that consumes the directly restored mutable parent — `restored_call`,
 /// `restored_borrow_call` and `restored_call_access` name that call and its
 /// whole-root argument access. All three stay absent handles otherwise.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowResourceDispositionEvent {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -669,7 +673,7 @@ pub struct CheckedReborrowResourceDispositionEvent {
 /// restoration obligation only: aggregate transfers, temporal containment,
 /// parent activity/reactivation, and Terminal authority remain outside this
 /// representation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowLoanResource {
     pub loan: Handle<BorrowLoanFact>,
     pub machine_symbol: SymbolHandle,
@@ -690,7 +694,7 @@ pub struct CheckedReborrowLoanResource {
     pub restoration: CheckedReborrowRestorationObligation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowLoanOwnerSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),
@@ -699,7 +703,7 @@ pub enum BorrowLoanOwnerSegment {
     DynamicIndex,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowFacts {
     pub incoming_references: Arena<IncomingReferenceIdentity>,
     pub writable_roots: Arena<BorrowWritableRootFact>,

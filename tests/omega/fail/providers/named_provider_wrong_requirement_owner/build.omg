@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "named_provider_wrong_requirement_owner");
-    Build::select_provider<CounterOperations, WrongProvider>(builder);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, linux_arm64);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, linux_x86_64);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, macos_arm64);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, macos_x86_64);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, windows_x86_64);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, uefi_x86_64);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, cross_platform_cli);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, local_unchecked);
+    Build::select_provider<CounterOperations, WrongProvider>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

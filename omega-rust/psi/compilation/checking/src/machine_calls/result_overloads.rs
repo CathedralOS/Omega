@@ -123,7 +123,10 @@ fn record_expression_owner(
 /// or unspelled boundary-operator result overload before downstream consumers.
 
 pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let expected_calls = collect_expected_expression_calls(program);
+    let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
+        collect_expected_expression_calls(program)
+            .into_iter()
+            .collect();
     let expression_owner_source_spans = expression_owner_source_spans(program);
     let machine_overloads = MachineOverloadIndex::new(program);
     let mut diagnostics = Vec::new();
@@ -135,9 +138,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             let ExpressionNode::Call(call) = expression else {
                 return None;
             };
-            let expected = expected_calls
-                .iter()
-                .find_map(|(candidate, expected)| (*candidate == handle).then_some(*expected));
+            let expected = expected_calls.get(&handle).copied();
             selected_named_expression_callable_symbol(
                 program,
                 &machine_overloads,

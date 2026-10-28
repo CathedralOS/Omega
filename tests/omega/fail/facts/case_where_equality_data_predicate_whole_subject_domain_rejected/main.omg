@@ -1,0 +1,12 @@
+// Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
+// Expected exit: 0
+domain Interval::Always requires true;
+machine same(lower: u64, upper: u64) -> bool { lower == upper }
+data Interval [copy] where self in Interval::Always {
+    case Empty;
+    case Point(lo: u64, hi: u64);
+}
+machine produce(lower: u64) -> Interval { Interval::Point { lo: lower, hi: lower } }
+machine main() crashes Trap {
+    let point: Interval = produce(17);
+}

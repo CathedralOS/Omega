@@ -67,7 +67,7 @@ psi_rule_impl!(FieldValueSpecializationRule, |unit, analyses| {
                 .collect::<Vec<_>>();
             substitutions.sort();
             let Some((affected_blocks, provenance)) =
-                field_value_specialization::accounting::plan_accounting(function, &patch)
+                optimization_unit::field_value_accounting(function, &patch.reads)
             else {
                 continue;
             };

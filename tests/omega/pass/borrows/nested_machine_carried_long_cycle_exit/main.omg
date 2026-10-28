@@ -1,0 +1,43 @@
+// Expected exit: 0
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+data Cell { value: u64; canary: u64; }
+data View<'storage> { cell: &'storage mut Cell; stamp: u64; }
+machine rebuild<'storage>(view: View<'storage>, remaining: u64) -> View<'storage> {
+    transition { _ -> relay(view, remaining) }
+    machine relay(view: View<'storage>, remaining: u64) -> View<'storage>
+    terminates;
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> step(view, remaining)
+            false -> view
+        }
+        machine step(view: View<'storage>, pending: u64) -> View<'storage>
+        requires pending > 0;
+        {
+            view.cell.value = ((view.cell.value as u64 in Wrapping) + 1) as u64;
+            transition { _ -> relay(view, pending - 1) }
+        }
+    }
+}
+machine repair<'storage>(slot: &mut View<'storage>, remaining: u64) {
+    let removed: View<'storage> = slot;
+    slot = rebuild(removed, remaining);
+}
+machine perform<'storage>(view: &mut View<'storage>, select: bool) {
+    let remaining: u64 = match select { true -> 100000 false -> 0 };
+    repair(view, remaining);
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 3, canary: 7 };
+    let mut view: View = View { cell: &mut cell, stamp: 13 };
+    perform(&mut view, true);
+    let first: u64 = view.cell.value;
+    perform(&mut view, false);
+    let correct: bool = first == 100003 && view.cell.value == 100003 && view.cell.canary == 7 && view.stamp == 13;
+    transition correct && cell.value == 100003 && cell.canary == 7 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -9,7 +9,7 @@
 
 use crate::{Proposition, PropositionContext, PropositionError, ScalarType, ValueId};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct ScalarRefinement {
     carrier: ScalarType,
     predicate: Proposition,

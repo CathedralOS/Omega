@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "asm_selected_port_write_compositions_compile");
     builder.freestanding = true;
-    Build::select_provider<PortSequence, PortSequenceNative>(builder);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, linux_arm64);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, linux_x86_64);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, macos_arm64);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, macos_x86_64);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, windows_x86_64);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, uefi_x86_64);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, cross_platform_cli);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, local_unchecked);
+    Build::select_provider<PortSequence, PortSequenceNative>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

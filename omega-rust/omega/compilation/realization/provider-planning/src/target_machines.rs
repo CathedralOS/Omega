@@ -94,7 +94,8 @@ pub fn reject_reached_inert_sibling_calls(
                 .row_requirements
                 .iter()
                 .copied()
-                .zip(selected.provider.row_realizations.iter().copied())
+                .zip(selected.provider.row_realizations.iter())
+                .filter_map(|(required, owner)| owner.authored().map(|machine| (required, machine)))
         })
         .collect();
     // Roster positions index the reach marks; the roster is fixed here.

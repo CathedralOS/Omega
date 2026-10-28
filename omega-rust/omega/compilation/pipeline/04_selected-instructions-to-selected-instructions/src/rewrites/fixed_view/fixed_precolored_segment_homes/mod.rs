@@ -198,5 +198,3 @@ failed_display!(
     OptimizedFixedPrecoloredSegmentHomeCustodyError,
     "fixed/precolored segment-home staging failed"
 );
-
-impl std::error::Error for OptimizedFixedPrecoloredSegmentHomeCustodyError {}

@@ -4,6 +4,7 @@ use super::{
     PackageReviewNominalIdentity, PackageReviewSemanticDependencyExposure,
     PackageReviewSemanticDependencyKind,
 };
+use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicySemanticDependencyConsumer {
@@ -22,16 +23,8 @@ pub struct PackagePolicySemanticDependency {
 }
 
 impl PackagePolicySemanticDependency {
-    pub const fn consumer(&self) -> &PackagePolicySemanticDependencyConsumer {
-        &self.consumer
-    }
-    pub const fn dependency(&self) -> &PackageReviewNominalIdentity {
-        &self.dependency
-    }
-    pub const fn exposure(&self) -> PackageReviewSemanticDependencyExposure {
-        self.exposure
-    }
-    pub const fn kind(&self) -> PackageReviewSemanticDependencyKind {
-        self.kind
-    }
+    field_projection_accessors!(borrowed consumer: &PackagePolicySemanticDependencyConsumer);
+    field_projection_accessors!(borrowed dependency: &PackageReviewNominalIdentity);
+    field_projection_accessors!(copied exposure: PackageReviewSemanticDependencyExposure);
+    field_projection_accessors!(copied kind: PackageReviewSemanticDependencyKind);
 }

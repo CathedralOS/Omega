@@ -32,7 +32,7 @@ pub(crate) struct OperandContextSelections<'checking> {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct OperandSelectionKey {
     operand: (u32, u32),
-    carrier: (u32, u32),
+    stable_copy: bool,
     invocation: (u32, u32, u32),
     state: (u32, u32),
     statement_index: usize,
@@ -162,7 +162,7 @@ impl<'checking> OperandContextSelections<'checking> {
         }
         let key = OperandSelectionKey {
             operand: (handle.arena_index(), handle.generation()),
-            carrier: (type_reference.arena_index(), type_reference.generation()),
+            stable_copy: super::operand_binds_stable_copy(self.program, type_reference),
             invocation: (
                 invocation.start().arena_index(),
                 invocation.start().generation(),

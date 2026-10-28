@@ -3,13 +3,13 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
-    nominal_identity, trait_requirement_identity_from_symbols,
+    nominal_identity, progress_profile, project_service_progress_routes,
 };
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
     PackagePolicyCrashGuard, PackagePolicyCrashRoute, PackagePolicyProgressPremise,
-    PackagePolicyServiceProgressRoute, PackagePolicyTermination, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewTermination,
+    PackagePolicyTermination, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
+    PackageReviewTermination,
 };
 use diagnostics::Diagnostic;
 
@@ -60,43 +60,36 @@ pub(crate) fn termination(
         ) => {
             let mut profiles = Vec::new();
             for premise in premises {
-                let profile = exactly_one(
-                    compilation
-                        .domain_definitions()
-                        .iter()
-                        .filter(|domain| domain.semantic_id == premise.profile),
-                    "public policy termination",
-                    "progress profile",
-                )?;
+                let profile =
+                    progress_profile(compilation, premise.profile, "public policy termination")?;
                 let identity = nominal_identity(compilation, profile.symbol)?;
                 if !profiles.iter().any(|(prior, _)| *prior == identity) {
                     profiles.push((identity, profile));
                 }
             }
-            let mut projected = projected.into_iter().map(|premise| {
-                let (_, profile) = exactly_one(profiles.iter().filter(|(identity, _)| *identity == premise.profile), "public policy termination", "projected progress profile")?;
-                // Progress profiles project only requirement routes; exact-machine
-                // routes are ineligible for admitted boundary progress profiles.
-                let mut establishment_routes = profile.establishment_routes.iter().filter(|route| !matches!(route, language_semantics::DomainEstablishmentRoute::ExactMachine { .. })).map(|route| {
-                    Ok(PackagePolicyServiceProgressRoute {
-                        kind: match route {
-                            language_semantics::DomainEstablishmentRoute::CheckedRequirement { .. } => effects::provider_plan::ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                            language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. } => effects::provider_plan::ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                            language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => unreachable!("exact-machine routes are filtered above"),
-                        },
-                        requirement_owner: nominal_identity(compilation, route.source_symbol())?,
-                        requirement: trait_requirement_identity_from_symbols(compilation, route.source_symbol(), route.requirement_symbol(), "public policy progress establishment")?,
+            let mut projected = projected
+                .into_iter()
+                .map(|premise| {
+                    let (_, profile) = exactly_one(
+                        profiles
+                            .iter()
+                            .filter(|(identity, _)| *identity == premise.profile),
+                        "public policy termination",
+                        "projected progress profile",
+                    )?;
+                    let establishment_routes = project_service_progress_routes(
+                        compilation,
+                        profile,
+                        "public policy progress establishment",
+                    )?;
+                    Ok(PackagePolicyProgressPremise {
+                        profile: premise.profile,
+                        subject: premise.subject,
+                        projections: premise.projections,
+                        establishment_routes,
                     })
-                }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-                establishment_routes.sort();
-                establishment_routes.dedup();
-                Ok(PackagePolicyProgressPremise {
-                    profile: premise.profile,
-                    subject: premise.subject,
-                    projections: premise.projections,
-                    establishment_routes,
                 })
-            }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+                .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
             projected.sort();
             projected.dedup();
             Ok(PackagePolicyTermination::Terminates {

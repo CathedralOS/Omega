@@ -5,12 +5,12 @@ use crate::{
     StateBorrowFact,
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowSemanticContextRef {
     pub context: facts::FactContextHandle,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowConstraintKind {
     #[default]
     Unknown,
@@ -38,7 +38,7 @@ pub enum FlowConstraintKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowConstraintRef {
     pub kind: FlowConstraintKind,
 }

@@ -1,6 +1,6 @@
 //! Source-issued filesystem protocol calls bound to one Terminal invocation.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalBuildFilesystemOperation {
     ResolveSource,
     ResolveOutput,
@@ -19,7 +19,7 @@ pub enum TerminalBuildFilesystemOperation {
     RequiredPath,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildFilesystemCall {
     pub operation: semantic_vocabulary::OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
@@ -42,7 +42,7 @@ impl TerminalBuildFilesystem {
 
     pub(super) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
-        calls: Vec<TerminalBuildFilesystemCall>,
+        calls: impl Into<std::sync::Arc<[TerminalBuildFilesystemCall]>>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),

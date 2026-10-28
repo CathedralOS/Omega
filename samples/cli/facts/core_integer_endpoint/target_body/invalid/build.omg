@@ -1,5 +1,9 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "core_integer_endpoint_target_body");
+    Build::select_provider<EndpointProbe, WindowsEndpointProbe>(builder, windows_x86_64);
+    Build::select_provider<EndpointProbe, LinuxX86EndpointProbe>(builder, linux_x86_64);
+    Build::select_provider<EndpointProbe, MacEndpointProbe>(builder, macos_arm64);
+    Build::select_provider<EndpointProbe, LinuxArmEndpointProbe>(builder, linux_arm64);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

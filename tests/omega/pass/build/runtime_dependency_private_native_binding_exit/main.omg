@@ -1,0 +1,8 @@
+// Expected exit: 0
+use private_magnitude::magnitude::Magnitude;
+use private_magnitude::magnitude::NativeMagnitude;
+machine main() crashes Trap reaches Magnitude {
+ let actual: i32 = Magnitude::read();
+ transition actual == 73 { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

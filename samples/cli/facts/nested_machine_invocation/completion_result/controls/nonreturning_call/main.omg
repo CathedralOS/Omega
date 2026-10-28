@@ -1,0 +1,4 @@
+// Expected exit: 0
+machine wait() { transition { _ -> wait() } }
+machine missing() -> u8 { wait(); }
+machine main() {}

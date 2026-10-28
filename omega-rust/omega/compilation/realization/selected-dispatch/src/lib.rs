@@ -16,6 +16,8 @@ mod compiler_intrinsic;
 mod constant_evaluation;
 mod execution_settlement;
 mod intrinsic_review;
+mod numeric_provider;
+pub use numeric_provider::NumericProviderSelection;
 mod provider_binding;
 mod selected_dispatch;
 mod service_custody;
@@ -25,7 +27,10 @@ pub use checked_interpreter_dispatch::{
 };
 pub use constant_evaluation::SelectedConstantEvaluation;
 
-pub use compiler_intrinsic::derive_selected_compiler_intrinsic_execution_identity_for_row;
+pub use compiler_intrinsic::{
+    SelectedCompilerIntrinsicExecutionIdentity,
+    derive_selected_compiler_intrinsic_execution_identity_for_row,
+};
 pub use execution_settlement::{
     SelectedExecution, SelectedExecutionRequest, settle_selected_execution,
 };
@@ -39,13 +44,9 @@ pub use provider_binding::{
 
 pub use service_custody::program_entry_service_requirements;
 
+pub(crate) use selected_dispatch::derive_selected_primitive_float_binary_execution;
 pub use selected_dispatch::{
-    CheckedOperatorAuthoredUseKind, SelectedCompilerIntrinsicExecutionIdentity,
-    derive_checked_nongeneric_operator_application_realizations,
+    CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
     settle_selected_comparison_execution,
-};
-pub(crate) use selected_dispatch::{
-    derive_selected_compiler_intrinsic_execution_identity,
-    derive_selected_primitive_float_binary_execution,
 };

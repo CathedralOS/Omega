@@ -160,7 +160,7 @@ pub(super) fn checked_unit_provider_candidates(
             definition.is_boundary
                 && checked
                     .typed
-                    .trait_machine_instances(definition)
+                    .executable_trait_machine_instances(definition)
                     .any(|signature| boundary_symbols.contains(&signature.symbol))
         })
         .collect::<Vec<_>>();
@@ -171,7 +171,7 @@ pub(super) fn checked_unit_provider_candidates(
                 boundary_symbols.extend(
                     checked
                         .typed
-                        .trait_machine_instances(scope.declaration)
+                        .executable_trait_machine_instances(scope.declaration)
                         .map(|signature| signature.symbol),
                 );
             },
@@ -197,7 +197,7 @@ pub(super) fn checked_unit_provider_candidates(
             .flat_map(|definition| {
                 checked
                     .typed
-                    .trait_machine_instances(definition)
+                    .executable_trait_machine_instances(definition)
                     .filter(move |signature| signature.symbol == boundary_symbol)
                     .map(move |signature| (definition, signature))
             })

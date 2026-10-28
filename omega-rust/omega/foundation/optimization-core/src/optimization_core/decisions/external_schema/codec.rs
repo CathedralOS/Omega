@@ -51,10 +51,7 @@ impl ExternalDecisionPoint {
         let claimed = OptimizationDecisionIdentity::from_bytes(cursor.array()?);
         let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let rule = OptimizationRuleIdentity::from_bytes(cursor.array()?);
-        let count = cursor.u32()? as usize;
-        if count > cursor.remaining().saturating_sub(2) / MINIMUM_CANDIDATE_WIDTH {
-            return Err(ExternalDecisionSchemaError::Truncated);
-        }
+        let count = cursor.counted(MINIMUM_CANDIDATE_WIDTH)?;
         let mut candidates = Vec::with_capacity(count);
         for _ in 0..count {
             candidates.push(decode_candidate_features(&mut cursor)?);
@@ -104,10 +101,7 @@ impl ExternalDecisionLog {
         }
         let claimed = OptimizationDecisionLogIdentity::from_bytes(cursor.array()?);
         let context = decode_context(&mut cursor)?;
-        let count = cursor.u32()? as usize;
-        if count > cursor.remaining() / 4 {
-            return Err(ExternalDecisionSchemaError::Truncated);
-        }
+        let count = cursor.counted(4)?;
         let mut points = Vec::with_capacity(count);
         for _ in 0..count {
             let length = cursor.u32()? as usize;
@@ -143,10 +137,7 @@ fn decode_candidate_features(
     };
     let consumed_analyses = AnalysisSet::decode(cursor.take(8)?)
         .map_err(ExternalDecisionSchemaError::InvalidAnalysisSet)?;
-    let fact_count = cursor.u32()? as usize;
-    if fact_count > cursor.remaining() / OptimizationFactReference::ENCODED_LENGTH {
-        return Err(ExternalDecisionSchemaError::Truncated);
-    }
+    let fact_count = cursor.counted(OptimizationFactReference::ENCODED_LENGTH)?;
     let mut consumed_facts = Vec::with_capacity(fact_count);
     for _ in 0..fact_count {
         consumed_facts.push(

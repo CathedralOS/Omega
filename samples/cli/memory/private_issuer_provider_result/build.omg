@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "private_issuer_provider_result");
-    Build::select_provider<Source, CheckedSource>(builder);
+    Build::select_provider<Source, CheckedSource>(builder, linux_arm64);
+    Build::select_provider<Source, CheckedSource>(builder, linux_x86_64);
+    Build::select_provider<Source, CheckedSource>(builder, macos_arm64);
+    Build::select_provider<Source, CheckedSource>(builder, macos_x86_64);
+    Build::select_provider<Source, CheckedSource>(builder, windows_x86_64);
+    Build::select_provider<Source, CheckedSource>(builder, uefi_x86_64);
+    Build::select_provider<Source, CheckedSource>(builder, cross_platform_cli);
+    Build::select_provider<Source, CheckedSource>(builder, local_unchecked);
+    Build::select_provider<Source, CheckedSource>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

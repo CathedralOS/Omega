@@ -7,7 +7,7 @@
 use language_semantics::BlockingPlan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BlockingFacts {
     /// One exact-keyed entry per checked machine, in machine order.
     pub machines: Vec<MachineBlockingFact>,
@@ -22,7 +22,7 @@ impl BlockingFacts {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineBlockingFact {
     pub machine: SymbolHandle,
     pub plan: BlockingPlan,

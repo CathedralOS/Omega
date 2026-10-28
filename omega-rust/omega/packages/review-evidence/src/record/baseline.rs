@@ -11,10 +11,13 @@ use crate::record::PackagePolicyTerminalPermissions;
 use crate::record::PackageReviewDangerousAuthority;
 use crate::record::PackageReviewDangerousAuthoritySlack;
 
+mod native_bindings;
+pub(crate) use native_bindings::PackagePolicyNativeBinding;
 mod boundary_owners;
 mod external;
 mod getters;
 mod validation;
+use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
@@ -29,6 +32,7 @@ pub struct PackagePolicyBaseline {
     pub(crate) selected_providers: PackagePolicySelectedProviders,
     pub(crate) terminal_permissions: PackagePolicyTerminalPermissions,
     pub(crate) representation: PackagePolicyRepresentation,
+    pub(crate) native_bindings: Vec<PackagePolicyNativeBinding>,
     pub(crate) external_supplies: Vec<PackagePolicyExternalExecutableSupply>,
     pub(crate) dangerous_capabilities: Vec<PackageReviewDangerousAuthority>,
     pub(crate) slack_uses: Vec<PackageReviewDangerousAuthoritySlack>,
@@ -44,9 +48,7 @@ pub struct PackagePolicyBaseline {
 }
 
 impl PackagePolicyBaseline {
-    pub fn service_audits(&self) -> &[crate::record::PackageReviewNominalIdentity] {
-        &self.service_audits
-    }
+    field_projection_accessors!(sliced service_audits: &[crate::record::PackageReviewNominalIdentity]);
 
     pub fn apply_service_audit_policy(
         &mut self,

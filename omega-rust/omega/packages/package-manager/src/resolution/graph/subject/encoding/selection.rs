@@ -27,35 +27,9 @@ pub(in super::super) fn encode_subject(
     dependency_requests: &[CanonicalDependencySourceSelection],
     catalog_dependencies: &[super::super::CanonicalCatalogDependency],
     limits: CanonicalSourceClosureSubjectLimits,
-) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
-    let mut encoder = Encoder::new();
-    encode_subject_to(
-        &mut encoder,
-        target_profile,
-        root,
-        packages,
-        package_navigations,
-        package_dependency_projections,
-        dependency_requests,
-        catalog_dependencies,
-        limits,
-    )?;
-    encoder.check()?;
-    Ok(encoder.finish())
-}
-
-pub(in super::super) fn encode_subject_with_budget(
-    target_profile: TargetProfile,
-    root: &CanonicalRootSourceSelection,
-    packages: &[ResolvedSourceIdentity],
-    package_navigations: &[PackageSourceNavigation],
-    package_dependency_projections: &[DependencyProjections],
-    dependency_requests: &[CanonicalDependencySourceSelection],
-    catalog_dependencies: &[super::super::CanonicalCatalogDependency],
-    limits: CanonicalSourceClosureSubjectLimits,
     budget: &mut Budget,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
-    let mut encoder = Encoder::budgeted(budget, limits.maximum_record_bytes);
+    let mut encoder = Encoder::new(budget, limits.maximum_record_bytes);
     encode_subject_to(
         &mut encoder,
         target_profile,

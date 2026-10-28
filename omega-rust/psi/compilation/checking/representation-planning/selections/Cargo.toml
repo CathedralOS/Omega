@@ -9,6 +9,7 @@ name = "representation_selections"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../../foundation/compiler-storage" }
 optimization = { path = "../../../../foundation/optimization-selections" }
 source = { path = "../../../../foundation/source" }
 symbols = { path = "../../../../foundation/symbols" }

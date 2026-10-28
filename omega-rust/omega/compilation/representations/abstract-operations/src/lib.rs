@@ -15,11 +15,11 @@ pub use abstract_operations::{
     AbstractOperationPlanWithPlacedViewInputs, AbstractParameter, AbstractResult,
     AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCasePayloadBinding,
     AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicCoherenceViolation,
-    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
-    StructuralCallFormal, StructuralCallResult, StructuralTypeCatalog, ValueBinding, atomic,
-    binding_arguments, call_source, calls, control_flow, happens_before_atomic_coherence_violation,
-    operations, ownership, values,
+    AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
+    IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy, StructuralCallFormal,
+    StructuralCallResult, StructuralTypeCatalog, ValueBinding, atomic, binding_arguments,
+    call_source, calls, control_flow, happens_before_atomic_coherence_violation, operations,
+    ownership, values,
 };
 pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,

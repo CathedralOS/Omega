@@ -73,7 +73,7 @@ impl DataDefinitionIndex {
 /// Data-declaration storage and its derived symbol/name relationships.
 /// Producers retain arena access, but a mutable borrow invalidates both the
 /// lazy and sealed index before any storage mutation can occur.
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionTable {
     arena: Arena<DataDefinition>,
     index: OwnedIndex<DataDefinitionIndex, HandleSpan<DataDefinition>>,

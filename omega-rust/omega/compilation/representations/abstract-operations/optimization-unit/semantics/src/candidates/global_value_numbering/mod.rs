@@ -8,7 +8,8 @@
 //!
 //! Expression classification, dominance reconstruction, and proof admission
 //! are independent evidence services used by those protocols.
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::candidates::contract;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod admission;
@@ -82,9 +83,5 @@ fn validate_candidate_origin(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<(), OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    Ok(())
+    contract::admit_origin(input, candidate)
 }

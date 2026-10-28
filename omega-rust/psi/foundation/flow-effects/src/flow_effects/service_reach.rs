@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 /// A finite union of fixed services and nominal static parameter rows. The
 /// parameters are exact binder identities; their requirement ceilings remain
 /// in the ordinary conservative rows rather than becoming fixed contributions.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ServiceReachDependency {
     pub concrete: ServiceReachRowId,
     pub parameters: HandleSpan<SymbolHandle>,
@@ -50,7 +50,7 @@ pub struct MachineServiceReachInference {
     pub states: HandleSpan<StateServiceReachInference>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateServiceReachInference {
     pub state: SymbolHandle,
     pub inferred_direct: ServiceReachRowId,
@@ -61,7 +61,7 @@ pub struct StateServiceReachInference {
     pub calls: HandleSpan<CallServiceReachInference>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallServiceReachInference {
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -74,7 +74,7 @@ pub struct CallServiceReachInference {
     pub unresolved_installation_reaches: Vec<InstallationReachRequirement>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct InstallationReachRequirement {
     /// Exact normalized boundary-trait requirement identity.
     pub requirement: SymbolHandle,

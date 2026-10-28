@@ -1,5 +1,7 @@
 //! Independent path-qualified empty-block replay mechanics.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
 use crate::candidates::control_flow_cleanup::{patched_jump_bindings, require_scalar_bindings};
 use crate::candidates::rewrite_accounting::substitutions::rewrite_successor_operation;
 use crate::candidates::rewrite_accounting::threading::{
@@ -24,17 +26,13 @@ pub(super) fn validate(
     if candidate.node_decision_point() != Some(patch.empty) || patch.empty.node != 0 {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.empty.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.empty.machine)?;
     require_scalar_bindings(function)?;
 
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    let empty_block = function
-        .block(patch.empty.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let empty_block = candidate_block(function, patch.empty.block)?;
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };

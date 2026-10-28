@@ -27,6 +27,14 @@ fn lower_data_definition_contents(
         symbol: data_definition.symbol,
         name: crate::lowerer::name::lower_name(&data_definition.name),
         is_public: data_definition.is_public,
+        predicate_subject_symbol: data_definition.predicate_subject_symbol,
+        predicate_subject_type: if data_definition.predicate_subject_symbol.is_valid() {
+            lowerer.with_type_reference_exposure(None, |lowerer| {
+                lower_type_reference_into_table(lowerer, &data_definition.predicate_subject_type)
+            })?
+        } else {
+            typed::types::TypeReferenceHandle::invalid()
+        },
         supply_mode: data_definition.supply_mode,
         lifetime_parameters: data_definition
             .lifetime_parameters

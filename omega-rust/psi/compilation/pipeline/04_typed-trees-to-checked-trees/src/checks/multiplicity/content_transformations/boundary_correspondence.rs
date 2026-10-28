@@ -100,13 +100,11 @@ pub(super) fn prepare(
                 "boundary custody needs exact original-to-current backing correspondence; a joint ancestry roster alone does not establish it",
             );
         };
-        let current = CanonicalPlace {
-            root: available.root,
-            segments: ownership
-                .segments
-                .span_or_empty(available.segments)
-                .to_vec(),
-        };
+        let current = crate::checks::places::place_or_root_in(
+            &ownership.segments,
+            available.root,
+            available.segments,
+        );
         let reference = validation::canonical_place_type_reference(
             program,
             state.symbol,

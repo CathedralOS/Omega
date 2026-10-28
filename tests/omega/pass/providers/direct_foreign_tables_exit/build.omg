@@ -1,6 +1,22 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "direct_foreign_tables_exit");
-    Build::select_provider<Counter, CounterProvider>(builder);
-    Build::select_provider<Process, ProcessProvider>(builder);
+    Build::select_provider<Counter, CounterProvider>(builder, linux_arm64);
+    Build::select_provider<Counter, CounterProvider>(builder, linux_x86_64);
+    Build::select_provider<Counter, CounterProvider>(builder, macos_arm64);
+    Build::select_provider<Counter, CounterProvider>(builder, macos_x86_64);
+    Build::select_provider<Counter, CounterProvider>(builder, windows_x86_64);
+    Build::select_provider<Counter, CounterProvider>(builder, uefi_x86_64);
+    Build::select_provider<Counter, CounterProvider>(builder, cross_platform_cli);
+    Build::select_provider<Counter, CounterProvider>(builder, local_unchecked);
+    Build::select_provider<Counter, CounterProvider>(builder, alpha_bootstrap);
+    Build::select_provider<Process, ProcessProvider>(builder, linux_arm64);
+    Build::select_provider<Process, ProcessProvider>(builder, linux_x86_64);
+    Build::select_provider<Process, ProcessProvider>(builder, macos_arm64);
+    Build::select_provider<Process, ProcessProvider>(builder, macos_x86_64);
+    Build::select_provider<Process, ProcessProvider>(builder, windows_x86_64);
+    Build::select_provider<Process, ProcessProvider>(builder, uefi_x86_64);
+    Build::select_provider<Process, ProcessProvider>(builder, cross_platform_cli);
+    Build::select_provider<Process, ProcessProvider>(builder, local_unchecked);
+    Build::select_provider<Process, ProcessProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

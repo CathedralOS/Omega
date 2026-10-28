@@ -563,6 +563,24 @@ fn write_only_assignment_leaf(
 ) -> bool {
     is_discardable_write_only_field_leaf(program, field_type)
         || is_qualified_write_only_leaf(program, field_type)
+        || is_stored_reference_leaf(program, field_type)
+}
+
+/// A displaced reference leaf ends only through the retained replacement
+/// custody transaction, the same disposal authority a whole-aggregate store
+/// already exercises over descriptor members: the incoming descriptor
+/// installs its own backing loan and the displaced one retires without
+/// observing its referent. The ordinary store and borrow checks still own the
+/// incoming value's type, authority, and loan installation; this gate adds
+/// only the non-observation judgment that replacing a descriptor slot needs.
+fn is_stored_reference_leaf(
+    program: &dyn crate::CheckingInput,
+    field_type: TypeReferenceHandle,
+) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(field_type),
+        TypeReferenceNode::Reference { .. }
+    )
 }
 
 /// One qualified leaf a common-field store may displace: an already-admissible

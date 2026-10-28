@@ -47,7 +47,7 @@ use record_synthesis::{
     synthesize_probe_records,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlacedViewRecord {
     pub synthetic_name: String,
     pub policy_machine: String,

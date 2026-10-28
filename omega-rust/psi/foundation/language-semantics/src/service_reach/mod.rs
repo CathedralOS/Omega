@@ -7,7 +7,7 @@ use crate::{ServiceReachId, ServiceReachRowId};
 /// Whether a machine's service reach is inferred privately or published as a
 /// stable caller/provider ceiling. Published omission is represented by an
 /// explicit empty row, never by `InternalInferred`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum ServiceReachInterface {
     #[default]
     InternalInferred,
@@ -16,7 +16,7 @@ pub enum ServiceReachInterface {
 
 /// The service-reach contract and checked body summary. The checked summary
 /// may refine a published ceiling but may never widen it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ServiceReachPlan {
     pub interface: ServiceReachInterface,
     pub checked_inferred: ServiceReachRowId,
@@ -24,7 +24,7 @@ pub struct ServiceReachPlan {
 
 /// Whether the direct synchronous invocation set is private inference or a
 /// published ceiling. Published omission is an explicit empty edge set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum SynchronousInvocationInterface {
     #[default]
     InternalInferred,
@@ -34,7 +34,7 @@ pub enum SynchronousInvocationInterface {
 /// Erased direct-edge metadata retained in checked artifacts. Targets use
 /// canonical positional identities (`parameter:N`) or canonical boundary
 /// service names (`service:Name`); they are never replaced by reach closure.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SynchronousInvocationPlan {
     pub interface: SynchronousInvocationInterface,
     pub published: Vec<String>,
@@ -44,14 +44,14 @@ pub struct SynchronousInvocationPlan {
 /// Whether suspension is inferred privately or published as an independent
 /// may-ceiling. `PublishedMaySuspend(false)` is the public negative guarantee
 /// produced by omitting `suspends;` on an export or requirement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum SuspensionInterface {
     #[default]
     InternalInferred,
     PublishedMaySuspend(bool),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct SuspensionPlan {
     pub interface: SuspensionInterface,
     pub checked_may_suspend: bool,
@@ -60,14 +60,14 @@ pub struct SuspensionPlan {
 /// Whether worker blocking is inferred privately or published as an
 /// independent may-ceiling. `PublishedMayBlock(false)` is the public negative
 /// guarantee produced by omitting `blocks;` on an export or requirement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum BlockingInterface {
     #[default]
     InternalInferred,
     PublishedMayBlock(bool),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct BlockingPlan {
     pub interface: BlockingInterface,
     pub checked_may_block: bool,
@@ -76,7 +76,7 @@ pub struct BlockingPlan {
 /// Canonical service reach attached to one flow/graph scope. Rows index the
 /// representation root's shared `ServiceReachRowTable`; no spelling or numeric
 /// compatibility bit is stored on individual nodes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ServiceReachSummary {
     pub direct: ServiceReachRowId,
     pub transitive: ServiceReachRowId,
@@ -85,7 +85,7 @@ pub struct ServiceReachSummary {
 /// Suspension possibility attached to one flow/graph scope. Kept separate
 /// from blocking so downstream consumers cannot accidentally treat parking an
 /// activation as occupying its worker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct SuspensionSummary {
     pub direct_may_suspend: bool,
     pub transitive_may_suspend: bool,
@@ -94,14 +94,14 @@ pub struct SuspensionSummary {
 /// Worker-blocking possibility attached to one flow/graph scope. Kept
 /// separate from suspension because the two public may-ceilings compose and
 /// admit independently.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct BlockingSummary {
     pub direct_may_block: bool,
     pub transitive_may_block: bool,
 }
 
 /// One interned row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) enum ServiceReachRow {
     /// A normalized concrete service set.
     Concrete(Vec<ServiceReachId>),
@@ -115,7 +115,7 @@ pub(crate) enum ServiceReachRow {
 /// Deterministic normalizer for service-only rows. Boundary-trait identity is
 /// minted before rows are interned; this table owns set normalization and
 /// preserves the empty published ceiling as the fixed row id 1.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ServiceReachRowTable {
     pub(crate) rows: Vec<ServiceReachRow>,
 }
@@ -210,7 +210,7 @@ impl ServiceReachRowTable {
 /// declaration identity used inside a compilation; `name` is retained for
 /// diagnostics and artifact rendering. Parent closure is normalized once from
 /// resolved boundary-trait composition and never reconstructed from spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ServiceReachDefinition {
     pub symbol: symbols::SymbolHandle,
     pub name: String,
@@ -221,7 +221,7 @@ pub struct ServiceReachDefinition {
 /// normalizer interns declarations in canonical name order after symbol
 /// assignment, so unrelated source ordering does not perturb row order.
 /// Ordinary traits never enter this table.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ServiceReachTable {
     definitions: Vec<ServiceReachDefinition>,
 }

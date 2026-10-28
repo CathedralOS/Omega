@@ -864,8 +864,7 @@ pub(super) fn clone_single_specialized_machine(
         let environment = scope.environment();
         let references = program
             .type_reference_table
-            .references()
-            .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
+            .references_from(type_start)
             .map(|(handle, _)| handle)
             .collect::<Vec<_>>();
         for reference in references {
@@ -898,8 +897,16 @@ pub(super) fn clone_single_specialized_machine(
         &cloned_expression_roots,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    substitute_cloned_type_parameters(source, program, candidate, type_start, cloned.symbol)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    substitute_cloned_type_parameters(
+        source,
+        program,
+        candidate,
+        type_start,
+        expression_start,
+        std::slice::from_ref(&cloned.states),
+        cloned.symbol,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     // Range endpoints are value positions, not static positions: a binder
     // surviving in one names the realized trailing parameter so the clone's
     // declared `-> u64[0..=Bound]` keeps qualifying the captured subject.
@@ -1079,8 +1086,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
 ) {
     let query_carriers = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter(|(_, expression)| {
             matches!(expression, ExpressionNode::Call(call)
             if call.native_code_layout.is_some() || call.layout_query.is_some())
@@ -1104,8 +1110,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     // just like cast types. The clone cannot mutate its template's contract.
     let index_payloads = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, _)| {
             program
                 .expression_table
@@ -1137,8 +1142,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     }
     let calls = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| match expression {
             ExpressionNode::Call(call) => Some((
                 handle,
@@ -1191,8 +1195,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     }
     let cast_payloads = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
@@ -1229,8 +1232,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
 
     let zero_values = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             let (ExpressionNode::ZeroValue(type_reference)
             | ExpressionNode::TypeExpression(type_reference)) = expression

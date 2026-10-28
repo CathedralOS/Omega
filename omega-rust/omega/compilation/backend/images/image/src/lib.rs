@@ -78,12 +78,6 @@
 //! `image-emission`, which each take `FinalImage` plus
 //! `place_executable_regions` and add their own container.
 //!
-//! @Cleanup: FNV-1a is open-coded three times. The offset basis
-//! `0xcbf2_9ce4_8422_2325` appears in `output.rs`, `relocation_envelope.rs`,
-//! `model/executable_regions.rs`, and three of
-//! those define their own private `fingerprint_bytes`. Three copies of a hash
-//! function is four chances for one of them to drift.
-//!
 //! @Note: the inventory replay is NOT inert:
 //! `validate_placed_executable_region_inventory` runs in production
 //! from image-emission's `validate_terminal_image_with_import_count` and the

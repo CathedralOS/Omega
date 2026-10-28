@@ -27,8 +27,9 @@ static type equations never become runtime data. The ordinary query's checked
 result proves the unchanged `0xFFFF_FFFFu32` subtraction requirement. Every twin
 changes only the producer to `max<u16>() as u32`, so the receiving obligation
 rejects `65535 == 4294967295`. The match place executes both alternatives.
-Every place binds all four hosted entries; the target place authors all four
-bodies, and checking still visits every body.
+Every place binds all four hosted entries; the target place has four ordinary
+named implementations selected by explicit target-keyed Build rows. Checking
+visits every supplied implementation independently of realized target.
 
 The const place retains its source-issued Call selection independently of its
 qualified diagnostic span. Static application predicates are discharged against

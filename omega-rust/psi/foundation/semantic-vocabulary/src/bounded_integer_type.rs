@@ -4,7 +4,7 @@ use crate::{IntegerCarrier, IntegerType, IntegerValue, PropositionError};
 
 /// A fixed integer carrier restricted to one closed, inclusive interval.
 /// Retaining this declaration does not establish that any supplied value inhabits it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct BoundedIntegerType {
     integer_type: IntegerType,
     minimum: IntegerValue,

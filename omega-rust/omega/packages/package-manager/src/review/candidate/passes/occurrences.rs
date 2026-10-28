@@ -412,15 +412,16 @@ impl<'pass> PackageReviewRound<'pass> {
             ..
         } = *occurrence;
         let closure = self.closure;
+        // Every refusal below is this occurrence's: the row it names may be a
+        // dependency's, but the inputs that failed to assemble are the
+        // occurrence's own.
+        let refused = |errors: Vec<PackageCompilationInputError>| {
+            CompileResolvedPackageReviewsError::compilation_inputs(key, errors)
+        };
         let inputs = scope
             .compilation_inputs_reusing(&mut self.source_bindings.root_bindings[position])
             .and_then(|inputs| inputs.with_compilation_purpose(purpose))
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let mut semantic_bindings = self
             .semantic_bindings_by_consumer
             .get(&(key.clone(), purpose))
@@ -458,12 +459,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let inputs = inputs
             .with_semantic_role_discovery(self.discovery == TargetEntryDiscovery::Dependencies)
             .with_accepted_semantic_bindings(semantic_bindings)
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let required_instances = inputs.required_dependency_source_instances();
         let mut dependency_bundles = Vec::with_capacity(required_instances.len());
         for dependency in scope
@@ -487,49 +483,31 @@ impl<'pass> PackageReviewRound<'pass> {
                         package: dependency.identity(),
                     },
                 );
-                let review = review.map_err(|error| {
-                    CompileResolvedPackageReviewsError::CompilationInputs {
-                        package: key.clone(),
-                        errors: vec![error],
-                    }
-                })?;
+                let review = review.map_err(|error| refused(vec![error]))?;
                 let custody = closure
                     .custody(dependency)
                     .ok_or(PackageCompilationInputError::ForeignGeneratedSourceBundle {
                         package: dependency.identity(),
                     })
-                    .map_err(
-                        |error| CompileResolvedPackageReviewsError::CompilationInputs {
-                            package: key.clone(),
-                            errors: vec![error],
-                        },
-                    )?;
+                    .map_err(|error| refused(vec![error]))?;
                 let bundle = review.generated_source_bundle();
                 if review.resolution() != custody.resolution()
                     || bundle.package() != dependency.identity()
                     || bundle.source_consumption_commitment()
                         != review.source_consumption_commitment()
                 {
-                    return Err(CompileResolvedPackageReviewsError::CompilationInputs {
-                        package: key.clone(),
-                        errors: vec![
-                            PackageCompilationInputError::GeneratedSourceBundleCustodyMismatch {
-                                package: dependency.identity(),
-                            },
-                        ],
-                    });
+                    return Err(refused(vec![
+                        PackageCompilationInputError::GeneratedSourceBundleCustodyMismatch {
+                            package: dependency.identity(),
+                        },
+                    ]));
                 }
                 dependency_bundles.push(bundle.clone());
             }
         }
         let inputs = inputs
             .with_complete_dependency_generated_sources(dependency_bundles)
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(refused)?;
         let main_entry = custody.snapshot_root().join("main.omg");
         // Package review checks authored build-only packages through the compiler's
         // existing build entrance. Explicit application/check entries below retain
@@ -1062,10 +1040,7 @@ impl PackageReviewCompletion<'_> {
         &self,
         errors: Vec<PackageCompilationInputError>,
     ) -> CompileResolvedPackageReviewsError {
-        CompileResolvedPackageReviewsError::CompilationInputs {
-            package: self.occurrence.key.clone(),
-            errors,
-        }
+        CompileResolvedPackageReviewsError::compilation_inputs(self.occurrence.key, errors)
     }
 
     pub fn review_failure(

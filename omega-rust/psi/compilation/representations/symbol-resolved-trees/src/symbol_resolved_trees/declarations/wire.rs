@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 /// numbers, and historical version eras. Wire schemas describe external
 /// representation contracts, not runtime layout, so they are carried as their
 /// own root family instead of folding into `DataDefinition`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireSchema {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -17,7 +17,7 @@ pub struct WireSchema {
     pub members: HandleSpan<WireMember>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum WireMember {
     Field(WireField),
     Reserved(WireReserved),
@@ -30,7 +30,7 @@ impl Default for WireMember {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct WireField {
     pub number: u64,
     pub name: DiagnosticName,
@@ -38,12 +38,12 @@ pub struct WireField {
     pub type_reference: TypeReference,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireReserved {
     pub number: u64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireVersion {
     pub name: DiagnosticName,
     pub members: HandleSpan<WireMember>,

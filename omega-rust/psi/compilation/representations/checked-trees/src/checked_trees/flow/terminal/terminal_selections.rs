@@ -3,26 +3,26 @@
 
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTerminalMachineSelections {
     pub machines: Vec<CheckedTerminalMachineSelection>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTerminalMachineSelection {
     pub machine: SymbolHandle,
     pub name: String,
     pub signature: CheckedTerminalSignatureEligibility,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedTerminalSignatureEligibility {
     Eligible,
     FreeUnitEffect,
     Unsupported,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTerminalDebugPlans {
     pub machines: Vec<CheckedTerminalMachineDebugPlan>,
 }
@@ -33,7 +33,7 @@ impl CheckedTerminalDebugPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTerminalMachineDebugPlan {
     pub machine: SymbolHandle,
     pub machine_span: Option<source::SourceSpan>,
@@ -42,7 +42,7 @@ pub struct CheckedTerminalMachineDebugPlan {
     pub source_files: Vec<source::SourceFile>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedTerminalStateDebugPlan {
     pub state: SymbolHandle,
     pub state_span: Option<source::SourceSpan>,

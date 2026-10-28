@@ -15,7 +15,7 @@ use crate::checked_trees::keyed_rows::KeyedRows;
 /// Why this exact region lies outside the selected cleanup complement.
 /// Unestablished is positive receiving evidence, never an inactive tag or an
 /// inference from an unknown claim identity. Mixed provenance stays unknown.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContextualCleanupExclusionCause {
     #[default]
     Unknown,
@@ -24,14 +24,14 @@ pub enum ContextualCleanupExclusionCause {
     InactiveCase,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupExcludedRegion {
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<PlaceSegment>,
     pub cause: ContextualCleanupExclusionCause,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupFacts {
     pub dispositions: Arena<ContextualCleanupDisposition>,
     /// Receiving extents authenticated with the old occurrence's disposition.
@@ -147,7 +147,7 @@ impl ContextualCleanupFacts {
 
 /// One successful receiving write, distinct from the claims it establishes.
 /// Its destination path belongs to `ContextualCleanupFacts::segments`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualStorageEstablishment {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -155,7 +155,7 @@ pub struct ContextualStorageEstablishment {
     pub destination: Place,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StorageWindowInvocation {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -167,7 +167,7 @@ pub struct StorageWindowInvocation {
     pub opened_statement: Option<usize>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupDisposition {
     /// Conditional complement of this exact owned value join. The source
     /// occurrence proves its ordinary cleanup; receiving storage is selected
@@ -224,7 +224,7 @@ pub struct ContextualCleanupDisposition {
 /// The same lexical death edge in a retained template and one exact instance.
 /// Both handles belong to `ContextualCleanupFacts::dispositions`; refresh them
 /// with that arena rather than carrying scratch handles across flow sweeps.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupApplication {
     pub template: Handle<ContextualCleanupDisposition>,
     pub instance: Handle<ContextualCleanupDisposition>,
@@ -233,12 +233,12 @@ pub struct ContextualCleanupApplication {
 /// Instantiated cleanup prerequisites, distinct from authored `requires`.
 /// The shared checked predicate vocabulary names every observation in its
 /// exact invocation namespace during source flow and Terminal publication.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupEntryRequirements {
     pub rows: Arena<ContextualCleanupEntryRequirement>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContextualCleanupEntryRequirement {
     pub machine: SymbolHandle,
     /// Complete callable clause in the invocation's checked scalar namespace.

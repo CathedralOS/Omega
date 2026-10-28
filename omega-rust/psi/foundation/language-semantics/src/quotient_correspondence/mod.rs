@@ -5,7 +5,7 @@
 //! and representative. Executable lowering separately binds that judgment to
 //! ordinary calls and exact nominal adaptations in the Terminal catalog.
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientCallableIdentity {
     /// Hermetic declaration owner, including package or toolchain identity.
     pub declaration: String,
@@ -13,7 +13,7 @@ pub struct QuotientCallableIdentity {
     pub overload: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientCorrespondenceOperationKind {
     /// Two-static-argument `Quotient::lift<F, Congruence>`.
     Lift,
@@ -23,7 +23,7 @@ pub enum QuotientCorrespondenceOperationKind {
     Define,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientStaticApplication {
     /// Canonical closed bindings in declaration order. The first proof-only
     /// bridge admits only the empty application, but emptiness is retained as
@@ -31,13 +31,13 @@ pub struct QuotientStaticApplication {
     pub bindings: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientMachineApplication {
     pub callable: QuotientCallableIdentity,
     pub static_application: QuotientStaticApplication,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientRelationIdentity {
     pub quotient_declaration: String,
     pub quotient_type: String,
@@ -45,7 +45,7 @@ pub struct QuotientRelationIdentity {
     pub relation: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientPositionalRelation {
     Quotient(QuotientRelationIdentity),
     ExactEquality {
@@ -56,7 +56,7 @@ pub enum QuotientPositionalRelation {
 
 /// Normalized source actual in representative order. This judgment remains in
 /// checked trees; ordinary evaluated call operands cross the Terminal boundary.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientRuntimeArgument {
     PublicParameter {
         public_position: u32,
@@ -67,20 +67,20 @@ pub enum QuotientRuntimeArgument {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientContractOwner {
     Machine,
     State,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientContractFactCoordinate {
     pub owner: QuotientContractOwner,
     pub contract_position: u32,
     pub fact_position: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientTheoremApplicationSide {
     Left,
     Right,
@@ -89,7 +89,7 @@ pub enum QuotientTheoremApplicationSide {
 /// One exact source-to-theorem fact coordinate in a forward-precondition
 /// transport proof.  Retaining both coordinates prevents source erasure from
 /// turning a theorem row into unscoped proof authority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientForwardPreconditionTransportFact {
     pub application: QuotientTheoremApplicationSide,
     pub source: QuotientContractFactCoordinate,
@@ -98,20 +98,20 @@ pub struct QuotientForwardPreconditionTransportFact {
 
 pub type QuotientTheoremLegalityFact = QuotientForwardPreconditionTransportFact;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientTheoremParameterRole {
     QuotientLeft { input_position: u32 },
     QuotientRight { input_position: u32 },
     Shared { input_position: u32 },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientTheoremParameter {
     pub theorem_position: u32,
     pub role: QuotientTheoremParameterRole,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientTheoremRelationPremise {
     pub expected_position: u32,
     pub actual: QuotientContractFactCoordinate,
@@ -120,20 +120,20 @@ pub struct QuotientTheoremRelationPremise {
     pub right_parameter: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientRepresentativeApplication {
     pub arguments: Vec<u32>,
 }
 
 /// The result law is either the selected nominal relation or exact equality.
 /// Equality has its exact result type; it is never encoded as a forged symbol.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientResultRelation {
     Quotient(String),
     ExactEquality(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientTheoremConclusion {
     pub actual: QuotientContractFactCoordinate,
     pub relation: QuotientResultRelation,
@@ -141,7 +141,7 @@ pub struct QuotientTheoremConclusion {
     pub right: QuotientRepresentativeApplication,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientCongruenceCorrespondence {
     pub parameters: Vec<QuotientTheoremParameter>,
     pub relation_premises: Vec<QuotientTheoremRelationPremise>,
@@ -153,13 +153,13 @@ pub struct QuotientCongruenceCorrespondence {
     pub conclusion: QuotientTheoremConclusion,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientTheoremRole {
     Congruence,
     ForwardPreconditionTransport,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientForwardPreconditionTransportCorrespondence {
     /// Complete ordered public-Q source/theorem premises cited by the selected
     /// transport, source-fact-major with adjacent Left/Right applications.
@@ -169,41 +169,41 @@ pub struct QuotientForwardPreconditionTransportCorrespondence {
     pub representative_conclusions: Vec<QuotientForwardPreconditionTransportFact>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientTheoremCorrespondence {
     Congruence(QuotientCongruenceCorrespondence),
     ForwardPreconditionTransport(QuotientForwardPreconditionTransportCorrespondence),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientPurityCertificate {
     PureClosure,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientTerminationCertificate {
     Unconditional,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientCrashCertificate {
     CrashFree,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientRepresentativeEligibility {
     pub purity: QuotientPurityCertificate,
     pub termination: QuotientTerminationCertificate,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientTheoremEligibility {
     pub purity: QuotientPurityCertificate,
     pub termination: QuotientTerminationCertificate,
     pub crash: QuotientCrashCertificate,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientTheoremEvidence {
     pub role: QuotientTheoremRole,
     pub selected_application: QuotientMachineApplication,
@@ -213,7 +213,7 @@ pub struct QuotientTheoremEvidence {
 
 /// One retained unconditional forwarding edge inside the public machine's
 /// state table. Positions index the owner machine's state order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientStateForwarding {
     pub source_position: u32,
     pub target_position: u32,
@@ -225,7 +225,7 @@ pub struct QuotientStateForwarding {
 /// state's statement list, and `immutable_alias_count` retains the exact
 /// straight-line immutable alias depth the local judgment proved between the
 /// request call and that result expression.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum QuotientResultFlow {
     /// The owner machine has exactly one state, which owns the result root.
     Direct {
@@ -250,7 +250,7 @@ pub enum QuotientResultFlow {
 ///
 /// This remains on the source side of the firewall. Lowering emits ordinary
 /// calls and nominal copy licenses; it never serializes this proof judgment.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QuotientCorrespondenceJudgment {
     pub operation_kind: QuotientCorrespondenceOperationKind,
     pub public_operation: QuotientCallableIdentity,

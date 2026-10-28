@@ -1,7 +1,7 @@
 //! Proof after the fact that patching touched only relocation fields, by masking
 //! every slot the plan declared and comparing everything that is left.
 
-use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
+use crate::final_image::{FNV_OFFSET, byte_report_fingerprint, fingerprint_bytes};
 use crate::relocations::relocation_field_geometry;
 use crate::{
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
@@ -162,8 +162,8 @@ pub fn validate_final_text_relocation_envelope(
             b"omega.final-compiler-text.sha256.v1\0",
             final_compiler_text,
         ));
-    let encoded_text_report_fingerprint = report_fingerprint_bytes(encoded_text_bytes);
-    let final_compiler_text_report_fingerprint = report_fingerprint_bytes(final_compiler_text);
+    let encoded_text_report_fingerprint = byte_report_fingerprint(encoded_text_bytes);
+    let final_compiler_text_report_fingerprint = byte_report_fingerprint(final_compiler_text);
     let mut relocation_digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.compiler-text-relocation-envelope.sha256.v1\0",
     );
@@ -223,12 +223,6 @@ pub fn validate_final_text_relocation_envelope(
     };
     evidence.derivation_digest = evidence.recomputed_derivation_digest();
     Ok(evidence)
-}
-
-fn report_fingerprint_bytes(bytes: &[u8]) -> u64 {
-    let mut fingerprint = FNV_OFFSET;
-    fingerprint_bytes(&mut fingerprint, bytes);
-    fingerprint
 }
 
 #[cfg(test)]

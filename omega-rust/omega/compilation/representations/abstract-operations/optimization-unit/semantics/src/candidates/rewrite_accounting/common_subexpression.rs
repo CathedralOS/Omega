@@ -6,7 +6,7 @@
 //! leader onto the join parameter, so it builds on the same dead-node spine
 //! and names those edges itself.
 use crate::candidates::canonicalize_provenance;
-use crate::candidates::provenance_realized_at;
+use crate::candidates::realized_at_own_site;
 use crate::candidates::rewrite_accounting::dead_scalar::{
     reconstruct_dead_scalar_node_accounting, reconstruct_removed_result_use_accounting,
 };
@@ -50,12 +50,7 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
             machine: function.machine,
             edge: incoming.edge,
         };
-        provenance.push(provenance_realized_at(
-            site,
-            site,
-            &edge.provenance,
-            &edge.fuel,
-        ));
+        provenance.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
     }
     blocks.sort();
     blocks.dedup();

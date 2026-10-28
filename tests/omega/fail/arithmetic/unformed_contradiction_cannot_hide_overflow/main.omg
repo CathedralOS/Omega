@@ -1,0 +1,8 @@
+// A partial subtraction cannot form the contradictory predicate that would hide its own overflow.
+machine unsafe(value: u64) -> u64 {
+ transition value - 1 > value {
+  true -> (value + 1)
+  false -> (0)
+ }
+}
+machine main() {}

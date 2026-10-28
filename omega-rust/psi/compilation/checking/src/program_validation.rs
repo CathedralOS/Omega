@@ -45,6 +45,7 @@ use rayon::prelude::*;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
+mod completion_results;
 mod contract_queries;
 mod dependency_bodies;
 mod statements;
@@ -670,43 +671,7 @@ fn validate<'program>(
                     &mut diagnostics,
                 );
             });
-            // A state that DECLARES a return type but has an EMPTY body can
-            // never produce the value -- callers would silently bind 0 (ZII),
-            // and native/interp diverge on what that zero reads as. GENERIC
-            // machines are exempt: the core/std container surface (`machine
-            // Vec::as_slice<T>(&self) -> &[T] { }`) is deliberately
-            // type-check-only, and value calls to generics are already fenced
-            // (fence_generic_value_callee).
-            if state.return_type.is_valid()
-                && program.machine_type_parameters(machine).is_empty()
-                // A SPECIALIZED generic keeps its declaration symbol while
-                // MP4 substitution consumes its type parameters in place --
-                // it inherits the generic exemption (the core container
-                // surface is type-check-only; value calls stay fenced). The
-                // exemption follows the specialization either way: the first
-                // instance may reuse the template symbol, later instances are
-                // fresh clones.
-                && !program.machine_specializations.iter().any(|specialization| {
-                    specialization.template == machine.symbol
-                        || specialization.instance == machine.symbol
-                })
-                // A signature-only callable declares a result contract, not
-                // an empty executable body. Requirement and external supply
-                // obey the same body-presence rule as boundary declarations.
-                && machine.supplies_checked_body()
-                && program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .is_empty()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` declares a return type but its body is \
-                     empty -- it can never produce the value (callers would silently \
-                     bind 0). Return a value or drop the `-> T`.",
-                    machine.name,
-                    state.name.as_str(),
-                )));
-            }
+            completion_results::validate(program, machine, state, &mut diagnostics);
             validate_local_data_names(
                 program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,
@@ -1014,7 +979,7 @@ fn validate<'program>(
         {
             proven_machine_contracts.push((symbol, judged));
         }
-        arithmetic_decisions.append(machine.arithmetic_decisions);
+        arithmetic_decisions.extend(machine.arithmetic_decisions);
         formation_obligations.extend(machine.formation_obligations);
         stored_integer_writes.extend(machine.stored_integer_writes);
         // A site validated twice keeps its first application and reports an

@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "terminal_requirement_projected_context");
-    Build::select_provider<Items::get_count, ItemsProvider>(builder);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, linux_arm64);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, linux_x86_64);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, macos_arm64);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, macos_x86_64);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, windows_x86_64);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, uefi_x86_64);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, cross_platform_cli);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, local_unchecked);
+    Build::select_provider<Items::get_count, ItemsProvider>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

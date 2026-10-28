@@ -35,7 +35,7 @@ mod completion;
 pub(crate) use argument_types::DeclaredTypeOrigin;
 use completion::complete_arguments;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub(crate) struct SourceLinks {
     pub(crate) declared_types: Vec<(DeclaredTypeOrigin, TypeReferenceHandle)>,
     pub(crate) declarations: Vec<(usize, Machine)>,

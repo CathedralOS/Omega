@@ -2,12 +2,9 @@
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_proof_certified_scalar_identity_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
-    OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, OptimizationRuleIdentity, OptimizationSafetyClass};
 use optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
     PsiRewritePatch, ScalarConstantValue, ScalarSubstitution, ValueDefinitionSite,
@@ -17,9 +14,10 @@ use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, receiver_custody_distinct,
-    retirable_scalar_node, retire_node_custody, sweep_output_nodes,
+    accept_region_rewrite, candidate_block, candidate_function, contract, retire_node_custody,
+    sweep_output_nodes,
 };
+use optimization_unit::{receiver_custody_distinct, retirable_scalar_node};
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
@@ -28,10 +26,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
+    contract::admit_origin(input, candidate)?;
     let exact_identity_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1",
     );
@@ -59,22 +54,20 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
         negative_one_shift_right_rule,
     ]
     .contains(&candidate.rule())
-        || candidate.required_analyses()
-            != AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != OptimizationSafetyClass::ProofCertified
-        || candidate.predicted_cost_delta() != -1
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
+    contract::admit_roster(
+        candidate,
+        &[
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ],
+        contract::USE_DEFINITION_AND_EFFECT_SUMMARIES,
+        OptimizationSafetyClass::ProofCertified,
+        Some(-1),
+    )?;
     let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };

@@ -34,7 +34,7 @@ use syntax_trees::{self as syntax, SyntaxTrees};
 /// Prepared syntax bound to the one declaration roster that indexed it.
 /// Compiler-derived machines can rewrite a template's name/attachment; retain
 /// that normalized owner rather than rediscovering it by an authored spelling.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub(crate) struct PendingMachineBody {
     pub(crate) machine_ordinal: usize,
     source: syntax::item::Machine,

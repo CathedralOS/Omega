@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 /// body is either a transparent typed term or the named-assumption absence a
 /// `boundary let` declares. It owns no executable signature, effects, or
 /// runtime body.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MathematicalDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -35,7 +35,7 @@ pub struct MathematicalDefinition {
 }
 
 /// One telescope parameter (`name [erased]?: MathematicalType`).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MathematicalParameter {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -50,7 +50,7 @@ pub type MathematicalTypeHandle = Handle<MathematicalType>;
 /// `Ordinary` wraps a lowered type reference; `Arrow` is a dependent Π-type
 /// whose optional binder scopes over the codomain; `Application` applies a
 /// family to mathematical arguments.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum MathematicalType {
     /// An ordinary lowered type reference (`usize`, `A`, `core::Type<u>`).
     Ordinary(TypeReferenceHandle),
@@ -77,7 +77,7 @@ impl Default for MathematicalType {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MathematicalBody {
     /// `boundary let ...;` — a named assumption with no body. The default is
     /// the bodyless placeholder, matching how every other root arena defaults.
