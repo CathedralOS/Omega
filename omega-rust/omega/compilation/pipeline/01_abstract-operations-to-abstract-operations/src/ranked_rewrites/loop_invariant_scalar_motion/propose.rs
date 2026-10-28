@@ -217,6 +217,17 @@ fn admit_member_node(
         return None;
     }
     let effects = evidence.call_effects;
+    // The structural-signature call admissions take the run once rather than
+    // respelling its arguments at every arm.
+    let run = crate::validation::invariant_calls::StructuralCallRun {
+        functions: evidence.functions,
+        function,
+        component,
+        node,
+        relocating,
+        relocating_roots,
+        effects,
+    };
     // Equal contents do not establish equal storage occurrences. Fresh storage
     // may leave a cycle only when no member (including a transitive callee)
     // observes identity. Freeze validation replays this same admission.
@@ -514,14 +525,7 @@ fn admit_member_node(
         // run can see it — already preheader-visible, resolved through an
         // invariant member structural parameter, or produced by a node the
         // same run already covers.
-        admit_call(crate::validation::invariant_calls::invariant_unit_call_admission(
-            function,
-            component,
-            node,
-            relocating,
-            relocating_roots,
-            effects,
-        ))?
+        admit_call(crate::validation::invariant_calls::invariant_unit_call_admission(&run))?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_unit_call(
         node,
     )
@@ -539,15 +543,7 @@ fn admit_member_node(
         // optimizer-side reconstruction does not replay the verifier's
         // canonical structural-path substitution — so the moved call's
         // structural-argument rebind cannot drift the derived roster.
-        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(
-                evidence.functions,
-                function,
-                component,
-                node,
-                relocating,
-                relocating_roots,
-                effects,
-            ))?
+        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(&run))?
     } else if crate::validation::invariant_calls::admissible_invariant_structural_scalar_call(node).is_some() {
         // A scalar-result structural call keeps the unit call's whole
         // evidence surface — the non-speculative gate, the pure transitive
@@ -557,14 +553,7 @@ fn admit_member_node(
         // the run can see it — and then its preserved scalar result joins
         // `relocating`, so a member node consuming the call's return value
         // relocates behind it in the same run.
-        admit_call(crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
-                function,
-                component,
-                node,
-                relocating,
-                relocating_roots,
-                effects,
-            ))?
+        admit_call(crate::validation::invariant_calls::invariant_structural_scalar_call_admission(&run))?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_scalar_call(
         node,
     )
@@ -582,15 +571,7 @@ fn admit_member_node(
         // the moved call's argument rebind from drifting that roster. The
         // preserved scalar result joins `relocating`, so a member node
         // consuming the return value relocates behind it in the same run.
-        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(
-                evidence.functions,
-                function,
-                component,
-                node,
-                relocating,
-                relocating_roots,
-                effects,
-            ))?
+        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(&run))?
     } else if crate::validation::invariant_calls::admissible_invariant_structural_call(node).is_some() {
         // A structural-result call keeps the borrow call family's whole
         // evidence surface — the non-speculative gate, the pure transitive
@@ -618,14 +599,7 @@ fn admit_member_node(
         // every other call variant's. The declared place joins
         // `relocating_roots`, so a member node anchored on the persistent
         // result relocates behind it in the same run.
-        admit_call(crate::validation::invariant_calls::invariant_structural_call_admission(
-            function,
-            component,
-            node,
-            relocating,
-            relocating_roots,
-            effects,
-        ))?
+        admit_call(crate::validation::invariant_calls::invariant_structural_call_admission(&run))?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_call(
         node,
     )
@@ -645,15 +619,7 @@ fn admit_member_node(
         // call's argument rebind from drifting that roster. The declared
         // place joins `relocating_roots`, so a member node anchored on the
         // persistent result relocates behind it in the same run.
-        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(
-                evidence.functions,
-                function,
-                component,
-                node,
-                relocating,
-                relocating_roots,
-                effects,
-            ))?
+        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(&run))?
     } else {
         let substitution = crate::validation::member_blocks::invariant_scalar_operand_substitution(
             function, component, node, relocating,
