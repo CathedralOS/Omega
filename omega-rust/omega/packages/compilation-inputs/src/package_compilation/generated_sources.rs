@@ -25,7 +25,7 @@ pub struct PackageGeneratedSourceBundle {
     contents: Arc<PackageGeneratedSourceBundleContents>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct PackageGeneratedSourceBundleContents {
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
@@ -34,6 +34,9 @@ struct PackageGeneratedSourceBundleContents {
     dependency_closure: PackageDependencyClosure,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
     sources: Vec<PackageGeneratedSource>,
+    provider_selections:
+        Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
+    selection_observation: Option<[u8; 32]>,
 }
 
 impl PackageGeneratedSourceBundle {
@@ -76,6 +79,8 @@ impl PackageGeneratedSourceBundle {
                 dependency_closure,
                 source_consumption_commitment,
                 sources,
+                provider_selections: Arc::from([]),
+                selection_observation: None,
             }),
         }
     }
@@ -112,6 +117,65 @@ impl PackageGeneratedSourceBundle {
 
     pub fn sources(&self) -> &[PackageGeneratedSource] {
         &self.contents.sources
+    }
+
+    /// Own-package executed choices. Inherited rows already have their own
+    /// package/purpose handoff and must not be exported a second time.
+    pub fn provider_selections(
+        &self,
+    ) -> &[build_time_evaluation::provider_declarations::RetainedProviderSelection] {
+        &self.contents.provider_selections
+    }
+
+    pub fn selection_observation(&self) -> Option<[u8; 32]> {
+        self.contents.selection_observation
+    }
+
+    #[doc(hidden)]
+    pub fn with_retained_provider_selections(
+        self,
+        selections: Vec<build_time_evaluation::provider_declarations::RetainedProviderSelection>,
+        observation: Option<[u8; 32]>,
+    ) -> Result<Self, &'static str> {
+        if !selections.is_empty() && observation.is_none() {
+            return Err("package provider choices have no original Build observation");
+        }
+        if selections.iter().any(|selection| {
+            selection.origin.activation().source().package_identity != Some(self.package())
+                || selection.origin.event_ordinal().is_none()
+        }) {
+            return Err(
+                "package provider choices do not belong to this handoff's Build activation",
+            );
+        }
+        let mut contents = Arc::unwrap_or_clone(self.contents);
+        contents.provider_selections = selections.into();
+        contents.selection_observation = observation;
+        Ok(Self {
+            contents: Arc::new(contents),
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn with_checked_provider_selections(
+        self,
+        typed: &typed_trees::TypedTrees,
+        selections: &[build_time_evaluation::provider_declarations::ProviderSelection],
+        observation: Option<&crate::BuildObservationSummary>,
+    ) -> Result<Self, String> {
+        let retained = selections
+            .iter()
+            .map(|selection| {
+                build_time_evaluation::provider_declarations::RetainedProviderSelection::capture(
+                    typed, selection,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.with_retained_provider_selections(
+            retained,
+            observation.map(|summary| summary.identity().digest()),
+        )
+        .map_err(str::to_owned)
     }
 }
 

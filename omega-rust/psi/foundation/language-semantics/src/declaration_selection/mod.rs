@@ -13,8 +13,10 @@ pub struct ResolvedAuthoredCallBinding {
     pub original: SymbolHandle,
 }
 
+mod build_selection_origin;
 mod product;
 pub mod product_operands;
+pub use build_selection_origin::BuildSelectionOrigin;
 mod product_target;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,

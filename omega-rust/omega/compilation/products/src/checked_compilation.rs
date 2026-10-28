@@ -223,11 +223,18 @@ impl CheckedCompilation {
     /// The bundle is not admission and carries no filesystem authority.
     pub fn package_generated_source_bundle(
         &self,
-    ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
-        self.sources.package_generated_source_bundle(
-            self.execution.settled.selected_target_profile,
-            self.execution.build.generated_sources.clone(),
-        )
+    ) -> Result<package_compilation::PackageGeneratedSourceBundle, String> {
+        self.sources
+            .package_generated_source_bundle(
+                self.execution.settled.selected_target_profile,
+                self.execution.build.generated_sources.clone(),
+            )
+            .map_err(str::to_owned)?
+            .with_checked_provider_selections(
+                &self.typed,
+                &self.build().config.provider_selections,
+                self.build().observation_summary.as_ref(),
+            )
     }
 
     pub const fn timings(&self) -> &CompileTimings {

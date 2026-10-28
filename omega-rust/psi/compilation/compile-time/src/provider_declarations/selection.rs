@@ -305,6 +305,5 @@ pub struct ProviderSelection {
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: source::SourceSpan,
+    pub origin: language_semantics::declaration_selection::BuildSelectionOrigin,
 }

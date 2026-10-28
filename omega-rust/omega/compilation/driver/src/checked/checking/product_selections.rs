@@ -11,6 +11,7 @@ use diagnostics::Diagnostic;
 pub(super) fn admit(
     source: &mut psi_compiler::SourceContinuation,
     computed: &mut ComputedBuildConfig,
+    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = source.typed();
     let representations = representation_planning::collect_opaque_representation_selections(
@@ -38,6 +39,10 @@ pub(super) fn admit(
     computed.config.grants = grants;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
+    computed.config.package_provider_selections = package_inputs
+        .map(|inputs| inputs.rejoin_package_provider_selections(typed))
+        .transpose()?
+        .unwrap_or_default();
     additional_declarations::admit(typed, computed)?;
     native_bindings::admit(source, computed)?;
     let typed = source.typed();

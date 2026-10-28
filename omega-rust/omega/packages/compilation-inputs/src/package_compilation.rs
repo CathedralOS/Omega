@@ -13,6 +13,8 @@ mod construction;
 mod dependency_graph;
 mod errors;
 mod generated_sources;
+pub mod provider_selection_codec;
+mod provider_selections;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
