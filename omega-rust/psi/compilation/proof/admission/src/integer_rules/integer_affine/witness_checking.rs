@@ -143,6 +143,41 @@ impl CheckedIntegerAffineForm {
     }
 }
 
+/// The carrier of a target that is one ring operation over the witness root and
+/// a direct fixed-integer leaf. Such a target is the identity form: no cited
+/// axiom and no endpoint step can say more than "coefficient 1, offset 0".
+/// Multiply reads the root on either side; add and subtract read it on the
+/// left, which is how those exact operations are spelled.
+fn identity_ring_target(target: &ScalarTerm, root: &ScalarTerm) -> Option<IntegerType> {
+    let (integer_type, left, right) = match target {
+        ScalarTerm::ExactIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+        } if left.as_ref() == root || right.as_ref() == root => (*scalar_type, left, right),
+        ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } if left.as_ref() == root => (*scalar_type, left, right),
+        _ => return None,
+    };
+    (integer_type.carrier() == IntegerCarrier::Fixed
+        && direct_math_leaf(left, integer_type).is_some()
+        && direct_math_leaf(right, integer_type).is_some())
+    .then_some(integer_type)
+}
+
 /// The degree-1/offset-0 form returned whenever the witness root meets a
 /// direct fixed-integer leaf pair: no axioms or endpoint steps are needed
 /// and the target is retained whole.
@@ -239,50 +274,9 @@ pub fn check_integer_affine_witness(
     }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
-        && let ScalarTerm::ExactIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        }
-        | ScalarTerm::WrappingIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-        } = &witness.target
-        && (left.as_ref() == &witness.root || right.as_ref() == &witness.root)
-        && scalar_type.carrier() == IntegerCarrier::Fixed
-        && direct_math_leaf(left, *scalar_type).is_some()
-        && direct_math_leaf(right, *scalar_type).is_some()
+        && let Some(integer_type) = identity_ring_target(&witness.target, &witness.root)
     {
-        return Ok(trivial_affine_form(witness, *scalar_type));
-    }
-    if witness.definition_axioms.is_empty()
-        && witness.literal_axioms.is_empty()
-        && let ScalarTerm::ExactIntegerAdd {
-            scalar_type,
-            left,
-            right,
-        } = &witness.target
-        && left.as_ref() == &witness.root
-        && scalar_type.carrier() == IntegerCarrier::Fixed
-        && direct_math_leaf(left, *scalar_type).is_some()
-        && direct_math_leaf(right, *scalar_type).is_some()
-    {
-        return Ok(trivial_affine_form(witness, *scalar_type));
-    }
-    if witness.definition_axioms.is_empty()
-        && witness.literal_axioms.is_empty()
-        && let ScalarTerm::ExactIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-        } = &witness.target
-        && left.as_ref() == &witness.root
-        && scalar_type.carrier() == IntegerCarrier::Fixed
-        && direct_math_leaf(left, *scalar_type).is_some()
-        && direct_math_leaf(right, *scalar_type).is_some()
-    {
-        return Ok(trivial_affine_form(witness, *scalar_type));
+        return Ok(trivial_affine_form(witness, integer_type));
     }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
@@ -296,14 +290,7 @@ pub fn check_integer_affine_witness(
         && value_type.carrier() == IntegerCarrier::Fixed
         && count_type.carrier() == IntegerCarrier::Fixed
     {
-        return Ok(CheckedIntegerAffineForm {
-            root: witness.root.clone(),
-            target: witness.target.clone(),
-            integer_type: *value_type,
-            coefficient: 1,
-            offset: 0,
-            endpoint_steps: Vec::new(),
-        });
+        return Ok(trivial_affine_form(witness, *value_type));
     }
     if !matches!(witness.root, ScalarTerm::Value { .. }) {
         return Err(IntegerAffineWitnessError::RootNotValue);
