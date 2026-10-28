@@ -239,7 +239,7 @@ pub(super) fn citation_argument_types(
 
 /// The selected public operation determines theorem relevance. A namespace
 /// supplies no runtime receiver and cannot suppress a legitimate citation;
-/// an implementation selected behind a public requirement supplies no theorem.
+/// the retained public theorem contract remains authoritative after realization.
 pub(crate) fn is_citation_statement(
     program: &dyn crate::CheckingInput,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -254,6 +254,14 @@ pub(crate) fn is_citation_statement(
     ) else {
         return false;
     };
+    if let SelectedCallContract::Concrete(callee, entry) = &owner
+        && !program
+            .machine_states(callee)
+            .first()
+            .is_some_and(|first| first.symbol == entry.symbol)
+    {
+        return false;
+    }
     if selected_citation_machine(program, call.target_symbol)
         .is_some_and(|callee| callee.symbol == machine.symbol)
     {
