@@ -2395,7 +2395,8 @@ impl Emission<'_, '_, '_> {
                 )
             }
             CheckedStructuralValueKind::FixedByteArrayLiteral { bytes } => {
-                let place = self.fixed_byte_array_literal(node.expression, &bytes)?;
+                let place =
+                    self.fixed_byte_array_literal(node.expression, &bytes, self.type_reference)?;
                 self.complete_construction(
                     identities,
                     place,

@@ -94,12 +94,10 @@ impl emission::Emission<'_, '_, '_> {
         &mut self,
         expression: checked_trees::expression::ExpressionHandle,
         bytes: &[u8],
+        type_reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<PlaceId, LoweringError> {
-        if validation::fixed_byte_array_literal(
-            &self.checked.typed,
-            expression,
-            self.type_reference,
-        ) != Some(bytes)
+        if validation::fixed_byte_array_literal(&self.checked.typed, expression, type_reference)
+            != Some(bytes)
         {
             return unsupported("fixed byte literal lost its exact source and declared width");
         }
