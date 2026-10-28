@@ -644,15 +644,7 @@ impl<'ranges> FailedDomain<'ranges> {
             }
             relieved.sort_unstable();
             relieved.dedup();
-            pending.retain(|failure| match failure {
-                crate::RegisterHomeError::NoCompatibleHome { function, register } => {
-                    *function == self.function
-                        && relieved
-                            .binary_search(&components.leader(VirtualRegisterId(*register)))
-                            .is_err()
-                }
-                _ => false,
-            });
+            Self::retain_other_regions(pending, self.function, components, &relieved);
             return;
         }
         let mut relieved = vec![component];
@@ -668,19 +660,31 @@ impl<'ranges> FailedDomain<'ranges> {
         }
         relieved.sort_unstable();
         relieved.dedup();
+        Self::retain_other_regions(pending, self.function, components, &relieved);
+    }
+
+    pub(super) fn function(&self) -> usize {
+        self.function
+    }
+
+    fn retain_other_regions(
+        pending: &mut Vec<crate::RegisterHomeError>,
+        function: usize,
+        components: &crate::assignment::same_home::SameHomeComponents,
+        relieved: &[VirtualRegisterId],
+    ) {
         pending.retain(|failure| match failure {
-            crate::RegisterHomeError::NoCompatibleHome { function, register } => {
-                *function == self.function
+            crate::RegisterHomeError::NoCompatibleHome {
+                function: failed_function,
+                register,
+            } => {
+                *failed_function == function
                     && relieved
                         .binary_search(&components.leader(VirtualRegisterId(*register)))
                         .is_err()
             }
             _ => false,
         });
-    }
-
-    pub(super) fn function(&self) -> usize {
-        self.function
     }
 
     // Prefer directly occupied fragments before their remote shared-home
