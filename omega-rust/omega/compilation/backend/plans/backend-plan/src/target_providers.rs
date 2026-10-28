@@ -5,6 +5,9 @@
 //! association. Publication and receiving policy use that same roster projection:
 //! a supplied subset cannot omit an uncalled instance or merge choosing owners.
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetProviderProposal {
     pub target: String,
@@ -213,10 +216,92 @@ fn checked_candidate_roster(
     plans: &[TerminalTargetProviderPlan],
     artifact: terminal_codec::TerminalArtifactView<'_>,
 ) -> Result<Vec<terminal_installation::ProviderInstallationSelection>, String> {
+    let mut selections = selected_checked_candidates(plans, artifact.module())?
+        .into_iter()
+        .map(
+            |matched| terminal_installation::ProviderInstallationSelection {
+                boundary: matched.candidate.boundary,
+                candidate: matched.candidate.candidate,
+                provider_identity: matched.selected.plan.provider_type.clone(),
+                provider_declaration: matched.owner.to_owned(),
+            },
+        )
+        .collect::<Vec<_>>();
+    // Required parent schemas may share exactly one checked coordinate. Only
+    // identical choices collapse; competing owners remain distinct for admission.
+    selections.sort();
+    selections.dedup();
+    Ok(selections)
+}
+
+/// Replace source-side checked specialization projections with the canonical
+/// whole-provider associations. Source-only consumers retain their own facts;
+/// native production and reload use this same Terminal-owned join.
+pub fn close_checked_provider_specializations(
+    selected: effects::SelectedProviderPlanFacts,
+    declarations: &[TerminalTargetProviderPlan],
+    module: &terminal_psi::TerminalModule,
+) -> Result<effects::SelectedProviderPlanFacts, String> {
+    if selected.plans().len() != declarations.len()
+        || selected.plans().iter().any(|plan| {
+            declarations
+                .iter()
+                .filter(|declaration| &declaration.plan == plan)
+                .count()
+                != 1
+        })
+    {
+        return Err(
+            "native provider declaration roster differs from the complete selected plans".into(),
+        );
+    }
+    let selected = selected.without_checked_specializations();
+    let mut rows = selected.specialized_requirement_rows().to_vec();
+    let mut identities = selected.identities().clone().into_builder();
+    for matched in selected_checked_candidates(declarations, module)? {
+        let plan = &matched.selected.plan;
+        let candidate = matched.candidate;
+        let text = |identity| {
+            module
+                .identities
+                .text(identity)
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| {
+                    "canonical provider association has an empty callable identity".to_owned()
+                })
+        };
+        let requirement = text(candidate.requirement_identity)?;
+        let template = plan.identities.text(matched.row.requirement_identity);
+        // Nongeneric rows already name their executable coordinate directly.
+        if requirement == template {
+            continue;
+        }
+        rows.push(effects::SelectedRequirementSpecialization {
+            provider_plan_report_identity: plan.report_fingerprint(),
+            selected_requirement_identity: identities.intern(template),
+            selected_machine_identity: identities
+                .intern(text(candidate.source_candidate_identity)?),
+            requirement_identity: identities.intern(requirement),
+            machine_identity: identities.intern(text(candidate.candidate_identity)?),
+        });
+    }
+    selected.with_specialized_requirement_rows(rows, &identities.build())
+}
+
+struct SelectedCheckedCandidate<'plan, 'terminal> {
+    selected: &'plan TerminalTargetProviderPlan,
+    row: &'plan effects::provider_plan::ProviderPlanRow,
+    owner: &'plan str,
+    candidate: &'terminal terminal_psi::ProviderCandidateConformance,
+}
+
+fn selected_checked_candidates<'plan, 'terminal>(
+    plans: &'plan [TerminalTargetProviderPlan],
+    module: &'terminal terminal_psi::TerminalModule,
+) -> Result<Vec<SelectedCheckedCandidate<'plan, 'terminal>>, String> {
     effects::SelectedProviderPlanFacts::from_selected_plans(
         plans.iter().map(|selected| selected.plan.clone()).collect(),
     )?;
-    let module = artifact.module();
     let mut selections = Vec::new();
     for selected in plans {
         let plan = &selected.plan;
@@ -271,19 +356,17 @@ fn checked_candidate_roster(
                     "selected provider requirement `{requirement}` has duplicate canonical realizations"
                 ));
             }
-            selections.extend(matching.into_iter().map(|candidate| {
-                terminal_installation::ProviderInstallationSelection {
-                    boundary: candidate.boundary,
-                    candidate: candidate.candidate,
-                    provider_identity: plan.provider_type.clone(),
-                    provider_declaration: owner.to_owned(),
-                }
-            }));
+            selections.extend(
+                matching
+                    .into_iter()
+                    .map(|candidate| SelectedCheckedCandidate {
+                        selected,
+                        row,
+                        owner,
+                        candidate,
+                    }),
+            );
         }
     }
-    // Required parent schemas may share exactly one checked coordinate. Only
-    // identical choices collapse; competing owners remain distinct for admission.
-    selections.sort();
-    selections.dedup();
     Ok(selections)
 }

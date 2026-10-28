@@ -174,10 +174,16 @@ fn project_terminal_native_body(
     request: &TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
     let terminal_module = artifact.semantic_module();
+    let selected = backend_plan::close_checked_provider_specializations(
+        request.boundaries.selected_provider_plans.clone(),
+        request.provider_declarations,
+        terminal_module,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let selected = close_family_realizations(
         artifact,
         target_profile,
-        request.boundaries.selected_provider_plans,
+        &selected,
         request.family_realizations,
     )?;
     // This closes static activation obligations, not executor installation.
@@ -237,7 +243,7 @@ fn project_terminal_native_body(
     )?;
     backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
         .map_err(|message| vec![Diagnostic::error(message)])?;
-    let boundary_application_coverage = request.boundaries.settle(artifact)?;
+    let boundary_application_coverage = request.boundaries.settle(artifact, &selected)?;
     let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
         &selected,

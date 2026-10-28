@@ -95,7 +95,13 @@ fn capture(
     write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
     write_values(family_realizations, &mut output)?;
-    boundaries.selected_provider_plans.write(&mut output)?;
+    // Canonical Terminal owns checked-body associations. Persist only the
+    // independent source selections; recovery closes their instances normally.
+    boundaries
+        .selected_provider_plans
+        .clone()
+        .without_checked_specializations()
+        .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
     for crate::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
