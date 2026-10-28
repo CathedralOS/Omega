@@ -30,9 +30,11 @@ public data LineReadResult {
 
 public boundary trait Console {
     machine write_line(text: &[u8])
+    invokes WindowsConsoleIo;
     reaches
         Console;
     machine write(text: &[u8])
+    invokes WindowsConsoleIo;
     reaches
         Console;
     // Fill the existing writable extent without resizing it. Preserve every
@@ -40,6 +42,7 @@ public boundary trait Console {
     // Hosted input may occupy the worker while waiting and traps on a failed
     // host read, so callers acknowledge `block` and cover the `Trap` route.
     machine read_line(out_line: &mut [u8]) -> LineReadResult
+    invokes WindowsConsoleIo;
     reaches
         Console
     blocks;

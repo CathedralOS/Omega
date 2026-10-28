@@ -266,3 +266,5 @@ Migrated-library/audio execution, current-main integration, final qualification
 and independent review remain required for the parent outcome.
 
 The [Named callback forwarding control](controls/named_callback_forwarding/main.omg) retains an explicit machine callback through an ordinary Named wrapper, with two distinct callback outcomes. The invocation roster controls independently reject a missing body or requirement ceiling.
+
+The other-target place uses four ordinary Named implementations selected by Build. Distinct pre-call identity tags make an incorrect target implementation fail before the unchanged signed division result checks. The source migration was observed with producer18 on its frozen staged inputs; fresh integrated acceptance remains required.

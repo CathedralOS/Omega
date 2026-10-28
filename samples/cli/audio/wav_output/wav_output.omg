@@ -54,18 +54,3 @@ WindowsWavOutput satisfies WavOutput {
         }
     }
 }
-
-data WavOutputDefaults {}
-
-linux_x86_64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, PosixWavOutput>(defaults);
-}
-linux_arm64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, PosixWavOutput>(defaults);
-}
-macos_arm64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, PosixWavOutput>(defaults);
-}
-windows_x86_64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, WindowsWavOutput>(defaults);
-}

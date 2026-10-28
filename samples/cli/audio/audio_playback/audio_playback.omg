@@ -19,40 +19,33 @@ use omega::language::core::numeric_conversion;
 public boundary trait AudioPlayback {
     machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
         reaches AudioPlayback
+        invokes WindowsAudioPlaybackIo;
+        invokes LinuxAudioPlaybackIo;
+        invokes MacosAudioPlaybackIo;
         blocks;
 }
 
-data WindowsAudioPlayback { }
-data LinuxAudioPlayback { }
-data MacosAudioPlayback { }
 
-data WindowsAudioPlaybackIo { }
-data WindowsAudioPlaybackImports { }
-data LinuxAudioPlaybackIo { }
-data LinuxAudioPlaybackImports { }
-data LinuxArm64AudioPlaybackImports { }
-data MacosAudioPlaybackIo { }
-data MacosAudioPlaybackImports { }
 
 // ---- windows_x86_64: winmm PlaySoundW over the in-memory WAV image ----
 // BOOL PlaySoundW(LPCWSTR pszSound, HMODULE hmod, DWORD fdwSound); with
 // SND_MEMORY|SND_NODEFAULT (0x0006) pszSound is a pointer to the WAV image
 // and the call is synchronous until the sound ends. A nonzero BOOL is
 // success; 0 reports -1 (winmm returns BOOL, not an error code).
-boundary requirement WindowsAudioPlaybackIo::c_play_sound(image: &u8, hmod: u64, flags: u32) -> i32
+boundary trait WindowsAudioPlaybackIo {
+    machine c_play_sound(image: &u8, hmod: u64, flags: u32) -> i32
 reaches AudioPlayback
 blocks;
+}
 
 
-windows_x86_64 machine WindowsAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
-    satisfies AudioPlayback::play
+WindowsAudioPlayback satisfies AudioPlayback {
+machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
 reaches AudioPlayback
 {
     let ok: i32 = block WindowsAudioPlaybackIo::c_play_sound(image, 0, 6);
     transition ok != 0 { true -> (0) _ -> (0 - 1) }
 }
-windows_x86_64 machine WindowsAudioPlayback::provider_defaults(defaults: &mut WindowsAudioPlayback) {
-    WindowsAudioPlayback::select_provider<AudioPlayback, WindowsAudioPlayback>(defaults);
 }
 
 // ---- linux_x86_64 / linux_arm64: ALSA simple PCM over libasound.so.2 ----
@@ -63,22 +56,28 @@ windows_x86_64 machine WindowsAudioPlayback::provider_defaults(defaults: &mut Wi
 // int  snd_pcm_drain(snd_pcm_t*) / snd_pcm_close(snd_pcm_t*)
 // ALSA answers -errno on failure; the first negative status is the result.
 // format 1 = U8, access 3 = RW_INTERLEAVED, stream 0 = PLAYBACK.
-boundary requirement LinuxAudioPlaybackIo::c_open(pcm: &mut u64, name: &u8, stream: i32, mode: i32) -> i32
+boundary trait LinuxAudioPlaybackIo {
+    machine c_open(pcm: &mut u64, name: &u8, stream: i32, mode: i32) -> i32
 reaches AudioPlayback;
-boundary requirement LinuxAudioPlaybackIo::c_set_params(pcm: u64, format: i32, access: i32, channels: u32, rate: u32, soft_resample: i32, latency_us: u32) -> i32
+    machine c_set_params(pcm: u64, format: i32, access: i32, channels: u32, rate: u32, soft_resample: i32, latency_us: u32) -> i32
 reaches AudioPlayback;
-boundary requirement LinuxAudioPlaybackIo::c_writei(pcm: u64, buffer: &u8, frames: u64) -> i64
+    machine c_writei(pcm: u64, buffer: &u8, frames: u64) -> i64
 reaches AudioPlayback
 blocks;
-boundary requirement LinuxAudioPlaybackIo::c_drain(pcm: u64) -> i32
+    machine c_drain(pcm: u64) -> i32
 reaches AudioPlayback
 blocks;
-boundary requirement LinuxAudioPlaybackIo::c_close(pcm: u64) -> i32
+    machine c_close(pcm: u64) -> i32
 reaches AudioPlayback;
+}
 
 
-linux_x86_64 machine LinuxAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
-    satisfies AudioPlayback::play
+
+
+
+
+LinuxX86AudioPlayback satisfies AudioPlayback {
+machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
 reaches AudioPlayback
 {
     transition { _ -> open(pcm, frames) }
@@ -116,13 +115,11 @@ reaches AudioPlayback
         transition { _ -> (rc) }
     }
 }
-linux_x86_64 machine LinuxAudioPlayback::provider_defaults(defaults: &mut LinuxAudioPlayback) {
-    LinuxAudioPlayback::select_provider<AudioPlayback, LinuxAudioPlayback>(defaults);
 }
 
 
-linux_arm64 machine LinuxAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
-    satisfies AudioPlayback::play
+LinuxArm64AudioPlayback satisfies AudioPlayback {
+machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
 reaches AudioPlayback
 {
     transition { _ -> open(pcm, frames) }
@@ -160,8 +157,6 @@ reaches AudioPlayback
         transition { _ -> (rc) }
     }
 }
-linux_arm64 machine LinuxAudioPlayback::provider_defaults(defaults: &mut LinuxAudioPlayback) {
-    LinuxAudioPlayback::select_provider<AudioPlayback, LinuxAudioPlayback>(defaults);
 }
 
 // ---- macos_arm64: AudioToolbox AudioQueue over the PCM view ----
@@ -193,27 +188,38 @@ linux_arm64 machine LinuxAudioPlayback::provider_defaults(defaults: &mut LinuxAu
 // OSStatus answers 0 on success. A negative status passes through while the
 // samples' three-digit failure printer can hold its magnitude; a larger
 // magnitude clamps to -999 and a positive status reports -998.
-boundary requirement MacosAudioPlaybackIo::c_dlsym(handle: u64, name: &u8) -> u64
+boundary trait MacosAudioPlaybackIo {
+    machine c_dlsym(handle: u64, name: &u8) -> u64
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_new_output(format: &u8, callback: u64, user_data: u64, callback_run_loop: u64, callback_mode: u64, flags: u32, queue: &mut u64) -> i32
+    machine c_new_output(format: &u8, callback: u64, user_data: u64, callback_run_loop: u64, callback_mode: u64, flags: u32, queue: &mut u64) -> i32
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_allocate_buffer(queue: u64, byte_size: u32, buffer: &mut u64) -> i32
+    machine c_allocate_buffer(queue: u64, byte_size: u32, buffer: &mut u64) -> i32
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_enqueue_buffer(queue: u64, buffer: u64, packet_count: u32, packet_descriptions: u64) -> i32
+    machine c_enqueue_buffer(queue: u64, buffer: u64, packet_count: u32, packet_descriptions: u64) -> i32
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_start(queue: u64, start_time: u64) -> i32
+    machine c_start(queue: u64, start_time: u64) -> i32
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_stop(queue: u64, immediate: u32) -> i32
+    machine c_stop(queue: u64, immediate: u32) -> i32
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_dispose(queue: u64, immediate: u32) -> i32
+    machine c_dispose(queue: u64, immediate: u32) -> i32
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_copy_to_address(destination: u64, source: &u8, count: u64) -> u64
+    machine c_copy_to_address(destination: u64, source: &u8, count: u64) -> u64
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_load_pointer(source: u64, destination: &mut u64, count: u64)
+    machine c_load_pointer(source: u64, destination: &mut u64, count: u64)
 reaches AudioPlayback;
-boundary requirement MacosAudioPlaybackIo::c_usleep(microseconds: u32) -> i32
+    machine c_usleep(microseconds: u32) -> i32
 reaches AudioPlayback
 blocks;
+}
+
+
+
+
+
+
+
+
+
 
 
 // A nonzero OSStatus becomes the provider's failure code within the samples'
@@ -230,8 +236,8 @@ machine macos_status(code: i32) -> i32 {
     }
 }
 
-macos_arm64 machine MacosAudioPlayback::play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
-    satisfies AudioPlayback::play
+MacosAudioPlayback satisfies AudioPlayback {
+machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32
 reaches AudioPlayback
 {
     transition frames == 0 { true -> (0) _ -> resolve(pcm, frames) }
@@ -325,6 +331,4 @@ reaches AudioPlayback
         transition { _ -> (macos_status(code)) }
     }
 }
-macos_arm64 machine MacosAudioPlayback::provider_defaults(defaults: &mut MacosAudioPlayback) {
-    MacosAudioPlayback::select_provider<AudioPlayback, MacosAudioPlayback>(defaults);
 }

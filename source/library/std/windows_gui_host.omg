@@ -29,16 +29,20 @@ public machine WindowsMessage::word_parameter(message: &WindowsMessage) -> u64 {
 
 public boundary trait WindowsGuiHost {
     machine window_create(class_name: &[u8], title: &[u8], style: u32,
-        x: i32, y: i32, width: i32, height: i32) -> u64 reaches
+        x: i32, y: i32, width: i32, height: i32) -> u64 invokes WindowsGuiIo;
+    reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit;
-    machine foreground_window() -> u64 reaches WindowManagement;
-    machine is_window(window: u64) -> bool reaches WindowManagement;
-    machine window_destroy(window: u64) -> bool reaches
+    machine foreground_window() -> u64 invokes WindowsGuiIo;
+    reaches WindowManagement;
+    machine is_window(window: u64) -> bool invokes WindowsGuiIo;
+    reaches WindowManagement;
+    machine window_destroy(window: u64) -> bool invokes WindowsGuiIo;
+    reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -47,7 +51,8 @@ public boundary trait WindowsGuiHost {
         ProcessOutput + ProcessExit;
     // Remove at most one message from this thread, translate and dispatch it.
     // A false result means the queue had no message; this operation never waits.
-    machine pump_message(message: &mut WindowsMessage) -> bool reaches
+    machine pump_message(message: &mut WindowsMessage) -> bool invokes WindowsGuiIo;
+    reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -57,27 +62,32 @@ public boundary trait WindowsGuiHost {
     // Add native frame metrics to the requested client size. Windows may
     // enforce its own minimum window size during creation.
     machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
-        x: i32, y: i32, width: i32, height: i32) -> u64 reaches
+        x: i32, y: i32, width: i32, height: i32) -> u64 invokes WindowsGuiIo;
+    reaches
             NativeCodeExecution + WindowManagement + SurfacePresentation +
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit;
-    machine get_dc(window: u64) -> u64 reaches
+    machine get_dc(window: u64) -> u64 invokes WindowsGuiIo;
+    reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
         FilesystemNamespaceMutation;
-    machine release_dc(window: u64, device: u64) -> i32 reaches
+    machine release_dc(window: u64, device: u64) -> i32 invokes WindowsGuiIo;
+    reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
         FilesystemNamespaceMutation;
-    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement;
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 invokes WindowsGuiIo;
+    reaches WindowManagement;
     // The caller lends live BITMAPINFO and pixel storage for this synchronous call.
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
         source_width: i32, source_height: i32, pixels: &i32, info: &i32,
-        usage: u32, raster_operation: u32) -> i32 reaches
+        usage: u32, raster_operation: u32) -> i32 invokes WindowsGuiIo;
+    reaches
             SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
             FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
             FilesystemNamespaceMutation;
