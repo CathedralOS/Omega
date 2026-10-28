@@ -7,7 +7,7 @@ use effects::provider_plan::{
     ServiceResultClaim,
 };
 use language_semantics::{
-    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicateBody,
+    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicatePresence,
 };
 
 pub(in crate::encoding::recovery) fn method(
@@ -29,9 +29,9 @@ pub(in crate::encoding::recovery) fn method(
                 parameter_index: reader.usize()?,
                 carrier_identity: identities.intern(&reader.string()?),
                 domain: reader.string()?,
-                predicate_body: super::super::tag!(reader => {
-                    0 => DomainPredicateBody::Bodyless,
-                    1 => DomainPredicateBody::Present,
+                predicate_presence: super::super::tag!(reader => {
+                    0 => DomainPredicatePresence::Absent,
+                    1 => DomainPredicatePresence::Present,
                 }),
                 effective_carry: carry(reader)?,
                 authority_flow: super::super::tag!(reader => {

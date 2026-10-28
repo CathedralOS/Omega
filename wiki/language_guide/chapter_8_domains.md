@@ -62,6 +62,9 @@ prove a structural predicate, but validation reach, effects, failures, and
 authority remain on that machine rather than being absorbed into domain
 identity.
 
+End the domain declaration with `;`. Domains have no executable body, and even
+empty `{ }` is rejected rather than accepted as an alternative ending.
+
 This chapter assumes Chapter 7's contract model already exists. Domains do not
 replace contracts; they give contracts reusable semantic names.
 
@@ -837,7 +840,7 @@ match password {
 
 Here `Password::Secure` wins when both domains hold because it appears first.
 If source code needs an unordered, exhaustive split of a known domain union,
-the domains must still be distinguishable by mutually exclusive bodies.
+the domains must still be distinguishable by mutually exclusive predicates.
 
 ## Domain-Sensitive Operators
 

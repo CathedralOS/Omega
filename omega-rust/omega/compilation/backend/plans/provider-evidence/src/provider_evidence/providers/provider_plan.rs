@@ -456,7 +456,7 @@ impl ProviderPlan {
                     claim.parameter_index,
                     self.schema.identities.text(claim.carrier_identity),
                     claim.domain,
-                    claim.predicate_body.as_str(),
+                    claim.predicate_presence.as_str(),
                     claim.authority_flow.as_str(),
                     claim.effective_carry,
                 ));

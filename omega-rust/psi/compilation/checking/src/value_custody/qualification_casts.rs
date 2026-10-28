@@ -77,7 +77,7 @@ fn judge_qualification_cast(
             // A predicate proof is not an authorized origin. In particular,
             // computed bounds cannot mint a routed domain whose predicate
             // happens to hold. Existing route transport keeps its own owner.
-            if !domain.predicate_body.is_present()
+            if !domain.predicate_presence.is_present()
                 && domain.alias.is_none()
                 && !crate::field_domains::domain_is_vacuous(program, domain.symbol, &mut Vec::new())
             {

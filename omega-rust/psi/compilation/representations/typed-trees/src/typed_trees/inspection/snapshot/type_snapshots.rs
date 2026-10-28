@@ -119,7 +119,7 @@ pub enum TypeConstraintSnapshot {
         semantic_id: u32,
         #[serde(skip_serializing_if = "Option::is_none")]
         classification: Option<&'static str>,
-        predicate_body: &'static str,
+        predicate_presence: &'static str,
         semantic_roles: DomainSemanticRolesSnapshot,
         establishment_routes: Vec<DomainEstablishmentRouteSnapshot>,
     },
@@ -336,7 +336,7 @@ pub(crate) fn type_constraint_snapshot(
             symbol: domain.symbol.arena_index(),
             semantic_id: domain.semantic_id.0,
             classification: domain.classification.map(|value| value.as_str()),
-            predicate_body: domain.predicate_body.as_str(),
+            predicate_presence: domain.predicate_presence.as_str(),
             semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
             establishment_routes: domain
                 .establishment_routes

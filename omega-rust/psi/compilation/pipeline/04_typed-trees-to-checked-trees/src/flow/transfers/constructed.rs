@@ -149,7 +149,7 @@ pub(super) fn append_constructed_field_values(
                         .is_some_and(|definition| {
                             definition.establishment_routes.is_empty()
                                 && definition.alias.is_none()
-                                && definition.predicate_body.is_present()
+                                && definition.predicate_presence.is_present()
                         }) =>
                 {
                     FactPayload::DomainMembership {

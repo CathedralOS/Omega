@@ -11,7 +11,7 @@ use effects::provider_plan::{
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use language_semantics::{CarryPolicy, DomainPredicateBody};
+use language_semantics::{CarryPolicy, DomainPredicatePresence};
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::review_record_encoding::{
     authority_class_tag, declaration_kind_tag, encode_optional, purpose_tag,
@@ -225,17 +225,19 @@ fn recover_carry(cursor: &mut ObservationCursor<'_>) -> Option<CarryPolicy> {
     })
 }
 
-fn encode_predicate_body(body: &DomainPredicateBody, out: &mut Vec<u8>) {
+fn encode_predicate_presence(body: &DomainPredicatePresence, out: &mut Vec<u8>) {
     out.push(match body {
-        DomainPredicateBody::Bodyless => 0,
-        DomainPredicateBody::Present => 1,
+        DomainPredicatePresence::Absent => 0,
+        DomainPredicatePresence::Present => 1,
     });
 }
 
-fn recover_predicate_body(cursor: &mut ObservationCursor<'_>) -> Option<DomainPredicateBody> {
+fn recover_predicate_presence(
+    cursor: &mut ObservationCursor<'_>,
+) -> Option<DomainPredicatePresence> {
     Some(match cursor.u8()? {
-        0 => DomainPredicateBody::Bodyless,
-        1 => DomainPredicateBody::Present,
+        0 => DomainPredicatePresence::Absent,
+        1 => DomainPredicatePresence::Present,
         _ => return None,
     })
 }
@@ -259,7 +261,7 @@ fn encode_service_method(
         crate::codec_bytes::push_encoded(out, (claim.parameter_index as u64).to_le_bytes());
         encode_string(identities.text(claim.carrier_identity), out);
         encode_string(&claim.domain, out);
-        encode_predicate_body(&claim.predicate_body, out);
+        encode_predicate_presence(&claim.predicate_presence, out);
         encode_carry(&claim.effective_carry, out);
         encode_string(claim.authority_flow.as_str(), out);
     }
@@ -344,7 +346,7 @@ fn recover_service_method(
         let parameter_index = usize::try_from(cursor.u64()?).ok()?;
         let carrier_identity = identities.intern(cursor_string(cursor)?);
         let domain = cursor_string(cursor)?.to_owned();
-        let predicate_body = recover_predicate_body(cursor)?;
+        let predicate_presence = recover_predicate_presence(cursor)?;
         let effective_carry = recover_carry(cursor)?;
         let authority_flow = match cursor_string(cursor)? {
             "accepts" => ServiceEntryAuthorityFlow::Accepts,
@@ -354,7 +356,7 @@ fn recover_service_method(
             parameter_index,
             carrier_identity,
             domain,
-            predicate_body,
+            predicate_presence,
             effective_carry,
             authority_flow,
         })

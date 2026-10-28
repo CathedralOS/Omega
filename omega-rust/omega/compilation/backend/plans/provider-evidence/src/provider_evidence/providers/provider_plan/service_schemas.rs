@@ -237,7 +237,7 @@ impl ServiceMethod {
                         && left_table.text(left.carrier_identity)
                             == right_table.text(right.carrier_identity)
                         && left.domain == right.domain
-                        && left.predicate_body == right.predicate_body
+                        && left.predicate_presence == right.predicate_presence
                         && left.effective_carry == right.effective_carry
                         && left.authority_flow == right.authority_flow
                 })
@@ -481,7 +481,7 @@ pub struct ServiceEntryClaim {
     /// proved at the concrete installed occurrence. Bodyless claims may flow
     /// through the generic external-root acknowledgement path; predicate
     /// claims require a specialized installer that discharges them first.
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     /// Accepted resource claims are born maximally strict. Exact positive
     /// carry permissions remain separate constrained-type facts.
     pub effective_carry: language_semantics::CarryPolicy,

@@ -1043,9 +1043,9 @@ def root_declaration_cases(program: str) -> None:
         name_paths=((0, 2, *span(source, b"Socket::Connected")), (2, 2, *span(source, b"Socket::Authenticated"))),
         domains=((0, *span(source, b"Usable"), 0, 0, 0, 0, 0, *NONE, 0, 0, 2, 0, 1, 0, 2, 1, *whole(source)),),
     )
-    source = b"domain Player::Alive(player) requires player.health > 0 { }"
+    source = b"domain Player::Alive(player) requires player.health > 0;"
     declaration_accepted(
-        program, "domain-empty-body", source,
+        program, "domain-predicate-semicolon", source,
         roots=((DOMAIN, 0, *whole(source)),),
         type_references=(named(source, b"Player"),),
         domains=((0, *span(source, b"Alive"), 0, 0, 0, 0, 1, *span(source, b"player", 1), 0, 1, 0, 0, 0, 0, 0, 0,
@@ -1263,7 +1263,8 @@ def root_declaration_cases(program: str) -> None:
         ("domain-route", b"domain i32::X established by ;", 137, (29, 30), {"type_reference_count": 1}),
         ("domain-end", b"domain i32::X requires v > 0", 138, (28, 28),
          {"type_reference_count": 1, "expression_count": 3}),
-        ("domain-body-end", b"domain i32::X { v }", 139, (16, 17), {"type_reference_count": 1}),
+        ("domain-empty-body", b"domain i32::X {}", 138, (14, 15), {"type_reference_count": 1}),
+        ("domain-nonempty-body", b"domain i32::X { v }", 138, (14, 15), {"type_reference_count": 1}),
         ("domain-clause", b"domain i32::X ensures v;", 105, (14, 21), {"type_reference_count": 1}),
         ("domain-index-end", b"domain T::X<A;", 102, (13, 14), {"type_reference_count": 2}),
         ("constant-name", b"const ;", 142, (6, 7), {}),

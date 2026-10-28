@@ -362,7 +362,7 @@ pub(super) fn check_exit_ensures(
                                     domain_symbol,
                                     ..
                                 } => program.domain_definition(domain_symbol).is_none_or(
-                                    |domain| !domain.predicate_body.is_present() || is_proved(),
+                                    |domain| !domain.predicate_presence.is_present() || is_proved(),
                                 ),
                                 _ => true,
                             }

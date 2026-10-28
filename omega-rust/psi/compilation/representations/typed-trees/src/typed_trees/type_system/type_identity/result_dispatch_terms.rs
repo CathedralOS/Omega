@@ -94,7 +94,7 @@ fn collect_declared_result_dispatch_terms(
                     symbol: constituent_definition.symbol,
                     semantic_id: constituent_definition.semantic_id,
                     classification: constituent_definition.classification,
-                    predicate_body: constituent_definition.predicate_body,
+                    predicate_presence: constituent_definition.predicate_presence,
                     semantic_roles: constituent_definition.semantic_roles,
                     establishment_routes: constituent_definition.establishment_routes.clone(),
                     authored_selection: None,
@@ -109,7 +109,7 @@ fn collect_declared_result_dispatch_terms(
             alias_stack.pop();
             return;
         }
-        if definition.predicate_body.is_present()
+        if definition.predicate_presence.is_present()
             && definition.semantic_roles.is_empty()
             && definition.establishment_routes.is_empty()
         {
@@ -126,7 +126,7 @@ fn collect_declared_result_dispatch_terms(
     // Compiler-known or partially constructed constraints may not have a
     // declaration record yet. Their copied normalized metadata is still the
     // authority for dispatch-bearing classification.
-    if constraint.predicate_body.is_present()
+    if constraint.predicate_presence.is_present()
         && constraint.semantic_roles.is_empty()
         && constraint.establishment_routes.is_empty()
     {

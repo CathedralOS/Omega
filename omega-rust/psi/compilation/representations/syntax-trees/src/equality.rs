@@ -139,7 +139,7 @@ plain!(
     language_core::BindingRelevance,
     language_core::DataSupplyMode,
     language_core::CallOperationalAcknowledgement,
-    language_core::DomainPredicateBody,
+    language_core::DomainPredicatePresence,
     language_core::ReferenceAccess,
     language_core::DomainClassification,
     numerics::arithmetic::ArithmeticDomain

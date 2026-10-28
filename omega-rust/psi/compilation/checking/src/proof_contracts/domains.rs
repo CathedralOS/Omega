@@ -97,7 +97,7 @@ fn validate_progress_profile_domains(
                 domain.name
             )));
         }
-        if domain.predicate_body.is_present() || !program.proof_facts(domain).is_empty() {
+        if domain.predicate_presence.is_present() || !program.proof_facts(domain).is_empty() {
             diagnostics.push(Diagnostic::error(format!(
                 "progress profile `{}` must be predicate-free; remove its `requires` facts",
                 domain.name
@@ -157,7 +157,7 @@ fn validate_domain_aliases(program: &dyn crate::CheckingInput, diagnostics: &mut
                 domain.name
             )));
         }
-        if domain.predicate_body.is_present()
+        if domain.predicate_presence.is_present()
             || !program.proof_facts(domain).is_empty()
             || !program.domain_operators(domain).is_empty()
         {
@@ -355,7 +355,7 @@ fn validate_repeated_normalized_domain_identities(
             .filter(|peer| same_normalized_domain_owner(program, peer, domain));
         if peers.any(|peer| {
             peer.semantic_id != domain.semantic_id
-                || peer.predicate_body != domain.predicate_body
+                || peer.predicate_presence != domain.predicate_presence
                 || peer.classification != domain.classification
                 || peer.semantic_roles != domain.semantic_roles
                 || peer.establishment_routes != domain.establishment_routes

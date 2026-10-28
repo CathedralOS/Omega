@@ -151,7 +151,7 @@ fn normalize_constraint_span(
                 symbol: domain.symbol,
                 semantic_id,
                 classification: domain.classification,
-                predicate_body: domain.predicate_body,
+                predicate_presence: domain.predicate_presence,
                 semantic_roles,
                 establishment_routes: domain.establishment_routes.clone(),
                 authored_selection: None,
@@ -193,8 +193,8 @@ fn normalize_constraint_span(
                     .map(|domain| domain.semantic_id)
                     .unwrap_or_default(),
                 classification: declaration.and_then(|domain| domain.classification),
-                predicate_body: declaration
-                    .map(|domain| domain.predicate_body)
+                predicate_presence: declaration
+                    .map(|domain| domain.predicate_presence)
                     .unwrap_or_default(),
                 semantic_roles: declaration
                     .map(|domain| domain.semantic_roles)

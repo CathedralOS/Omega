@@ -67,7 +67,7 @@ pub(crate) fn lower_domain_definition(
             })
             .transpose()?,
         classification: domain.classification,
-        predicate_body: domain.predicate_body,
+        predicate_presence: domain.predicate_presence,
         facts,
         operators: Default::default(),
         semantic_clause_token_count: domain.semantic_clause_token_count,

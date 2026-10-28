@@ -173,9 +173,9 @@ impl ProviderPlanDigestEncoder {
             self.len(claim.parameter_index);
             self.string(identities.text(claim.carrier_identity));
             self.string(&claim.domain);
-            self.byte(match claim.predicate_body {
-                language_semantics::DomainPredicateBody::Bodyless => 0,
-                language_semantics::DomainPredicateBody::Present => 1,
+            self.byte(match claim.predicate_presence {
+                language_semantics::DomainPredicatePresence::Absent => 0,
+                language_semantics::DomainPredicatePresence::Present => 1,
             });
             self.carry_policy(claim.effective_carry);
             self.byte(match claim.authority_flow {

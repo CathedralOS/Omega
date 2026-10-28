@@ -20,13 +20,20 @@ a qualified `&[u8] in D` view.
 
 Requirement spelling follows [unified requirement clauses](state_contracts.md#requirement-clauses).
 
+Named decision: `domain-brace-retirement`, settled 2026-10-28. Domain
+declarations end with `;`, not a body. Empty `{ }` is also retired, not an
+alternative spelling. Predicates belong in `requires`, establishment routes
+use `established by`, and executable operations are separate machines. A domain
+without predicate requirements remains distinct from one explicitly requiring
+`true`; neither form has an executable body.
+
 Named decision: `predicate-subject-self`, settled 2026-10-24. In a domain's
 `requires` predicates and a data declaration's default-domain `requires`, `self`
 denotes the exact value being constrained:
 
 ```omega
 domain Player::Alive
-    requires self.health > 0 { }
+    requires self.health > 0;
 ```
 
 `Player::` determines the domain's carrier. In data predicates the carrier is

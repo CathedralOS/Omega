@@ -800,7 +800,7 @@ fn collect_declared_result_dispatch(
         alias_stack.pop();
         return;
     }
-    if definition.predicate_body.is_present()
+    if definition.predicate_presence.is_present()
         && definition.semantic_roles.is_empty()
         && definition.establishment_routes.is_empty()
     {

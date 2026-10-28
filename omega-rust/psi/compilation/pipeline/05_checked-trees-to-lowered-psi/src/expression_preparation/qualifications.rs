@@ -863,7 +863,7 @@ pub(crate) fn type_atoms(
                         // contracts, just like an interval. It is never a
                         // predicate-free membership atom in this catalog.
                         TypeConstraintNode::Domain(domain)
-                            if domain.predicate_body.is_present()
+                            if domain.predicate_presence.is_present()
                                 && checked
                                     .facts
                                     .values
@@ -871,7 +871,7 @@ pub(crate) fn type_atoms(
                                     .is_some() => {}
                         TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
-                                && !domain.predicate_body.is_present() =>
+                                && !domain.predicate_presence.is_present() =>
                         {
                             declared_atoms(
                                 checked,
@@ -1001,7 +1001,7 @@ pub(crate) fn declared_atoms(
         "scalar qualification has no domain definition",
     ))?;
     if declarations.next().is_some()
-        || domain.predicate_body.is_present()
+        || domain.predicate_presence.is_present()
         || !domain.facts.is_empty()
         || (!checked_trees::domain::has_generic_carrier(checked, domain)
             && checked.primitive_type_reference(domain.target_type) != Some(primitive))

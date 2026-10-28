@@ -46,6 +46,10 @@ fail/calls/static_machine_required_input_widened_guard rejected 678ms expected @
 fail/calls/static_machine_required_input_wrong_guard rejected 667ms expected @e12c034a9fc8
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
 	machine argument `target` for `invoke` does not refine its callable crash contract: its completed Trap crash routes exceed the required ceiling
+fail/domains/retired_empty_body rejected 23ms expected @4599cdf306fb
+	tests/omega/fail/domains/retired_empty_body/main.omg:1:20: empty domain bodies are retired; end the declaration with `;`
+fail/domains/retired_empty_predicate_body rejected 23ms expected @4599cdf306fb
+	tests/omega/fail/domains/retired_empty_predicate_body/main.omg:1:40: empty domain bodies are retired; end the declaration with `;`
 fail/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result rejected 688ms expected @e12c034a9fc8
 	cannot prove index `index` is within length 4 in read::entry
 fail/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name rejected 724ms expected @e12c034a9fc8
@@ -154,6 +158,7 @@ pass/borrows/nested_machine_unit_output_long_cycle_exit checked 4135ms check-tar
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 4085ms check-target:macos_arm64 @1e18830ea024+wt
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 1128ms check-target:macos_arm64 @e12c034a9fc8
 pass/calls/static_machine_required_input_crash_refinement_exit checked 1140ms check-target:macos_arm64 @e12c034a9fc8
+pass/domains/semicolon_predicate_presence_exit checked 950ms check-target:macos_arm64 @4599cdf306fb
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result checked 956ms check-target:macos_arm64 @e12c034a9fc8
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name checked 1007ms check-target:macos_arm64 @e12c034a9fc8
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/unrelated_write checked 974ms check-target:macos_arm64 @e12c034a9fc8
