@@ -1,1 +1,1 @@
-cannot prove requires contract
+requires contract for call required from forward state entry statement 0: requires 0 >= `constant expression`, but the selected target realization closes `constant expression` to 16
