@@ -5,7 +5,7 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
-fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
+fn rejects_retired_compiler_intrinsic_via_clause() {
     let source = r#"
         boundary trait Console {
             machine write_byte(byte: i32) reaches;
@@ -15,33 +15,9 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic;
     "#;
-    let parsed = super::parse_source(source, "compiler intrinsic binding should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "console_write_byte" =>
-            {
-                Some(machine)
-            }
-            _ => None,
-        })
-        .expect("external leaf machine");
-    let clause = parsed
-        .items
-        .satisfies_clauses(machine.satisfies)
-        .first()
-        .expect("satisfies clause");
-    assert!(matches!(
-        clause.via.as_ref(),
-        Some(syntax_trees::item::ExternalBinding::CompilerIntrinsic)
-    ));
-    let via_source_span = clause
-        .via_keyword_source_span
-        .expect("external binding retains exact `via` custody");
-    let via_start = source.find("via").expect("authored `via`");
-    assert_eq!(via_source_span.span.start, via_start);
-    assert_eq!(via_source_span.span.end, via_start + "via".len());
+    let error =
+        super::parse_source_error(source, "tokenize retired via", "via clauses are retired");
+    super::expect_error(&error, "`via` binding clauses are retired");
 }
 
 #[test]
@@ -104,7 +80,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
 }
 
 #[test]
-fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
+fn rejects_retired_ordinary_via_clause() {
     let source = r#"
         boundary trait Kernel32Requirements {
             machine write_file() reaches;
@@ -118,37 +94,9 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
         satisfies Kernel32Requirements::write_file
         via write_file_binding();
     "#;
-    let parsed = super::parse_source(source, "ordinary via call should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "kernel32_write_file" =>
-            {
-                Some(machine)
-            }
-            _ => None,
-        })
-        .expect("external leaf machine");
-    let clause = parsed
-        .items
-        .satisfies_clauses(machine.satisfies)
-        .first()
-        .expect("satisfies clause");
-    assert!(
-        clause.via.is_none(),
-        "ordinary calls are not bootstrap bindings"
-    );
-    assert!(matches!(
-        parsed.expressions.expression(clause.via_expression),
-        syntax_trees::expression::ExpressionNode::Call(_)
-    ));
-    let via_source_span = clause
-        .via_keyword_source_span
-        .expect("ordinary via expression retains exact keyword custody");
-    let via_start = source.find("via").expect("authored `via`");
-    assert_eq!(via_source_span.span.start, via_start);
-    assert_eq!(via_source_span.span.end, via_start + "via".len());
+    let error =
+        super::parse_source_error(source, "tokenize retired via", "via clauses are retired");
+    super::expect_error(&error, "`via` binding clauses are retired");
 }
 
 #[test]
@@ -167,7 +115,7 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
         "tokenize should succeed",
         "compiler intrinsic identity is derived, never authored",
     );
-    super::expect_error(&error, "found punctuation `(`");
+    super::expect_error(&error, "`via` binding clauses are retired");
 }
 
 #[test]
@@ -186,11 +134,7 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
         "tokenize retired vtable slot",
         "authored numeric vtable slots are retired",
     );
-    assert_eq!(
-        error.message,
-        "`ForeignBinding::VtableSlot` is retired; declare the foreign table layout and use \
-         `ForeignBinding::VtableField(field)`"
-    );
+    super::expect_error(&error, "`via` binding clauses are retired");
 }
 
 #[test]
@@ -209,12 +153,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
         "tokenize retired string-backed import",
         "authored string-backed import bootstrap is retired",
     );
-    assert_eq!(
-        error.message,
-        "`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired; return the \
-         compiler-owned `ForeignBinding::DllImport { import: DllImport::Case { .. } }` \
-         value from one `via` producer machine instead"
-    );
+    super::expect_error(&error, "`via` binding clauses are retired");
 }
 
 #[test]
@@ -1021,9 +960,7 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
             error
                 .message
                 .contains("`provides` declarations are retired")
-                && error
-                    .message
-                    .contains("satisfies Trait::method via Binding::Case")
+                && error.message.contains("Build::bind<Requirement>")
         );
     }
 }

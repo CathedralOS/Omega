@@ -157,36 +157,22 @@ impl PreparedBuildExecution {
             return Err(self.refuse("artifact-only Build requires at least one completed output"));
         }
         let generated_sources = observation_summary.select_generated_sources(&self.machine.name)?;
+        let config = BuildConfig {
+            settings: completed.settings,
+            ..Default::default()
+        };
         let usage = *self
             .account
             .snapshot()
             .map_err(|error| self.refuse(&error.to_string()))?
             .record();
-        let native_binding_evaluation = if completed.native_bindings.is_empty() {
-            None
-        } else {
-            Some(Arc::new(
-                provider_planning::native_bindings::NativeBuildEvaluation::from_execution(
-                    completed.identity.semantic(),
-                    usage,
-                    &observation_summary,
-                )
-                .map_err(|reason| self.refuse(&reason))?,
-            ))
-        };
-        let config = BuildConfig {
-            settings: completed.settings,
-            native_binding_evaluation,
-            ..Default::default()
-        };
         Ok(ComputedBuildConfig {
             config,
             root_binding_requests: completed.root_bindings,
             declared_product_selections: completed.declared_product_selections,
             product_selection_requests: completed.product_selections,
-            native_binding_requests: completed.native_bindings,
-            native_formations: completed.native_formations,
             behavior_exclusion_requests: completed.exclusions,
+            native_binding_requests: completed.native_bindings,
             project_declaration: Some(completed.declaration),
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),

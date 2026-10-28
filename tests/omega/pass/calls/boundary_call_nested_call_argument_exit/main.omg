@@ -16,18 +16,6 @@ reaches
 
 data IoImports { }
 
-windows_x86_64 machine close_handle_binding() -> ForeignBinding<12, 11, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "CloseHandle",
-        },
-    }
-}
-
-windows_x86_64 machine IoImports::c_close_handle(handle: i64) -> i32
-    satisfies Io::c_close_handle
-    via close_handle_binding();
 
 data Main {
     handle: u64;

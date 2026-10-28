@@ -182,21 +182,6 @@ satisfies Comparator::compare
     }
 }
 
-macos_arm64 machine sort_binding() -> ForeignBinding<26, 8, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_qsort_r",
-        },
-    }
-}
-macos_arm64 machine sort_leaf<machine Handler>(
-    elements: &mut Elements, count: u64, width: u64, direction: &u64
-)
-where machine Handler satisfies Comparator::compare;
-satisfies SortRegistrar::sort
-via sort_binding()
-requires count == 2 && width == 8;
 
 data Main { elements: Elements; direction: u64; }
 machine Main::main(main: &mut Main) reaches SortRegistrar + Comparator + Console
@@ -339,21 +324,6 @@ linux_x86_64 machine SortPolicies::sort(signature: BoundarySignature) -> Boundar
     }
 }
 
-linux_x86_64 machine linux_sort_binding() -> ForeignBinding<9, 7, 9> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "qsort_r", version: "GLIBC_2.8",
-        },
-    }
-}
-
-linux_x86_64 machine sort_leaf<machine Handler>(
-    elements: &mut Elements, count: u64, width: u64, direction: &u64
-)
-where machine Handler satisfies Comparator::compare;
-satisfies SortRegistrar::sort
-via linux_sort_binding()
-requires count == 2 && width == 8;
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches SortRegistrar + Comparator + Console

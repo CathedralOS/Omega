@@ -216,16 +216,31 @@ impl SyntaxTrees {
     }
 
     pub fn extend_from(&mut self, other: &SyntaxTrees) {
+        self.extend_selected_roots_from(
+            other,
+            other.root_item_handles(),
+            other.root_mathematical_definition_handles(),
+        );
+    }
+
+    /// Copy an explicit declaration cohort with its owned children and supplied
+    /// operand correspondence. Unselected roots remain lookup input only.
+    pub fn extend_selected_roots_from(
+        &mut self,
+        other: &SyntaxTrees,
+        items: &[ItemHandle],
+        mathematics: &[crate::item::MathematicalDefinitionHandle],
+    ) {
         let frontier = self.type_references.supplied_operand_owner_frontier();
         let mut declarations = Vec::with_capacity(other.root_item_count());
-        for handle in other.root_item_handles() {
+        for handle in items {
             let copied = self.push_copied_root_item(other, *handle);
             declarations.push((*handle, copied));
         }
         // Mathematical declarations land after all copied items; source order
         // is retained within each root collection, and nothing this stage
         // produces reads the interleave between the two.
-        for handle in other.root_mathematical_definition_handles() {
+        for handle in mathematics {
             let definition = self
                 .copy_mathematical_definition(other, other.root_mathematical_definition(*handle));
             self.push_root_mathematical_definition(definition);

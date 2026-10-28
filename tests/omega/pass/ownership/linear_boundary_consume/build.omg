@@ -1,4 +1,24 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "linear_boundary_consume");
     builder.freestanding = true;
+
+ Build::bind<Receipt::ack>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<Receipt::ack>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    });
+ Build::bind<Receipt::ack>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs",
+        },
+    });
 }

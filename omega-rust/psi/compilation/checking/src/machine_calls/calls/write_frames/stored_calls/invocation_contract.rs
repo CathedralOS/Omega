@@ -58,7 +58,6 @@ pub(in super::super) fn invocation_contract<'program>(
             callee.supply_mode,
             language_semantics::MachineSupplyMode::Boundary
                 | language_semantics::MachineSupplyMode::AdmissionClaim
-                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
         ) {
             true
         } else {

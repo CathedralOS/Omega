@@ -1,6 +1,9 @@
 //! Resolve a Build operation's static operand path to its declaration symbol
 //! over the typed program.
 
+mod static_environment;
+pub use static_environment::capture_static_environment;
+
 use crate::expression::StaticMachineArgument;
 use crate::typed_trees::TypedTrees;
 use symbols::{JoinedPath, SymbolHandle};
@@ -45,49 +48,11 @@ pub fn resolve_product_path(
     kind: ProductOperandKind,
 ) -> Option<symbols::SymbolHandle> {
     let program = typed.product_declarations();
-    let candidates = product_candidates(program, kind)?;
-    let token_bound_machines = if kind == ProductOperandKind::BoundarySubject {
-        program
-            .machine_token_bindings()
-            .iter()
-            .filter(|binding| binding.is_boundary)
-            .map(|binding| binding.symbol)
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    program.symbols.find_build_subject_declaration_from_source(
-        path,
-        occurrence,
-        candidates,
-        &token_bound_machines,
-    )
-}
-
-/// Resolve a completed dependency Build's captured lexical package, without
-/// importing its Build code or inventing a source occurrence in this Product.
-/// The caller must carry the original package output/source custody.
-pub fn resolve_captured_product_path(
-    typed: &TypedTrees,
-    scope: &language_semantics::declaration_selection::CapturedNativeDeclaration,
-    kind: ProductOperandKind,
-) -> Option<SymbolHandle> {
-    let program = typed.product_declarations();
-    let candidates = product_candidates(program, kind)?;
-    program.symbols.find_captured_product_declaration(
-        &scope.requirement_path,
-        scope.producer.package,
-        scope.resolution_stratum,
-        candidates,
-    )
-}
-
-fn product_candidates(
-    program: &TypedTrees,
-    kind: ProductOperandKind,
-) -> Option<Vec<(SymbolHandle, bool)>> {
     let candidates = match kind {
         ProductOperandKind::WireCompatibilityFact => return None,
+        ProductOperandKind::TableField => {
+            return resolve_native_table_field(typed, path, occurrence).map(|(_, field)| field);
+        }
         ProductOperandKind::BoundarySubject => program
             .traits()
             .iter()
@@ -135,6 +100,16 @@ fn product_candidates(
                     .iter()
                     .map(move |requirement| (requirement.symbol, definition.is_public))
             })
+            .chain(
+                program
+                    .machines()
+                    .iter()
+                    .filter(|machine| {
+                        machine.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    })
+                    .map(|machine| (machine.symbol, machine.is_public)),
+            )
             .collect(),
         ProductOperandKind::Data => program
             .data_definitions()
@@ -147,7 +122,58 @@ fn product_candidates(
             .map(|definition| (definition.symbol, definition.is_public))
             .collect(),
     };
-    Some(candidates)
+    let token_bound_machines = if kind == ProductOperandKind::BoundarySubject {
+        program
+            .machine_token_bindings()
+            .iter()
+            .filter(|binding| binding.is_boundary)
+            .map(|binding| binding.symbol)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    program.symbols.find_build_subject_declaration_from_source(
+        path,
+        occurrence,
+        candidates,
+        &token_bound_machines,
+    )
+}
+
+/// Resolve the complete typed dispatch field designation through the same
+/// source/package visibility query as all other inert Product operands.
+/// A field is never recovered by its final spelling or by a numeric slot.
+pub fn resolve_native_table_field(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    use crate::data::DataMember;
+    if !path.contains("::") {
+        return None;
+    }
+    let program = typed.product_declarations();
+    let candidates = program.data_definitions().iter().flat_map(|definition| {
+        program
+            .data_members(definition)
+            .iter()
+            .filter_map(move |member| match member {
+                DataMember::Field(field) => Some((field.symbol, definition.is_public)),
+                _ => None,
+            })
+    });
+    let field = program.symbols.find_build_subject_declaration_from_source(
+        path,
+        occurrence,
+        candidates,
+        &[],
+    )?;
+    let owner = program.data_definitions().iter().find(|definition| {
+        program.data_members(definition).iter().any(
+            |member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field),
+        )
+    })?;
+    Some((owner.symbol, field))
 }
 
 /// Source-signature compatibility for the narrowly designated product-entry
@@ -293,65 +319,4 @@ pub fn resolve_build_request_author(
         return Err("executed Build request has ambiguous authored machine custody".into());
     }
     Ok(machine.symbol)
-}
-
-/// Capture exact authored provenance before source erasure. The Terminal
-/// producer separately proves this machine owns the issued request.
-pub fn native_binding_formation(
-    typed: &TypedTrees,
-    author: SymbolHandle,
-    root: Option<SymbolHandle>,
-    request: std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>,
-) -> Result<language_semantics::declaration_selection::NativeBindingFormation, String> {
-    use sha2::{Digest, Sha256};
-    let machine = typed
-        .machine_by_symbol(author)
-        .ok_or("native source author has no exact checked machine")?;
-    let span = typed
-        .symbols
-        .symbol_provenance_source_span(author)
-        .ok_or("native source author lost its source")?;
-    let source = typed
-        .symbols
-        .source_file(span)
-        .ok_or("native declaration has no retained source file")?;
-    let callable_identity = typed
-        .machine_callable_identity_text(machine)
-        .ok_or("native declaration has no checked callable identity")?;
-    let [operand] = request.operands.as_ref() else {
-        return Err("native formation lost its exact requirement".into());
-    };
-    let relative = source
-        .path
-        .strip_prefix(&source.package_root)
-        .map_err(|_| "native source is outside its checked package")?
-        .to_string_lossy();
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-source-occurrence.v1\0");
-    for bytes in [
-        relative.as_bytes(),
-        source.source.as_bytes(),
-        callable_identity.as_bytes(),
-        operand.path.as_bytes(),
-    ] {
-        digest.update((bytes.len() as u64).to_le_bytes());
-        digest.update(bytes);
-    }
-    digest.update((request.source_span.span.start as u64).to_le_bytes());
-    digest.update((request.source_span.span.end as u64).to_le_bytes());
-    let root_scope = root
-        .and_then(|root| typed.symbols.symbol_provenance_source_span(root))
-        .is_some_and(|root| typed.symbols.same_source_package(span, root));
-    Ok(
-        language_semantics::declaration_selection::NativeBindingFormation {
-            request,
-            author: span,
-            author_package: typed.symbols.symbol_package_identity(author),
-            root_scope,
-            declaration_path: typed.symbols.display_path(author, "::"),
-            callable_identity,
-            source_occurrence_digest: digest.finalize().into(),
-            resolution_stratum: source.resolution_stratum,
-        },
-    )
 }

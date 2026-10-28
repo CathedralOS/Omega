@@ -139,3 +139,97 @@ omega run --both samples/cli/facts/foreign_scalar_record_result/local/main.omg
 omega --check samples/cli/facts/foreign_scalar_record_result/local/invalid/main.omg
 python3 tools/ci/compiler_foreign_records.py
 ```
+
+## Build-owned native requirements
+
+The current repair owns **BUILD-OWNED-NATIVE-BINDINGS**. It transports the same
+quotient/remainder record fact through the row's existing nine places; it does
+not add another numeric fact or replace libc `lldiv`. The package Build binds
+`IntegerDivision::divide` directly to one evaluated target and a typed
+`ForeignBinding` locator. No bodyless per-symbol forwarding machine or `via`
+clause supplies that binding.
+
+The fixed baseline `4c6b385bb20cb8661455c6fddb4efc130106c5fc` refused the
+new direct Build form. The focused constructor baseline also refused the
+uncounted typed locator. Retained candidate attempts remain separate records
+under `build/native-binding-evidence`; none is a successful runtime observation
+unless its actual native and Terminal reports say so. The historical evidence
+elsewhere in this README retains its original producer and source identity.
+
+The [applied requirement control](controls/exact_requirement_application/main.omg)
+keeps the same two signed C calls, all six field/copy checks, and result carrier,
+while selecting `IntegerDivision<u64>::divide`. Its
+[publication-refusal twin](controls/exact_requirement_application/invalid/main.omg) changes
+only the Build selection to `IntegerDivision<u32>::divide`. It remains Source-valid;
+its build-only corpus pin requires native publication to refuse the missing
+`u64` provider, rather than inventing a Source rejection. The otherwise
+unused nominal argument must retain its identity; identical physical C layouts
+do not permit that selection to satisfy the `u64` call. The baseline producer
+`1afbd5b7cc9e4b5cf30cc7d3aa7e129dee7c798a` refused both at the qualified
+application syntax. That refusal is preserved, rather than reported as the
+twin's final intended application mismatch.
+
+The applicable acceptance is:
+
+- Establishment: a reached operation on the original Build activation retains
+  its exact designated requirement, evaluated target and closed locator. Ordinary
+  fixed-byte constructor inference supplies locator lengths; explicit bad lengths
+  remain formation errors. A locator supplies no foreign behavior proof.
+- Identity and lifetime: original source/package custody and complete static
+  applications survive Product discovery. Trait and member telescopes remain
+  separate, including unused type/const operands and captured versus fresh
+  lifetimes. Unused designated operands still receive ordinary formation checks.
+- Composition: one canonical executed request ledger supplies the ordinary
+  provider selector, including package-private raw slots, defaults, explicit
+  overrides, complete schema coverage and duplicate/conflicting-row refusals.
+  A Build-host provider is not installed by a Product native request.
+- Soundness: only admitted normalized locator/calling applications can reach a
+  loader. Missing/ambiguous/inaccessible selections refuse; checked adaptation
+  remains an ordinary implementation, not an asserted locator conversion.
+- Psi 05–07: the issued request travels through checked Build calls and both
+  execution engines without an AST replay, synthetic foreign machine or
+  reconstructed source identity. The selected requirement retains its declared
+  full signature and loans.
+- Omega 00–02: exact target/ABI compatibility, full calling convention, generic
+  schema and independently declared same-stack demand are retained by the
+  derived native candidate. Typed table fields keep their separate explicit
+  source operation; they are not new `ForeignBinding` cases.
+- Omega 03–06: the existing record result/copy and live-across-call obligations
+  remain required, including the physical result-memory lane on applicable
+  hosts. The migration grants no new activation bound.
+- Omega 07–09: the same real C symbol and admitted relocations must execute and
+  agree in native and Terminal engines on each measured host. Authored entries
+  and cross-target compilation provide no foreign-host execution credit.
+
+Fresh checking, intended reject diagnostics, native/Terminal agreement, canonical
+reloads, exact pins and final producer/source applicability remain required for
+closure. Constructor syntax, an intermediate compiler check, or an issued
+request alone does not complete the row or its parent task.
+
+The [package-owned producer](package_owned/main.omg) uses a dependency's private
+raw requirement and direct native binding. Its public checked implementation
+exports the original record fact; the application neither imports the private
+raw slot nor repeats its locator. The [copy twin](package_owned/invalid/main.omg)
+removes only the record's copy permission. The
+[missing monomorphic member control](controls/package_missing_member/main.omg)
+adds a second raw member without a binding: every monomorphic schema member
+still needs coverage, even when the application never calls that member.
+
+[Locator constructor controls](controls/locator_inference/) check inferred
+nested Mach-O/PE lengths, the zero unused coordinate prescribed by the sealed
+locator schema, ordinary record inference and explicit concrete context.
+Their invalid controls retain incompatible used widths and unresolved ordinary
+user coordinates; no rule supplies arbitrary zero parameters to user data.
+The [unused const application](controls/unused_requirement_const/main.omg)
+retains an ordinarily formed `42` tuple even when no operation demands it; its
+[twin](controls/unused_requirement_const/invalid/main.omg) contains a zero-divisor
+formation error, which an unused selection must not erase.
+
+Recorded intermediate observations: producer `e0d52193cb1b` executed the root
+and nine direct places with native/Terminal agreement and reloaded their ten
+canonical artifacts. Producer `842ec84f27fb` executed the private dependency
+producer with agreement; its copy and incomplete-schema controls refused.
+Those are retained observations of their exact producers, not final-candidate
+qualification or unmeasured Windows/Linux execution. Generic helper transport,
+full migrated-library/audio execution, final replay and independent review
+remain part of this task's acceptance.

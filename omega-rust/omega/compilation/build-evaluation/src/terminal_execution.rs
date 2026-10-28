@@ -48,8 +48,6 @@ pub struct ReturnedBuild {
     pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
     pub(crate) root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
-    pub(crate) native_formations:
-        Vec<language_semantics::declaration_selection::NativeBindingFormation>,
     pub(crate) native_bindings:
         Vec<language_semantics::declaration_selection::ExecutedNativeBinding>,
     pub(crate) exclusions: Vec<language_semantics::declaration_selection::ExecutedEnumExclusion>,
@@ -460,9 +458,9 @@ impl TerminalBuildActivation {
         let mut native_bindings = Vec::new();
         for selection in self.host.bindings.take_executed()? {
             match selection {
+                ExecutedBuildSelection::Native(binding) => native_bindings.push(binding),
                 ExecutedBuildSelection::Entry(binding) => root_bindings.push(binding),
                 ExecutedBuildSelection::Exclusion(selection) => exclusions.push(selection),
-                ExecutedBuildSelection::Native(selection) => native_bindings.push(selection),
                 ExecutedBuildSelection::Declaration(selection) => {
                     product_selections.push(selection)
                 }
@@ -480,7 +478,6 @@ impl TerminalBuildActivation {
             root_bindings,
             product_selections,
             native_bindings,
-            native_formations: self.host.bindings.native_formations().to_vec(),
             exclusions,
             declared_product_selections,
             log: self.host.requests.take_log()?,

@@ -2,6 +2,5 @@
 // external realization cannot author one.
 public boundary trait TextOutput { machine output_string(this: addr) reaches; }
 
-machine bare() satisfies TextOutput::output_string stack 4096 bytes;
 
 machine main() {}

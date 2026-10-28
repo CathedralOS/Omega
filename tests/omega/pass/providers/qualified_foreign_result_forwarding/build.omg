@@ -2,4 +2,8 @@ machine build(builder: &mut Build) {
     Build::application(builder, "qualified_foreign_result_forwarding");
     // Source-only contract checks call concrete leaves; no abstract service
     // invocation or program entry requests target-specific provider settlement.
+
+ Build::bind_table_function<RawNativeReports::read, Table::read>(builder, uefi_x86_64);
+ Build::bind_table_function<RawNativeReports::scalar, Table::scalar>(builder, uefi_x86_64);
+ Build::bind_table_function<RawNativeReports::indexed, Table::scalar>(builder, uefi_x86_64);
 }

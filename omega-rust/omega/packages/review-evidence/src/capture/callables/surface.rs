@@ -11,11 +11,11 @@ use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
 use crate::capture::PackageReviewInput;
 use crate::record::{
-    PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
-    PackageReviewCallableContract, PackageReviewCallableRole, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
-    PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
-    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
+    PackagePolicyCallableConformance, PackagePolicyTypeParameter, PackageReviewCallableContract,
+    PackageReviewCallableRole, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewConformanceBound, PackageReviewInstallationReach, PackageReviewNominalIdentity,
+    PackageReviewOperatorRealization, PackageReviewSignatureParameter,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
@@ -113,28 +113,8 @@ pub(super) fn project<'a>(
         &binders,
         &lifetime_parameters,
     )?;
-    let (policy_conformances, operator_realizations, requirement_realizations) = if matches!(
-        machine.supply_mode,
-        MachineSupplyMode::ExternalRealization { .. }
-    ) {
-        let supplies = super::project_checked_external_supply_policy(compilation, machine.symbol)?;
-        let mut conformances = Vec::new();
-        let mut operators = Vec::new();
-        for supply in supplies {
-            match supply.requirement {
-                PackagePolicyExternalRequirement::Trait(conformance) => {
-                    conformances.push(conformance);
-                }
-                PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
-                    operators.push(PackageReviewOperatorRealization { coordinate, alias });
-                }
-                PackagePolicyExternalRequirement::TopLevelRequirement { .. } => {}
-            }
-        }
-        (conformances, operators, Vec::new())
-    } else {
-        project_callable_conformances(compilation, machine, &binders, &lifetime_parameters, true)?
-    };
+    let (policy_conformances, operator_realizations, requirement_realizations) =
+        project_callable_conformances(compilation, machine, &binders, &lifetime_parameters, true)?;
     let contracts =
         project_callable_contracts(compilation, machine, entry, &binders, &lifetime_parameters)?;
     let service_reach = exactly_one(
@@ -264,7 +244,6 @@ pub(super) fn project<'a>(
         MachineSupplyMode::AdmissionClaim
         | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement
-        | MachineSupplyMode::ExternalRealization { .. }
             if machine.body_is_present =>
         {
             return Err(vec![Diagnostic::error(format!(
@@ -275,8 +254,7 @@ pub(super) fn project<'a>(
         | MachineSupplyMode::Boundary
         | MachineSupplyMode::AdmissionClaim
         | MachineSupplyMode::TopLevelRequirement
-        | MachineSupplyMode::Requirement
-        | MachineSupplyMode::ExternalRealization { .. } => {}
+        | MachineSupplyMode::Requirement => {}
     }
     let checked_service_reach = if has_checked_body {
         let realized = project_service_row(compilation, service_reach.inferred_transitive)?;
@@ -320,9 +298,6 @@ pub(super) fn project<'a>(
         MachineSupplyMode::TopLevelRequirement => PackageReviewCallableSupply::TopLevelRequirement,
         MachineSupplyMode::Boundary => PackageReviewCallableSupply::Boundary,
         MachineSupplyMode::AdmissionClaim => PackageReviewCallableSupply::AdmissionClaim,
-        MachineSupplyMode::ExternalRealization { .. } => {
-            PackageReviewCallableSupply::ExternalRealization
-        }
     };
 
     Ok(ProjectedSurface {

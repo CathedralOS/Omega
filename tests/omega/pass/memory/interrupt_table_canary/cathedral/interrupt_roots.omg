@@ -302,9 +302,9 @@ public InterruptMaskProviderMaskControl satisfies InterruptMaskControl {
     InterruptMaskControl::save_and_mask = InterruptMaskProvider::save_and_mask;
 }
 
-machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
+boundary machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
-    via ForeignBinding::CompilerIntrinsic;
+    ;
 
 // The selected x2APIC controller completes an interrupt with its EOI MSR.
 // The package owns that protocol and proves the actual register event; Core

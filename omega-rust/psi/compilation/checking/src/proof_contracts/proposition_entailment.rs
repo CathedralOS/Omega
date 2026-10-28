@@ -377,7 +377,9 @@ fn intake_call_propositions(
                     .proof_facts
                     .span_or_empty(contract.facts)
                     .iter()
-                    .any(|fact| matches!(fact, ProofFact::Proposition(_) | ProofFact::Expression(_)))
+                    .any(|fact| {
+                        matches!(fact, ProofFact::Proposition(_) | ProofFact::Expression(_))
+                    })
         });
     if !has_proposition_requires && !has_relevant_ensures {
         return;

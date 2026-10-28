@@ -17,12 +17,8 @@ public boundary trait Scheduler {
     machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair reaches;
 }
 public data SchedulerProvider { grant: addr; notify: addr; }
-linux_x86_64 machine SchedulerProvider::notify(value: i32)
-satisfies Scheduler::notify
-via ForeignBinding::Syscall(1);
-linux_x86_64 machine SchedulerProvider::grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair
-satisfies Scheduler::grant
-via ForeignBinding::VtableField(grant);
+
+
 data Main {
 }
 machine Main::main(main: &mut Main) { }

@@ -9,15 +9,12 @@ boundary trait Reports {
     requires view.protocol in Guid::Selected
     ensures result.code == 0;
 }
-uefi_x86_64 machine Table::read(table: &Table, view: View) -> Status
-satisfies Reports::read via ForeignBinding::TableFunction(read)
-requires view.protocol in Guid::Selected
-ensures result.code == 0;
+
 
 // Owning the descriptor carrier does not detach its live reference leaves.
 machine wrong(table: &Table, view: View) -> Status
 requires view.protocol in Guid::Selected
 ensures result.code == 0; {
     view.protocol.value = 0;
-    Table::read(table, view)
+    Reports::read(table, view)
 }

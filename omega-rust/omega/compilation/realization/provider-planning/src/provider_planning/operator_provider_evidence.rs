@@ -109,8 +109,8 @@ pub(crate) fn validate_selected_operator_provider_evidence(
 /// operator-use validation above. A checked-adapter plan is the direct-call
 /// adapter route; a compiler-intrinsic plan must name a compiler-known
 /// realization that satisfies exactly this requirement as an external leaf.
-/// An evaluated `via` binding keeps the call on the requirement's retained
-/// boundary seam: native realization joins the selected row's normalized
+/// An executed Build-owned native binding keeps the call on the requirement's
+/// retained boundary seam: native realization joins the selected row's normalized
 /// import or syscall to the demanded boundary by requirement identity. Only
 /// mechanisms with a freestanding host-ABI route can serve a direct call;
 /// vtable and table rows have no receiver table here.
@@ -354,8 +354,7 @@ fn selected_operator_provider_evidence(
                 .machine_trait_conformances(checked_provider)
                 .iter()
                 .any(|conformance| {
-                    conformance.external_binding.is_none()
-                        && (checked_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                    (checked_trees::typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                             typed,
                             checked_provider,
                             conformance,
@@ -519,26 +518,6 @@ fn use_site_is_generic_template(
     typed
         .machine(machine_symbol)
         .is_some_and(|machine| !typed.machine_type_parameters(machine).is_empty())
-}
-
-pub(crate) fn provider_type_package_identity(
-    typed: &TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-    provider_type_symbol(typed, machine)
-        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
-}
-
-pub(crate) fn provider_type_symbol(
-    typed: &TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-) -> Option<symbols::SymbolHandle> {
-    let attached_data = machine.attached_data.as_ref()?;
-    let mut owners = typed.data_definitions().iter().filter(|definition| {
-        definition.symbol == machine.attached_data_symbol && definition.name == *attached_data
-    });
-    let owner = owners.next()?;
-    owners.next().is_none().then_some(owner.symbol)
 }
 
 /// Machines specialized from `machine_identity`'s template inside

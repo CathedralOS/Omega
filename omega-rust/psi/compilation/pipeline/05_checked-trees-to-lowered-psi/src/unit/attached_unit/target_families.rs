@@ -125,9 +125,6 @@ pub(super) fn lower(
                 language_semantics::MachineSupplyMode::AdmissionClaim => {
                     TargetMachineSupply::AdmissionClaim
                 }
-                language_semantics::MachineSupplyMode::ExternalRealization { .. } => {
-                    TargetMachineSupply::ExternalRealization
-                }
             };
             members.push(TargetMachineFamilyMember {
                 target: member.target.as_str().to_owned(),

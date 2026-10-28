@@ -251,6 +251,7 @@ pub fn desugar_placed_views(
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
+        context.template_context,
     )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
     let frontier =

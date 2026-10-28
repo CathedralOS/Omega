@@ -293,7 +293,6 @@ fn visit_machine(
         {
             visit_type(syntax, *argument, &binders, deferred);
         }
-        visit_expression(syntax, clause.via_expression, &binders, deferred);
     }
     for expression in syntax
         .expressions

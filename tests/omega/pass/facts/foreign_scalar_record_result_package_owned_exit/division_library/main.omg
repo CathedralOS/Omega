@@ -1,0 +1,13 @@
+module main;
+public data Division [copy] { quotient: i64; remainder: i64; }
+public boundary trait IntegerDivision {
+ machine divide(numerator: i64, denominator: i64) -> Division reaches;
+}
+boundary trait RawDivision {
+ machine divide(numerator: i64, denominator: i64) -> Division reaches;
+}
+HostDivision satisfies IntegerDivision {
+ machine divide(numerator: i64, denominator: i64) -> Division invokes RawDivision; {
+  RawDivision::divide(numerator, denominator)
+ }
+}

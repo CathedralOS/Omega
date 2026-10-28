@@ -163,3 +163,162 @@ impl TypedTrees {
         })
     }
 }
+
+impl TypedTrees {
+    /// Authenticate a numeric realization declaration in the immutable core
+    /// catalog. This establishes source meaning only; it does not choose a
+    /// target provider or grant execution authority.
+    pub fn sealed_numeric_realization(
+        &self,
+        realization: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+    ) -> Option<NumericIntrinsic> {
+        let machine = self.machine_by_symbol(realization)?;
+        (self.sealed_numeric_realization_requirement(machine)? == requirement)
+            .then(|| self.numeric_intrinsic_execution(requirement))
+            .flatten()
+    }
+
+    fn sealed_numeric_realization_requirement(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> Option<symbols::SymbolHandle> {
+        use language_semantics::MachineSupplyMode;
+        if machine.target_family_interface {
+            let family = self
+                .target_machine_families
+                .iter()
+                .find(|family| family.canonical == machine.symbol)?;
+            if family.members.is_empty() {
+                return None;
+            }
+            let mut requirement = None;
+            let mut targets = Vec::new();
+            for member in &family.members {
+                if targets.contains(&member.target) {
+                    return None;
+                }
+                targets.push(member.target.clone());
+                let body = self.machine_by_symbol(member.machine)?;
+                if body.target_family_interface
+                    || self.machine_authored_target(body) != Some(member.target.as_str())
+                {
+                    return None;
+                }
+                let selected = self.sealed_numeric_realization_requirement(body)?;
+                if requirement.is_some_and(|prior| prior != selected) {
+                    return None;
+                }
+                requirement = Some(selected);
+            }
+            return requirement;
+        }
+        if machine.supply_mode != MachineSupplyMode::Boundary
+            || machine.body_is_present
+            || !machine.lifetime_parameters.is_empty()
+            || !self.machine_type_parameters(machine).is_empty()
+            || machine.target_family_interface
+        {
+            return None;
+        }
+        let target = self.machine_authored_target(machine)?;
+        language_semantics::declaration_selection::ProductTarget::from_canonical_name(target)?;
+        let namespace = format!("core::targets::{target}::float_impl");
+        let expected_source = std::path::PathBuf::from("core/targets")
+            .join(target)
+            .join("float_impl.omg");
+        if self.symbol_toolchain_relative_path(machine.symbol)? != expected_source
+            || self
+                .normalized_hermetic_symbol_identity(machine.symbol)
+                .ok()?
+                != format!(
+                    "toolchain::FloatNativeProvider::{}::{target}",
+                    machine.name.as_str()
+                )
+        {
+            return None;
+        }
+        let provider = self.symbols.symbol_module(machine.symbol);
+        if machine.attached_data.is_some()
+            || !provider.is_valid()
+            || self.symbols.get(provider).kind != symbols::SymbolKind::Module
+            || self.normalized_hermetic_symbol_identity(provider).ok()?
+                != format!("toolchain::{namespace}")
+        {
+            return None;
+        }
+        let [entry] = self.machine_states(machine) else {
+            return None;
+        };
+        let [conformance] = self.machine_trait_conformances(machine) else {
+            return None;
+        };
+        let requirement =
+            match crate::machine::resolve_satisfied_declaration(self, machine, conformance)? {
+                crate::machine::SatisfiedDeclaration::Operator(operator) => {
+                    if !crate::operator::is_sealed_toolchain_float_operator(self, operator)
+                        && (self.symbol_toolchain_relative_path(operator.symbol)?
+                            != std::path::Path::new("core/float_operations.omg")
+                            || !self
+                                .normalized_hermetic_symbol_identity(operator.symbol)
+                                .ok()?
+                                .starts_with("toolchain::"))
+                    {
+                        return None;
+                    }
+                    if !same_numeric_signature(
+                        self,
+                        self.state_parameters(entry),
+                        entry.return_type,
+                        self.operator_parameters(operator),
+                        operator.return_type,
+                    ) {
+                        return None;
+                    }
+                    operator.symbol
+                }
+                crate::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) => {
+                    if self.symbol_toolchain_relative_path(requirement.symbol)?
+                        != std::path::Path::new("core/float_operations.omg")
+                    {
+                        return None;
+                    }
+                    let [signature] = self.machine_states(requirement) else {
+                        return None;
+                    };
+                    if !same_numeric_signature(
+                        self,
+                        self.state_parameters(entry),
+                        entry.return_type,
+                        self.state_parameters(signature),
+                        signature.return_type,
+                    ) {
+                        return None;
+                    }
+                    requirement.symbol
+                }
+                _ => return None,
+            };
+        self.numeric_intrinsic_execution(requirement)?;
+        Some(requirement)
+    }
+}
+
+fn same_numeric_signature(
+    program: &TypedTrees,
+    actual: &[StateParameter],
+    actual_result: TypeReferenceHandle,
+    required: &[StateParameter],
+    required_result: TypeReferenceHandle,
+) -> bool {
+    actual.len() == required.len()
+        && actual.iter().zip(required).all(|(a, b)| {
+            a.is_const == b.is_const
+                && a.is_mutable == b.is_mutable
+                && a.relevance == b.relevance
+                && program.normalized_type_identity(a.type_reference)
+                    == program.normalized_type_identity(b.type_reference)
+        })
+        && program.normalized_type_identity(actual_result)
+            == program.normalized_type_identity(required_result)
+}

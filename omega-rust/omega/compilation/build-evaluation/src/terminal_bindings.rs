@@ -20,7 +20,7 @@ use terminal_interpreter::{
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
 
-mod native_bindings;
+mod native_locators;
 mod product_queries;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
 
@@ -34,8 +34,12 @@ pub struct TerminalBuildBindingHost {
     product_facet: Option<TerminalStructuralValue>,
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
-    native_formations: Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
     original: TerminalStructuralValue,
+    native_schemas: Vec<(
+        semantic_vocabulary::OperationId,
+        semantic_vocabulary::BoundaryMachineId,
+        native_locators::NativeBindingSchema,
+    )>,
     state: Mutex<BindingState>,
 }
 
@@ -43,7 +47,6 @@ pub struct TerminalBuildBindingHost {
 struct BindingState {
     pending: Vec<Option<psi_compiler::TerminalBuildSelectionRequest>>,
     executed: Vec<ExecutedBuildSelection>,
-    native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     awaiting_provider: Option<usize>,
     installed_providers: Vec<InstalledBuildProvider>,
     query: Option<product_queries::PendingQuery>,
@@ -112,25 +115,40 @@ impl TerminalBuildBindingHost {
                 artifact, &original, "product",
             )?)
         };
+        let mut native_schemas = Vec::new();
+        for call in calls
+            .iter()
+            .filter(|call| call.action == TerminalBuildBindingOperation::BindNative)
+        {
+            let declaration = artifact
+                .module()
+                .boundary_machine(call.boundary)
+                .ok_or("native binding protocol lost its boundary")?;
+            let [locator] = declaration.structural_parameters.as_slice() else {
+                return Err("native binding must retain one whole locator argument".into());
+            };
+            if locator.access != terminal_psi::StructuralAccess::Owned {
+                return Err("native binding must consume its closed locator value".into());
+            }
+            native_schemas.push((
+                call.operation,
+                call.boundary,
+                native_locators::NativeBindingSchema::prepare(
+                    artifact.module(),
+                    locator.structural_type,
+                )?,
+            ));
+        }
         Ok(Arc::new(Self {
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
             product_facet,
             account: account.cloned(),
             declarations: Arc::clone(declarations),
-            native_formations: bindings
-                .native_formations_for(artifact)
-                .cloned()
-                .ok_or("native formation belongs to another Terminal artifact")?,
             original,
+            native_schemas,
             state: Mutex::new(BindingState::default()),
         }))
-    }
-
-    pub(crate) fn native_formations(
-        &self,
-    ) -> &[language_semantics::declaration_selection::NativeBindingFormation] {
-        &self.native_formations
     }
 
     pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {
@@ -233,40 +251,6 @@ impl TerminalImportAdapter for TerminalBuildBindingAdapter {
 }
 
 impl TerminalEffectHandler for TerminalBuildBindingAdapter {
-    fn storage_arguments(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        if self.host.calls.iter().any(|call| {
-            call.boundary == boundary && call.action == TerminalBuildBindingOperation::BindNative
-        }) {
-            &[0]
-        } else {
-            &[]
-        }
-    }
-
-    fn handle_effect_with_buffers(
-        &mut self,
-        effect: &TerminalEffect,
-        byte_buffers: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
-        storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
-    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let native = matches!(effect, TerminalEffect::BoundaryCall { operation, boundary, .. }
-            if self.host.calls.iter().any(|call| call.operation == *operation && call.boundary == *boundary && call.action == TerminalBuildBindingOperation::BindNative));
-        if native {
-            if !byte_buffers.is_empty() {
-                return Err(TerminalEffectRejection::new(
-                    "native Build call has unexpected mutable byte buffers",
-                ));
-            }
-            return self.commit_native(effect, storage_buffers);
-        }
-        if !storage_buffers.is_empty() || !byte_buffers.is_empty() {
-            return Err(TerminalEffectRejection::new(
-                "Build selection has unexpected storage operands",
-            ));
-        }
-        self.handle_effect_result(effect)
-    }
-
     fn poll_host_computation(
         &mut self,
         effect: &TerminalEffect,
@@ -352,6 +336,138 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         }
         state.awaiting_provider = Some(ticket);
         Ok(false)
+    }
+
+    fn storage_arguments(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
+        if self
+            .host
+            .native_schemas
+            .iter()
+            .any(|(_, selected, _)| *selected == boundary)
+        {
+            &[0]
+        } else {
+            &[]
+        }
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        byte_buffers: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
+        storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall {
+            operation,
+            boundary,
+            arguments,
+            structural_arguments,
+            ..
+        } = effect
+        else {
+            return self.handle_effect_result(effect);
+        };
+        let Some((_, _, schema)) = self
+            .host
+            .native_schemas
+            .iter()
+            .find(|(site, selected, _)| site == operation && selected == boundary)
+        else {
+            if !storage_buffers.is_empty() || !byte_buffers.is_empty() {
+                return Err(TerminalEffectRejection::new(
+                    "Build selection has unexpected storage payload",
+                ));
+            }
+            return self.handle_effect_result(effect);
+        };
+        let refuse = TerminalEffectRejection::new;
+        if !byte_buffers.is_empty() || structural_arguments.len() != 1 {
+            return Err(refuse(
+                "native binding requires its one complete locator value",
+            ));
+        }
+        let [terminal_interpreter::TerminalBoundaryStorageBuffer::Structural(buffer)] =
+            storage_buffers
+        else {
+            return Err(refuse(
+                "native binding has no authenticated aggregate snapshot",
+            ));
+        };
+        if buffer.argument_index() != 0 {
+            return Err(refuse(
+                "native binding snapshot belongs to another argument",
+            ));
+        }
+        let value = schema.read(buffer).map_err(TerminalEffectRejection::new)?;
+        let call = self
+            .host
+            .calls
+            .iter()
+            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .ok_or_else(|| refuse("native binding lost its source-issued call"))?;
+        let BuildSelectionRequest::Declaration(request) = &call.request else {
+            return Err(refuse("native binding lost its declaration request"));
+        };
+        if request.operation != BuildOperation::NativeBinding {
+            return Err(refuse("native binding request has another operation"));
+        }
+        let mut state = self
+            .host
+            .state
+            .lock()
+            .map_err(|_| refuse("Build binding activation lock was poisoned"))?;
+        // The complete locator snapshot has already been authenticated above;
+        // only its ticket and target are scalar protocol operands.
+        let (ticket, values) = activation_ticket(arguments, &[], &state, &call.request)?;
+        let [
+            TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(code),
+                ..
+            },
+        ] = values
+        else {
+            return Err(refuse("native binding has no exact evaluated target"));
+        };
+        let target = language_semantics::declaration_selection::ProductTarget::from_code(
+            u64::try_from(*code).map_err(|_| refuse("native target code exceeds u64"))?,
+        )
+        .ok_or_else(|| refuse("native target is outside the catalog"))?;
+        let widths = call
+            .locator_widths
+            .ok_or_else(|| refuse("native binding lost its exact const application"))?;
+        let locator =
+            language_semantics::declaration_selection::decode_native_binding_value(&value, widths)
+                .map_err(TerminalEffectRejection::new)?;
+        if let Some(account) = &self.host.account {
+            let cells = value
+                .retained_cell_count()
+                .ok_or_else(|| refuse("native locator cell count overflowed"))?;
+            let bytes = value
+                .retained_text_byte_count()
+                .ok_or_else(|| refuse("native locator byte count overflowed"))?;
+            account
+                .charge_result_custody(cells, bytes)
+                .map_err(|error| TerminalEffectRejection::new(error.to_string()))?;
+        }
+        let selecting_machine = call
+            .selecting_machine
+            .ok_or_else(|| refuse("native binding lost its authored machine"))?;
+        state
+            .executed
+            .try_reserve(1)
+            .map_err(|_| refuse("cannot retain native binding intent"))?;
+        state.executed.push(ExecutedBuildSelection::Native(
+            language_semantics::declaration_selection::ExecutedNativeBinding {
+                request: Arc::clone(request),
+                target,
+                locator,
+                widths,
+                selecting_machine,
+                static_environment: call.static_environment.clone(),
+            },
+        ));
+        state.pending[ticket] = None;
+        Ok(TerminalEffectResult::Unit)
     }
 
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
@@ -473,6 +589,73 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     source_span: binding.source_span,
                     slot: binding.slot.clone(),
                     implementation,
+                })
+            }
+            (
+                BuildSelectionRequest::Declaration(request),
+                action,
+                [
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(code),
+                        ..
+                    },
+                ],
+            ) if matches!(
+                (request.operation, action),
+                (
+                    BuildOperation::NativeTableFunction,
+                    TerminalBuildBindingOperation::BindTableFunction
+                ) | (
+                    BuildOperation::NativeVtableField,
+                    TerminalBuildBindingOperation::BindVtableField
+                )
+            ) =>
+            {
+                let target = u64::try_from(*code)
+                    .ok()
+                    .and_then(language_semantics::declaration_selection::ProductTarget::from_code)
+                    .ok_or_else(|| refuse("typed table binding target is outside the catalog"))?;
+                let locator = if request.operation == BuildOperation::NativeTableFunction {
+                    language_semantics::declaration_selection::NativeBindingValue::TableFunction
+                } else {
+                    language_semantics::declaration_selection::NativeBindingValue::VtableField
+                };
+                ExecutedBuildSelection::Native(
+                    language_semantics::declaration_selection::ExecutedNativeBinding {
+                        request: Arc::clone(request),
+                        target,
+                        locator,
+                        widths: [0; 3],
+                        static_environment: call.static_environment.clone(),
+                        selecting_machine: call
+                            .selecting_machine
+                            .ok_or_else(|| refuse("typed table binding lost its authored owner"))?,
+                    },
+                )
+            }
+            (
+                BuildSelectionRequest::Declaration(request),
+                TerminalBuildBindingOperation::SameStackDemand,
+                [
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(code),
+                        ..
+                    },
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(bytes),
+                        ..
+                    },
+                ],
+            ) if request.operation == BuildOperation::NativeSameStackDemand => {
+                let target = u64::try_from(*code)
+                    .ok()
+                    .and_then(language_semantics::declaration_selection::ProductTarget::from_code)
+                    .ok_or_else(|| refuse("native demand target is outside the catalog"))?;
+                let bytes =
+                    u64::try_from(*bytes).map_err(|_| refuse("native demand exceeds u64"))?;
+                ExecutedBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
+                    request:Arc::clone(request), target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3], static_environment:call.static_environment.clone(),
+                    selecting_machine:call.selecting_machine.ok_or_else(||refuse("native demand lost its authored owner"))?,
                 })
             }
             (BuildSelectionRequest::Declaration(request), action, values) => {

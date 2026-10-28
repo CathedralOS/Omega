@@ -194,33 +194,6 @@ satisfies Transform::transform
     transformed(pair)
 }
 
-macos_arm64 machine prepare_binding() -> ForeignBinding<21, 13, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_prep_cif",
-        },
-    }
-}
-macos_arm64 machine prepare_leaf(
-    interface: &mut ForeignInterface, abi: u32, count: u32,
-    result_type: &PairType, argument_types: &ArgumentTypes
-) -> u32
-satisfies Prepare::prepare
-via prepare_binding();
-
-macos_arm64 machine invoke_binding() -> ForeignBinding<21, 9, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_call",
-        },
-    }
-}
-macos_arm64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut FloatPair32, arguments: &ArgumentValues
-)
-where machine Selected satisfies Transform::transform;
-satisfies Invoke::invoke
-via invoke_binding();
 
 data Main {
     interface: ForeignInterface;
@@ -379,36 +352,6 @@ machine LinuxPolicies::returned() -> ValuePlacement {
     placement
 }
 
-linux_x86_64 machine linux_prepare_binding() -> ForeignBinding<11, 12, 15> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libffi.so.8", symbol: "ffi_prep_cif", version: "LIBFFI_BASE_8.0",
-        },
-    }
-}
-
-linux_x86_64 machine prepare_leaf(
-    interface: &mut ForeignInterface, abi: u32, count: u32,
-    result_type: &PairType, argument_types: &ArgumentTypes
-) -> u32
-satisfies Prepare::prepare
-via linux_prepare_binding();
-
-
-linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libffi.so.8", symbol: "ffi_call", version: "LIBFFI_BASE_8.0",
-        },
-    }
-}
-
-linux_x86_64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut FloatPair32, arguments: &ArgumentValues
-)
-where machine Selected satisfies Transform::transform;
-satisfies Invoke::invoke
-via linux_invoke_binding();
 
 // libffi target ABI discriminants from the platform ffi headers.
 macos_arm64 machine ffi_abi() -> u32 { 1 }

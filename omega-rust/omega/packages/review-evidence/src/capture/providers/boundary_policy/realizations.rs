@@ -96,8 +96,10 @@ pub(super) fn project(
             .provider
             .row_realizations
             .get(*row_index)
-            .and_then(provider_planning::ProviderRowRealization::authored)
-            .ok_or_else(|| rejected("a selected application row without a realization"))?;
+            .and_then(|origin| origin.machine())
+            .ok_or_else(|| {
+                rejected("a checked application row without an authored realization machine")
+            })?;
         let declaration = nominal_identity(compilation, selected_symbol)?;
         let realization = match checked.realization {
             PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {

@@ -1,3 +1,12 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::package(builder, "authored_target_supplies");
+
+ Build::bind<Wait::poll>(builder, linux_x86_64, ForeignBinding::Syscall { number: 7 });
+ Build::bind<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_poll",
+        },
+    });
 }

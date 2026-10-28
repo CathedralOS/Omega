@@ -4,14 +4,6 @@
 //! and optimized operations share custody; consumers never parse debug names or
 //! reopen trees. Portable artifact bytes alone do not grant Build authority.
 
-mod native_formations;
-mod native_locator;
-pub(super) use native_formations::capture as capture_native_formations;
-pub use native_locator::{
-    TerminalBuildNativeLocator, TerminalBuildValueCase, TerminalBuildValueField,
-    TerminalBuildValueShape,
-};
-
 use language_semantics::declaration_selection::{BuildSelectionRequest, ProductDeclarationRequest};
 use semantic_vocabulary::OperationId;
 
@@ -29,9 +21,12 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
+    BindNative,
+    BindTableFunction,
+    BindVtableField,
+    SameStackDemand,
     Prepare,
     Bind,
-    BindNative,
     Select,
     SelectProvider,
     Exclude,
@@ -44,7 +39,12 @@ pub struct TerminalBuildBindingCall {
     pub action: TerminalBuildBindingOperation,
     pub request: TerminalBuildSelectionRequest,
     pub selecting_machine: Option<source::SourceSpan>,
-    pub native_locator: Option<TerminalBuildNativeLocator>,
+    pub locator_widths: Option<[u64; 3]>,
+    pub static_environment: Option<
+        std::sync::Arc<
+            language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+    >,
 }
 
 /// Source-issued context bound to exact Terminal semantics and, for private
@@ -55,8 +55,6 @@ pub struct TerminalBuildBindings {
     calls: std::sync::Arc<[TerminalBuildBindingCall]>,
     queries: std::sync::Arc<[crate::TerminalBuildQueryCall]>,
     declarations: std::sync::Arc<[std::sync::Arc<ProductDeclarationRequest>]>,
-    native_formations:
-        std::sync::Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
 }
 
 impl TerminalBuildBindings {
@@ -80,27 +78,17 @@ impl TerminalBuildBindings {
         (self.identity == artifact.custody_identity()).then_some(&self.declarations)
     }
 
-    pub fn native_formations_for(
-        &self,
-        artifact: terminal_codec::TerminalExecutionView<'_>,
-    ) -> Option<&std::sync::Arc<[language_semantics::declaration_selection::NativeBindingFormation]>>
-    {
-        (self.identity == artifact.custody_identity()).then_some(&self.native_formations)
-    }
-
     pub(super) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         calls: Vec<TerminalBuildBindingCall>,
         declarations: Vec<std::sync::Arc<ProductDeclarationRequest>>,
         queries: Vec<crate::TerminalBuildQueryCall>,
-        native_formations: Vec<language_semantics::declaration_selection::NativeBindingFormation>,
     ) -> Self {
         Self {
             identity: artifact.custody_identity(),
             calls: calls.into(),
             queries: queries.into(),
             declarations: declarations.into(),
-            native_formations: native_formations.into(),
         }
     }
 }
@@ -110,7 +98,6 @@ pub(super) fn capture(
     lowered: &lowered_psi::LoweredPsi,
 ) -> Result<Vec<TerminalBuildBindingCall>, diagnostics::Diagnostic> {
     let mut calls = Vec::new();
-    let mut native_shapes = std::collections::BTreeMap::new();
     for occurrence in &lowered.source_call_occurrences {
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
             occurrence.source_site
@@ -142,8 +129,11 @@ pub(super) fn capture(
         let action = match call.target.as_str() {
             "await_provider" => TerminalBuildBindingOperation::AwaitProvider,
             "prepare" => TerminalBuildBindingOperation::Prepare,
-            "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "bind_native" => TerminalBuildBindingOperation::BindNative,
+            "bind_table_function" => TerminalBuildBindingOperation::BindTableFunction,
+            "bind_vtable_field" => TerminalBuildBindingOperation::BindVtableField,
+            "same_stack_demand" => TerminalBuildBindingOperation::SameStackDemand,
+            "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "select" => TerminalBuildBindingOperation::Select,
             "select_provider" => TerminalBuildBindingOperation::SelectProvider,
             "exclude" => TerminalBuildBindingOperation::Exclude,
@@ -165,7 +155,11 @@ pub(super) fn capture(
                             .iter()
                             .any(|state| state.symbol == occurrence.source_state)
                     })
-                    .and_then(|machine| checked.symbols.symbol_source_span(machine.symbol))
+                    .and_then(|machine| {
+                        checked
+                            .symbols
+                            .symbol_source_span(checked.symbols.authored_origin(machine.symbol))
+                    })
                     .ok_or_else(|| {
                         diagnostics::Diagnostic::error(
                             "Build selection lost its authored machine coordinate",
@@ -175,19 +169,49 @@ pub(super) fn capture(
         } else {
             None
         };
-        let native_locator = if action == TerminalBuildBindingOperation::BindNative {
-            Some(native_locator::capture(
+        let locator_widths = if action == TerminalBuildBindingOperation::BindNative {
+            let arguments = checked.expression_table.expression_handles(call.arguments);
+            let locator = arguments.get(2).ok_or_else(|| {
+                diagnostics::Diagnostic::error("native binding lost its locator actual")
+            })?;
+            let reference = validation::expression_type_reference_in_state(
                 checked,
-                lowered,
                 occurrence.source_state,
                 occurrence.statement_index,
-                call,
-                boundary,
-                &mut native_shapes,
-            )?)
+                *locator,
+            )
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error("native binding lost its closed locator type")
+            })?;
+            Some(
+                validation::compiler_operations::native_binding_widths(&checked.typed, reference)
+                    .map_err(|errors| {
+                    errors.into_iter().next().unwrap_or_else(|| {
+                        diagnostics::Diagnostic::error("invalid native locator schema")
+                    })
+                })?,
+            )
         } else {
             None
         };
+        let static_environment = checked
+            .machines()
+            .iter()
+            .find(|machine| {
+                checked
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == occurrence.source_state)
+            })
+            .map(|machine| {
+                typed_trees::product_operand::capture_static_environment(
+                    &checked.typed,
+                    machine.symbol,
+                )
+            })
+            .transpose()
+            .map_err(diagnostics::Diagnostic::error)?
+            .flatten();
         calls.push(TerminalBuildBindingCall {
             operation,
             boundary,
@@ -212,7 +236,8 @@ pub(super) fn capture(
                 })
             })?,
             selecting_machine,
-            native_locator,
+            locator_widths,
+            static_environment,
         });
     }
     Ok(calls)

@@ -573,13 +573,6 @@ impl SyntaxCopy<'_> {
                     arguments: this.copy_type_reference_handle_span(other, clause.arguments),
                     requirement: clause.requirement,
                     alias: clause.alias,
-                    via: clause.via,
-                    via_expression: if clause.via_expression.is_valid() {
-                        this.copy_expression_handle(other, clause.via_expression)
-                    } else {
-                        crate::expression::ExpressionHandle::invalid()
-                    },
-                    via_keyword_source_span: clause.via_keyword_source_span,
                 },
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
@@ -610,7 +603,6 @@ impl SyntaxCopy<'_> {
             blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
             suspends: machine.suspends,
             blocks: machine.blocks,
-            admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
             nested_machines,

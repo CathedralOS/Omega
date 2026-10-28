@@ -1,5 +1,17 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_output_captured_reference_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<ParseNumber::parse>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strtol",
+        },
+    });
+ Build::bind<ParseNumber::parse>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "strtol", version: "GLIBC_2.2.5",
+        },
+    });
 }

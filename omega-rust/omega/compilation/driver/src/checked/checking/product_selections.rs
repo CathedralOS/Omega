@@ -3,16 +3,17 @@
 
 mod additional_declarations;
 mod exclusions;
+mod native_bindings;
 
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
 
 pub(super) fn admit(
-    typed: &TypedTrees,
+    source: &mut psi_compiler::SourceContinuation,
     computed: &mut ComputedBuildConfig,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let typed = source.typed();
     let representations = representation_planning::collect_opaque_representation_selections(
         typed,
         computed.selected_build_machine_symbol,
@@ -44,48 +45,23 @@ pub(super) fn admit(
     computed.config.grants = grants;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
-    computed.config.native_bindings = native
-        .into_iter()
-        .map(|selection| {
-            let evaluation = computed
-                .config
-                .native_binding_evaluation
-                .clone()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "native Build selection lost its completed evaluation",
-                    )]
-                })?;
-            Ok(provider_planning::native_bindings::NativeBuildSupply {
-                selection,
-                evaluation,
-            })
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    for bundle in package_inputs
-        .into_iter()
-        .flat_map(|inputs| inputs.product_dependency_native_bindings())
-    {
-        let selections = build_time_evaluation::native_bindings::collect_captured(
-            typed,
-            bundle.declarations(),
-            bundle.intents(),
-        )?;
-        for selection in selections {
-            let evaluation = bundle.evaluation().cloned().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "native dependency effect lost its completed evaluation",
-                )]
-            })?;
-            computed.config.native_bindings.push(
-                provider_planning::native_bindings::NativeBuildSupply {
-                    selection,
-                    evaluation,
-                },
-            );
-        }
-    }
+    computed.config.package_provider_selections = package_inputs
+        .map(|inputs| inputs.rejoin_package_provider_selections(typed))
+        .transpose()?
+        .unwrap_or_default();
     additional_declarations::admit(typed, computed)?;
+    native_bindings::admit(source, computed)?;
+    if let Some(inputs) = package_inputs {
+        let retained = inputs.retained_package_native_bindings()?;
+        let inherited = provider_planning::rejoin_package_native_bindings(source.typed(), retained)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        computed.config.admitted_native_bindings.extend(inherited);
+    }
+    provider_planning::unify_native_binding_identities(
+        &mut computed.config.admitted_native_bindings,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let typed = source.typed();
     computed.config.behavior_exclusions = exclusions::resolve(
         typed,
         computed.selected_build_machine_symbol,

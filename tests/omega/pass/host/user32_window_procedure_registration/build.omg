@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "user32_window_procedure_registration");
  Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
@@ -38,4 +39,16 @@ machine build(builder: &mut Build) {
  Build::select_provider<ModuleApi, Imports>(builder, local_unchecked);
  Build::select_provider<ModuleApi, Imports>(builder, alpha_bootstrap);
  Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<ClassApi::unregister>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "UnregisterClassA" } });
+ Build::bind<ClassApi::create>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "CreateWindowExA" } });
+ Build::bind<ClassApi::dispatch>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } });
+ Build::bind<ClassApi::is_window>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "IsWindow" } });
+ Build::bind<ClassApi::destroy>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DestroyWindow" } });
+ Build::bind<ContextApi::set_context>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "SetWindowLongPtrA" } });
+ Build::bind<ContextApi::get_context>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetWindowLongPtrA" } });
+ Build::bind<ModuleApi::acquire>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleExA" } });
+ Build::bind<ModuleApi::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "FreeLibrary" } });
+
+ Build::bind<ClassApi::register>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "RegisterClassExA" } });
 }

@@ -272,13 +272,12 @@ fn declares_exact_requirement(
         .machine_trait_conformances(machine)
         .iter()
         .any(|conformance| {
-            conformance.external_binding.is_none()
-                && matches!(
-                    resolve_satisfied_declaration(typed, machine, conformance),
-                    Some(SatisfiedDeclaration::Trait {
-                        definition: satisfied,
-                        requirement,
-                    }) if satisfied.symbol == definition.symbol && requirement.symbol == template
-                )
+            matches!(
+                resolve_satisfied_declaration(typed, machine, conformance),
+                Some(SatisfiedDeclaration::Trait {
+                    definition: satisfied,
+                    requirement,
+                }) if satisfied.symbol == definition.symbol && requirement.symbol == template
+            )
         })
 }

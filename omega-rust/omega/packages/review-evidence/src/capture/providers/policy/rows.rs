@@ -24,8 +24,8 @@ pub(super) fn project(
         .enumerate()
         .map(|(index, row)| {
             let requirement_symbol = retained.provider.row_requirements[index];
-            let origin = &retained.provider.row_realizations[index];
-            let realization_symbol = origin.authored();
+            let origin = retained.provider.row_realizations[index];
+            let realization_symbol = origin.machine();
             let declaring_schema = provider_requirement_schema(
                 compilation,
                 retained.provider.schema,
@@ -41,7 +41,7 @@ pub(super) fn project(
             // `invalid` realization symbol by construction, so the row keeps
             // no realization nominal and no lifetime partition.
             let realization = if toolchain_settled {
-                if !matches!(origin, provider_planning::ProviderRowRealization::Toolchain) {
+                if origin != provider_planning::ProviderRowOrigin::Toolchain {
                     return Err(rejected(
                         "toolchain-settled row names an authored realization",
                     ));
@@ -52,10 +52,31 @@ pub(super) fn project(
                     ));
                 }
                 None
-            } else if origin.native().is_some() {
+            } else if matches!(
+                origin,
+                provider_planning::ProviderRowOrigin::BuildNative { .. }
+            ) {
+                let expected: Vec<u32> =
+                    match declaring_schema {
+                        ProviderSchemaDeclaration::BoundaryTrait(symbol) => {
+                            let owner = compilation.trait_definition_by_symbol(symbol).ok_or_else(
+                                || rejected("Build-native row lost its declaring lifetime schema"),
+                            )?;
+                            (0..owner.lifetime_parameters.len())
+                                .map(|ordinal| ordinal as u32)
+                                .collect()
+                        }
+                        _ => Vec::new(),
+                    };
+                if row.requirement_lifetime_partition != expected {
+                    return Err(rejected(
+                        "Build-native row changed the requirement-owned lifetime partition",
+                    ));
+                }
                 None
             } else {
-                let realization_symbol = realization_symbol.ok_or_else(|| rejected("provider row lost its authored realization"))?;
+                let realization_symbol = realization_symbol
+                    .ok_or_else(|| rejected("authored row lost its realization machine"))?;
                 let realization = nominal_identity(compilation, realization_symbol)?;
                 validate_selected_provider_declaration_owner(
                     &realization,
@@ -107,9 +128,36 @@ pub(super) fn project(
                 native_build,
                 requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
                 admitted_same_stack_bytes: row.admitted_same_stack_bytes,
-                binding,
-                compiler_intrinsic_execution,
-                installation_reach,
+                binding: bindings::project(
+                    compilation,
+                    &plan.identities,
+                    &row.binding,
+                    requirement_symbol,
+                    origin,
+                    toolchain_settled,
+                )?,
+                compiler_intrinsic_execution: if let Some(realization_symbol) = realization_symbol {
+                    project_compiler_intrinsic_execution(
+                        compilation,
+                        plan,
+                        row,
+                        retained.provider.schema,
+                        requirement_symbol,
+                        realization_symbol,
+                        Some(target.target_name()),
+                        retained.row_compiler_intrinsic_executions[index],
+                    )?
+                } else {
+                    None
+                },
+                installation_reach: project_selected_installation_reach(
+                    compilation,
+                    plan,
+                    declaring_schema,
+                    requirement_symbol,
+                    realization_symbol,
+                    &requirement,
+                )?,
             })
         })
         .collect()

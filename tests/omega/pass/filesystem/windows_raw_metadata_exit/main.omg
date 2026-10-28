@@ -15,15 +15,7 @@ boundary trait FixturePipe {
     blocks;
 }
 data FixturePipeImports {}
-windows_x86_64 machine fixture_pipe_binding() -> ForeignBinding<12, 10, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "CreatePipe"
-    } }
-}
-windows_x86_64 machine FixturePipeImports::create(read: &mut u64, write: &mut u64, security: u64, size: u32) -> i32
-satisfies FixturePipe::create via fixture_pipe_binding()
-requires security == 0 && size == 0
-blocks;
+
 
 data Main { handle: u64; pipe_read: u64; pipe_write: u64; buffer: [u8; 8]; status: i32; }
 

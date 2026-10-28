@@ -13,18 +13,10 @@ public boundary trait ParseNumber {
     reaches
     requires base == 10;
 }
-macos_arm64 machine parse_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strtol",
-        },
-    }
-}
+
 // The admitted contract deliberately demands stronger input access than
 // strtol uses. Output access must not weaken that retained input obligation.
-macos_arm64 machine parse<'source>(source: &'source mut TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
-satisfies ParseNumber::parse via parse_binding()
-requires base == 10;
+
 
 machine observe(value: &u8) -> u8 { value }
 

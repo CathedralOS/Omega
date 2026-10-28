@@ -9,29 +9,6 @@ public boundary trait DescriptorIo {
 public data DescriptorImports {}
 data Main { before: u32; packet: Packet; after: u32; }
 
-public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
-    } }
-}
-public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
-    } }
-}
-macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
-    satisfies DescriptorIo::read via read_binding();
-macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
-    satisfies DescriptorIo::write via write_binding();
-
-linux_x86_64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
-    satisfies DescriptorIo::read via ForeignBinding::Syscall(0);
-linux_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
-    satisfies DescriptorIo::read via ForeignBinding::Syscall(63);
-linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
-    satisfies DescriptorIo::write via ForeignBinding::Syscall(1);
-linux_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
-    satisfies DescriptorIo::write via ForeignBinding::Syscall(64);
 
 machine receive(packet: &mut Packet) -> i64 reaches DescriptorIo blocks; {
     block DescriptorIo::read(0, packet, 6)

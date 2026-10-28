@@ -95,9 +95,9 @@ pub(crate) fn close_constant_recipes(
                     .row_requirements
                     .iter()
                     .copied()
-                    .zip(selected.provider.row_realizations.iter())
-                    .filter_map(|(required, owner)| {
-                        owner.authored().map(|machine| (required, machine))
+                    .zip(selected.provider.row_realizations.iter().copied())
+                    .filter_map(|(requirement, origin)| {
+                        origin.machine().map(|machine| (requirement, machine))
                     })
             })
             .collect();

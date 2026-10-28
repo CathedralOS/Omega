@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_authored_same_stack_demand");
+
+ Build::bind_vtable_field<TextOutput::output_string, Protocol::output_string>(builder, uefi_x86_64);
+ Build::same_stack_demand<TextOutput::output_string>(builder, uefi_x86_64, 4096);
+ Build::bind_table_function<TextOutput::query, BootServices::query>(builder, uefi_x86_64);
+ Build::same_stack_demand<TextOutput::query>(builder, uefi_x86_64, 8192);
+}

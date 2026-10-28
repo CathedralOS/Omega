@@ -1213,3 +1213,34 @@ impl TypedTrees {
         self.operator_path_members(span).joined_path()
     }
 }
+
+impl TypedTrees {
+    pub fn retain_designated_static_type_argument(
+        &mut self,
+        owner: symbols::SymbolHandle,
+        reference: crate::types::TypeReferenceHandle,
+        source_span: source::SourceSpan,
+    ) {
+        let row = super::DesignatedStaticTypeArgument {
+            owner,
+            reference,
+            source_span,
+        };
+        if !self
+            .tables
+            .designated_static_type_arguments
+            .iter()
+            .any(|(_, prior)| prior == &row)
+        {
+            self.tables.designated_static_type_arguments.insert(row);
+        }
+    }
+    pub fn designated_static_type_arguments(
+        &self,
+    ) -> impl Iterator<Item = &super::DesignatedStaticTypeArgument> {
+        self.tables
+            .designated_static_type_arguments
+            .iter()
+            .map(|(_, row)| row)
+    }
+}

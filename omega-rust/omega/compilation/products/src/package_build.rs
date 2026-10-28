@@ -10,8 +10,8 @@ mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
-    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
-    PackageGeneratedSourceBundle,
+    IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
+    PackageCompilationInputs,
 };
 use std::path::PathBuf;
 use target::TargetProfile;
@@ -23,8 +23,7 @@ pub struct PreparedPackageBuild {
     inputs: PackageCompilationInputs,
     rollback: OptimizationRollback,
     prepared: PreparedBuild,
-    generated_sources: PackageGeneratedSourceBundle,
-    native_bindings: package_compilation::PackageNativeBindingBundle,
+    build_handoff: PackageBuildHandoff,
 }
 
 impl PreparedPackageBuild {
@@ -83,9 +82,8 @@ impl PreparedPackageBuild {
             && build.config.same_source_choices(&other_build.config)
             && build.root_binding_requests == other_build.root_binding_requests
             && build.declared_product_selections == other_build.declared_product_selections
-            && build.product_selection_requests == other_build.product_selection_requests
             && build.native_binding_requests == other_build.native_binding_requests
-            && build.native_formations == other_build.native_formations
+            && build.product_selection_requests == other_build.product_selection_requests
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
             && build.project_declaration == other_build.project_declaration
@@ -119,47 +117,44 @@ impl PreparedPackageBuild {
         rollback: OptimizationRollback,
         prepared: PreparedBuild,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let generated_sources = prepared.build_sources.package_generated_source_bundle(
-            prepared.built.source.typed(),
-            &inputs,
-            target,
-            prepared
-                .built
-                .computed_build_config
-                .generated_sources
-                .clone(),
-        )?;
-        let build = &prepared.built.computed_build_config;
-        let (declarations, intents) =
-            build_time_evaluation::native_bindings::capture_package_intents(
-                inputs.root(),
-                &build.native_formations,
-                &build.native_binding_requests,
-            )?;
-        let native_bindings = package_compilation::PackageNativeBindingBundle::from_checked(
-            generated_sources.clone(),
-            declarations,
-            intents,
-            build.config.native_binding_evaluation.clone(),
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let build_handoff = prepared
+            .build_sources
+            .package_build_handoff(
+                prepared.built.source.typed(),
+                &inputs,
+                target,
+                prepared
+                    .built
+                    .computed_build_config
+                    .generated_sources
+                    .clone(),
+            )?
+            .with_checked_provider_selections(
+                prepared.built.source.typed(),
+                &prepared
+                    .built
+                    .computed_build_config
+                    .config
+                    .provider_selections,
+                prepared
+                    .built
+                    .computed_build_config
+                    .observation_summary
+                    .as_ref(),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {
             root_path,
             target,
             inputs,
             rollback,
             prepared,
-            generated_sources,
-            native_bindings,
+            build_handoff,
         })
     }
 
-    pub fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
-        &self.generated_sources
-    }
-
-    pub fn native_binding_bundle(&self) -> &package_compilation::PackageNativeBindingBundle {
-        &self.native_bindings
+    pub fn build_handoff(&self) -> &PackageBuildHandoff {
+        &self.build_handoff
     }
 
     pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {

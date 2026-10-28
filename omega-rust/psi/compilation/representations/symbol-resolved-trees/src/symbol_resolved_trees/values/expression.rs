@@ -4,6 +4,7 @@
 //! expressions between tables.
 
 mod display;
+mod static_members;
 mod symbol_copies;
 mod table_copies;
 pub(crate) use table_copies::ExpressionSource;
@@ -70,6 +71,7 @@ struct ExpressionSpanStorage {
     match_arms: Arena<TableMatchArm>,
     match_fields: Arena<TableMatchField>,
     match_subjects: Arena<MatchSubjectCapture>,
+    static_members: Arena<StaticMachineArgument>,
     match_proof_selectors: Arena<crate::statement::OutcomeProofSelector>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
 }
@@ -99,6 +101,34 @@ macro_rules! expression_node_accessors {
 }
 
 impl ExpressionTable {
+    pub fn insert_static_member(
+        &mut self,
+        member: StaticMachineArgument,
+    ) -> Handle<StaticMachineArgument> {
+        self.spans.static_members.insert(member)
+    }
+
+    pub fn static_member(
+        &self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&StaticMachineArgument> {
+        self.spans
+            .static_members
+            .is_valid(member)
+            .then(|| self.spans.static_members.get(member))
+    }
+
+    pub fn static_member_mut(
+        &mut self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&mut StaticMachineArgument> {
+        if self.spans.static_members.is_valid(member) {
+            Some(self.spans.static_members.get_mut(member))
+        } else {
+            None
+        }
+    }
+
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,
@@ -204,6 +234,7 @@ impl ExpressionTable {
                 match_arms: Arena::new(),
                 match_fields: Arena::new(),
                 match_subjects: Arena::new(),
+                static_members: Arena::new(),
                 match_proof_selectors: Arena::new(),
                 authored_selection_occurrence_ids: Arena::new(),
             },
@@ -223,6 +254,7 @@ impl ExpressionTable {
         self.spans.match_arms.reset_retain_capacity();
         self.spans.match_fields.reset_retain_capacity();
         self.spans.match_subjects.reset_retain_capacity();
+        self.spans.static_members.reset_retain_capacity();
         self.spans.match_proof_selectors.reset_retain_capacity();
         self.spans
             .authored_selection_occurrence_ids
@@ -762,7 +794,7 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: arena::Handle<crate::types::TypeReference>,
@@ -780,6 +812,9 @@ pub struct StaticMachineArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticSymbolApplication {
+    /// Continuation selected after this exact applied owner, as in
+    /// `Owner<T>::member<U>`. Zero denotes no qualified continuation.
+    pub member: Handle<StaticMachineArgument>,
     pub lifetime_arguments: Box<[DiagnosticName]>,
     pub arguments: Box<[StaticMachineArgument]>,
 }

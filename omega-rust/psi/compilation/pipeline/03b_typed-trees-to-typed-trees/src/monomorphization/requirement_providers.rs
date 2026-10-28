@@ -23,9 +23,6 @@ pub(crate) fn generate_requirement_provider_specializations(
         // scopes before using the shared tuple specialization path.
         let mut requirements = Vec::new();
         for conformance in program.machine_trait_conformances(machine) {
-            if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
-                continue;
-            }
             let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement,

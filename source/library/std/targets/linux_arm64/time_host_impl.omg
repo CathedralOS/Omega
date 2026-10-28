@@ -43,14 +43,6 @@ blocks;
 
 data LinuxArm64TimeImports { }
 
-linux_arm64 machine LinuxArm64TimeImports::clock_gettime(clock_id: u32, instant: &mut LinuxArm64TimeHostInstant) -> i64
-    satisfies LinuxArm64TimeRead::clock_gettime
-    via ForeignBinding::Syscall(113);
-
-linux_arm64 machine LinuxArm64TimeImports::nanosleep(request: &LinuxArm64TimeHostInstant, remainder: u64) -> i64
-    satisfies LinuxArm64TimeRead::nanosleep
-    via ForeignBinding::Syscall(101)
-    blocks;
 
 // `seconds * 1_000_000_000 + nanoseconds` in the Wrapping spelling
 // `Time::now` already uses for the same reason: the interval fold cannot
@@ -153,6 +145,4 @@ blocks;
 
 linux_arm64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
     TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
-    TimeHostNativeProvider::select_provider<LinuxArm64TimeRead::clock_gettime, LinuxArm64TimeImports>(defaults);
-    TimeHostNativeProvider::select_provider<LinuxArm64TimeRead::nanosleep, LinuxArm64TimeImports>(defaults);
 }

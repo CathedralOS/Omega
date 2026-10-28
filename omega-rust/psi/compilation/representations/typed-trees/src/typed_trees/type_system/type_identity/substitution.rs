@@ -72,6 +72,13 @@ pub(super) fn index_argument(
             )
         }
         IndexIdentityArgument::StaticArgument(argument) => {
+            if argument
+                .application
+                .as_ref()
+                .is_some_and(|application| application.member.is_valid())
+            {
+                return rejected(context);
+            }
             if argument.type_reference.is_valid() {
                 if !program
                     .type_reference_table
@@ -109,9 +116,9 @@ pub(super) fn index_argument(
             {
                 return index_name(program, argument.symbol, spelling.as_str(), context);
             }
-            if let Some(identity) =
-                super::identity_context::static_nominal_argument_identity(program, argument, context)
-            {
+            if let Some(identity) = super::identity_context::static_nominal_argument_identity(
+                program, argument, context,
+            ) {
                 return identity;
             }
             if !argument.symbol.is_valid() || argument.evidence_projection.is_some() {

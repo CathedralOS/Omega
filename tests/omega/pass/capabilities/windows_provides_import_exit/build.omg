@@ -1,7 +1,15 @@
+use omega::language::core::external_binding;
 // Windows authored-import runtime canary: select the exact supported entry.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "windows_provides_import_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<Beeper::beep>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    });
 }

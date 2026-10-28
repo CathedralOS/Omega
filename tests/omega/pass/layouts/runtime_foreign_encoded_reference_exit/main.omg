@@ -44,26 +44,8 @@ public data ForeignByte { value: i8; }
 public boundary trait ClearByte {
     machine clear(value: &mut ForeignByte, count: u64) reaches;
 }
-macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_bzero",
-        },
-    }
-}
 
-linux_x86_64 machine linux_x86_64_clear_binding() -> ForeignBinding<9, 5, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "bzero", version: "GLIBC_2.2.5",
-        },
-    }
-}
-macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
-    satisfies ClearByte::clear via clear_binding();
 
-linux_x86_64 machine clear_bytes(value: &mut ForeignByte, count: u64)
-    satisfies ClearByte::clear via linux_x86_64_clear_binding();
 machine clear(value: &mut RawView) reaches ClearByte {
     let physical: &mut ForeignByte = value as &mut ForeignByte;
     ClearByte::clear(physical, 1);
@@ -72,26 +54,8 @@ machine clear(value: &mut RawView) reaches ClearByte {
 public boundary trait CompareByte {
     machine compare(left: &RawView, right: &RawView, count: u64) -> i32 reaches;
 }
-macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp",
-        },
-    }
-}
 
-linux_x86_64 machine linux_x86_64_compare_binding() -> ForeignBinding<9, 6, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
-        },
-    }
-}
-macos_arm64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
-    satisfies CompareByte::compare via compare_binding();
 
-linux_x86_64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
-    satisfies CompareByte::compare via linux_x86_64_compare_binding();
 machine compare(left: &RawView, right: &RawView) -> i32 reaches CompareByte {
     CompareByte::compare(left, right, 1)
 }

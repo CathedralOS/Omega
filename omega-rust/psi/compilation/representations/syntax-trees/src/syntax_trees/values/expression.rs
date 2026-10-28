@@ -22,10 +22,38 @@ paged_roster! {
         arena match_arms: TableMatchArm,
         arena match_fields: TableMatchField,
         arena match_subjects: MatchSubjectCapture,
+        arena static_members: StaticMachineArgument,
     }
 }
 
 impl ExpressionTable {
+    pub fn insert_static_member(
+        &mut self,
+        member: StaticMachineArgument,
+    ) -> Handle<StaticMachineArgument> {
+        self.static_members.insert(member)
+    }
+
+    pub fn static_member(
+        &self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&StaticMachineArgument> {
+        self.static_members
+            .is_valid(member)
+            .then(|| self.static_members.get(member))
+    }
+
+    pub fn static_member_mut(
+        &mut self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&mut StaticMachineArgument> {
+        if self.static_members.is_valid(member) {
+            Some(self.static_members.get_mut(member))
+        } else {
+            None
+        }
+    }
+
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,
@@ -371,7 +399,7 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -393,6 +421,9 @@ pub struct StaticMachineArgument {
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub struct StaticSymbolApplication {
+    /// Continuation selected after this exact applied owner, as in
+    /// `Owner<T>::member<U>`. Zero denotes no qualified continuation.
+    pub member: Handle<StaticMachineArgument>,
     /// Explicit erased lifetime arguments. An empty lane may be filled only
     /// by ordinary lifetime elision after the declaration is resolved.
     pub lifetime_arguments: Box<[Identifier]>,

@@ -59,17 +59,7 @@ public boundary trait ByteOutput {
     machine write(descriptor: i32, value: &u8, count: u64) -> i64 reaches;
 }
 public data ByteImports {}
-public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
-    } }
-}
-macos_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
-    satisfies ByteOutput::write via write_binding();
-linux_x86_64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
-    satisfies ByteOutput::write via ForeignBinding::Syscall(1);
-linux_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
-    satisfies ByteOutput::write via ForeignBinding::Syscall(64);
+
 
 data Main { encoded: SignedByte<NarrowByte>; }
 

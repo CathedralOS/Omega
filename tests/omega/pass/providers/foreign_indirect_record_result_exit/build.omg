@@ -1,4 +1,16 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_indirect_record_result_exit");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<AllocationProbe::statistics>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "mallinfo2", version: "GLIBC_2.33",
+        },
+    });
+ Build::bind<AllocationProbe::exit_with>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5",
+        },
+    });
 }

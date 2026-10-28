@@ -96,7 +96,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             }
             if after_requirement.at_contextual("via") {
                 return Err(after_requirement.error_here(
-                    "a `where machine` nominal requirement cannot use `via`; bindings belong on the satisfying bodyless machine",
+                    "a `where machine` nominal requirement cannot use `via`; native bindings belong to the owning package Build",
                 ));
             }
             let after_semicolon =

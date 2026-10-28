@@ -70,20 +70,23 @@ pub(crate) fn request(
     };
     if !operand_count_valid
         || evidence_count != 0
-        || if operation == BuildOperation::NativeBinding {
-            ordinary_count != 3
-        } else if operation == BuildOperation::ProviderSelection {
-            !(2..=3).contains(&ordinary_count)
-        } else {
-            ordinary_count != 1
+        || match operation {
+            BuildOperation::ProviderSelection => !(2..=3).contains(&ordinary_count),
+            BuildOperation::NativeBinding | BuildOperation::NativeSameStackDemand => {
+                ordinary_count != 3
+            }
+            BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField => {
+                ordinary_count != 2
+            }
+            _ => ordinary_count != 1,
         }
     {
         return Err(Diagnostic::error(format!(
             "{} requires {} and {}",
             operation.authored_spelling(),
             match operation {
-                BuildOperation::NativeBinding => "one exact requirement operand",
-                BuildOperation::ServiceExclusion
+                BuildOperation::NativeBinding
+                | BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::WireCompatibilityRequest =>
@@ -123,8 +126,11 @@ pub(crate) fn request(
     } else {
         None
     };
-    let operands = operands.iter().skip(usize::from(requirement.is_some())).map(|operand| {
-        if operand.type_reference.is_valid() || operand.application.is_some()
+    let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
+        let applied_requirement = operation.product_operand_role(position) == Some(language_semantics::declaration_selection::ProductOperandRole::Requirement)
+            && matches!(operation, BuildOperation::NativeBinding | BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField | BuildOperation::NativeSameStackDemand)
+            && operand.application.is_some();
+        if operand.type_reference.is_valid() || (operand.application.is_some() && !applied_requirement)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {
             return Err(Diagnostic::error("Build selection operands must name bare declarations, not applied types, conformance applications, values or projections")
@@ -136,7 +142,9 @@ pub(crate) fn request(
             return Err(Diagnostic::error("Product operand has no single authored source coordinate")
                 .with_source_span(span));
         }
+        let application = applied_requirement.then(|| super::capture_product_operands::capture(source, operand).map(std::sync::Arc::new)).transpose()?;
         Ok(ProductDeclarationOperand {
+            application,
             path: operand.path.joined_path(),
             source_span: source::SourceSpan::new(first.source_id,
                 source::Span::new(first.span.start, last.span.end)),

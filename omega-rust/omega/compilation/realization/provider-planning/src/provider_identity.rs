@@ -121,12 +121,11 @@ pub fn provider_trait_requirement_matches(
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
 ) -> bool {
-    provider_row_matches(context, plan, row, machine)
+    machine.supply_mode.is_checked_body()
+        && machine.body_is_present
+        && provider_row_matches(context, plan, row, machine)
         && provider_trait_application(context, plan, row, machine, declaring_trait, requirement)
-            .is_some_and(|application| match application {
-                ProviderTraitApplication::Named { .. } => true,
-                ProviderTraitApplication::Machine(edge) => edge.external_binding.is_none(),
-            })
+            .is_some()
 }
 
 /// The one row of a named provider's map that a plan row installs, joined by
@@ -153,6 +152,46 @@ pub(crate) fn named_provider_row<'a>(
     });
     let entry = matching.next()?;
     (matching.next().is_none() && context.contains(entry.realization_machine)).then_some(entry)
+}
+
+/// The exact declaration that owns a provider machine's namespace. Module
+/// ownership is code ownership; it does not manufacture a data carrier or
+/// grant a boundary realization. The caller still authenticates every row.
+pub(crate) fn provider_owner_symbol(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<symbols::SymbolHandle> {
+    if machine.attached_data.is_none() {
+        let owner = typed.symbols.symbol_module(machine.symbol);
+        return (owner.is_valid() && typed.symbols.get(owner).kind == symbols::SymbolKind::Module)
+            .then_some(owner);
+    }
+    let attached_data = machine.attached_data.as_ref()?;
+    let mut owners = typed.data_definitions().iter().filter(|definition| {
+        definition.symbol == machine.attached_data_symbol && definition.name == *attached_data
+    });
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(owner.symbol)
+}
+
+pub(crate) fn provider_owner_path(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<String> {
+    let owner = provider_owner_symbol(typed, machine)?;
+    if typed.symbols.get(owner).kind == symbols::SymbolKind::Module {
+        Some(typed.symbols.display_path(owner, "::"))
+    } else {
+        typed.attached_data_path(machine)
+    }
+}
+
+pub(crate) fn provider_owner_package_identity(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+    provider_owner_symbol(typed, machine)
+        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
 }
 
 /// Rejoin a provider row to its declaration, including an exact specialization
@@ -209,12 +248,11 @@ pub fn provider_row_matches(
             .count()
             == 1
     } else {
-        machine.attached_data_symbol.is_valid()
-            && context.contains(machine.attached_data_symbol)
-            && typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
-            && typed
-                .symbols
-                .symbol_package_identity(machine.attached_data_symbol)
-                == plan.provider_type_package_identity
+        let Some(owner) = provider_owner_symbol(typed, machine) else {
+            return false;
+        };
+        context.contains(owner)
+            && provider_owner_path(typed, machine).as_deref() == Some(plan.provider_type.as_str())
+            && typed.symbols.symbol_package_identity(owner) == plan.provider_type_package_identity
     }
 }

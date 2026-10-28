@@ -51,8 +51,7 @@ pub(crate) use key::{compiled_review_key, compiled_review_key_with_identity};
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
     AcceptedSemanticBinding, CheckedSourceCacheLimits, ConsumedSourceUnit,
-    IndependentComponentDescription, PackageGeneratedSourceBundle,
-    PackageSourceConsumptionCommitment,
+    IndependentComponentDescription, PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
 use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
@@ -99,7 +98,7 @@ pub(crate) struct CachedCompiledReview {
     restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
     semantic_bindings: Vec<AcceptedSemanticBinding>,
     semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
-    generated_source_bundle: PackageGeneratedSourceBundle,
+    build_handoff: PackageBuildHandoff,
     policy_bytes: Vec<u8>,
     facts: CachedOccurrenceFacts,
     policy_canonical_bytes: u64,
@@ -160,7 +159,7 @@ impl CachedCompiledReview {
             restricted_build_requests: self.restricted_build_requests,
             semantic_bindings: self.semantic_bindings,
             semantic_binding_candidates: self.semantic_binding_candidates,
-            generated_source_bundle: self.generated_source_bundle,
+            build_handoff: self.build_handoff,
             policy,
             policy_rows,
             policy_commitment,
@@ -309,15 +308,15 @@ pub(crate) fn record_compiled_review(
         lineage: lineage_digest(review.key().source_lineage()),
         resolution: resolution_digest(review.resolution()),
         purpose: review.checked_context().purpose(),
-        target: review.generated_source_bundle().target(),
-        build_execution_profile: review.generated_source_bundle().build_execution_profile(),
+        target: review.build_handoff().target(),
+        build_execution_profile: review.build_handoff().build_execution_profile(),
         selected_build_machine_identity: review.selected_build_machine_identity().to_owned(),
         build_evaluation_usage: review.build_evaluation_usage(),
         build_observation_summary: review.build_observation_summary().cloned(),
         restricted_build_requests: review.restricted_build_requests().to_vec(),
         semantic_bindings: review.semantic_bindings().to_vec(),
         semantic_binding_candidates: review.semantic_binding_candidates().to_vec(),
-        generated_source_bundle: review.generated_source_bundle().clone(),
+        build_handoff: review.build_handoff().clone(),
         policy_bytes,
         facts,
         policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,

@@ -89,9 +89,9 @@ impl SourceCompilationRequest {
             build_helper_identity: self.build_helper_identity,
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
-        if let Some(activation) = &activation {
-            activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
-        }
+        let template_context = activation.as_ref().map(|activation| {
+            activation.remove_retained_syntax(&mut self.syntax, &self.source_items)
+        });
         let retained_program = activation
             .as_ref()
             .map(|activation| activation.typing.typed().clone());
@@ -112,62 +112,64 @@ impl SourceCompilationRequest {
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
                     predecessor: retained.clone(),
+                    template_context: template_context.as_ref(),
                 },
             },
         )?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-        let (mut typing, mut pending_bodies) =
-            if let (Some(typing), Some(base)) = (retained, resolved_base) {
-                let _profile = phase_profile::guard("psi.source.prepare.resolve_extension");
-                let extension = observer.record_result(PsiCompilationStage::Resolution, || {
-                    syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
-                        syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
-                            base: Arc::unwrap_or_clone(base),
+        let (mut typing, mut pending_bodies) = if let (Some(typing), Some(base)) =
+            (retained, resolved_base)
+        {
+            let _profile = phase_profile::guard("psi.source.prepare.resolve_extension");
+            let extension = observer.record_result(PsiCompilationStage::Resolution, || {
+                syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
+                    syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
+                        base: Arc::unwrap_or_clone(base),
+                        syntax,
+                        sources: self.sources,
+                        top_level_bindings: self.top_level_bindings,
+                    },
+                )
+            })?;
+            observer.record_result(PsiCompilationStage::Typing, || {
+                typing.append_deferred(extension)
+            })?
+        } else {
+            let mut frontier = {
+                let _profile = phase_profile::guard("psi.source.prepare.resolve_deferred");
+                observer.record_result(PsiCompilationStage::Resolution, || {
+                    syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+                        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                             syntax,
-                            sources: self.sources,
+                            sources: Some(self.sources),
                             top_level_bindings: self.top_level_bindings,
+                            retained_base: None,
                         },
                     )
-                })?;
-                observer.record_result(PsiCompilationStage::Typing, || {
-                    typing.append_deferred(extension)
                 })?
-            } else {
-                let mut frontier = {
-                    let _profile = phase_profile::guard("psi.source.prepare.resolve_deferred");
-                    observer.record_result(PsiCompilationStage::Resolution, || {
-                        syntax_trees_to_symbol_resolved_trees::resolve_deferred(
-                            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                                syntax,
-                                sources: Some(self.sources),
-                                top_level_bindings: self.top_level_bindings,
-                                retained_base: None,
-                            },
-                        )
-                    })?
-                };
-                loop {
-                    let selected = build_bodies(&frontier);
-                    if selected.is_empty() {
-                        break;
-                    }
-                    let _profile = phase_profile::guard("psi.source.prepare.build_bodies_resolved");
-                    frontier = observer
-                        .record_result(PsiCompilationStage::Resolution, || {
-                            frontier.complete_machine_bodies(&selected)
-                        })?
-                        .into_resolved_frontier();
+            };
+            loop {
+                let selected = build_bodies(&frontier);
+                if selected.is_empty() {
+                    break;
                 }
-                let typing = {
-                    let _profile = phase_profile::guard("psi.source.prepare.lower_seeded_base");
-                    observer.record_result(PsiCompilationStage::Typing, || {
+                let _profile = phase_profile::guard("psi.source.prepare.build_bodies_resolved");
+                frontier = observer
+                    .record_result(PsiCompilationStage::Resolution, || {
+                        frontier.complete_machine_bodies(&selected)
+                    })?
+                    .into_resolved_frontier();
+            }
+            let typing = {
+                let _profile = phase_profile::guard("psi.source.prepare.lower_seeded_base");
+                observer.record_result(PsiCompilationStage::Typing, || {
                         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
                             frontier.shared_trees(),
                         ).map_err(|diagnostic| vec![diagnostic])
                     })?
-                };
-                (typing, frontier)
             };
+            (typing, frontier)
+        };
         // Build may use its admitted declaration context. Product bodies stay
         // pending: completing them here would demand unrelated constants/layouts.
         loop {
@@ -326,6 +328,25 @@ impl SourceContinuation {
             .map_err(refuse)
     }
 
+    /// Form a reached designated application in this exact joined Product.
+    /// Mutable preparation forks the whole continuation input, so retained
+    /// authored completion can only match the same prepared typed source.
+    pub fn prepare_product_requirement_operand(
+        &mut self,
+        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        author: symbols::SymbolHandle,
+        static_environment: Option<
+            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
+        >,
+    ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
+        typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            operand,
+            author,
+            static_environment,
+        )
+    }
+
     pub fn build_input(&mut self) -> BuildSourceInput<'_> {
         let input = Arc::make_mut(&mut self.input);
         BuildSourceInput {
@@ -434,6 +455,7 @@ impl CompletedSource {
                     source_scoped_top_level_bindings: &[],
                     selection_authority: Some(extension.selection_authority),
                     predecessor: Some(self.typing.clone()),
+                    template_context: None,
                 },
             )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {

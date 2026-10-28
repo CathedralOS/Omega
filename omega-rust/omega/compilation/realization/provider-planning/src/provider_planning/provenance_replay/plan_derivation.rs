@@ -12,15 +12,14 @@
 //! executable tuple separately, without inflating original schema coverage.
 
 use crate::ProviderPlanningContext;
-use crate::provider_planning::operator_provider_evidence::{
-    provider_type_package_identity, provider_type_symbol,
+use crate::provider_identity::{
+    provider_owner_package_identity, provider_owner_path, provider_owner_symbol,
 };
 use crate::provider_planning::provenance_replay::requirement_identities::{
-    exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
-    external_provider_binding, inferred_compiler_leaf_binding, realization_machine_identity,
+    exact_satisfied_requirement_identity, inferred_compiler_leaf_binding,
 };
 use crate::provider_planning::provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
+    DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
@@ -30,7 +29,6 @@ pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
-    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     let typed = context.typed;
@@ -45,8 +43,8 @@ pub(crate) fn derive_provider_plans(
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
-        let provider_type_package_identity = provider_type_package_identity(typed, machine);
-        let provider_type_symbol = provider_type_symbol(typed, machine);
+        let provider_type_package_identity = provider_owner_package_identity(typed, machine);
+        let provider_type_symbol = provider_owner_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             if clause.requirement.is_some()
                 && checked_trees::typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
@@ -59,89 +57,32 @@ pub(crate) fn derive_provider_plans(
                 // manufacturing an empty boundary-trait schema here.
                 continue;
             }
-            // A bodyless leaf carries `via`; a CHECKED ADAPTER is an
-            // ordinary machine with a body and a requirement-named
-            // satisfies edge (no via). Both contribute rows; whole-trait
-            // conformances (no requirement) are the trait system's
-            // ordinary business and derive nothing here.
+            // Ordinary checked adapters and sealed compiler leaves retain
+            // requirement-named satisfaction edges. Build-owned native supply
+            // joins through admitted native rows, without forwarding machines.
+            // Whole-trait conformances derive their complete named map below.
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
-            let (row_binding, target_machine_origin) =
-                match (machine.supply_mode, clause.external_binding) {
-                    (language_semantics::MachineSupplyMode::Boundary, None)
-                        if !machine.body_is_present
-                            && !clause.via_expression.is_valid()
-                            && clause.external_binding_source_span.is_none() =>
-                    {
-                        let Some((binding, origin)) = inferred_compiler_leaf_binding(
-                            typed,
-                            machine,
-                            clause,
-                            selected_target,
-                            target_machine_origins,
-                        ) else {
-                            continue;
-                        };
-                        (DraftRowBinding::Bound(binding), Some(origin))
-                    }
-                    (
-                        language_semantics::MachineSupplyMode::ExternalRealization { .. },
-                        Some(conformance_binding),
-                    ) if !clause.via_expression.is_valid() => {
-                        let Some(binding) = exact_installed_external_binding_identity(
-                            typed,
-                            machine,
-                            conformance_binding,
-                            clause.name.as_str(),
-                            requirement.as_str(),
-                        ) else {
-                            continue;
-                        };
-                        let binding = external_provider_binding(
-                            binding,
-                            &typed.attached_data_path(machine).unwrap_or_default(),
-                            &realization_machine_identity(typed, machine),
-                        );
-                        (DraftRowBinding::Bound(binding), None)
-                    }
-                    (
-                        language_semantics::MachineSupplyMode::ExternalRealization {
-                            binding: None,
-                            mechanism: None,
-                        },
-                        None,
-                    ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                        let Some(binding) = evaluated_via_binding(
-                            evaluated_bindings,
-                            machine,
-                            clause,
-                            selected_target,
-                        ) else {
-                            continue;
-                        };
-                        (DraftRowBinding::Bound(binding), None)
-                    }
-                    (language_semantics::MachineSupplyMode::CheckedBody, None)
-                        if machine.body_is_present && !clause.via_expression.is_valid() =>
-                    {
-                        // A CHECKED ADAPTER derives a plan row only over a
-                        // BOUNDARY trait (a service schema). A plain trait's
-                        // conformance -- including its service-reach ceiling -- is the
-                        // existing trait machinery's business (the decision-20
-                        // admission fixtures pin it) and derives nothing here.
-                        let is_boundary_trait = typed.traits().iter().any(|definition| {
-                            definition.is_boundary && definition.symbol == clause.symbol
-                        });
-                        if !is_boundary_trait {
-                            continue;
-                        }
-                        (checked_adapter_draft(typed, machine), None)
-                    }
-                    _ => continue, // refused elsewhere (via rungs)
-                };
+            if machine.supply_mode.is_checked_body()
+                && !typed
+                    .traits()
+                    .iter()
+                    .any(|definition| definition.is_boundary && definition.symbol == clause.symbol)
+            {
+                continue;
+            }
+            let Some((row_binding, target_machine_origin)) = checked_or_catalog_binding(
+                typed,
+                machine,
+                clause,
+                selected_target,
+                target_machine_origins,
+            ) else {
+                continue;
+            };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_type = provider_owner_path(typed, machine).unwrap_or_default();
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
                 clause.symbol,
@@ -180,7 +121,7 @@ pub(crate) fn derive_provider_plans(
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
                         ),
-                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                    admitted_same_stack_bytes: 0,
                     binding,
                 });
                 plans[position]
@@ -190,7 +131,7 @@ pub(crate) fn derive_provider_plans(
                 plans[position]
                     .provenance
                     .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
+                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
                 plans[position]
                     .provenance
                     .row_target_machine_origins
@@ -202,12 +143,12 @@ pub(crate) fn derive_provider_plans(
     plans.extend(derive_boundary_operator_plans(
         context,
         selected_target,
-        evaluated_bindings,
+        target_machine_origins,
     ));
     plans.extend(derive_top_level_requirement_plans(
         context,
         selected_target,
-        evaluated_bindings,
+        target_machine_origins,
     ));
     let named = derive_named_provider_plans(context, calling_plans, selected_target, &plans);
     plans.extend(named);
@@ -219,12 +160,11 @@ pub(crate) fn derive_provider_plans(
     // separate obligations on the candidates that selection actually chooses.
     let absent = crate::target_machines::DirectTargetBodyAbsences::derive(context, selected_target);
     plans.retain(|candidate| {
-        !candidate
-            .provenance
-            .row_realizations
-            .iter()
-            .filter_map(ProviderRowRealization::authored)
-            .any(|machine| absent.contains(typed, machine))
+        !candidate.provenance.row_realizations.iter().any(|machine| {
+            machine
+                .machine()
+                .is_some_and(|machine| absent.contains(typed, machine))
+        })
     });
     Ok(plans)
 }
@@ -345,12 +285,8 @@ fn derive_named_provider_plans(
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {
                             if candidate.provenance.row_requirements.get(index)
                                 == Some(&row.requirement)
-                                && candidate
-                                    .provenance
-                                    .row_realizations
-                                    .get(index)
-                                    .and_then(ProviderRowRealization::authored)
-                                    == Some(machine.symbol)
+                                && candidate.provenance.row_realizations.get(index)
+                                    == Some(&super::ProviderRowOrigin::Machine(machine.symbol))
                                 && candidate.plan.identities.text(binding.requirement_identity)
                                     == identity.as_str()
                             {
@@ -392,13 +328,13 @@ fn derive_named_provider_plans(
                     method: row.requirement_name.as_str().to_owned(),
                     requirement_identity,
                     requirement_lifetime_partition: lifetime_partition,
-                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                    admitted_same_stack_bytes: 0,
                     binding,
                 });
                 provenance.row_requirements.push(row.requirement);
                 provenance
                     .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
+                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
                 provenance.row_target_machine_origins.push(origin);
                 provenance.row_placed_accessors.push(None);
             }
@@ -410,7 +346,7 @@ fn derive_named_provider_plans(
 fn derive_top_level_requirement_plans(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
-    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Vec<DerivedProviderPlan> {
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
@@ -423,20 +359,19 @@ fn derive_top_level_requirement_plans(
         let is_checked_adapter = machine.supply_mode
             == language_semantics::MachineSupplyMode::CheckedBody
             && machine.body_is_present;
-        let is_external_leaf = matches!(
-            machine.supply_mode,
-            language_semantics::MachineSupplyMode::ExternalRealization { .. }
-        ) && !machine.body_is_present;
+        let is_external_leaf = machine.supply_mode
+            == language_semantics::MachineSupplyMode::Boundary
+            && !machine.body_is_present;
         if !is_checked_adapter && !is_external_leaf {
             continue;
         }
-        let Some(provider_type_symbol) = provider_type_symbol(typed, machine) else {
+        let Some(provider_type_symbol) = provider_owner_symbol(typed, machine) else {
             continue;
         };
-        let Some(provider_type) = typed.attached_data_path(machine) else {
+        let Some(provider_type) = provider_owner_path(typed, machine) else {
             continue;
         };
-        let provider_type_package_identity = provider_type_package_identity(typed, machine);
+        let provider_type_package_identity = provider_owner_package_identity(typed, machine);
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         for clause in typed.machine_trait_conformances(machine) {
             // The authored satisfies edge names the requirement declaration
@@ -471,50 +406,14 @@ fn derive_top_level_requirement_plans(
             {
                 continue;
             }
-            let binding = match (machine.supply_mode, clause.external_binding) {
-                (language_semantics::MachineSupplyMode::CheckedBody, None)
-                    if machine.body_is_present && !clause.via_expression.is_valid() =>
-                {
-                    checked_adapter_draft(typed, machine)
-                }
-                (
-                    language_semantics::MachineSupplyMode::ExternalRealization { .. },
-                    Some(conformance_binding),
-                ) if !machine.body_is_present && !clause.via_expression.is_valid() => {
-                    let Some(binding) = exact_installed_external_binding_identity(
-                        typed,
-                        machine,
-                        conformance_binding,
-                        clause.name.as_str(),
-                        clause
-                            .requirement
-                            .as_ref()
-                            .map(|name| name.as_str())
-                            .unwrap_or_default(),
-                    ) else {
-                        continue;
-                    };
-                    DraftRowBinding::Bound(external_provider_binding(
-                        binding,
-                        &provider_type,
-                        &realization_machine_identity(typed, machine),
-                    ))
-                }
-                (
-                    language_semantics::MachineSupplyMode::ExternalRealization {
-                        binding: None,
-                        mechanism: None,
-                    },
-                    None,
-                ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(binding) =
-                        evaluated_via_binding(evaluated_bindings, machine, clause, selected_target)
-                    else {
-                        continue;
-                    };
-                    DraftRowBinding::Bound(binding)
-                }
-                _ => continue,
+            let Some((binding, target_machine_origin)) = checked_or_catalog_binding(
+                typed,
+                machine,
+                clause,
+                selected_target,
+                target_machine_origins,
+            ) else {
+                continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
             let plan_name = satisfies_plan_name(
@@ -540,7 +439,7 @@ fn derive_top_level_requirement_plans(
                 method: schema_method.name.clone(),
                 requirement_identity,
                 requirement_lifetime_partition: Vec::new(),
-                admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                admitted_same_stack_bytes: 0,
                 binding,
             });
             plans[position]
@@ -550,11 +449,11 @@ fn derive_top_level_requirement_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(ProviderRowRealization::Authored(machine.symbol));
+                .push(super::ProviderRowOrigin::Machine(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
-                .push(None);
+                .push(target_machine_origin.clone());
             plans[position].provenance.row_placed_accessors.push(None);
         }
     }
@@ -588,7 +487,7 @@ fn provider_plan_schema_target(
 fn derive_boundary_operator_plans(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
-    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Vec<DerivedProviderPlan> {
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
@@ -599,8 +498,8 @@ fn derive_boundary_operator_plans(
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
-        let provider_type_package_identity = provider_type_package_identity(typed, machine);
-        let provider_type_symbol = provider_type_symbol(typed, machine);
+        let provider_type_package_identity = provider_owner_package_identity(typed, machine);
+        let provider_type_symbol = provider_owner_symbol(typed, machine);
         for clause in typed.machine_trait_conformances(machine) {
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
@@ -618,54 +517,20 @@ fn derive_boundary_operator_plans(
             if typed.machine(operator.symbol).is_some() {
                 continue;
             }
-            let binding = match (machine.supply_mode, clause.external_binding) {
-                (
-                    language_semantics::MachineSupplyMode::ExternalRealization { .. },
-                    Some(conformance_binding),
-                ) if !clause.via_expression.is_valid() => {
-                    let Some(binding) = exact_installed_external_binding_identity(
-                        typed,
-                        machine,
-                        conformance_binding,
-                        clause.name.as_str(),
-                        requirement.as_str(),
-                    ) else {
-                        continue;
-                    };
-                    DraftRowBinding::Bound(external_provider_binding(
-                        binding,
-                        &typed.attached_data_path(machine).unwrap_or_default(),
-                        &typed
-                            .machine_callable_identity_text(machine)
-                            .unwrap_or_default(),
-                    ))
-                }
-                (
-                    language_semantics::MachineSupplyMode::ExternalRealization {
-                        binding: None,
-                        mechanism: None,
-                    },
-                    None,
-                ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(binding) =
-                        evaluated_via_binding(evaluated_bindings, machine, clause, selected_target)
-                    else {
-                        continue;
-                    };
-                    DraftRowBinding::Bound(binding)
-                }
-                (language_semantics::MachineSupplyMode::CheckedBody, None)
-                    if machine.body_is_present && !clause.via_expression.is_valid() =>
-                {
-                    checked_adapter_draft(typed, machine)
-                }
-                _ => continue, // invalid via/body combinations are refused elsewhere
+            let Some((binding, target_machine_origin)) = checked_or_catalog_binding(
+                typed,
+                machine,
+                clause,
+                selected_target,
+                target_machine_origins,
+            ) else {
+                continue;
             };
             let Some(schema) = crate::service_schema::from_typed_operator(context, operator) else {
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
+            let provider_type = provider_owner_path(typed, machine).unwrap_or_default();
             let plan_name = satisfies_plan_name(
                 &target,
                 schema.identity_text(schema.trait_name),
@@ -699,7 +564,7 @@ fn derive_boundary_operator_plans(
                 method: "realize".to_owned(),
                 requirement_identity,
                 requirement_lifetime_partition: Vec::new(),
-                admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                admitted_same_stack_bytes: 0,
                 binding,
             });
             plans[position]
@@ -709,11 +574,11 @@ fn derive_boundary_operator_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(ProviderRowRealization::Authored(machine.symbol));
+                .push(super::ProviderRowOrigin::Machine(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
-                .push(None);
+                .push(target_machine_origin.clone());
             plans[position].provenance.row_placed_accessors.push(None);
         }
     }
@@ -766,6 +631,34 @@ fn is_authored_provider_machine(
 
 /// The checked-adapter provider binding a machine supplies through its own
 /// checked body: the machine's callable identity plus its package identity.
+/// Checked bodies and authenticated compiler leaves share one source-kind
+/// decision. Build-owned native bindings enter through their own admitted rows;
+/// they are never recovered from authored declaration payloads.
+fn checked_or_catalog_binding(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+    clause: &checked_trees::typed_trees::machine::TraitConformance,
+    selected_target: Option<&str>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
+) -> Option<(DraftRowBinding, Option<SelectedTargetMachineOrigin>)> {
+    match machine.supply_mode {
+        language_semantics::MachineSupplyMode::CheckedBody if machine.body_is_present => {
+            Some((checked_adapter_draft(typed, machine), None))
+        }
+        language_semantics::MachineSupplyMode::Boundary if !machine.body_is_present => {
+            let (binding, origin) = inferred_compiler_leaf_binding(
+                typed,
+                machine,
+                clause,
+                selected_target,
+                target_machine_origins,
+            )?;
+            Some((DraftRowBinding::Bound(binding), Some(origin)))
+        }
+        _ => None,
+    }
+}
+
 fn checked_adapter_draft(
     typed: &checked_trees::typed_trees::TypedTrees,
     machine: &checked_trees::typed_trees::machine::Machine,
@@ -776,25 +669,6 @@ fn checked_adapter_draft(
             .unwrap_or_default(),
         machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
     }
-}
-
-/// The provider binding an exact evaluated via-binding row supplies for a
-/// machine's `via` conformance clause: the evaluated table's recorded
-/// binding when the row exists.
-fn evaluated_via_binding(
-    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
-    machine: &checked_trees::typed_trees::machine::Machine,
-    clause: &checked_trees::typed_trees::machine::TraitConformance,
-    selected_target: Option<&str>,
-) -> Option<ProviderBinding> {
-    let table = evaluated_bindings?;
-    let row = table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)?;
-    if selected_target != Some(row.evaluated().target().target_name())
-        || table.target() != Some(row.evaluated().target())
-    {
-        return None;
-    }
-    Some(row.evaluated().provider_binding())
 }
 
 /// The position of the derived plan keyed by its name, provider and origin
@@ -917,7 +791,7 @@ fn derive_placed_accessor_plans(
                     method: operation.operation.clone(),
                     requirement_identity,
                     requirement_lifetime_partition: Vec::new(),
-                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                    admitted_same_stack_bytes: 0,
                     binding: ProviderBinding::CompilerIntrinsic {
                         machine: accessor
                             .binding_identity(context)
@@ -928,7 +802,7 @@ fn derive_placed_accessor_plans(
                 provenance.row_requirements.push(machine.symbol);
                 provenance
                     .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
+                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
                 provenance.row_target_machine_origins.push(None);
                 provenance.row_placed_accessors.push(Some(accessor));
             }

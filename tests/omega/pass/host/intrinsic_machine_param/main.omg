@@ -12,12 +12,12 @@ public boundary trait WorkerProvider {
 
 data IntrinsicWorkerProvider { }
 
-machine IntrinsicWorkerProvider::execute<T, Arguments, machine Target>(
+boundary machine IntrinsicWorkerProvider::execute<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
-via ForeignBinding::CompilerIntrinsic;
+;
 
 data Main {
 }

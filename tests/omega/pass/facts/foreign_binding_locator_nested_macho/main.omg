@@ -1,0 +1,3 @@
+use omega::language::core::external_binding;
+machine consume<const O: u64, const S: u64, const V: u64>(binding: ForeignBinding<O, S, V>) -> u64 { 0 }
+public machine probe() -> u64 { consume(ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lldiv" } }) }

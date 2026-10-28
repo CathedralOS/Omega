@@ -15,17 +15,6 @@ public boundary trait AggregateImport {
     machine call(tag: u64, pair: Pair) -> Pair reaches;
 }
 
-linux_x86_64 machine aggregate_binding() -> ForeignBinding<18, 32, 7> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libomega-probes.so",
-            symbol: "omega_sysv_small_aggregate_probe",
-            version: "OMEGA_1",
-        },
-    }
-}
-
-linux_x86_64 machine aggregate_import(tag: u64, pair: Pair) -> Pair satisfies AggregateImport::call via aggregate_binding();
 
 data Main { result: Pair; }
 machine Main::main(main: &mut Main) reaches AggregateImport {

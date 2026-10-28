@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "selected_provider_issuance");
     Build::accept_boundary<InitialSupply>(builder);
@@ -34,4 +35,13 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+
+ Build::bind<NativeBytes::allocate>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_calloc", } });
+ Build::bind<NativeBytes::release>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libSystem.B.dylib", symbol: "_free", } });
+ Build::bind<NativeBytes::allocate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5", } });
+ Build::bind<NativeBytes::release>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "free", version: "GLIBC_2.2.5", } });
+ Build::bind<NativeBytes::allocate>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17", } });
+ Build::bind<NativeBytes::release>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "free", version: "GLIBC_2.17", } });
+ Build::bind<NativeBytes::allocate>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "calloc", } });
+ Build::bind<NativeBytes::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "free", } });
 }

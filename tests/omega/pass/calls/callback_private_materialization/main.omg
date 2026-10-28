@@ -128,18 +128,6 @@ satisfies PointProcedure::visit
     remember_point(context, x, y);
 }
 
-windows_x86_64 machine line_binding() -> ForeignBinding<9, 7, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName { library: "gdi32.dll", export: "LineDDA" },
-    }
-}
-windows_x86_64 machine line_leaf<machine Selected>(
-    start_x: i32, start_y: i32, end_x: i32, end_y: i32,
-    context: &mut CallbackState
-) -> i32
-where machine Selected satisfies PointProcedure::visit;
-satisfies LineRaster::draw
-via line_binding();
 
 data Main { context: CallbackState; }
 machine Main::main(main: &mut Main) reaches LineRaster + PointProcedure + Console

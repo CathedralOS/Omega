@@ -139,41 +139,6 @@ pub struct ConstInitializerNormalization {
     pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
 }
 
-/// Transitional bootstrap representation for the former magic
-/// `Binding::Case(...)` parser. Durable source uses an ordinary `via`
-/// expression and evaluates the compiler-owned closed `Binding` data sum.
-/// The string-backed `DllImport` variant is removed entirely: authored
-/// imports evaluate the compiler-owned `ForeignBinding::DllImport` value through a
-/// `via` producer machine, while `VtableSlot` still survives its own
-/// authored-spelling retirement for decoded artifacts and snapshots.
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
-pub enum ExternalBinding {
-    /// Linux's stable ABI is the number table: `ForeignBinding::Syscall(1)`.
-    Syscall { number: i64 },
-    /// Compiler-known target operation. The resolved realization symbol,
-    /// normalized signature, and target key the sealed lowering catalog.
-    CompilerIntrinsic,
-    /// Compatibility-only ordinal dispatch retained for decoded artifacts and
-    /// snapshots. The parser rejects authored `Binding::VtableSlot` before its
-    /// payload; new source uses a validated named `VtableField` instead.
-    VtableSlot { index: i64 },
-    /// COM/UEFI per-object dispatch by FIELD NAME (the field model, decided
-    /// 2026-07-04; extern brief SS12.1). The attached provider data type owns
-    /// the table layout; the policy computes the offset without magic slots.
-    VtableField { field: Identifier },
-    /// A SERVICE-TABLE function: `get_memory_map -> TableFunction(get_memory_map)`
-    /// dispatches through the table's fn-ptr field like `VtableField`, but the
-    /// table pointer is DISPATCH-ONLY -- never a wire argument (EFI table
-    /// services take no This; protocol/COM methods do).
-    TableFunction { field: Identifier },
-}
-
-impl Default for ExternalBinding {
-    fn default() -> Self {
-        Self::Syscall { number: 0 }
-    }
-}
-
 impl Default for Item {
     fn default() -> Self {
         Self::Use(UseItem::default())

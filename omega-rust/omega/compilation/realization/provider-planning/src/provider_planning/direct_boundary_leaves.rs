@@ -51,7 +51,7 @@ pub(crate) fn derive(
                 .provenance
                 .row_realizations
                 .get(position)
-                .and_then(crate::ProviderRowRealization::authored)
+                .and_then(|origin| origin.machine())
                 .and_then(|symbol| typed.machine_by_symbol(symbol))
             else {
                 continue;
@@ -81,7 +81,7 @@ pub(crate) fn derive(
             original.provenance.row_requirements =
                 vec![candidate.provenance.row_requirements[position]];
             original.provenance.row_realizations =
-                vec![crate::ProviderRowRealization::Authored(machine.symbol)];
+                vec![crate::ProviderRowOrigin::Machine(machine.symbol)];
             original.provenance.row_target_machine_origins =
                 vec![candidate.provenance.row_target_machine_origins[position].clone()];
             original.provenance.row_placed_accessors =

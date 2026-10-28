@@ -20,18 +20,6 @@ reaches
 
 data ClockPollImport { }
 
-macos_arm64 machine clock_poll_binding() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_poll",
-        },
-    }
-}
-
-macos_arm64 machine ClockPollImport::poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
-    satisfies ClockNativeProvider::poll
-    via clock_poll_binding();
 
 // Each wait is one poll with no descriptors, a bounded wait of its timeout.
 // poll reads its timeout as a signed `int`, where -1 waits without bound and
@@ -62,5 +50,4 @@ reaches
 
 macos_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
-    ClockNativeProvider::select_provider<ClockNativeProvider::poll, ClockPollImport>(defaults);
 }

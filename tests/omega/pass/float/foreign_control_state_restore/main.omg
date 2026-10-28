@@ -15,28 +15,6 @@ public boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32 reaches;
 }
 
-macos_arm64 machine fesetround_binding() -> ForeignBinding<17, 11, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_fesetround",
-        },
-    }
-}
-
-macos_arm64 machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment::set_rounding
-    via fesetround_binding();
-
-linux_x86_64 machine linux_fesetround_binding() -> ForeignBinding<9, 10, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libm.so.6", symbol: "fesetround", version: "GLIBC_2.2.5",
-        },
-    }
-}
-
-linux_x86_64 machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment::set_rounding
-    via linux_fesetround_binding();
 
 macos_arm64 machine upward_rounding_mode() -> i32 { 4194304 }
 linux_x86_64 machine upward_rounding_mode() -> i32 { 2048 }

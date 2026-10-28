@@ -25,37 +25,23 @@ boundary trait Reports {
     ensures result.code == 0;
 }
 
-uefi_x86_64 machine Table::read(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
-satisfies Reports::read via ForeignBinding::TableFunction(read)
-requires protocol in Guid::Selected
-ensures result.code == 0;
-
-uefi_x86_64 machine Table::scalar(table: &Table, value: u64) -> Status
-satisfies Reports::scalar via ForeignBinding::TableFunction(scalar)
-requires value == 42
-ensures result.code == 0;
-
-uefi_x86_64 machine Table::indexed(table: &Table, value: u64) -> Status
-satisfies Reports::indexed via ForeignBinding::TableFunction(scalar)
-requires value in u64::Coordinate<7>
-ensures result.code == 0;
 
 FirmwareReports satisfies Reports {
     machine indexed(table: &Table, value: u64) -> Status
     requires value in u64::Coordinate<7>
     ensures result.code == 0; {
-        Table::indexed(table, value)
+        RawNativeReports::indexed(table, value)
     }
     machine read(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
     requires protocol in Guid::Selected
     ensures result.code == 0; {
-        Table::read(table, protocol, output)
+        RawNativeReports::read(table, protocol, output)
     }
     machine scalar(table: &Table, value: u64) -> Status
     requires value == 42
     ensures result.code == 0; {
         let saved: u64 = value;
-        let status: Status = Table::scalar(table, saved);
+        let status: Status = RawNativeReports::scalar(table, saved);
         status
     }
 }
@@ -63,20 +49,20 @@ FirmwareReports satisfies Reports {
 machine forward(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
 requires protocol in Guid::Selected
 ensures result.code == 0; {
-    let status: Status = Table::read(table, protocol, output);
+    let status: Status = RawNativeReports::read(table, protocol, output);
     status
 }
 
 machine scalar_forward(table: &Table, value: u64) -> Status
 requires value == 42
 ensures result.code == 0; {
-    Table::scalar(table, value)
+    RawNativeReports::scalar(table, value)
 }
 
 machine reordered(value: u64, table: &Table) -> Status
 requires value == 42
 ensures result.code == 0; {
-    Table::scalar(table, value)
+    RawNativeReports::scalar(table, value)
 }
 
 machine state_forward(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
@@ -86,6 +72,21 @@ ensures result.code == 0; {
     machine ready(selected: &Guid, destination: &mut &Record, firmware: &Table) -> Status
     requires selected in Guid::Selected
     {
-        Table::read(firmware, selected, destination)
+        RawNativeReports::read(firmware, selected, destination)
     }
+}
+
+boundary trait RawNativeReports {
+    machine read(table: &Table, protocol: &Guid, output: &mut &Record) -> Status
+    reaches
+    requires protocol in Guid::Selected
+    ensures result.code == 0;
+    machine scalar(table: &Table, value: u64) -> Status
+    reaches
+    requires value == 42
+    ensures result.code == 0;
+    machine indexed(table: &Table, value: u64) -> Status
+    reaches
+    requires value in u64::Coordinate<7>
+    ensures result.code == 0;
 }

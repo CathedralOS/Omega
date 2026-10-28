@@ -232,7 +232,6 @@ pub struct TypedTrees {
     /// Exact structured identities for external realization bindings. Typed
     /// conformance and supply rows retain ids into this table, so downstream
     /// consumers never need to rescan source syntax to recover the binding.
-    pub external_bindings: language_semantics::ExternalBindingTable,
     /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
     /// in type position; programmable-layouts L4). Populated by the compiler
     /// pipeline AFTER build-time plan evaluation + validation; the native
@@ -391,8 +390,18 @@ pub struct DataApplicationView {
     is_closed: bool,
 }
 
+/// One designated source type's independent formation obligation. This is
+/// source custody, not an executable call or provider selection.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DesignatedStaticTypeArgument {
+    pub owner: symbols::SymbolHandle,
+    pub reference: types::TypeReferenceHandle,
+    pub source_span: source::SourceSpan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTreeTables {
+    pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
@@ -581,7 +590,6 @@ impl TypedTrees {
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             applied_domain_applications: Vec::new(),
-            external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),

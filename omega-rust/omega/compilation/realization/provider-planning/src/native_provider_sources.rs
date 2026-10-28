@@ -68,8 +68,8 @@ fn selected_family_realizations(
             let Some(realization) = provider.row_target_machine_origins[row_index]
                 .as_ref()
                 .map(|origin| origin.machine)
-                .or_else(|| provider.row_realizations[row_index].authored())
-            else {
+                .or_else(|| provider.row_realizations[row_index].machine());
+            let Some(realization) = realization else {
                 continue;
             };
             for family in &typed.target_machine_families {

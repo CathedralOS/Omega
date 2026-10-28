@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 // Deployable transparent-record frontier: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
@@ -9,4 +10,31 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+
+ Build::bind<Receipt::ack>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    });
+ Build::bind<Receipt::ack>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<Receipt::ack>(builder, linux_arm64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.17",
+        },
+    });
+ Build::bind<Receipt::ack>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    });
 }

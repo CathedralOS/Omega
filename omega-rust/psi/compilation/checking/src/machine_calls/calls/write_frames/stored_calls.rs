@@ -260,7 +260,6 @@ fn invocation_reference_effects(
         callee.supply_mode,
         language_semantics::MachineSupplyMode::Boundary
             | language_semantics::MachineSupplyMode::AdmissionClaim
-            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
     ) {
         return opaque_outputs::effects(
             program,

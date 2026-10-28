@@ -982,6 +982,7 @@ dependencies = [
 name = "language-semantics"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "build-time-values",
  "language-core",
  "numerics",
@@ -2586,6 +2587,7 @@ dependencies = [
  "phase-profile",
  "proof",
  "representation-selections",
+ "source",
  "symbols",
  "typed-trees",
  "validation",

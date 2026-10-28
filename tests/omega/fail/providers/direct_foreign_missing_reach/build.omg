@@ -1,4 +1,9 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "direct_foreign_missing_reach");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+
+ Build::bind<Process::current>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetCurrentProcessId"
+    } });
 }

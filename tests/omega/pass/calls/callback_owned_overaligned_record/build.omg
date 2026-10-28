@@ -1,6 +1,29 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "callback_owned_overaligned_record");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<Prepare::prepare>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_prep_cif",
+        },
+    });
+ Build::bind<Prepare::prepare>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libffi.so.8", symbol: "ffi_prep_cif", version: "LIBFFI_BASE_8.0",
+        },
+    });
+
+ Build::bind<Invoke::invoke>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_call",
+        },
+    });
+ Build::bind<Invoke::invoke>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libffi.so.8", symbol: "ffi_call", version: "LIBFFI_BASE_8.0",
+        },
+    });
 }

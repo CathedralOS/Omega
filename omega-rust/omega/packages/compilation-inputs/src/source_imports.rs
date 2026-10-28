@@ -26,7 +26,7 @@ pub(crate) use entry_contract_seed::entry_contract_seeds;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
-pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_generated_sources};
+pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_build_handoffs};
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub(crate) use import_queue::ImportQueue;
 

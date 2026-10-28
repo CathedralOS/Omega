@@ -20,8 +20,8 @@ use package_compilation::review_record_encoding::{
 };
 use package_compilation::{
     AcceptedSemanticBinding, ConsumedSourceUnit, ConsumedSourceUnitKind,
-    IndependentComponentDescription, PackageDependencyBinding, PackageDependencyClosure,
-    PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+    IndependentComponentDescription, PackageBuildHandoff, PackageDependencyBinding,
+    PackageDependencyClosure, PackageSourceConsumptionCommitment,
 };
 use package_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Entry-field tolerance is retired. Older records may describe provisional
 // reviews and must miss, never acquire complete admission by dropping their flag.
-const RECORD_VERSION: u16 = 11;
+const RECORD_VERSION: u16 = 13;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -546,7 +546,7 @@ fn recover_dependency_binding(
     ))
 }
 
-fn encode_generated_source_bundle(bundle: &PackageGeneratedSourceBundle, out: &mut Vec<u8>) {
+fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
     encode_identity(bundle.package(), out);
     out.push(purpose_tag(bundle.purpose()));
     encode_target(bundle.target(), out);
@@ -572,11 +572,22 @@ fn encode_generated_source_bundle(bundle: &PackageGeneratedSourceBundle, out: &m
         push_framed(out, source.relative_path());
         push_framed(out, source.bytes());
     }
+    push_framed(
+        out,
+        &package_compilation::provider_selection_codec::encode_package_provider_selections(
+            bundle.provider_selections(),
+            bundle.selection_observation(),
+        ),
+    );
+    push_framed(
+        out,
+        &package_compilation::native_selection_codec::encode_package_native_bindings(
+            bundle.native_bindings(),
+        ),
+    );
 }
 
-fn recover_generated_source_bundle(
-    cursor: &mut ObservationCursor<'_>,
-) -> Option<PackageGeneratedSourceBundle> {
+fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBuildHandoff> {
     let package = recover_identity(cursor)?;
     let purpose = recover_purpose(cursor)?;
     let target = recover_target(cursor)?;
@@ -598,7 +609,14 @@ fn recover_generated_source_bundle(
             bytes.into(),
         ))
     })?;
-    Some(PackageGeneratedSourceBundle::from_checked(
+    let (selections, observation) =
+        package_compilation::provider_selection_codec::decode_package_provider_selections(
+            cursor.framed()?,
+        )?;
+    let native = package_compilation::native_selection_codec::decode_package_native_bindings(
+        cursor.framed()?,
+    )?;
+    PackageBuildHandoff::from_checked(
         package,
         purpose,
         target,
@@ -606,7 +624,11 @@ fn recover_generated_source_bundle(
         dependency_closure,
         commitment,
         sources,
-    ))
+    )
+    .with_retained_provider_selections(selections, observation)
+    .ok()?
+    .with_checked_native_bindings(native)
+    .ok()
 }
 
 fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
@@ -734,7 +756,7 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
     for candidate in &review.semantic_binding_candidates {
         encode_candidate(candidate, out);
     }
-    encode_generated_source_bundle(&review.generated_source_bundle, out);
+    encode_build_handoff(&review.build_handoff, out);
     push_framed(out, &review.policy_bytes);
     crate::codec_bytes::push_count_u64(out, review.facts.consumed_units.len());
     for unit in &review.facts.consumed_units {
@@ -798,7 +820,18 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     })?;
     let semantic_bindings = cursor_vec(&mut cursor, recover_binding)?;
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;
-    let generated_source_bundle = recover_generated_source_bundle(&mut cursor)?;
+    let build_handoff = recover_build_handoff(&mut cursor)?;
+    if build_handoff
+        .selection_observation()
+        .is_some_and(|original| {
+            Some(original)
+                != build_observation_summary
+                    .as_ref()
+                    .map(|summary| summary.identity().digest())
+        })
+    {
+        return None;
+    }
     let policy_bytes = cursor.framed()?.to_vec();
     let consumed_units = cursor_vec(&mut cursor, recover_consumed_unit)?;
     let source_consumption_commitment =
@@ -823,7 +856,7 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         restricted_build_requests,
         semantic_bindings,
         semantic_binding_candidates,
-        generated_source_bundle,
+        build_handoff,
         policy_bytes,
         facts: CachedOccurrenceFacts {
             consumed_units,
@@ -869,7 +902,7 @@ mod tests {
             restricted_build_requests: Vec::new(),
             semantic_bindings: Vec::new(),
             semantic_binding_candidates: Vec::new(),
-            generated_source_bundle: PackageGeneratedSourceBundle::from_checked(
+            build_handoff: PackageBuildHandoff::from_checked(
                 package,
                 crate::declarations::DependencyPurpose::Product,
                 profile,

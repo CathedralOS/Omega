@@ -20,30 +20,15 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit;
-windows_x86_64 machine windows_gui_create_window_binding() -> ForeignBinding<10, 15, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "CreateWindowExA" } }
-}
-windows_x86_64 machine WindowsGuiImports::create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
-satisfies WindowsGuiIo::create_window
-via windows_gui_create_window_binding();
+
 
 boundary requirement WindowsGuiIo::foreground_window() -> u64
 reaches WindowManagement;
-windows_x86_64 machine windows_gui_foreground_window_binding() -> ForeignBinding<10, 19, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetForegroundWindow" } }
-}
-windows_x86_64 machine WindowsGuiImports::foreground_window() -> u64
-satisfies WindowsGuiIo::foreground_window
-via windows_gui_foreground_window_binding();
+
 
 boundary requirement WindowsGuiIo::is_window(window: u64) -> i32
 reaches WindowManagement;
-windows_x86_64 machine windows_gui_is_window_binding() -> ForeignBinding<10, 8, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "IsWindow" } }
-}
-windows_x86_64 machine WindowsGuiImports::is_window(window: u64) -> i32
-satisfies WindowsGuiIo::is_window
-via windows_gui_is_window_binding();
+
 
 boundary requirement WindowsGuiIo::destroy_window(window: u64) -> i32
 reaches
@@ -53,12 +38,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit;
-windows_x86_64 machine windows_gui_destroy_window_binding() -> ForeignBinding<10, 13, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DestroyWindow" } }
-}
-windows_x86_64 machine WindowsGuiImports::destroy_window(window: u64) -> i32
-satisfies WindowsGuiIo::destroy_window
-via windows_gui_destroy_window_binding();
+
 
 boundary requirement WindowsGuiIo::peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
 reaches
@@ -68,21 +48,11 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit;
-windows_x86_64 machine windows_gui_peek_message_binding() -> ForeignBinding<10, 12, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "PeekMessageA" } }
-}
-windows_x86_64 machine WindowsGuiImports::peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
-satisfies WindowsGuiIo::peek_message
-via windows_gui_peek_message_binding();
+
 
 boundary requirement WindowsGuiIo::translate_message(message: &WindowsMessage) -> i32
 reaches WindowEventDispatch;
-windows_x86_64 machine windows_gui_translate_message_binding() -> ForeignBinding<10, 16, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "TranslateMessage" } }
-}
-windows_x86_64 machine WindowsGuiImports::translate_message(message: &WindowsMessage) -> i32
-satisfies WindowsGuiIo::translate_message
-via windows_gui_translate_message_binding();
+
 
 boundary requirement WindowsGuiIo::dispatch_message(message: &WindowsMessage) -> i64
 reaches
@@ -92,12 +62,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit;
-windows_x86_64 machine windows_gui_dispatch_message_binding() -> ForeignBinding<10, 16, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } }
-}
-windows_x86_64 machine WindowsGuiImports::dispatch_message(message: &WindowsMessage) -> i64
-satisfies WindowsGuiIo::dispatch_message
-via windows_gui_dispatch_message_binding();
+
 
 windows_x86_64 machine WindowsGuiNativeProvider::window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
 satisfies WindowsGuiHost::window_create
@@ -162,52 +127,12 @@ reaches
 }
 windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mut WindowsGuiNativeProvider) {
     WindowsGuiNativeProvider::select_provider<WindowsGuiHost, NativeWindowsGui>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::create_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::foreground_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::is_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::destroy_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::peek_message, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::translate_message, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::dispatch_message, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::adjust_rectangle, WindowsGuiImports>(defaults);
 }
 
-windows_x86_64 machine windows_gui_get_dc_binding() -> ForeignBinding<10, 5, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetDC" } }
-}
-windows_x86_64 machine WindowsGuiNativeProvider::get_dc(window: u64) -> u64
-satisfies WindowsGuiHost::get_dc
-via windows_gui_get_dc_binding();
-
-windows_x86_64 machine windows_gui_release_dc_binding() -> ForeignBinding<10, 9, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "ReleaseDC" } }
-}
-windows_x86_64 machine WindowsGuiNativeProvider::release_dc(window: u64, device: u64) -> i32
-satisfies WindowsGuiHost::release_dc
-via windows_gui_release_dc_binding();
-
-windows_x86_64 machine windows_gui_client_rectangle_binding() -> ForeignBinding<10, 13, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetClientRect" } }
-}
-windows_x86_64 machine WindowsGuiNativeProvider::client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32
-satisfies WindowsGuiHost::client_rectangle
-via windows_gui_client_rectangle_binding();
-
-windows_x86_64 machine windows_gui_stretch_dibits_binding() -> ForeignBinding<9, 13, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "gdi32.dll", export: "StretchDIBits" } }
-}
-windows_x86_64 machine WindowsGuiNativeProvider::stretch_dibits(device: u64, destination_x: i32, destination_y: i32, destination_width: i32, destination_height: i32, source_x: i32, source_y: i32, source_width: i32, source_height: i32, pixels: &i32, info: &i32, usage: u32, raster_operation: u32) -> i32
-satisfies WindowsGuiHost::stretch_dibits
-via windows_gui_stretch_dibits_binding();
 
 boundary requirement WindowsGuiIo::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
 reaches WindowManagement;
-windows_x86_64 machine windows_gui_adjust_rectangle_binding() -> ForeignBinding<10, 18, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "AdjustWindowRectEx" } }
-}
-windows_x86_64 machine WindowsGuiImports::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
-satisfies WindowsGuiIo::adjust_rectangle
-via windows_gui_adjust_rectangle_binding();
+
 
 windows_x86_64 machine WindowsGuiNativeProvider::window_create_client(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
 satisfies WindowsGuiHost::window_create_client

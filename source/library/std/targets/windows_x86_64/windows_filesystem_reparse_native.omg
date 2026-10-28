@@ -31,27 +31,3 @@ boundary trait WindowsFilesystemReparseIo {
         && capacity == 16384 && overlapped == 0
     reaches FilesystemMetadataQuery blocks;
 }
-
-windows_x86_64 machine windows_reparse_query_binding() -> ForeignBinding<12, 15, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "DeviceIoControl"
-    } }
-}
-windows_x86_64 machine WindowsFilesystemReparseImports::query(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
-    control: u32, input: u64, input_size: u32, output: &mut WindowsNativeReparseData,
-    capacity: u32, returned: &mut u32, overlapped: u64) -> i32
-satisfies WindowsFilesystemReparseIo::query via windows_reparse_query_binding()
-requires handle != 0 && control == 589992 && input == 0 && input_size == 0
-    && capacity == 16384 && overlapped == 0
-blocks;
-
-NativeWindowsFilesystemReparseImports satisfies WindowsFilesystemReparseIo {
-    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, control: u32, input: u64,
-        input_size: u32, output: &mut WindowsNativeReparseData, capacity: u32,
-        returned: &mut u32, overlapped: u64) -> i32
-    requires handle != 0 && control == 589992 && input == 0 && input_size == 0
-        && capacity == 16384 && overlapped == 0
-    reaches FilesystemMetadataQuery blocks;
-    { block WindowsFilesystemReparseImports::query(handle, control, input, input_size,
-        output, capacity, returned, overlapped) }
-}

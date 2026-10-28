@@ -7,7 +7,7 @@ use super::{
     ProviderSelectionIdentity, ProviderSelectionSubject, identities,
 };
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolKind;
 
 pub(super) struct ProviderDeclarations {
     subject: ProviderSelectionSubject,
@@ -107,8 +107,7 @@ pub(super) fn admit(
     provider_type: ProviderSelectionIdentity,
     composition_mode: CompositionMode,
     target: Option<language_semantics::declaration_selection::ProductTarget>,
-    machine: SymbolHandle,
-    source_span: source::SourceSpan,
+    origin: language_semantics::declaration_selection::BuildSelectionOrigin,
     previous: &[ProviderSelection],
 ) -> Result<ProviderSelection, Diagnostic> {
     let ProviderDeclarations {
@@ -141,7 +140,6 @@ pub(super) fn admit(
         subject,
         provider_type,
         composition_mode,
-        selecting_machine: machine,
-        source_span,
+        origin,
     })
 }

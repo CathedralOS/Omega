@@ -57,13 +57,6 @@ pub(crate) fn project_checked_callable_policy<'a>(
             PackagePolicyCallableRole::Build
         } else if !machine.is_public && machine.supply_mode == MachineSupplyMode::AdmissionClaim {
             PackagePolicyCallableRole::PrivateAssumption
-        } else if !machine.is_public
-            && matches!(
-                machine.supply_mode,
-                MachineSupplyMode::ExternalRealization { .. }
-            )
-        {
-            PackagePolicyCallableRole::PrivateExternal
         } else if machine.supply_mode.is_boundary_declaration() {
             PackagePolicyCallableRole::Boundary
         } else if machine.is_public {

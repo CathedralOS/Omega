@@ -57,7 +57,7 @@ impl<'program> Evaluator<'program> {
             .filter(|definition| {
                 definition.is_boundary && definition.name.as_str() == "BuildBindingOperations"
             })
-            .flat_map(|definition| self.program.trait_machine_signatures(definition))
+            .flat_map(|definition| self.program.trait_machine_instances(definition))
             .find(|signature| signature.symbol == target)
             .map(|signature| signature.name.as_str())
     }
@@ -75,6 +75,10 @@ impl<'program> Evaluator<'program> {
                     "prepare"
                         | "bind"
                         | "bind_description"
+                        | "bind_native"
+                        | "bind_table_function"
+                        | "bind_vtable_field"
+                        | "same_stack_demand"
                         | "select"
                         | "select_provider"
                         | "exclude"
@@ -103,6 +107,26 @@ impl<'program> Evaluator<'program> {
                 RootBindingOperand::AuthoredPath(_) => "bind",
                 RootBindingOperand::Description => "bind_description",
             },
+            BuildSelectionRequest::Declaration(request)
+                if request.operation == BuildOperation::NativeBinding =>
+            {
+                "bind_native"
+            }
+            BuildSelectionRequest::Declaration(request)
+                if request.operation == BuildOperation::NativeTableFunction =>
+            {
+                "bind_table_function"
+            }
+            BuildSelectionRequest::Declaration(request)
+                if request.operation == BuildOperation::NativeVtableField =>
+            {
+                "bind_vtable_field"
+            }
+            BuildSelectionRequest::Declaration(request)
+                if request.operation == BuildOperation::NativeSameStackDemand =>
+            {
+                "same_stack_demand"
+            }
             BuildSelectionRequest::Declaration(_) => match protocol {
                 Some("select_provider") => "select_provider",
                 _ => "select",
@@ -167,6 +191,10 @@ impl<'program> Evaluator<'program> {
                 "root binding activation ticket is missing, consumed, or belongs to another selection",
             );
         }
+        let author_coordinate = self
+            .program
+            .symbols
+            .symbol_source_span(self.program.symbols.authored_origin(frame.machine_symbol));
         let selection = match binding {
             BuildSelectionRequest::ProviderReadiness(_) => {
                 return trap("provider readiness requires a retained Terminal Build activation");
@@ -187,16 +215,11 @@ impl<'program> Evaluator<'program> {
                     language_semantics::declaration_selection::ExecutedEnumExclusion {
                         request,
                         code,
-                        selecting_machine: self
-                            .program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "behavior exclusion lost its authored machine coordinate"
-                                        .into(),
-                                )
-                            })?,
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap(
+                                "behavior exclusion lost its authored machine coordinate".into(),
+                            )
+                        })?,
                     },
                 )
             }
@@ -220,6 +243,139 @@ impl<'program> Evaluator<'program> {
                     source_span: binding.source_span,
                     slot: binding.slot,
                     implementation,
+                })
+            }
+            BuildSelectionRequest::Declaration(request)
+                if request.operation == BuildOperation::NativeBinding =>
+            {
+                let [_, target, locator] = arguments else {
+                    return trap("native binding requires its exact target and locator values");
+                };
+                let Value::Int(code) = self.eval_expression(*target, frame)? else {
+                    return trap("native binding target is not a checked code");
+                };
+                let target = language_semantics::declaration_selection::ProductTarget::from_code(
+                    u64::try_from(code).map_err(|_| Halt::Trap("invalid native target".into()))?,
+                )
+                .ok_or_else(|| Halt::Trap("native target is outside the catalog".into()))?;
+                let machine = self
+                    .program
+                    .machine(frame.machine_symbol)
+                    .ok_or_else(|| Halt::Trap("native binding lost its machine".into()))?;
+                let state = self
+                    .program
+                    .state_by_symbol(frame.state_symbol)
+                    .ok_or_else(|| Halt::Trap("native binding lost its state".into()))?;
+                let reference = validation::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    *locator,
+                )
+                .ok_or_else(|| Halt::Trap("native locator lost its selected type".into()))?;
+                let widths =
+                    validation::compiler_operations::native_binding_widths(self.program, reference)
+                        .map_err(|errors| {
+                            Halt::Trap(
+                                errors
+                                    .into_iter()
+                                    .map(|error| error.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("; "),
+                            )
+                        })?;
+                let value = self.eval_expression(*locator, frame)?;
+                let value = crate::build_time::observe_build_time_value(&value, &|reference| {
+                    self.read_reference(reference)
+                })?;
+                let locator =
+                    language_semantics::declaration_selection::decode_native_binding_value(
+                        &value, widths,
+                    )
+                    .map_err(Halt::Trap)?;
+                SourceBuildSelection::Native(
+                    language_semantics::declaration_selection::ExecutedNativeBinding {
+                        static_environment:
+                            typed_trees::product_operand::capture_static_environment(
+                                self.program,
+                                frame.machine_symbol,
+                            )
+                            .map_err(Halt::Trap)?,
+                        request,
+                        target,
+                        locator,
+                        widths,
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap("native binding lost its selecting owner".into())
+                        })?,
+                    },
+                )
+            }
+            BuildSelectionRequest::Declaration(request)
+                if matches!(
+                    request.operation,
+                    BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField
+                ) =>
+            {
+                let [_, target] = arguments else {
+                    return trap("typed table binding requires its evaluated target");
+                };
+                let Value::Int(code) = self.eval_expression(*target, frame)? else {
+                    return trap("typed table binding target is not a checked code");
+                };
+                let target = u64::try_from(code)
+                    .ok()
+                    .and_then(language_semantics::declaration_selection::ProductTarget::from_code)
+                    .ok_or_else(|| {
+                        Halt::Trap("typed table binding target is outside the catalog".into())
+                    })?;
+                let locator = if request.operation == BuildOperation::NativeTableFunction {
+                    language_semantics::declaration_selection::NativeBindingValue::TableFunction
+                } else {
+                    language_semantics::declaration_selection::NativeBindingValue::VtableField
+                };
+                SourceBuildSelection::Native(
+                    language_semantics::declaration_selection::ExecutedNativeBinding {
+                        static_environment:
+                            typed_trees::product_operand::capture_static_environment(
+                                self.program,
+                                frame.machine_symbol,
+                            )
+                            .map_err(Halt::Trap)?,
+                        request,
+                        target,
+                        locator,
+                        widths: [0; 3],
+                        selecting_machine: author_coordinate.ok_or_else(|| {
+                            Halt::Trap("typed table binding lost its selecting owner".into())
+                        })?,
+                    },
+                )
+            }
+            BuildSelectionRequest::Declaration(request)
+                if request.operation == BuildOperation::NativeSameStackDemand =>
+            {
+                let [_, target, bytes] = arguments else {
+                    return trap("native same-stack demand requires its exact target and bytes");
+                };
+                let Value::Int(code) = self.eval_expression(*target, frame)? else {
+                    return trap("native demand target is not a checked code");
+                };
+                let target = u64::try_from(code)
+                    .ok()
+                    .and_then(language_semantics::declaration_selection::ProductTarget::from_code)
+                    .ok_or_else(|| {
+                        Halt::Trap("native demand target is outside the catalog".into())
+                    })?;
+                let Value::Int(bytes) = self.eval_expression(*bytes, frame)? else {
+                    return trap("native demand bytes is not an integer");
+                };
+                let bytes = u64::try_from(bytes)
+                    .map_err(|_| Halt::Trap("native demand bytes exceeds u64".into()))?;
+                SourceBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
+                        static_environment: typed_trees::product_operand::capture_static_environment(self.program,frame.machine_symbol).map_err(Halt::Trap)?,
+                    request, target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3],
+                    selecting_machine:author_coordinate.ok_or_else(||Halt::Trap("native demand lost its selecting owner".into()))?,
                 })
             }
             BuildSelectionRequest::Declaration(request) => {
@@ -268,16 +424,9 @@ impl<'program> Evaluator<'program> {
                     }
                 };
                 let selecting_machine = if requires_selecting_machine {
-                    Some(
-                        self.program
-                            .symbols
-                            .symbol_source_span(frame.machine_symbol)
-                            .ok_or_else(|| {
-                                Halt::Trap(
-                                    "Product selection lost its authored machine coordinate".into(),
-                                )
-                            })?,
-                    )
+                    Some(author_coordinate.ok_or_else(|| {
+                        Halt::Trap("Product selection lost its authored machine coordinate".into())
+                    })?)
                 } else {
                     None
                 };

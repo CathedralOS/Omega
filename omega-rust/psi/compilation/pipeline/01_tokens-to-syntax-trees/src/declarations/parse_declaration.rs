@@ -359,26 +359,11 @@ fn parse_declared_item<'tokens, 'source>(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
             ));
         }
-        // A bodyless machine is legal as an EXTERNAL LEAF -- `satisfies
-        // Requirement via <Binding>;` -- whose realization is the binding, or
-        // as a bare tokenless signature that symbol resolution admits only
-        // when it is an exact compiler-catalog primitive declared by the
-        // sealed toolchain source (executable supply: "Exact compiler-owned
-        // bodyless machine ... its authorized closed-catalog realization").
-        // Any other bodyless machine rejects there with the boundary-form
-        // guidance; the grammar itself stays neutral about which source
-        // owns a name.
-        let has_via = syntax_trees
-            .items
-            .satisfies_clauses(item.satisfies)
-            .iter()
-            .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
-        if item.bodyless && !has_via && !item.satisfies.is_empty() {
+        // Only explicit boundary declarations or exact sealed catalog signatures
+        // can be bodyless. Native locators are selected by the owning Build.
+        if item.bodyless && !item.satisfies.is_empty() {
             return Err(rest.error_here(
-                "a machine without a body is the ACCEPTED boundary form -- spell it \
-                 `boundary machine ...;` (chapter 10: bodyless contracts are trust \
-                 rows, not ordinary machines) -- or an EXTERNAL LEAF \
-                 (`satisfies Requirement via <Binding>;`)",
+                "a machine without a body must use the accepted `boundary machine ...;` form; native bindings belong to the owning package Build",
             ));
         }
         return Ok((Item::Machine(item), rest));
@@ -408,7 +393,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Library) {
         return Err(input.error_here(
-            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and realize it with `satisfies ... via` one producer machine returning `ForeignBinding::DllImport { ... }`",
+            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and bind it in the owning package Build with `Build::bind<Requirement>(builder, target, ForeignBinding::DllImport { ... })`",
         ));
     }
 
@@ -428,16 +413,16 @@ fn parse_declared_item<'tokens, 'source>(
         return Err(input.error_here(
             "authored `provides` declarations are retired (including `host ... provides`): \
              implement a boundary-trait \
-             requirement with a checked `satisfies` adapter or a bodyless external leaf using \
-             `satisfies Trait::method via Binding::Case(...)`",
+             requirement with a checked `satisfies` adapter or bind its native implementation using \
+             `Build::bind<Requirement>(builder, target, locator)`",
         ));
     }
 
     if input.at_identifier_then_contextual("provides") {
         return Err(input.error_here(
             "authored `provides` declarations are retired: implement a boundary-trait \
-             requirement with a checked `satisfies` adapter or a bodyless external leaf using \
-             `satisfies Trait::method via Binding::Case(...)`",
+             requirement with a checked `satisfies` adapter or bind its native implementation using \
+             `Build::bind<Requirement>(builder, target, locator)`",
         ));
     }
 

@@ -82,7 +82,6 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
             machine.supply_mode,
             language_semantics::MachineSupplyMode::Boundary
                 | language_semantics::MachineSupplyMode::AdmissionClaim
-                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
         )
     {
         program.state_parameters(state)

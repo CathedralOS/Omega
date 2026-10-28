@@ -46,24 +46,22 @@ impl ProviderSchemaDeclaration {
     }
 }
 
-/// A row's supplying owner. Native Build rows own an evaluated intent, never
-/// an invented bodyless machine; toolchain settlement likewise has no source body.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProviderRowRealization {
-    Authored(symbols::SymbolHandle),
-    BuildNative(std::sync::Arc<crate::native_bindings::NativeBuildRowOrigin>),
+/// Exact producer class; Build-native bindings have no realization machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderRowOrigin {
+    Machine(symbols::SymbolHandle),
+    BuildNative {
+        receipt: [u8; 32],
+        table_field: Option<crate::NativeFieldIdentity>,
+        trait_scope: Option<checked_trees::typed_trees::trait_definition::RetainedTraitScope>,
+        closed_requirement: Option<symbols::SymbolHandle>,
+    },
     Toolchain,
 }
-impl ProviderRowRealization {
-    pub const fn authored(&self) -> Option<symbols::SymbolHandle> {
+impl ProviderRowOrigin {
+    pub const fn machine(self) -> Option<symbols::SymbolHandle> {
         match self {
-            Self::Authored(symbol) => Some(*symbol),
-            _ => None,
-        }
-    }
-    pub fn native(&self) -> Option<&crate::native_bindings::NativeBuildRowOrigin> {
-        match self {
-            Self::BuildNative(origin) => Some(origin),
+            Self::Machine(symbol) => Some(symbol),
             _ => None,
         }
     }
@@ -74,10 +72,9 @@ pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
-    pub row_realizations: Vec<ProviderRowRealization>,
+    pub row_realizations: Vec<ProviderRowOrigin>,
     /// Exact pre-resolution target-scoped declaration custody for catalog-
-    /// inferred rows. `None` is mandatory for ordinary checked, legacy
-    /// external, and evaluated-payload rows.
+    /// inferred rows. `None` is mandatory for checked and Build-native rows.
     pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
     /// Compiler-catalog custody is distinct from authored target-machine origins.
     pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
@@ -95,54 +92,38 @@ pub struct DerivedProviderPlan {
     pub provenance: ProviderPlanProvenance,
 }
 
-/// One provider-plan derivation request: the selected target, and when the
-/// program's `via` bindings were evaluated, that table with the target-machine
-/// origins it selected. Build the evaluated form through
-/// [`ProviderPlanDerivation::evaluated`] with the table this compile just
-/// evaluated for the same typed program and target.
+/// One derivation of source-owned candidate intent. The caller lends exact
+/// target declaration origins and admitted Build-native rows; this operation
+/// neither evaluates source nor reconstructs a forwarding machine.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
-    evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &'a [SelectedTargetMachineOrigin],
+    native_bindings: &'a [crate::AdmittedNativeBinding],
 }
-
 impl<'a> ProviderPlanDerivation<'a> {
-    /// Derive from retained conformance alone, before `via` bindings are
-    /// evaluated.
-    pub const fn unevaluated(
+    pub const fn new(
         context: ProviderPlanningContext<'a>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
-    ) -> Self {
-        Self {
-            context,
-            calling_plans,
-            selected_target,
-            evaluated_bindings: None,
-            target_machine_origins: &[],
-        }
-    }
-
-    /// Derive with the evaluated `via` binding table this compile produced for
-    /// the same typed program and target. The table is not replayed against
-    /// the program it was just evaluated from.
-    pub fn evaluated(
-        context: ProviderPlanningContext<'a>,
-        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-        selected_target: Option<&'a str>,
-        evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Self {
         Self {
             context,
             calling_plans,
             selected_target,
-            evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
+            native_bindings: &[],
         }
+    }
+    pub const fn with_native_bindings(
+        mut self,
+        bindings: &'a [crate::AdmittedNativeBinding],
+    ) -> Self {
+        self.native_bindings = bindings;
+        self
     }
 }
 
@@ -151,11 +132,18 @@ impl<'a> ProviderPlanDerivation<'a> {
 pub fn derive_satisfies_plans(
     derivation: ProviderPlanDerivation<'_>,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
-    derive_provider_plans(
+    let mut plans = derive_provider_plans(
         derivation.context,
         derivation.calling_plans,
         derivation.selected_target,
-        derivation.evaluated_bindings,
         derivation.target_machine_origins,
-    )
+    )?;
+    super::native_plan_derivation::append(
+        derivation.context,
+        derivation.calling_plans,
+        derivation.selected_target,
+        derivation.native_bindings,
+        &mut plans,
+    )?;
+    Ok(plans)
 }

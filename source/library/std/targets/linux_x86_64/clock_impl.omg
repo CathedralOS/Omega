@@ -19,9 +19,6 @@ reaches
 
 data LinuxClockPoll { }
 
-linux_x86_64 machine LinuxClockPoll::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32)
-    satisfies LinuxClockWait::poll
-    via ForeignBinding::Syscall(7);
 
 // Negative poll timeouts wait indefinitely. Divide large u32 durations into
 // three signed-range parts and the remainder, preserving the full duration
@@ -52,5 +49,4 @@ reaches
 
 linux_x86_64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
-    ClockNativeProvider::select_provider<LinuxClockWait::poll, LinuxClockPoll>(defaults);
 }

@@ -27,33 +27,10 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v3\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v6\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
-        for bundle in self.inputs.dependency_native_binding_bundles() {
-            identity.package(Some(bundle.source().package()));
-            identity.digest.len(bundle.declarations().len());
-            for declaration in bundle.declarations() {
-                identity
-                    .digest
-                    .string(&declaration.producer.declaration_path);
-                identity
-                    .digest
-                    .string(&declaration.producer.callable_identity);
-                identity.digest.string(&declaration.requirement_path);
-                identity.digest.raw(&declaration.source_occurrence_digest);
-            }
-            identity.digest.len(bundle.intents().len());
-            for intent in bundle.intents() {
-                identity.digest.u64(intent.declaration as u64);
-                identity.product_target(Some(intent.target));
-                identity.native_locator(&intent.locator);
-            }
-            if let Some(evaluation) = bundle.evaluation() {
-                identity.digest.raw(&evaluation.identity_digest());
-            }
-        }
         identity.admission(&self.prepared.built.admission);
         Ok(identity.digest.finish())
     }
@@ -69,44 +46,6 @@ struct BuildOutputIdentity<'program> {
 }
 
 impl BuildOutputIdentity<'_> {
-    fn native_locator(&mut self, locator: &semantic_vocabulary::NativeBindingLocator) {
-        use semantic_vocabulary::{ForeignLocatorCandidate as Locator, NativeBindingLocator};
-        match locator {
-            NativeBindingLocator::Syscall { number } => {
-                self.digest.byte(0);
-                self.digest.u64(*number);
-            }
-            NativeBindingLocator::Import(Locator::PeByName { library, export }) => {
-                self.digest.byte(1);
-                self.digest.bytes(library);
-                self.digest.bytes(export);
-            }
-            NativeBindingLocator::Import(Locator::PeByOrdinal { library, ordinal }) => {
-                self.digest.byte(2);
-                self.digest.bytes(library);
-                self.digest.u64(u64::from(*ordinal));
-            }
-            NativeBindingLocator::Import(Locator::ElfVersioned {
-                object,
-                symbol,
-                version,
-            }) => {
-                self.digest.byte(3);
-                self.digest.bytes(object);
-                self.digest.bytes(symbol);
-                self.digest.bytes(version);
-            }
-            NativeBindingLocator::Import(Locator::MachODylibSymbol {
-                install_name,
-                symbol,
-            }) => {
-                self.digest.byte(4);
-                self.digest.bytes(install_name);
-                self.digest.bytes(symbol);
-            }
-        }
-    }
-
     fn computed(&mut self, value: &ComputedBuildConfig) -> Result<(), String> {
         let ComputedBuildConfig {
             config,
@@ -114,7 +53,6 @@ impl BuildOutputIdentity<'_> {
             declared_product_selections,
             product_selection_requests,
             native_binding_requests,
-            native_formations: _,
             behavior_exclusion_requests,
             project_declaration,
             optimization_report_request,
@@ -185,11 +123,26 @@ impl BuildOutputIdentity<'_> {
             }
         }
         self.digest.len(native_binding_requests.len());
-        for selection in native_binding_requests {
-            self.product_request(&selection.request)?;
-            self.product_target(Some(selection.target));
-            self.occurrence(selection.selecting_machine)?;
-            self.native_locator(&selection.locator);
+        for event in native_binding_requests {
+            self.product_request(&event.request)?;
+            self.occurrence(event.selecting_machine)?;
+            self.product_target(Some(event.target));
+            match &event.static_environment {
+                None => self.digest.byte(0),
+                Some(environment) => {
+                    if environment.identity.is_empty() {
+                        return Err(
+                            "native helper environment lost its specialization identity".into()
+                        );
+                    }
+                    self.digest.byte(1);
+                    self.digest.bytes(&environment.identity);
+                }
+            }
+            for width in event.widths {
+                self.digest.u64(width);
+            }
+            self.native_locator(&event.locator);
         }
         self.digest.len(behavior_exclusion_requests.len());
         for request in behavior_exclusion_requests {
@@ -234,8 +187,8 @@ impl BuildOutputIdentity<'_> {
             settings,
             grants,
             provider_selections,
-            native_bindings,
-            native_binding_evaluation,
+            admitted_native_bindings,
+            package_provider_selections,
             assumed_bindings,
             opaque_representation_selections,
             wire_compatibility_demands,
@@ -256,64 +209,71 @@ impl BuildOutputIdentity<'_> {
             self.symbol(*selecting_machine)?;
             self.occurrence(*source_span)?;
         }
-        self.digest.len(provider_selections.len());
-        for selection in provider_selections {
-            let provider_planning::ProviderSelection {
-                subject,
-                provider_type,
-                composition_mode,
-                target,
-                selecting_machine,
-                source_span,
-            } = selection;
-            match subject {
-                ProviderSelectionSubject::BoundaryTrait(identity) => {
-                    self.digest.byte(0);
-                    self.provider_identity(identity)?;
-                }
-                ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                    self.digest.byte(1);
-                    self.provider_identity(identity)?;
-                }
-                ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                    self.digest.byte(2);
-                    self.package(family.package);
-                    self.digest.string(&family.canonical_path);
-                    self.digest.string(&family.authored_path);
-                    self.digest.len(family.coordinates().len());
-                    for coordinate in family.coordinates() {
-                        self.symbol(coordinate.symbol)?;
-                        self.digest.string(&coordinate.requirement_identity);
-                        self.digest.len(coordinate.static_parameter_count);
+        for selections in [provider_selections, package_provider_selections] {
+            self.digest.len(selections.len());
+            for selection in selections {
+                let provider_planning::ProviderSelection {
+                    subject,
+                    provider_type,
+                    composition_mode,
+                    target,
+                    origin,
+                } = selection;
+                match subject {
+                    ProviderSelectionSubject::BoundaryTrait(identity) => {
+                        self.digest.byte(0);
+                        self.provider_identity(identity)?;
+                    }
+                    ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                        self.digest.byte(1);
+                        self.provider_identity(identity)?;
+                    }
+                    ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                        self.digest.byte(2);
+                        self.package(family.package);
+                        self.digest.string(&family.canonical_path);
+                        self.digest.string(&family.authored_path);
+                        self.digest.len(family.coordinates().len());
+                        for coordinate in family.coordinates() {
+                            self.symbol(coordinate.symbol)?;
+                            self.digest.string(&coordinate.requirement_identity);
+                            self.digest.len(coordinate.static_parameter_count);
+                        }
                     }
                 }
+                self.provider_identity(provider_type)?;
+                self.product_target(*target);
+                self.composition(*composition_mode);
+                for declaration in [origin.activation(), origin.author()] {
+                    self.digest.byte(symbol_kind_tag(declaration.kind()));
+                    self.source_coordinate(declaration.source(), declaration.span())?;
+                }
+                self.digest.len(origin.occurrence().start);
+                self.digest.len(origin.occurrence().end);
+                self.digest.bool(origin.event_ordinal().is_some());
+                if let Some(ordinal) = origin.event_ordinal() {
+                    self.digest.u64(ordinal);
+                }
             }
-            self.provider_identity(provider_type)?;
-            self.product_target(*target);
-            self.composition(*composition_mode);
-            self.symbol(*selecting_machine)?;
-            self.occurrence(*source_span)?;
         }
-        self.digest.len(native_bindings.len());
-        match native_binding_evaluation {
-            Some(evaluation) => {
-                self.digest.byte(1);
-                self.digest.raw(&evaluation.identity_digest());
+        self.digest.len(admitted_native_bindings.len());
+        for row in admitted_native_bindings {
+            self.symbol(row.requirement)?;
+            self.digest.bool(row.selecting_machine.is_some());
+            if let Some(author) = row.selecting_machine {
+                self.symbol(author)?;
             }
-            None => self.digest.byte(0),
-        }
-        for supply in native_bindings {
-            self.digest.raw(&supply.evaluation.identity_digest());
-            let selection = &supply.selection;
-            self.symbol(selection.subject)?;
-            self.symbol(selection.requirement)?;
-            self.product_target(Some(selection.target));
-            self.native_locator(&selection.locator);
-            self.digest.string(&selection.producer.declaration_path);
-            self.digest.string(&selection.producer.callable_identity);
-            self.digest.raw(&selection.source_occurrence_digest);
-            self.package(Some(selection.supplier_package));
-            self.occurrence(selection.source_span)?;
+            self.occurrence(row.source_span)?;
+            if let Some(retained) = &row.retained {
+                self.digest.raw(
+                    &package_compilation::native_selection_codec::package_native_bindings_digest(
+                        std::slice::from_ref(retained.as_ref()),
+                    ),
+                );
+            }
+            self.digest.len(row.event_ordinal);
+            self.digest.string(row.target.target_name());
+            self.digest.raw(&row.receipt().identity_digest());
         }
         self.digest.len(assumed_bindings.len());
         for binding in assumed_bindings {
@@ -574,17 +534,71 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::IncludedSourceHandoff => 10,
             BuildOperation::LogWriteLine => 11,
             BuildOperation::NativeBinding => 12,
+            BuildOperation::NativeTableFunction => 13,
+            BuildOperation::NativeVtableField => 14,
+            BuildOperation::NativeSameStackDemand => 15,
         });
         self.digest.len(operands.len());
         for operand in operands {
             let language_semantics::declaration_selection::ProductDeclarationOperand {
                 path,
                 source_span,
+                application,
             } = operand;
             self.digest.string(path);
+            // The occurrence commits its immutable complete source bytes; the
+            // graph is a deterministic source capture, not another authority.
+            self.digest.byte(u8::from(application.is_some()));
             self.occurrence(*source_span)?;
         }
         Ok(())
+    }
+
+    fn native_locator(
+        &mut self,
+        value: &language_semantics::declaration_selection::NativeBindingValue,
+    ) {
+        use language_semantics::declaration_selection::NativeBindingValue as V;
+        match value {
+            V::PeByName { library, export } => {
+                self.digest.byte(0);
+                self.digest.bytes(library);
+                self.digest.bytes(export);
+            }
+            V::PeByOrdinal { library, ordinal } => {
+                self.digest.byte(1);
+                self.digest.bytes(library);
+                self.digest.u64(u64::from(*ordinal));
+            }
+            V::ElfVersioned {
+                object,
+                symbol,
+                version,
+            } => {
+                self.digest.byte(2);
+                self.digest.bytes(object);
+                self.digest.bytes(symbol);
+                self.digest.bytes(version);
+            }
+            V::MachODylibSymbol {
+                install_name,
+                symbol,
+            } => {
+                self.digest.byte(3);
+                self.digest.bytes(install_name);
+                self.digest.bytes(symbol);
+            }
+            V::Syscall { number } => {
+                self.digest.byte(4);
+                self.digest.u64(*number);
+            }
+            V::TableFunction => self.digest.byte(5),
+            V::VtableField => self.digest.byte(6),
+            V::SameStackDemand { bytes } => {
+                self.digest.byte(7);
+                self.digest.u64(*bytes);
+            }
+        }
     }
 
     fn provider_identity(&mut self, identity: &ProviderSelectionIdentity) -> Result<(), String> {

@@ -11,7 +11,7 @@ use psi::tokens::tokens;
 // `suspends;`, `blocks;`, `crashes Trap` or `crashes Abort`,
 // `requires fact [(, | ;) fact]*`, `ensures fact [(, | ;) fact]*`,
 // `where fact [, fact]* [,]`, `satisfies Trait[<arguments>]::requirement
-// [as Label] [via value] [, ...]` and `terminates [by subjects [-> View]];`,
+// [as Label] [, ...]` and `terminates [by subjects [-> View]];`,
 // whose subjects are one expression or a parenthesized list. Every clause
 // word is contextual, and the clauses end at the first token that opens
 // none, which the owner's grammar then reads. A `;` that ends an operational
@@ -263,8 +263,7 @@ crashes Trap
         transition { _ -> via_word(parser, input, owner, Parser::with_clause_label(unlabelled, label)) }
     }
 
-    // `via value` supplies a bodyless leaf's binding payload, so a braced
-    // value there is a construction, not a body.
+    // The word is recognized only to issue the explicit native-binding migration.
     machine via_word(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
         let bound: bool = Parser::at_word(parser, input, "via");
         transition bound {
@@ -274,18 +273,7 @@ crashes Trap
     }
 
     machine via(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
-        Parser::take_current(parser, input);
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedSatisfiesBinding, true, true);
-        transition parser.output.accepted {
-            true -> via_bound(parser, input, owner, clause, parser.expression_result)
-            _ -> done()
-        }
-    }
-
-    machine via_bound(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, value: u64 in Trapping) {
-        let expression: Expression = SyntaxTrees::expression(&parser.output, value);
-        transition { _ -> satisfaction(parser, input, owner,
-            Parser::with_clause_expression(parser, clause, value, expression.source_span.span.end)) }
+        reject(parser, input, ParseDiagnosticCode::RetiredViaBinding);
     }
 
     machine satisfaction(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {

@@ -73,16 +73,16 @@ pub enum PackageCompilationInputError {
     DependencyCycle {
         cycle: Vec<PackageKeyIdentity>,
     },
-    RootGeneratedSourceBundle {
+    RootBuildHandoff {
         package: PackageKeyIdentity,
     },
-    ForeignGeneratedSourceBundle {
+    ForeignBuildHandoff {
         package: PackageKeyIdentity,
     },
-    DuplicateGeneratedSourceBundle {
+    DuplicateBuildHandoff {
         package: PackageKeyIdentity,
     },
-    MissingGeneratedSourceBundle {
+    MissingBuildHandoff {
         package: PackageKeyIdentity,
     },
     RootIndependentComponentDescription {
@@ -94,22 +94,22 @@ pub enum PackageCompilationInputError {
     DuplicateIndependentComponentDescription {
         package: PackageKeyIdentity,
     },
-    GeneratedSourceBundleClosureMismatch {
+    BuildHandoffClosureMismatch {
         package: PackageKeyIdentity,
     },
-    GeneratedSourceBundlePurposeMismatch {
+    BuildHandoffPurposeMismatch {
         package: PackageKeyIdentity,
         purpose: DependencyPurpose,
     },
-    GeneratedSourceBundleCustodyMismatch {
+    BuildHandoffCustodyMismatch {
         package: PackageKeyIdentity,
     },
-    GeneratedSourceBundleTargetMismatch {
+    BuildHandoffTargetMismatch {
         package: PackageKeyIdentity,
         bundle_target: target::TargetProfile,
         selected_target: Option<target::TargetProfile>,
     },
-    GeneratedSourceBundleExecutionProfileMismatch {
+    BuildHandoffExecutionProfileMismatch {
         package: PackageKeyIdentity,
         bundle_profile: Option<target::TargetProfile>,
         execution_profile: Option<target::TargetProfile>,
@@ -231,17 +231,17 @@ impl fmt::Display for PackageCompilationInputError {
                 }
                 Ok(())
             }
-            Self::RootGeneratedSourceBundle { package } => write!(
+            Self::RootBuildHandoff { package } => write!(
                 formatter,
                 "root package {} cannot inject a generated-source bundle before its own build",
                 display_identity(*package)
             ),
-            Self::ForeignGeneratedSourceBundle { package } => write!(
+            Self::ForeignBuildHandoff { package } => write!(
                 formatter,
                 "generated-source bundle names foreign package {}",
                 display_identity(*package)
             ),
-            Self::DuplicateGeneratedSourceBundle { package } => write!(
+            Self::DuplicateBuildHandoff { package } => write!(
                 formatter,
                 "package {} has more than one generated-source bundle",
                 display_identity(*package)
@@ -261,28 +261,28 @@ impl fmt::Display for PackageCompilationInputError {
                 "package {} has more than one component description",
                 display_identity(*package)
             ),
-            Self::MissingGeneratedSourceBundle { package } => write!(
+            Self::MissingBuildHandoff { package } => write!(
                 formatter,
                 "dependency package {} has no generated-source bundle",
                 display_identity(*package)
             ),
-            Self::GeneratedSourceBundleClosureMismatch { package } => write!(
+            Self::BuildHandoffClosureMismatch { package } => write!(
                 formatter,
                 "generated-source bundle for package {} was produced from a different dependency closure",
                 display_identity(*package)
             ),
-            Self::GeneratedSourceBundlePurposeMismatch { package, purpose } => write!(
+            Self::BuildHandoffPurposeMismatch { package, purpose } => write!(
                 formatter,
                 "generated-source bundle for package {} has an unrequested {} activation",
                 display_identity(*package),
                 purpose.name()
             ),
-            Self::GeneratedSourceBundleCustodyMismatch { package } => write!(
+            Self::BuildHandoffCustodyMismatch { package } => write!(
                 formatter,
                 "generated-source bundle for package {} does not match its retained source custody and compiler review",
                 display_identity(*package)
             ),
-            Self::GeneratedSourceBundleTargetMismatch {
+            Self::BuildHandoffTargetMismatch {
                 package,
                 bundle_target,
                 selected_target,
@@ -295,7 +295,7 @@ impl fmt::Display for PackageCompilationInputError {
                     .map(target::TargetProfile::target_name)
                     .unwrap_or("<none>"),
             ),
-            Self::GeneratedSourceBundleExecutionProfileMismatch {
+            Self::BuildHandoffExecutionProfileMismatch {
                 package,
                 bundle_profile,
                 execution_profile,

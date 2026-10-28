@@ -42,13 +42,21 @@ pub(super) fn retain_completions(
                     completion,
                     semantic_vocabulary::BoundaryCompletion::External(_)
                 ) {
-                    checked_completion(checked, realization, requirement, target, candidates)
-                        .map_err(|reason| {
-                            vec![diagnostics::Diagnostic::error(format!(
-                                "selected completion provider `{}`: {reason}",
-                                checked.symbols.display_path(realization, "::")
-                            ))]
-                        })?
+                    match realization {
+                        crate::ProviderRowOrigin::Machine(machine) => {
+                            checked_completion(checked, machine, requirement, target, candidates)
+                        }
+                        crate::ProviderRowOrigin::BuildNative { .. } => Ok(vec![requirement]),
+                        crate::ProviderRowOrigin::Toolchain => Ok(Vec::new()),
+                    }
+                    .map_err(|reason| {
+                        vec![diagnostics::Diagnostic::error(format!(
+                            "selected completion provider `{}`: {reason}",
+                            checked
+                                .symbols
+                                .display_path(realization.machine().unwrap_or(requirement), "::")
+                        ))]
+                    })?
                 } else {
                     Vec::new()
                 },
@@ -162,7 +170,7 @@ impl CompletionReview<'_> {
             let requirement = self.requirement;
             let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
                 candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {
-                    (candidate.provenance.row_realizations.get(position).and_then(crate::ProviderRowRealization::authored) == Some(machine.symbol)
+                    (candidate.provenance.row_realizations.get(position) == Some(&crate::ProviderRowOrigin::Machine(machine.symbol))
                         && candidate.provenance.row_requirements.get(position) == Some(&requirement)
                         && matches!(row.binding, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                             | effects::provider_plan::ProviderBinding::Import { .. }))

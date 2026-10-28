@@ -2,7 +2,7 @@
 //! conformances, propositions, proof facts and external bindings.
 
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, ExternalBinding,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
     GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause,
 };
 use crate::syntax_trees::SyntaxTrees;
@@ -141,8 +141,6 @@ pub enum ItemSnapshot {
         invokes: Vec<IdentifierSnapshot>,
         suspends: bool,
         blocks: bool,
-        #[serde(skip_serializing_if = "is_zero_u64")]
-        admitted_same_stack_bytes: u64,
         contracts: Vec<CapabilityContractSnapshot>,
         states: Vec<StateSnapshot>,
     },
@@ -174,10 +172,6 @@ pub struct SatisfiesClauseSnapshot {
     pub requirement: Option<IdentifierSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alias: Option<IdentifierSnapshot>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub via: Option<ExternalBindingSnapshot>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub via_expression: Option<Box<ExpressionSnapshot>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -187,22 +181,8 @@ pub struct GenericConformanceBoundSnapshot {
     pub arguments: Vec<TypeReferenceSnapshot>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ExternalBindingSnapshot {
-    Syscall { number: i64 },
-    CompilerIntrinsic,
-    VtableSlot { index: i64 },
-    VtableField { field: IdentifierSnapshot },
-    TableFunction { field: IdentifierSnapshot },
-}
-
 fn is_false(value: &bool) -> bool {
     !*value
-}
-
-fn is_zero_u64(value: &u64) -> bool {
-    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -749,7 +729,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             ),
             suspends: value.suspends,
             blocks: value.blocks,
-            admitted_same_stack_bytes: value.admitted_same_stack_bytes,
             contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
             states: syntax_trees
                 .items
@@ -1120,16 +1099,6 @@ fn snapshot_satisfies_clause(
             .alias
             .as_ref()
             .map(|value| snapshot_identifier(syntax_trees, value)),
-        via: clause
-            .via
-            .as_ref()
-            .map(|value| snapshot_external_binding(syntax_trees, value)),
-        via_expression: clause.via_expression.is_valid().then(|| {
-            Box::new(snapshot_expression_handle(
-                syntax_trees,
-                clause.via_expression,
-            ))
-        }),
     }
 }
 
@@ -1146,24 +1115,5 @@ fn snapshot_generic_conformance_bound(
             .iter()
             .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
             .collect(),
-    }
-}
-
-fn snapshot_external_binding(
-    syntax_trees: &SyntaxTrees,
-    binding: &ExternalBinding,
-) -> ExternalBindingSnapshot {
-    match binding {
-        ExternalBinding::Syscall { number } => ExternalBindingSnapshot::Syscall { number: *number },
-        ExternalBinding::CompilerIntrinsic => ExternalBindingSnapshot::CompilerIntrinsic,
-        ExternalBinding::VtableSlot { index } => {
-            ExternalBindingSnapshot::VtableSlot { index: *index }
-        }
-        ExternalBinding::VtableField { field } => ExternalBindingSnapshot::VtableField {
-            field: snapshot_identifier(syntax_trees, field),
-        },
-        ExternalBinding::TableFunction { field } => ExternalBindingSnapshot::TableFunction {
-            field: snapshot_identifier(syntax_trees, field),
-        },
     }
 }

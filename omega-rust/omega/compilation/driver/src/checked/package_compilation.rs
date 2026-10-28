@@ -234,12 +234,8 @@ impl PackageBuild {
         self.source.package_inputs()
     }
 
-    pub fn native_binding_bundle(&self) -> &package_compilation::PackageNativeBindingBundle {
-        self.source.native_binding_bundle()
-    }
-
-    pub fn generated_source_bundle(&self) -> &package_compilation::PackageGeneratedSourceBundle {
-        self.source.generated_source_bundle()
+    pub fn build_handoff(&self) -> &package_compilation::PackageBuildHandoff {
+        self.source.build_handoff()
     }
 
     pub fn required_component_packages(&self) -> Vec<semantic_vocabulary::PackageKeyIdentity> {
@@ -370,6 +366,25 @@ impl CompilationSession {
                 })?;
             selected.install().result
         })
+    }
+
+    /// Export one dependency's Product selections without replaying Build.
+    /// Native-bearing intent includes static recipes that must complete their
+    /// ordinary immutable Product checking before another package consumes it.
+    /// The original prepared Product remains available to its scheduler.
+    pub fn prepare_package_build_handoff(
+        &mut self,
+        build: &PackageBuild,
+    ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
+        if build.source.build().native_binding_requests.is_empty() {
+            return Ok(build.build_handoff().clone());
+        }
+        let checked = self.check_package_build(PackageBuild {
+            source: build.source.clone(),
+        })?;
+        checked
+            .package_build_handoff()
+            .map_err(|reason| vec![Diagnostic::error(reason)].into())
     }
 
     /// Produce the exact public helper selected by a waiting Build. Checking

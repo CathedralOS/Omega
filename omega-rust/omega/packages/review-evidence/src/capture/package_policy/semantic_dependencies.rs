@@ -47,10 +47,6 @@ pub(super) fn project(
         )?;
         let consumer = if machine.is_public
             || machine.supply_mode.is_boundary_declaration()
-            || matches!(
-                machine.supply_mode,
-                language_semantics::MachineSupplyMode::ExternalRealization { .. }
-            )
             || compilation.custody.build().selected_build_machine_symbol == Some(machine.symbol)
         {
             let identity = policy_callable_identity(compilation, machine.symbol)?;

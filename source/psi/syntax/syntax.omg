@@ -364,7 +364,7 @@ public data Statement [copy] {
 // one exact trait requirement `Trait<arguments>::requirement`: the trait's
 // path and then the requirement in `SyntaxTrees::members`, the trait's static
 // arguments in `SyntaxTrees::type_arguments`, an optional satisfier label
-// `as Name` and an optional binding payload `via value` as its expression.
+// `as Name`. Native bindings belong to the owning package Build.
 // `Terminates` is the termination promise; `terminates by subjects [-> View]`
 // adds its ranking witness: the ranked subjects in `SyntaxTrees::arguments`
 // and the view, a path or an argumented view call, as its expression.
@@ -876,7 +876,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedSatisfiesTrait;
     case ExpectedSatisfiedRequirement;
     case ExpectedSatisfiesLabel;
-    case ExpectedSatisfiesBinding;
+    case RetiredViaBinding;
     case ExpectedTerminationSubject;
     case ExpectedTerminationSubjectEnd;
     case ExpectedTerminationView;

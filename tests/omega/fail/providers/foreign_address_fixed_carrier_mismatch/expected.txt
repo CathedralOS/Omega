@@ -1,1 +1,1 @@
-expects `pointer: addr`, got `pointer: u64`
+`via` binding clauses are retired

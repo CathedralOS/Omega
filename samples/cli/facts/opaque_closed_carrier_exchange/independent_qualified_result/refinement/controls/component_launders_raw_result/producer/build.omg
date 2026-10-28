@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::package(builder, "opaque_address_producer");
  Build::select_representation<InternetAddress, AddressRepresentation>(builder);
@@ -14,4 +15,47 @@ machine build(builder: &mut Build) {
  Build::bind(builder, linux_arm64::ProgramEntry, component_entry);
  Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
  Build::bind(builder, windows_x86_64::ProgramEntry, component_entry);
+
+ Build::bind<AddressParts::make>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_makeaddr",
+        },
+    });
+ Build::bind<AddressParts::make>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<AddressParts::host>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_lnaof",
+        },
+    });
+ Build::bind<AddressParts::host>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_lnaof", version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<AddressParts::make>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } });
+ Build::bind<AddressParts::host>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_lnaof", version: "GLIBC_2.17" } });
+ Build::bind<AddressParts::make>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } });
+ Build::bind<AddressParts::host>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_lnaof" } });
+ Build::bind<UncheckedFactory::make>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_makeaddr",
+        },
+    });
+ Build::bind<UncheckedFactory::make>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
+        },
+    });
+ Build::bind<UncheckedFactory::make>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } });
+ Build::bind<UncheckedFactory::make>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } });
 }

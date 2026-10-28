@@ -1,0 +1,11 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_bindings_aarch64_hfa_import_compile");
+
+ Build::bind<HfaImport::call>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "omega_hfa_probe",
+        },
+    });
+}

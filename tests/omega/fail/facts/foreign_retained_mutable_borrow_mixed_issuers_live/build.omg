@@ -1,7 +1,105 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_retained_mutable_borrow");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<Writer::acquire>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_acquire", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::register>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_register", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::complete>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_complete", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::release>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_release", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::acquire>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_acquire", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::register>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_register", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::complete>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_complete", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::release>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_mutretain_fixture.so", symbol: "mutretain_release", version: "RETAIN_1.0",
+    } });
+ Build::bind<Writer::acquire>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_mutretain_fixture.dylib", symbol: "_mutretain_acquire",
+    } });
+ Build::bind<Writer::register>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_mutretain_fixture.dylib", symbol: "_mutretain_register",
+    } });
+ Build::bind<Writer::complete>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_mutretain_fixture.dylib", symbol: "_mutretain_complete",
+    } });
+ Build::bind<Writer::release>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_mutretain_fixture.dylib", symbol: "_mutretain_release",
+    } });
+ Build::bind<Writer::acquire>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_mutretain_fixture.dll", export: "mutretain_acquire",
+    } });
+ Build::bind<Writer::register>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_mutretain_fixture.dll", export: "mutretain_register",
+    } });
+ Build::bind<Writer::complete>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_mutretain_fixture.dll", export: "mutretain_complete",
+    } });
+ Build::bind<Writer::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_mutretain_fixture.dll", export: "mutretain_release",
+    } });
+ Build::bind<Reader::acquire>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_acquire", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::register>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_register", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::complete>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_complete", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::release>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_release", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::acquire>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_acquire", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::register>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_register", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::complete>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_complete", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::release>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libomega_retention_fixture.so", symbol: "retention_release", version: "RETAIN_1.0",
+    } });
+ Build::bind<Reader::acquire>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_retention_fixture.dylib", symbol: "_retention_acquire",
+    } });
+ Build::bind<Reader::register>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_retention_fixture.dylib", symbol: "_retention_register",
+    } });
+ Build::bind<Reader::complete>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_retention_fixture.dylib", symbol: "_retention_complete",
+    } });
+ Build::bind<Reader::release>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libomega_retention_fixture.dylib", symbol: "_retention_release",
+    } });
+ Build::bind<Reader::acquire>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_retention_fixture.dll", export: "retention_acquire",
+    } });
+ Build::bind<Reader::register>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_retention_fixture.dll", export: "retention_register",
+    } });
+ Build::bind<Reader::complete>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_retention_fixture.dll", export: "retention_complete",
+    } });
+ Build::bind<Reader::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "omega_retention_fixture.dll", export: "retention_release",
+    } });
 }

@@ -16,7 +16,6 @@ use validation::contract_structure::{
 struct ContractPublication<'program> {
     type_identities: &'program arena::OwnedInterner<typed_trees::type_identity::TypeIdentityTable>,
     supply: language_semantics::MachineSupplyMode,
-    external_binding: Option<language_semantics::ExternalBindingIdentity>,
     services: Vec<String>,
     invocations: language_semantics::SynchronousInvocationInterface,
     published_invocations: Vec<String>,
@@ -34,7 +33,6 @@ impl ContractPublication<'_> {
         self.type_identities.with(|table| {
             checked_trees::contract_identity(
                 self.supply,
-                self.external_binding.as_ref(),
                 &self.services,
                 self.invocations,
                 &self.published_invocations,
@@ -223,7 +221,9 @@ pub(crate) fn build_contract_plans(
                         let binders = program
                             .machine_states(machine)
                             .first()
-                            .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
+                            .map(|entry| {
+                                callable_binders(&generics, program.state_parameters(entry))
+                            })
                             .unwrap_or_else(|| generics.clone());
                         let declaration = checked_trees::DeclaredContractStructure {
                             callables,
@@ -240,27 +240,9 @@ pub(crate) fn build_contract_plans(
                             declared_termination(program, &termination.interface, &binders);
                         let closed_scalar_values =
                             build_closed_scalar_value_contract_plan(program, machine, operators);
-                        let external_binding = match machine.supply_mode {
-                            language_semantics::MachineSupplyMode::ExternalRealization {
-                                binding: Some(binding),
-                                ..
-                            } => Some(
-                                program
-                                    .external_bindings
-                                    .identity(binding)
-                                    .cloned()
-                                    .ok_or_else(|| {
-                                        vec![diagnostics::Diagnostic::error(
-                                            "checked external supply lost its owning binding identity",
-                                        )]
-                                    })?,
-                            ),
-                            _ => None,
-                        };
                         let publication = ContractPublication {
                             type_identities: &program.type_identities,
                             supply: machine.supply_mode,
-                            external_binding,
                             services: published_service_names,
                             invocations: synchronous_invocation.interface,
                             published_invocations: synchronous_invocation.published.clone(),

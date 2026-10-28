@@ -309,9 +309,7 @@ fn validate_external_machine_claims(
     for machine in program.machines().iter().filter(|machine| {
         matches!(
             machine.supply_mode,
-            MachineSupplyMode::AdmissionClaim
-                | MachineSupplyMode::Requirement
-                | MachineSupplyMode::ExternalRealization { .. }
+            MachineSupplyMode::AdmissionClaim | MachineSupplyMode::Requirement
         )
     }) {
         for contract in program

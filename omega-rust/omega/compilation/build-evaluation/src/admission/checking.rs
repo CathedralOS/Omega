@@ -71,20 +71,13 @@ pub(crate) fn prepare_checked_build(
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
     );
-    let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
-        context,
-        execution_profile,
-        packages,
-    )?;
-    let candidates = provider_planning::derive_satisfies_plans(
-        provider_planning::ProviderPlanDerivation::evaluated(
+    let candidates =
+        provider_planning::derive_satisfies_plans(provider_planning::ProviderPlanDerivation::new(
             context,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
-            &bindings,
             &declarations.origins,
-        ),
-    )?;
+        ))?;
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {
             (effects::SelectedProviderPlanFacts::default(), Vec::new())

@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 // Darwin-only canary: the requirement's leaf binds libSystem's `_poll` and the
 // measurement reads `macos_perf_counter`, so only macos_arm64 selects the entry.
 machine build(builder: &mut Build) {
@@ -5,4 +6,20 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<TimedWait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_poll",
+        },
+    });
+ Build::bind<TimedWait::poll>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
+    } });
+ Build::bind<ElapsedClock::now>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+    } });
+ Build::bind<ElapsedClockRead::read>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
+    } });
 }

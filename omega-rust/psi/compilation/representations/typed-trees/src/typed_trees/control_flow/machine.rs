@@ -134,10 +134,6 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
-    /// Authored same-stack demand of a bodyless external realization, in bytes.
-    /// Zero means the source wrote no `stack N bytes` clause. Copied from
-    /// symbol-resolved trees; later stages must not remeasure the callee.
-    pub admitted_same_stack_bytes: u64,
     /// Exact authored operational-clause keyword occurrences, retained for
     /// package-review source custody and excluded from semantic identity.
     pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
@@ -268,7 +264,6 @@ impl Default for Machine {
             termination_plan: language_semantics::MachineTerminationPlan::default(),
             service_reach_row: language_semantics::ServiceReachRowId::NULL,
             service_reach_is_installation_bound: false,
-            admitted_same_stack_bytes: 0,
             suspends_keyword_source_spans: Vec::new(),
             blocks_keyword_source_spans: Vec::new(),
             lifetime_parameters: Vec::new(),
@@ -330,17 +325,6 @@ pub struct TraitConformance {
     /// identifiers deliberately own text only.
     pub requirement_source_span: Option<source::SourceSpan>,
     pub alias: Option<Identifier>,
-    /// Exact interned identity of the external leaf's structured `via`
-    /// bootstrap binding. New source instead retains `via_expression` until
-    /// hermetic evaluation produces the normalized Omega-owned binding.
-    pub external_binding: Option<language_semantics::ExternalBindingId>,
-    /// Ordinary typed expression after `via`. The admitted source-evaluation
-    /// rung accepts one exact zero-argument direct machine call. Invalid for
-    /// bootstrap bindings and ordinary checked satisfiers.
-    pub via_expression: crate::expression::ExpressionHandle,
-    /// Exact authored `via` keyword occurrence retained separately from the
-    /// semantic binding identity for package-review source custody.
-    pub external_binding_source_span: Option<source::SourceSpan>,
 }
 
 #[derive(Debug, Clone, Copy)]

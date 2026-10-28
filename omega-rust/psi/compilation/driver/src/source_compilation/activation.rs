@@ -109,6 +109,7 @@ pub(super) struct ActivatedSource {
     pub typing: SeededTypingBase,
     pub pre_checks: Vec<PreCheckEvaluation>,
     sources: Arc<SourceMap>,
+    template_context: Arc<SyntaxTrees>,
 }
 
 impl ActivatedSource {
@@ -116,7 +117,7 @@ impl ActivatedSource {
         &self,
         syntax: &mut SyntaxTrees,
         source_items: &[(SourceId, Vec<syntax_trees::item::ItemHandle>)],
-    ) {
+    ) -> SyntaxTrees {
         let retained = source_items
             .iter()
             .filter(|(source, _)| self.sources.source_is_selected(*source))
@@ -143,6 +144,77 @@ impl ActivatedSource {
             let copied = syntax.copy_expression_from(&selected, *expression);
             syntax.roots.constant_extent_probes.push((copied, *public));
         }
+        // The prepared predecessor also owns already materialized generic
+        // instances. Reusing only raw parsed templates would synthesize their
+        // variants twice in the receiving symbol world.
+        let prepared = self.template_context.as_ref();
+        let items = prepared
+            .root_item_handles()
+            .iter()
+            .copied()
+            .filter(|item| {
+                use syntax_trees::item::Item;
+                let span = match prepared.root_item(*item) {
+                    Item::Data(value) => Some(value.name.source_span()),
+                    Item::Const(value) => Some(value.name.source_span()),
+                    Item::Domain(value) => Some(value.name.source_span()),
+                    Item::Machine(value) => Some(value.name.source_span()),
+                    Item::Trait(value) => Some(value.name.source_span()),
+                    Item::Module(value) => prepared
+                        .items
+                        .identifier_path_members(value.path)
+                        .first()
+                        .map(|name| name.source_span()),
+                    Item::Use(value) => prepared
+                        .items
+                        .identifier_path_members(value.path)
+                        .first()
+                        .map(|name| name.source_span()),
+                    Item::Package(value) => prepared
+                        .items
+                        .identifier_path_members(value.path)
+                        .first()
+                        .map(|name| name.source_span()),
+                    Item::Operator(value) => prepared
+                        .items
+                        .identifier_path_members(value.name)
+                        .first()
+                        .map(|name| name.source_span()),
+                    Item::Measure(value) => prepared
+                        .items
+                        .identifier_path_members(value.name)
+                        .first()
+                        .map(|name| name.source_span()),
+                    Item::Capability(value) => Some(value.name.source_span()),
+                    Item::Proposition(value) => Some(value.name.source_span()),
+                    Item::Conformance(value) => Some(
+                        value
+                            .alias
+                            .as_ref()
+                            .unwrap_or(&value.trait_name)
+                            .source_span(),
+                    ),
+                };
+                span.is_some_and(|span| self.sources.source_is_selected(span.source_id))
+            })
+            .collect::<Vec<_>>();
+        let mathematics = prepared
+            .root_mathematical_definition_handles()
+            .iter()
+            .copied()
+            .filter(|handle| {
+                self.sources.source_is_selected(
+                    prepared
+                        .root_mathematical_definition(*handle)
+                        .name
+                        .source_span()
+                        .source_id,
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut context = SyntaxTrees::new(prepared.source_id);
+        context.extend_selected_roots_from(prepared, &items, &mathematics);
+        context
     }
 }
 
@@ -196,6 +268,7 @@ pub(super) fn select_retained_source(
     }
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
     for (count, source, sources) in candidates {
+        let template_context = source.pending_bodies.generic_normalization_context();
         let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
             source,
             Arc::clone(&sources),
@@ -259,6 +332,7 @@ pub(super) fn select_retained_source(
             typing,
             pre_checks,
             sources,
+            template_context,
         }));
     }
     Ok(None)

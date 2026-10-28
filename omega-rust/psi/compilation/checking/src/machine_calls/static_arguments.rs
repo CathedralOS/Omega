@@ -81,6 +81,23 @@ pub fn validate_authored_static_arguments(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
+    for argument in program.typed_program().designated_static_type_arguments() {
+        let Some(owner) = program.machine(argument.owner) else {
+            diagnostics.push(
+                Diagnostic::error("designated static argument lost its exact source owner")
+                    .with_source_span(argument.source_span),
+            );
+            continue;
+        };
+        crate::validate_static_type_argument(
+            program,
+            crate::StaticTypeArgumentOwner::Machine(owner),
+            argument.reference,
+            &symbols,
+            &mut diagnostics,
+            formation_obligations,
+        );
+    }
     let scopes = requirement_predicates::CallScopes::build(program);
     let expression_states = expression_call_states(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
@@ -154,6 +171,26 @@ pub fn validate_authored_static_arguments(
             None,
         ) {
             diagnostics.push(error);
+        }
+        // An issued Product operand can retain a complete method tuple
+        // without any executable call. Its source recipes still owe ordinary
+        // formation before their normalized bindings specialize the signature.
+        for (parameter, argument) in program
+            .state_signature_type_parameters(signature)
+            .iter()
+            .zip(arguments)
+        {
+            if let TypeParameterKind::Const { type_reference } = parameter.kind
+                && let Some(expression) = const_expression_argument(program, argument)
+                && let Err(mut failures) = crate::check_closed_const_expression(
+                    program,
+                    source.lexical_owner,
+                    expression,
+                    type_reference,
+                )
+            {
+                diagnostics.append(&mut failures);
+            }
         }
         requirement_predicates::validate_where_facts(
             program,

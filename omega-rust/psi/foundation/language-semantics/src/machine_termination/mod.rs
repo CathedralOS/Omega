@@ -3,7 +3,7 @@
 //! guarantee, and the termination plan.
 
 use crate::RankingViewId;
-use crate::{ExternalBindingId, ExternalBindingMechanism, SemanticDomainId};
+use crate::SemanticDomainId;
 
 /// How a machine is supplied to its consumers (record §Machines). Provider
 /// admission, proof artifacts, manifests, and lowering consume this directly;
@@ -25,20 +25,6 @@ pub enum MachineSupplyMode {
     /// An accepted (axiom-tier) declaration: trusted without proof, shown
     /// in the trust report.
     AdmissionClaim,
-    /// PRV4: an irreducible external leaf -- `satisfies Requirement via
-    /// <Binding>;` on a bodyless machine. The satisfied requirement supplies
-    /// the public contract and service/operational ceilings. The optional
-    /// bootstrap identity remains only for unmigrated source; an ordinary
-    /// producer expression is retained on the conformance until Omega installs
-    /// the normalized evaluated binding. Composite lowerings are ordinary
-    /// CheckedBody machines and never carry a binding.
-    ExternalRealization {
-        /// Present only for the segregated pre-evaluation bootstrap syntax.
-        /// Ordinary `via` source retains its producer expression on the exact
-        /// conformance until Omega installs the normalized evaluated binding.
-        binding: Option<ExternalBindingId>,
-        mechanism: Option<ExternalBindingMechanism>,
-    },
 }
 
 impl MachineSupplyMode {

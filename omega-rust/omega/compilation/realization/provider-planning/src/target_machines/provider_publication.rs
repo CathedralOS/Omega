@@ -117,13 +117,15 @@ impl TargetProviderPublicationRequest<'_> {
             ))]
         })?;
         let declarations = super::settle_provider_defaults(self.context, self.defaults, profile);
-        let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
-            self.context,
-            &self.settlement.boundary_calling_plan_realizations,
-            Some(target),
-            &self.settlement.evaluated_via_bindings,
-            &declarations.origins,
-        ))?;
+        let candidates = crate::derive_satisfies_plans(
+            crate::ProviderPlanDerivation::new(
+                self.context,
+                &self.settlement.boundary_calling_plan_realizations,
+                Some(target),
+                &declarations.origins,
+            )
+            .with_native_bindings(&self.settlement.admitted_native_bindings),
+        )?;
         // Select within the retained demand domain, never by intersecting a
         // plan's rows. An unrelated unique provider is not an installation
         // obligation. Explicit declarations retain their complete schema even

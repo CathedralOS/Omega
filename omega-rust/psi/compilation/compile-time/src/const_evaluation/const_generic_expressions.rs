@@ -170,12 +170,14 @@ pub(crate) fn evaluate(
         for (argument, expression, _, _) in &pending {
             if lexical_arguments.contains(argument) {
                 let origins = if lexical_selection::needs_resolution(&syntax, *expression) {
-                    lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
-                        vec![
-                            Diagnostic::error(format!("const argument expression: {reason}"))
-                                .with_source_span(syntax.expressions.source_span(*expression)),
-                        ]
-                    })?
+                    lexical_selection::retain(&syntax, &resolved, *expression).map_err(
+                        |reason| {
+                            vec![
+                                Diagnostic::error(format!("const argument expression: {reason}"))
+                                    .with_source_span(syntax.expressions.source_span(*expression)),
+                            ]
+                        },
+                    )?
                 } else {
                     Vec::new()
                 };
@@ -232,6 +234,7 @@ pub(crate) fn evaluate(
         sources.clone(),
         bindings,
         context.retained_base(),
+        context.template_context,
         &declarations,
     )?;
     let frontier =
@@ -492,7 +495,6 @@ pub(super) fn append_named_probe(
         blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
-        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));

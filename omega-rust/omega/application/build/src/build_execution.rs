@@ -15,14 +15,13 @@ use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
 use compiler::{CompilationSession, PackageCompileFailure, PackageSourceRequest};
 use diagnostics::Diagnostic;
-use package_compilation::{IndependentComponentDescription, PackageGeneratedSourceBundle};
+use package_compilation::{IndependentComponentDescription, PackageBuildHandoff};
 use semantic_vocabulary::PackageKeyIdentity;
 
 struct OccurrenceProduct {
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
-    generated: PackageGeneratedSourceBundle,
-    native: package_compilation::PackageNativeBindingBundle,
+    generated: PackageBuildHandoff,
     prepared: Option<PackageBuild>,
     description: Option<IndependentComponentDescription>,
 }
@@ -294,11 +293,24 @@ pub(super) fn prepare_packages<Owner>(
                     ));
                 }
                 Ok(build) => {
+                    let generated = match compiler.prepare_package_build_handoff(&build) {
+                        Ok(generated) => generated,
+                        Err(failure) => {
+                            outcomes.push((
+                                frontier.position,
+                                frontier.owner,
+                                Err(PackageCompileFailure {
+                                    occurrence: frontier.products.len(),
+                                    failure,
+                                }),
+                            ));
+                            continue;
+                        }
+                    };
                     frontier.products.push(OccurrenceProduct {
                         package: build.package_inputs().root(),
                         purpose: build.package_inputs().compilation_purpose(),
-                        generated: build.generated_source_bundle().clone(),
-                        native: build.native_binding_bundle().clone(),
+                        generated,
                         prepared: Some(build),
                         description: None,
                     });
@@ -437,8 +449,7 @@ fn join_generated_inputs(
         native.push(product.native.clone());
     }
     inputs
-        .with_complete_dependency_generated_sources(generated)
-        .and_then(|inputs| inputs.with_complete_dependency_native_bindings(native))
+        .with_complete_dependency_build_handoffs(generated)
         .map_err(|errors| input_diagnostics(errors).into())
 }
 

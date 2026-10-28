@@ -1,0 +1,14 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_binding_native_record_slice_external_leaf_rejected");
+
+ Build::bind<NativePacket::send>(builder, windows_x86_64, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, linux_x86_64, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, macos_arm64, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, linux_arm64, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, macos_x86_64, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, uefi_x86_64, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, cross_platform_cli, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, local_unchecked, ForeignBinding::Syscall { number: 60 });
+ Build::bind<NativePacket::send>(builder, alpha_bootstrap, ForeignBinding::Syscall { number: 60 });
+}

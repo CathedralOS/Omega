@@ -113,7 +113,6 @@ fn has_external_source_candidate(
             && matches!(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::Boundary
-                    | language_semantics::MachineSupplyMode::ExternalRealization { .. }
             )
             && is_product_declaration(typed, machine.symbol)
             && typed.symbols.symbol_package_identity(machine.symbol) == declaration.package

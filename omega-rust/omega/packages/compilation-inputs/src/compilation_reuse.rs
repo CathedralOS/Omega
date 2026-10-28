@@ -85,11 +85,23 @@ impl PackageSourceContent {
             purpose: inputs.compilation_purpose(),
             source: inputs.source_inputs(),
             generated: inputs
-                .dependency_generated_source_instances()
+                .dependency_build_handoff_instances()
                 .map(|(scope, bundle)| GeneratedSourceContent {
                     scope,
                     package: bundle.package(),
                     sources: bundle.sources().to_vec(),
+                    selected_product_sources: bundle
+                        .provider_selections()
+                        .iter()
+                        .flat_map(|selection| [&selection.subject, &selection.provider])
+                        .chain(
+                            bundle
+                                .native_bindings()
+                                .iter()
+                                .flat_map(|row| row.anchors()),
+                        )
+                        .map(|anchor| anchor.source().path.clone())
+                        .collect(),
                 })
                 .collect(),
         }
@@ -101,4 +113,5 @@ struct GeneratedSourceContent {
     scope: DependencyPurpose,
     package: PackageKeyIdentity,
     sources: Vec<PackageGeneratedSource>,
+    selected_product_sources: Vec<std::path::PathBuf>,
 }

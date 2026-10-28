@@ -95,12 +95,9 @@ fn has_const_expression_argument(
                     .type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             ))
-            || argument
-                .application
-                .as_ref()
-                .is_some_and(|application| {
-                    has_const_expression_argument(syntax, &application.arguments)
-                })
+            || argument.application.as_ref().is_some_and(|application| {
+                has_const_expression_argument(syntax, &application.arguments)
+            })
     })
 }
 

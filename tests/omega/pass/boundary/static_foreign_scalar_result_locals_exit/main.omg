@@ -47,21 +47,6 @@ data ElapsedInstant { seconds: i64; nanoseconds: i64; }
 data ElapsedClockRead {}
 boundary requirement ElapsedClockRead::read(selector: u32, instant: &mut ElapsedInstant) -> i32;
 
-macos_arm64 machine macos_elapsed_binding() -> ForeignBinding<26, 22, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
-    } }
-}
-macos_arm64 machine ElapsedClockImports::now(selector: u32) -> u64
-    satisfies ElapsedClock::now via macos_elapsed_binding();
-
-linux_x86_64 machine linux_elapsed_binding() -> ForeignBinding<9, 13, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
-    } }
-}
-linux_x86_64 machine ElapsedClockImports::read(selector: u32, instant: &mut ElapsedInstant) -> i32
-    satisfies ElapsedClockRead::read via linux_elapsed_binding();
 
 linux_x86_64 machine ElapsedClockImports::now(selector: u32) -> u64
     satisfies ElapsedClock::now reaches Clock {

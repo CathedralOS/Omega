@@ -1,13 +1,7 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "runtime_provider_mutable_reference_exit");
- Build::select_provider<ErrorAccess, NativeError>(builder, linux_arm64);
- Build::select_provider<ErrorAccess, NativeError>(builder, linux_x86_64);
- Build::select_provider<ErrorAccess, NativeError>(builder, macos_arm64);
- Build::select_provider<ErrorAccess, NativeError>(builder, macos_x86_64);
- Build::select_provider<ErrorAccess, NativeError>(builder, windows_x86_64);
- Build::select_provider<ErrorAccess, NativeError>(builder, uefi_x86_64);
- Build::select_provider<ErrorAccess, NativeError>(builder, cross_platform_cli);
- Build::select_provider<ErrorAccess, NativeError>(builder, local_unchecked);
- Build::select_provider<ErrorAccess, NativeError>(builder, alpha_bootstrap);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
+
+ Build::bind<ErrorAccess::locate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5" } });
 }

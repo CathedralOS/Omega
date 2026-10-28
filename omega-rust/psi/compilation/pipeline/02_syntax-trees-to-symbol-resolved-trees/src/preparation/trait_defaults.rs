@@ -933,7 +933,7 @@ fn substitute_expression_static_arguments(
 }
 
 fn rewritten_static_arguments(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     arguments: &[StaticMachineArgument],
     substitution: &HashMap<String, TypeReferenceHandle>,
 ) -> Option<Vec<StaticMachineArgument>> {
@@ -951,7 +951,7 @@ fn rewritten_static_arguments(
 }
 
 fn rewritten_static_argument(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     argument: &StaticMachineArgument,
     substitution: &HashMap<String, TypeReferenceHandle>,
     changed: &mut bool,
@@ -962,15 +962,26 @@ fn rewritten_static_argument(
         || argument.application.is_some()
     {
         let mut kept = argument.clone();
-        if let Some(application) = &argument.application
-            && let Some(nested) =
-                rewritten_static_arguments(syntax, &application.arguments, substitution)
-        {
-            kept.application = Some(Box::new(StaticSymbolApplication {
-                lifetime_arguments: application.lifetime_arguments.clone(),
-                arguments: nested.into_boxed_slice(),
-            }));
-            *changed = true;
+        if let Some(application) = &argument.application {
+            let nested = rewritten_static_arguments(syntax, &application.arguments, substitution);
+            let mut member = application.member;
+            let mut member_changed = false;
+            if let Some(source) = syntax.expressions.static_member(member).cloned() {
+                let rewritten =
+                    rewritten_static_argument(syntax, &source, substitution, &mut member_changed);
+                if member_changed {
+                    member = syntax.expressions.insert_static_member(rewritten);
+                }
+            }
+            if nested.is_some() || member_changed {
+                kept.application = Some(Box::new(StaticSymbolApplication {
+                    member,
+                    lifetime_arguments: application.lifetime_arguments.clone(),
+                    arguments: nested
+                        .map_or_else(|| application.arguments.clone(), Vec::into_boxed_slice),
+                }));
+                *changed = true;
+            }
         }
         return kept;
     }
@@ -1008,6 +1019,7 @@ fn static_argument_for_actual(
                 type_reference: TypeReferenceHandle::invalid(),
                 path: Box::new([base_name.clone()]),
                 application: Some(Box::new(StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
                     lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
                     arguments: nested.into_boxed_slice(),
                 })),
@@ -1095,9 +1107,6 @@ fn machine_from_signature(
             arguments: HandleSpan::empty(),
             requirement: Some(requirement),
             alias: None,
-            via: None,
-            via_expression: ExpressionHandle::invalid(),
-            via_keyword_source_span: None,
         });
         HandleSpan::from_parts(clause, 1)
     });
@@ -1137,7 +1146,6 @@ fn machine_from_signature(
         suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
         blocks: signature.blocks,
         blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
-        admitted_same_stack_bytes: 0,
         contracts: signature.contracts,
         states: HandleSpan::from_parts(state, 1),
         nested_machines: HandleSpan::empty(),

@@ -17,23 +17,6 @@ boundary trait Tables {
     machine compare(table: &Functions, left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches;
 }
 
-windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleA" } }
-}
-windows_x86_64 machine symbol_binding() -> ForeignBinding<12, 14, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetProcAddress" } }
-}
-windows_x86_64 machine compare_binding() -> ForeignBinding<12, 20, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "CompareStringOrdinal" } }
-}
-windows_x86_64 machine module(name: &[u8; 13]) -> addr
-satisfies Symbols::module via module_binding();
-windows_x86_64 machine symbol(module: addr, name: &[u8; 21]) -> addr
-satisfies Symbols::symbol via symbol_binding();
-windows_x86_64 machine compare_import(left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison
-satisfies Imports::compare via compare_binding();
-windows_x86_64 machine Functions::compare(table: &Functions, left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison
-satisfies Tables::compare via ForeignBinding::TableFunction(compare);
 
 machine compare_folded(table: &Functions, left: &[u16; 5], right: &[u16; 5]) -> Comparison
 reaches Tables

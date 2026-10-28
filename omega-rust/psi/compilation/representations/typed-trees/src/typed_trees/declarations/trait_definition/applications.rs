@@ -77,6 +77,12 @@ impl TypedTrees {
                 &occurrences.types,
             ))
             .chain(
+                self.designated_static_type_arguments()
+                    .filter_map(|argument| {
+                        self.applied_requirement_scope(argument.owner, argument.reference)
+                    }),
+            )
+            .chain(
                 occurrences
                     .requirement_applications
                     .into_iter()

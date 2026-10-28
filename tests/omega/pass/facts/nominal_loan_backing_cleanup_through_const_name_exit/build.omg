@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "nominal_loan_const_name");
  Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, linux_arm64);
@@ -13,4 +14,14 @@ machine build(builder: &mut Build) {
  Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
  Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
  Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+
+ Build::bind<PosixConsoleIo::write>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } });
+ Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "msvcrt.dll", export: "_write"
+    } });
+
+ Build::bind<PosixConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+ Build::bind<PosixConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
 }

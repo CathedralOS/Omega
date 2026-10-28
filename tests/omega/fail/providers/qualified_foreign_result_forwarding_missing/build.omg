@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+ Build::package(builder, "native_qualified_foreign_result_forwarding_missing");
+
+ Build::bind_table_function<Reports::read, Table::read>(builder, uefi_x86_64);
+}

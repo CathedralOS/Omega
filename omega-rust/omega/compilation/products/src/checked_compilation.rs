@@ -221,13 +221,28 @@ impl CheckedCompilation {
     /// Retain this package's own explicit generated-source handoffs as one
     /// compiler-issued bundle suitable for a later dependency compilation.
     /// The bundle is not admission and carries no filesystem authority.
-    pub fn package_generated_source_bundle(
+    pub fn package_build_handoff(
         &self,
-    ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
-        self.sources.package_generated_source_bundle(
-            self.execution.settled.selected_target_profile,
-            self.execution.build.generated_sources.clone(),
-        )
+    ) -> Result<package_compilation::PackageBuildHandoff, String> {
+        self.sources
+            .package_build_handoff(
+                self.execution.settled.selected_target_profile,
+                self.execution.build.generated_sources.clone(),
+            )
+            .map_err(str::to_owned)?
+            .with_checked_provider_selections(
+                &self.typed,
+                &self.build().config.provider_selections,
+                self.build().observation_summary.as_ref(),
+            )?
+            .with_checked_native_bindings(provider_planning::capture_package_native_bindings(
+                &self.typed,
+                &self.build().config.admitted_native_bindings,
+                self.build().selected_build_machine_symbol,
+                self.build().observation_summary.as_ref(),
+                self.build().evaluation_usage,
+            )?)
+            .map_err(str::to_owned)
     }
 
     pub const fn timings(&self) -> &CompileTimings {

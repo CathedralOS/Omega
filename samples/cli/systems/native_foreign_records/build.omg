@@ -1,4 +1,11 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "native_foreign_records");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+
+ Build::bind<Symbols::module>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleA" } });
+ Build::bind<Symbols::symbol>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetProcAddress" } });
+ Build::bind<Imports::compare>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "CompareStringOrdinal" } });
+
+ Build::bind_table_function<Tables::compare, Functions::compare>(builder, windows_x86_64);
 }

@@ -21,6 +21,7 @@ mod external_binding_rows;
 mod external_requirements;
 mod independent_components;
 mod installation_reach;
+mod native_plan_derivation;
 mod operator_provider_evidence;
 mod provenance_replay;
 mod qualification_grants;
@@ -40,7 +41,7 @@ pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
 };
 pub use provenance_replay::{
-    ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
+    ProviderPlanDerivation, ProviderRowOrigin, ProviderSchemaDeclaration, derive_satisfies_plans,
     exact_checked_adapter, same_semantic_name, satisfies_plan_name,
     selected_requirement_checked_adapter,
 };
@@ -142,19 +143,8 @@ pub fn select_derived_provider_plans(
             .into_iter()
             .map(|selected| SelectedProviderPlanWithProvenance {
                 derived: derived[selected.candidate].clone(),
-                selected_by: if derived[selected.candidate]
-                    .provenance
-                    .row_realizations
-                    .iter()
-                    .all(|row| row.native().is_some())
-                {
-                    ProviderSelectionProvenance::NativeBuild
-                } else {
-                    selected.selected_by
-                },
+                selected_by: selected.selected_by,
             })
             .collect()
     })
 }
-
-pub use provenance_replay::ProviderRowRealization;

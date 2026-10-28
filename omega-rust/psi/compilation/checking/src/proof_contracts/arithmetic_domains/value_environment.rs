@@ -246,9 +246,7 @@ impl ValueEnvironment {
         self.clear_numeric_observations();
         let delivered = match statement {
             typed_trees::statement::StatementNode::LocalData(local) => Some(local.initial_value),
-            typed_trees::statement::StatementNode::Assignment(assignment) => {
-                Some(assignment.value)
-            }
+            typed_trees::statement::StatementNode::Assignment(assignment) => Some(assignment.value),
             _ => None,
         };
         let mut has_integer_delivery = false;
@@ -263,10 +261,7 @@ impl ValueEnvironment {
                             typed_trees::expression::ExpressionNode::Integer(_)
                         )
                         && crate::expression_result_type_reference(
-                            program,
-                            machine,
-                            state,
-                            expression,
+                            program, machine, state, expression,
                         )
                         .and_then(|reference| program.primitive_type_reference(reference))
                         .is_some_and(|primitive| primitive.is_fixed_integer())

@@ -601,6 +601,23 @@ pub(crate) fn validate_const_data_argument(
         if program.pending_const_range_endpoints.contains(root) {
             return;
         }
+        // A derived application may already consume a normalized tuple, but
+        // its retained source reference still owns this recipe. Judge its
+        // formation and complete carrier independently, without borrowing the
+        // receiving declaration's desired predicates as premises.
+        match check_closed_const_expression(
+            program,
+            type_parameter_scope.lexical_owner,
+            *root,
+            parameter_type,
+        ) {
+            Ok(Some(_)) => return,
+            Err(mut failures) => {
+                diagnostics.append(&mut failures);
+                return;
+            }
+            Ok(None) => {}
+        }
     }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)

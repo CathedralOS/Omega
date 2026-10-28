@@ -137,7 +137,8 @@ pub fn selected_requirement_checked_adapter<'typed>(
     let adapter = exact_checked_adapter(context, plan, row)?;
     let declaration = match crate::provider_identity::named_provider(context, plan) {
         Some(owner) => owner.symbol,
-        None => adapter.attached_data_symbol,
+        None => crate::provider_identity::provider_owner_symbol(typed, adapter)
+            .unwrap_or_else(symbols::SymbolHandle::invalid),
     };
     if !declaration.is_valid() || !context.contains(declaration) {
         return Err(diagnostics::Diagnostic::error(
@@ -243,7 +244,9 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    if adapter.attached_data_symbol.is_valid() && !context.contains(adapter.attached_data_symbol) {
+    if crate::provider_identity::provider_owner_symbol(typed, adapter)
+        .is_some_and(|owner| !context.contains(owner))
+    {
         return Err(diagnostics::Diagnostic::error(format!(
             "checked adapter `{}` for ProviderPlan `{}` retains a provider outside the {:?} planning context",
             plan.identity_text(*machine_identity),
@@ -483,13 +486,15 @@ pub(crate) fn exact_checked_adapter_invocations(
             summaries.len(),
         )));
     };
-    let target_identity = typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity));
+    let target_identity =
+        typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity));
     let top_level_requirement = if target_identity.is_valid() {
         typed
             .machines_by_callable_identity(target_identity)
             .into_iter()
             .find(|requirement| {
-                requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                requirement.supply_mode
+                    == language_semantics::MachineSupplyMode::TopLevelRequirement
                     && context.contains(requirement.symbol)
                     && typed.symbols.symbol_package_identity(requirement.symbol)
                         == method.requirement_owner_package_identity

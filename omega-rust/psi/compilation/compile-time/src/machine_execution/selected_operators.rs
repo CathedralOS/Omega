@@ -507,8 +507,7 @@ pub fn validate_selected_provider_bodies(
                 validation::revalidate_machine_trait_conformances(program, provider)
                     .map_err(|diagnostics| format!("selected build-time provider does not satisfy its contracts: {diagnostics:?}"))?;
                 program.machine_trait_conformances(provider).iter().filter(|conformance| {
-                    conformance.external_binding.is_none()
-                        && matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),
+                    matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),
                             Some(typed_trees::machine::SatisfiedDeclaration::Trait { definition, requirement })
                                 if definition.symbol == owner.symbol && requirement.symbol == row.requirement)
                 }).count()
@@ -565,9 +564,6 @@ pub fn validate_selected_provider_bodies(
                 .machine_trait_conformances(provider)
                 .iter()
                 .filter(|conformance| {
-                    if conformance.external_binding.is_some() {
-                        return false;
-                    }
                     let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                         required,
                     )) = typed_trees::machine::resolve_satisfied_declaration(
@@ -675,8 +671,7 @@ pub fn validate_selected_provider_bodies(
                 .machine_trait_conformances(provider)
                 .iter()
                 .filter(|conformance| {
-                    conformance.external_binding.is_none()
-                    && conformance.name.as_str() == namespace.as_str()
+                    conformance.name.as_str() == namespace.as_str()
                     && conformance.requirement.as_ref().map(|name| name.as_str())
                         == Some(requirement.as_str())
                     && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
