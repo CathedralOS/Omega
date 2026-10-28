@@ -37,6 +37,31 @@ pub(crate) fn derive_provider_plans(
     // transitional settlement derives only the requested realization's rows;
     // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
+        if std::env::var_os("OMEGA_TRACE_PROVIDER_FORM").is_some() && !machine.body_is_present {
+            eprintln!(
+                "numeric-candidate machine={} mode={:?} path={:?} module={:?} admitted={} target={:?} clauses={:?}",
+                machine.name,
+                machine.supply_mode,
+                typed.symbol_toolchain_relative_path(machine.symbol),
+                typed.normalized_hermetic_symbol_identity(
+                    typed.symbols.symbol_module(machine.symbol)
+                ),
+                crate::target_machines::realizes_machine(context, machine, selected_target),
+                selected_target,
+                typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .map(|clause| (
+                        clause.symbol,
+                        clause.requirement_symbol,
+                        typed.sealed_numeric_realization_descriptor(
+                            machine.symbol,
+                            clause.requirement_symbol
+                        )
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
         if !is_authored_provider_machine(typed, machine)
             || !crate::target_machines::realizes_machine(context, machine, selected_target)
         {
