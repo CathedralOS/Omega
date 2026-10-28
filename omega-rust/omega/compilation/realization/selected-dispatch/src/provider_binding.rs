@@ -28,6 +28,9 @@ pub struct ProviderBindingRequest<'a> {
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    pub external_declarations: &'a std::sync::OnceLock<
+        Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
+    >,
 }
 
 /// Close source-dependent realization once without rewriting the shared program.
@@ -85,17 +88,28 @@ pub fn prepare_selected_execution(
             settlement.exact_toolchain_sources,
         ),
     );
-    let external_providers = Arc::new(
-        psi_terminal_production::project_external_provider_declarations(
-            &program,
-            settlement.exact_toolchain_sources,
-        )
+    let external_providers = settlement
+        .external_declarations
+        .get_or_init(|| {
+            psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
+                Arc::clone(&program),
+                settlement.exact_toolchain_sources,
+            )
+            .map(Arc::new)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "external provider declarations: {error:?}"
+                ))]
+            })
+        })
+        .clone()?;
+    external_providers
+        .require_owner(&program, settlement.exact_toolchain_sources)
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "external provider declarations: {error:?}"
             ))]
-        })?,
-    );
+        })?;
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         provider_planning::ProviderPlanningContext::new(
             &program.typed,

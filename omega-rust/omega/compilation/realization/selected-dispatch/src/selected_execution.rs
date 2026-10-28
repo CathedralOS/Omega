@@ -18,7 +18,7 @@ pub struct SelectedExecution {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub program: Arc<CheckedProgram>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub external_providers: Arc<psi_terminal_production::ExternalProviderDeclarations>,
+    pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
     /// Only native handoff demands these source identities. A refusal remains
     /// data so checking-only stops acquire no native-only obligations.
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,

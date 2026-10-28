@@ -26,6 +26,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<checked_trees::CheckedTrees>,
+    external_declarations: &'a psi_compiler::PreparedExternalProviderDeclarations,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
     provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
@@ -47,6 +48,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: &selection.execution.program,
+            external_declarations: &selection.execution.external_providers,
             sources: &selection.sources,
             build: &selection.build,
             provider_defaults: &selection.provider_defaults,
@@ -68,6 +70,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: &checked.execution().program,
+            external_declarations: &checked.execution().external_providers,
             sources: checked.sources(),
             build: checked.build(),
             provider_defaults: checked.provider_defaults(),
@@ -331,6 +334,7 @@ fn produce_shared_terminal(
     psi_compiler::TerminalProductionRequest {
         publication: terminal_codec::TerminalPublication::Portable,
         checked: checked_program,
+        external_declarations: Some(view.external_declarations),
         exact_toolchain_sources: view.sources.exact_toolchain_sources(),
         machine: psi_compiler::TerminalMachineSelection::Symbol(default),
         roots: psi_compiler::TerminalProgramRoots {

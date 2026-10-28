@@ -138,6 +138,7 @@ pub(crate) fn check_product_source(
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
+        external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,

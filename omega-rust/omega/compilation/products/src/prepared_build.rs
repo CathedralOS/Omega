@@ -100,6 +100,17 @@ pub struct PreparedProductSource {
 pub struct CheckedProductSource {
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
+    /// One lazy declaration product for this immutable checked owner. Delaying
+    /// preparation preserves provider-failure order and avoids unused work when
+    /// target constant closure replaces the program before selection.
+    pub external_declarations: Arc<
+        std::sync::OnceLock<
+            Result<
+                Arc<psi_compiler::PreparedExternalProviderDeclarations>,
+                Vec<diagnostics::Diagnostic>,
+            >,
+        >,
+    >,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,

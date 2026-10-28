@@ -50,6 +50,7 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
     publication: terminal_codec::TerminalPublication,
+    external_declarations: Option<&crate::PreparedExternalProviderDeclarations>,
 ) -> Result<LoweredPsi, LoweringError> {
     if checked
         .facts
@@ -181,12 +182,20 @@ pub fn lower_machine(
         )
     })
     .map_err(LoweringError::Unsupported)?;
-    crate::retention::external_providers::retain(
-        &mut identities,
-        checked,
-        exact_toolchain_sources,
-        &mut lowered.semantic_module,
-    )?;
+    match external_declarations {
+        Some(declarations) => declarations.retain(
+            checked,
+            exact_toolchain_sources,
+            &mut identities,
+            &mut lowered.semantic_module,
+        )?,
+        None => crate::retention::external_providers::retain(
+            &mut identities,
+            checked,
+            exact_toolchain_sources,
+            &mut lowered.semantic_module,
+        )?,
+    }
     phase_profile::scope("05.callback_applications", || {
         callback_applications::retain(
             &mut identities,

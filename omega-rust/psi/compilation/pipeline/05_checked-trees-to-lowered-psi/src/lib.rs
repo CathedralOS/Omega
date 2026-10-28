@@ -70,7 +70,8 @@ mod retention;
 mod activation_storage;
 mod external_provider_declarations;
 pub use external_provider_declarations::{
-    ExternalProviderDeclarations, project_external_provider_declarations,
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
+    project_external_provider_declarations,
 };
 mod task_activation;
 pub use task_activation::lower_task_activation_demands;
