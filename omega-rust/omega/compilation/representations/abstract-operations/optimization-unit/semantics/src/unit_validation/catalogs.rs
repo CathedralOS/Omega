@@ -769,38 +769,14 @@ fn validate_structural_field_range_authority(
                     .get(&result.structural_type)
                     .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
                 let restriction = declaration.scalar_restriction.as_ref();
-                if restriction.is_some() != range_obligation.is_some() {
-                    return Err(
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    );
-                }
-                if let Some(restriction) = restriction {
-                    let receiving = optimization_unit::SourceCheckedScalarReceiving {
-                        value: value.value,
-                        restriction: restriction.clone(),
-                    };
-                    if unit
-                        .accepted_obligation_fact(
-                            function.machine,
-                            optimization_unit::PsiProvenance::Operation(*psi_operation),
-                            *range_obligation,
-                        )
-                        .and_then(|fact| fact.scalar_receiving.as_ref())
-                        != Some(&receiving)
-                    {
-                        return Err(
-                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                        );
-                    }
-                    validate_scalar_range_authority(
-                        unit,
-                        function.machine,
-                        *psi_operation,
-                        restriction,
-                        value.value,
-                        *range_obligation,
-                    )?;
-                }
+                require_scalar_receiving_fact(
+                    unit,
+                    function.machine,
+                    *psi_operation,
+                    restriction,
+                    value.value,
+                    *range_obligation,
+                )?;
             }
             O::WriteOnlyPrimitiveStore {
                 psi_operation,
@@ -823,38 +799,14 @@ fn validate_structural_field_range_authority(
                     path,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                if restriction.is_some() != range_obligation.is_some() {
-                    return Err(
-                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    );
-                }
-                if let Some(restriction) = restriction {
-                    let receiving = optimization_unit::SourceCheckedScalarReceiving {
-                        value: value.value,
-                        restriction: restriction.clone(),
-                    };
-                    if unit
-                        .accepted_obligation_fact(
-                            function.machine,
-                            optimization_unit::PsiProvenance::Operation(*psi_operation),
-                            *range_obligation,
-                        )
-                        .and_then(|fact| fact.scalar_receiving.as_ref())
-                        != Some(&receiving)
-                    {
-                        return Err(
-                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                        );
-                    }
-                    validate_scalar_range_authority(
-                        unit,
-                        function.machine,
-                        *psi_operation,
-                        &restriction,
-                        value.value,
-                        *range_obligation,
-                    )?;
-                }
+                require_scalar_receiving_fact(
+                    unit,
+                    function.machine,
+                    *psi_operation,
+                    restriction.as_ref(),
+                    value.value,
+                    *range_obligation,
+                )?;
             }
             O::AtomicEvent {
                 psi_operation,
@@ -1071,6 +1023,44 @@ fn validate_field_range_authority(
         value,
         obligation,
     )
+}
+
+/// Require the accepted-obligation index to carry the scalar-receiving fact a
+/// checked store's restriction names, and the range proposition that
+/// restriction implies. `EstablishPrimitiveLocal` and
+/// `WriteOnlyPrimitiveStore` discharge the same pair — presence, receipt and
+/// authority — so it is stated here rather than in each arm.
+fn require_scalar_receiving_fact(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    restriction: Option<&terminal_psi::StructuralFieldType>,
+    value: ValueId,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let invalid = || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+    if restriction.is_some() != obligation.is_some() {
+        return Err(invalid());
+    }
+    let Some(restriction) = restriction else {
+        return Ok(());
+    };
+    let receiving = optimization_unit::SourceCheckedScalarReceiving {
+        value,
+        restriction: restriction.clone(),
+    };
+    if unit
+        .accepted_obligation_fact(
+            machine,
+            optimization_unit::PsiProvenance::Operation(operation),
+            obligation,
+        )
+        .and_then(|fact| fact.scalar_receiving.as_ref())
+        != Some(&receiving)
+    {
+        return Err(invalid());
+    }
+    validate_scalar_range_authority(unit, machine, operation, restriction, value, obligation)
 }
 
 fn validate_scalar_range_authority(
