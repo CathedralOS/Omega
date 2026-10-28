@@ -1,7 +1,9 @@
 //! Selected exits partition established result custody, named or anonymous.
-//! Permission production owns eligibility and the exact remaining complement.
-//! This join only identifies the retained producer and selected exit; normal
-//! cleanup later materializes that same receipt's hooks and home retirement.
+//! Source checking owns cleanup eligibility and the exact remaining complement.
+//! This join identifies the retained producer before matching its selected exit
+//! receipt or delegating a whole no-work occurrence to affine frontier closure.
+//! Normal cleanup materializes selected hooks; graph closure retains no-code
+//! births, transfers and deaths independently of an exit receipt.
 
 use checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
 use language_semantics::{Multiplicity, PermissionEventSource};
@@ -14,6 +16,7 @@ pub(super) fn permits_disposal(
     operations: &[CheckedUnitEffectOperationPlan],
     statement: Option<u32>,
     continuation: bool,
+    no_code_completion_owner: bool,
 ) -> bool {
     validate(
         program,
@@ -23,6 +26,7 @@ pub(super) fn permits_disposal(
         operations,
         statement,
         continuation,
+        no_code_completion_owner,
     )
     .is_some()
 }
@@ -35,6 +39,7 @@ fn validate(
     operations: &[CheckedUnitEffectOperationPlan],
     statement: Option<u32>,
     continuation: bool,
+    no_code_completion_owner: bool,
 ) -> Option<()> {
     let result = operation.structural_result_binding()?;
     let root = super::super::cleanup::normal_edges::producer_root(facts, state.symbol, operation)?;
@@ -87,6 +92,24 @@ fn validate(
         return None;
     }
     if multiplicity == Multiplicity::Unrestricted {
+        return Some(());
+    }
+    // Recursive machine fusion can turn a pending terminal invocation into
+    // an internal arrival. The source invocation has no normal exit receipt.
+    // Its still-current, claim-free owned no-code result is instead managed by
+    // Stage05's affine frontier equations, which retain births and transfers
+    // across every selected edge. This is not a fabricated source cleanup or
+    // a normal-return judgment; references and executable cleanup keep their
+    // independently selected disposition below.
+    if no_code_completion_owner
+        && validation::has_plain_contents_without_nominal_cleanup(program, reference)
+        && validation::has_contents(
+            program,
+            reference,
+            &[],
+            validation::ContentsRequirement::BorrowFree,
+        )
+    {
         return Some(());
     }
     let machine = facts
