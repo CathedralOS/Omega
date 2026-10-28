@@ -218,6 +218,22 @@ pub fn materialize_selected_fixed_occurrences(
     ))
 }
 
+fn bounded_settlements(function: &SelectedFunction) -> Result<(), FixedOccurrencesError> {
+    for block in &function.blocks {
+        if u32::try_from(block.instructions.len()).is_err() {
+            return Err(FixedOccurrencesError::IdentityOverflow);
+        }
+        for settlement in &function.boundary_settlements {
+            if settlement.block == block.id
+                && (settlement.instruction_index as usize) > block.instructions.len()
+            {
+                return Err(FixedOccurrencesError::SourceMismatch);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn rewrite_function(
     functions: &mut selected_instructions::SelectedFunctions,
     function_index: usize,
@@ -247,19 +263,7 @@ fn rewrite_function(
                 }
             }
         }
-        for block in &function.blocks {
-            if u32::try_from(block.instructions.len()).is_err() {
-                return Err(FixedOccurrencesError::IdentityOverflow);
-            }
-            for settlement in &function.boundary_settlements {
-                if settlement.block == block.id
-                    && (settlement.instruction_index as usize) > block.instructions.len()
-                {
-                    return Err(FixedOccurrencesError::SourceMismatch);
-                }
-            }
-        }
-        return Ok(());
+        return bounded_settlements(function);
     }
     let occurrences = local_occurrence_registers(function)?;
     if occurrences
@@ -267,19 +271,7 @@ fn rewrite_function(
         .iter()
         .all(|register| register.instruction_local)
     {
-        for block in &function.blocks {
-            if u32::try_from(block.instructions.len()).is_err() {
-                return Err(FixedOccurrencesError::IdentityOverflow);
-            }
-            for settlement in &function.boundary_settlements {
-                if settlement.block == block.id
-                    && (settlement.instruction_index as usize) > block.instructions.len()
-                {
-                    return Err(FixedOccurrencesError::SourceMismatch);
-                }
-            }
-        }
-        return Ok(());
+        return bounded_settlements(function);
     }
     let mut prepared_instructions = occurrences.instructions.iter();
     let mut registers: Option<Vec<VirtualRegister>> = None;
