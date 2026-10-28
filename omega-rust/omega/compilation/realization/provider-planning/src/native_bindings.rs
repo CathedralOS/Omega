@@ -122,7 +122,8 @@ impl AdmittedNativeBinding {
             AdmittedNativeLocator::Syscall(value) => {
                 AdmittedNativeLocator::Syscall(EvaluatedForeignSyscall::from_retained_evidence(
                     self.target,
-                    u64::from(value.number()),
+                    u64::try_from(value.number())
+                        .map_err(|_| "admitted native syscall became negative")?,
                     receipt,
                 )?)
             }
