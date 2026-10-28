@@ -563,7 +563,7 @@ pub use expression_traversal::{
     is_single_segment_name_path, single_segment_name_symbol,
 };
 pub use machine_calls::calls::{
-    CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts,
+    CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts, call_result_type,
     call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,

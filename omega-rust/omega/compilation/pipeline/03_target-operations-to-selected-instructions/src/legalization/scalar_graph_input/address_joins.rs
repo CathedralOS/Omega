@@ -6,7 +6,7 @@
 //! reconstructs both from the optimized function alone, without reading the
 //! target's classification:
 //!
-//! - every edge into the join lends a non-linear root at exactly
+//! - every edge into the join lends a live root at exactly
 //!   the permitted access, whose owner dominates the edge (a local producer, an owned block arrival,
 //!   a machine parameter or an earlier address join), through a static
 //!   projection naming exactly the join's referent type;
@@ -272,8 +272,10 @@ fn loan_access_permitted(source: StructuralAccess, destination: StructuralAccess
     )
 }
 
-/// The non-linear root type `place` names on an edge leaving
+/// The live root type `place` names on an edge leaving
 /// `block`, with sufficient access and an owner that dominates that edge.
+/// Borrowing its address leaves linear claims and cleanup with that owner;
+/// the destination's unrestricted loan carrier never transports those debts.
 fn root_type(
     function: &PsiOptimizationFunction,
     block: BlockId,
@@ -294,8 +296,7 @@ fn root_type(
     if let Some(source) = function.structural_parameter(place) {
         // Explicit parameters lend their declared referents. Namespace
         // attachment neither supplies a root nor changes its authority.
-        return (permitted(source) && source.multiplicity != StructuralMultiplicity::Linear)
-            .then_some(source.structural_type);
+        return permitted(source).then_some(source.structural_type);
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {
         return ((owner == block || dominates(function, owner, block)) && permitted(joined))
@@ -340,7 +341,6 @@ fn root_type(
                 // that declaration and dominance, without inventing a
                 // predecessor producer identity.
                 return ((owner == block || dominates(function, owner, block))
-                    && declaration.multiplicity != StructuralMultiplicity::Linear
                     && permitted(&declaration))
                 .then_some(declaration.structural_type);
             }
@@ -351,9 +351,7 @@ fn root_type(
         }
     };
     let owner = operation_block(function, operation)?;
-    (result.multiplicity != StructuralMultiplicity::Linear
-        && (owner == block || dominates(function, owner, block)))
-    .then_some(result.structural_type)
+    (owner == block || dominates(function, owner, block)).then_some(result.structural_type)
 }
 
 fn operation_block(function: &PsiOptimizationFunction, operation: OperationId) -> Option<BlockId> {
