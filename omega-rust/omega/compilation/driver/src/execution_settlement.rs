@@ -284,6 +284,10 @@ fn select_checked_providers(
         },
     )?;
     let root_grants = build_config.root_grant_selectors();
+    let providers = providers.prepare_intrinsic_declarations(
+        &closed_program.typed,
+        source.sources.exact_toolchain_sources(),
+    )?;
     let checked = bind_checked_providers(
         closed_program,
         source.accepted_template_classifications.clone(),

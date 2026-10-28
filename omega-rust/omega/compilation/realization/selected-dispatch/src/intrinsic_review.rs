@@ -209,7 +209,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             }
             let unresolved = |accepted| crate::compiler_intrinsic::AcceptedRowBinding {
                 accepted,
-                declaration_symbol: None,
+                declaration_identity: None,
                 public_plan: None,
             };
             match crate::compiler_intrinsic::row_execution_identity(
@@ -219,6 +219,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     custody: external_providers,
                     provider: retained.provider.provider_type,
                 },
+                services,
                 plan,
                 retained.provider.schema,
                 row,
@@ -327,8 +328,9 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
 /// Construct complete target-call supplies after their host bindings settle.
 /// Original source rows remain borrowed from planning; no projected plan is
 /// reused as a public admission identity and no later pass fills execution.
+/// Declaration facts already came from their source owner: this operation
+/// joins target/accepted custody without querying checked trees again.
 pub(crate) fn produce_direct_boundary_leaves(
-    checked: &CheckedTrees,
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
     candidates: &[provider_planning::ProviderPlanCandidate],
@@ -343,7 +345,7 @@ pub(crate) fn produce_direct_boundary_leaves(
                 provider_planning::DirectBoundaryMechanism::Foreign(binding) => {
                     backend_plan::DirectBoundaryExecution::Foreign(binding.clone())
                 }
-                provider_planning::DirectBoundaryMechanism::Intrinsic => {
+                provider_planning::DirectBoundaryMechanism::Intrinsic(declaration) => {
                     let source = candidate
                         .direct_source(input)
                         .map_err(|diagnostic| vec![diagnostic])?;
@@ -365,27 +367,32 @@ pub(crate) fn produce_direct_boundary_leaves(
                         };
                         Ok(Some(crate::compiler_intrinsic::AcceptedRowBinding {
                             accepted: binding.accepted(),
-                            declaration_symbol: Some(declaration_symbol),
+                            declaration_identity: Some(
+                                binding.declaration().nominal_identity.as_str(),
+                            ),
                             public_plan: Some(&public.plan),
                         }))
                     };
-                    let identity = crate::compiler_intrinsic::row_execution_identity(
-                        checked,
+                    let numeric = crate::compiler_intrinsic::numeric_execution(
                         crate::NumericProviderSelection {
                             candidate: external_providers,
                             custody: external_providers,
                             provider: source.provider,
                         },
-                        source.plan, source.schema, source.row,
-                        source.requirement, source.realization, target,
-                        accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
-                        accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
-                    ).map_err(|diagnostic| vec![diagnostic])?;
-                    let closed = match identity {
-                        Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => {
-                            Some(identity)
-                        }
-                        _ => None,
+                        source.plan,
+                        source.schema,
+                        source.row,
+                        source.requirement,
+                        source.realization,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                    let closed = match numeric {
+                        Some(identity) => Some(identity),
+                        None => declaration.settle(
+                            source.plan, target,
+                            accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
+                            accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
+                        ).map_err(|diagnostic| vec![diagnostic])?,
                     };
                     backend_plan::DirectBoundaryExecution::Intrinsic(closed)
                 }
