@@ -433,6 +433,9 @@ pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
     validation::resolve_dynamic_call_targets(&mut program)?;
+    selections::retain_static_argument_contexts(&mut program);
+    selections::bind_pre_specialization_authored_selections(&mut program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;

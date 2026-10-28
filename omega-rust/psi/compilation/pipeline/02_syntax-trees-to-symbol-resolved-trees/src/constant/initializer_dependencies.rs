@@ -77,6 +77,34 @@ pub(crate) fn collect_machine_body_demand(
         ..Collector::new(program)
     };
     collector.collect()?;
+    // Candidate bodies may need completion to type the call, but availability
+    // is not an execution root. Keep this closure out of `machines`; the typed
+    // operational graph later supplies only the selected candidate's edges.
+    let mut pending = collector.available_machines.clone();
+    let mut visited = collector.visited_machines.clone();
+    while let Some(machine) = pending.pop() {
+        if visited.contains(&machine) {
+            continue;
+        }
+        let mut availability = Collector {
+            machines: vec![machine],
+            deferred_machines: Some(Vec::new()),
+            purpose: DependencyPurpose::DeclarationReadiness,
+            ..Collector::new(program)
+        };
+        availability.collect()?;
+        visited.extend(availability.visited_machines);
+        pending.extend(availability.available_machines);
+        let deferred = collector
+            .deferred_machines
+            .as_mut()
+            .expect("body-demand owner");
+        for machine in availability.deferred_machines.unwrap_or_default() {
+            if !deferred.contains(&machine) {
+                deferred.push(machine);
+            }
+        }
+    }
     Ok(ResolvedMachineBodyDemand {
         machines: collector.visited_machines,
         deferred_machines: collector.deferred_machines.unwrap_or_default(),
@@ -963,7 +991,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 // participate in the initializer dependency graph.
                 if self.deferred_machines.is_some() {
                     if self.follow_dependencies {
-                        self.machines.extend(candidates);
+                        self.available_machines.extend(candidates);
                     }
                     return Ok(());
                 }

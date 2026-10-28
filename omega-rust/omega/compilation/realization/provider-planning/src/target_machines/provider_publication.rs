@@ -166,15 +166,11 @@ impl TargetProviderPublicationRequest<'_> {
         let plans = provenance
             .into_iter()
             .map(|selected| {
-                let provider_declaration = selected
-                    .provider
-                    .provider_type
-                    .map(|provider| self.declaration_identity(provider))
-                    .transpose()?;
-                Ok(backend_plan::TerminalTargetProviderPlan {
-                    plan: selected.plan,
-                    provider_declaration,
-                })
+                crate::native_provider_sources::close_selected_provider_declarations(
+                    self.context,
+                    self.exact_toolchain_sources,
+                    &selected,
+                )
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         backend_plan::TerminalTargetProviderSelection::from_plans(plans, self.artifact)

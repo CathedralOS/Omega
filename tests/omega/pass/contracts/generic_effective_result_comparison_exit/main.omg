@@ -1,0 +1,19 @@
+// Expected exit: 0
+machine threshold<T>() -> T
+where T == u32 || T == u64
+{
+    transition T == u32 { true -> (37u32) _ -> (73u64) }
+}
+machine below<T>(value: T) -> bool
+where T == u32 || T == u64
+ensures result == value < threshold<T>()
+{ value < threshold<T>() }
+machine main() crashes Trap {
+    transition below<u32>(36u32) && !below<u32>(38u32)
+        && below<u64>(72u64) && !below<u64>(74u64) {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

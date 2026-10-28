@@ -39,6 +39,8 @@ pub struct TerminalNativeProviders {
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     /// Original selected-plan order; direct leaves join only at execution.
     pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
+    /// Exact selected external declarations in the same original plan/row order.
+    pub numeric_realizations: Vec<Vec<Option<String>>>,
     /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }

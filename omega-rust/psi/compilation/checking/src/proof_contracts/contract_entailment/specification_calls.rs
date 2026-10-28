@@ -6,7 +6,7 @@
 //! application. Reflexive equality and body unfolding do not waive this gate.
 
 mod applied_bindings;
-pub(super) use applied_bindings::AppliedProofBindings;
+pub(super) use applied_bindings::{AppliedProofBindings, canonical_result_reference};
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};

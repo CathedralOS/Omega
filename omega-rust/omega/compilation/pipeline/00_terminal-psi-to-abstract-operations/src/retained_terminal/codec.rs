@@ -19,9 +19,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Entry records no longer contain synthetic application-record service fields.
+// Selected provider rows retain exact external realization declarations.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI03";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI04";
 
 #[cfg(test)]
 mod tests {
@@ -101,6 +101,7 @@ fn capture(
         plan,
         semantic_schema,
         row_executions,
+        row_numeric_realizations,
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
@@ -111,6 +112,7 @@ fn capture(
                 .filter(|execution| !execution.is_numeric())
                 .write(&mut output)?;
         }
+        write_values(*row_numeric_realizations, &mut output)?;
     }
     boundaries.calling_applications.write(&mut output)?;
     native_target.write(&mut output)?;
@@ -140,11 +142,13 @@ struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
     semantic_schema: effects::provider_plan::ServiceSchema,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
+    row_numeric_realizations: Vec<Option<String>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
     plan,
     semantic_schema,
-    row_executions
+    row_executions,
+    row_numeric_realizations
 });
 
 struct DerivationInputs {
@@ -292,6 +296,7 @@ pub fn recover_native_derivation_inputs(
                         plan: &row.plan,
                         semantic_schema: &row.semantic_schema,
                         row_executions: &row.row_executions,
+                        row_numeric_realizations: &row.row_numeric_realizations,
                     },
                 )
                 .collect(),

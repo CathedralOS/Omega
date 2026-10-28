@@ -1597,13 +1597,10 @@ impl<'program> StructuralJudge<'program> {
                         .into_iter()
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
-                    let result_type =
-                        super::structural_terms::selected_application_result_reference(
-                            self.program,
-                            target,
-                            &selections,
-                            result_type,
-                        );
+                    let result_type = super::specification_calls::canonical_result_reference(
+                        self.program,
+                        result_type,
+                    );
                     let resolved = StructuralTerm::Application {
                         result_type,
                         target,

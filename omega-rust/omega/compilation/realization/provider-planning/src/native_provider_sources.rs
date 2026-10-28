@@ -15,32 +15,69 @@ pub fn prepare_native_provider_sources(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     provenance: &[SelectedProviderReviewProvenance],
 ) -> Result<NativeProviderSources, Vec<Diagnostic>> {
-    let typed = context.typed;
     let mut declarations = Vec::with_capacity(provenance.len());
     for retained in provenance {
-        let provider_declaration = retained
-            .provider
-            .provider_type
-            .map(|symbol| {
-                typed
-                    .exact_owner_nominal_identity(symbol, exact_toolchain_sources)
-                    .and_then(|identity| typed.type_identity_text(identity))
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "native provider selection lost its exact declaration owner",
-                        )]
-                    })
-            })
-            .transpose()?;
-        declarations.push(TerminalTargetProviderPlan {
-            plan: retained.plan.clone(),
-            provider_declaration,
-        });
+        declarations.push(close_selected_provider_declarations(
+            context,
+            exact_toolchain_sources,
+            retained,
+        )?);
     }
     let family_realizations = selected_family_realizations(context, provenance)?;
     Ok(NativeProviderSources {
         declarations,
         family_realizations,
+    })
+}
+
+/// Close the exact selected declaration columns together with their whole plan.
+/// Public target proposals and immediate native production share this owner.
+pub(crate) fn close_selected_provider_declarations(
+    context: ProviderPlanningContext<'_>,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    retained: &SelectedProviderReviewProvenance,
+) -> Result<TerminalTargetProviderPlan, Vec<Diagnostic>> {
+    let typed = context.typed;
+    let nominal = |symbol| {
+        typed
+            .exact_owner_nominal_identity(symbol, exact_toolchain_sources)
+            .and_then(|identity| typed.type_identity_text(identity))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native provider selection lost its exact declaration owner",
+                )]
+            })
+    };
+    if retained.provider.row_realizations.len() != retained.plan.rows.len()
+        || retained.provider.row_requirements.len() != retained.plan.rows.len()
+    {
+        return Err(vec![Diagnostic::error(
+            "native provider selection lost row realization custody",
+        )]);
+    }
+    let provider_declaration = retained.provider.provider_type.map(nominal).transpose()?;
+    let row_numeric_realizations = retained
+        .plan
+        .rows
+        .iter()
+        .zip(&retained.provider.row_realizations)
+        .zip(&retained.provider.row_requirements)
+        .map(|((row, realization), requirement)| {
+            if matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+            ) && typed.numeric_intrinsic_execution(*requirement).is_some()
+            {
+                realization.authored().map(nominal).transpose()
+            } else {
+                Ok(None)
+            }
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    Ok(TerminalTargetProviderPlan {
+        plan: retained.plan.clone(),
+        provider_declaration,
+        row_numeric_realizations,
     })
 }
 

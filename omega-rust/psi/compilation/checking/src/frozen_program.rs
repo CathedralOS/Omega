@@ -590,6 +590,15 @@ pub struct CheckingMemos {
             Option<typed_trees::types::TypeReferenceHandle>,
         >,
     >,
+    /// Existing effective result recipes keyed by complete normalized type
+    /// identity. A declaration's unapplied type is never an equivalent result
+    /// merely because applying a tuple would make it agree.
+    pub(crate) effective_result_references: Mutex<
+        std::collections::HashMap<
+            String,
+            Option<typed_trees::types::TypeReferenceHandle>,
+        >,
+    >,
     pub(crate) ordered_integer_meanings: Mutex<
         symbols::SymbolKeyMap<
             (u32, u32, typed_trees::expression::ExpressionHandle),

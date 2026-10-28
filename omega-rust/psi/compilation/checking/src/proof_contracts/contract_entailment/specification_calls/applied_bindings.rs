@@ -13,6 +13,65 @@ use typed_trees::operator::OperatorConstBinding;
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Result consumers inspect this handle without a static application scope.
+/// Rejoin only existing, independently equivalent full recipes: reference
+/// shells, qualifications, policies and dependent indices remain effective.
+pub(in crate::proof_contracts::contract_entailment) fn canonical_result_reference(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return reference;
+    }
+    let Some(identity) = try_normalized_index_identity(
+        program,
+        IndexIdentityArgument::TypeArgument(reference),
+        &[],
+        &[],
+    ) else {
+        return reference;
+    };
+    result_reference_for_identity(program, &identity).unwrap_or(reference)
+}
+
+fn result_reference_for_identity(
+    program: &dyn crate::CheckingInput,
+    identity: &str,
+) -> Option<TypeReferenceHandle> {
+    use typed_trees::type_identity::{IndexIdentityArgument, try_normalized_index_identity};
+    let memos = crate::frozen_program::frozen_program_memos(program);
+    if let Some(memos) = memos
+        && let Ok(references) = memos.effective_result_references.lock()
+        && let Some(reference) = references.get(identity)
+    {
+        return *reference;
+    }
+    let reference = program
+        .type_reference_table
+        .references()
+        .find_map(|(reference, _)| {
+            (try_normalized_index_identity(
+                program,
+                IndexIdentityArgument::TypeArgument(reference),
+                &[],
+                &[],
+            )
+            .as_deref()
+                == Some(identity))
+            .then_some(reference)
+        });
+    if let Some(memos) = memos
+        && let Ok(mut references) = memos.effective_result_references.lock()
+    {
+        references.insert(identity.to_owned(), reference);
+    }
+    reference
+}
+
 pub(super) type MachineBindings = Vec<(
     SymbolHandle,
     TypeReferenceHandle,
@@ -459,12 +518,7 @@ impl AppliedProofBindings {
             return None;
         }
         Some(StructuralTerm::Application {
-            result_type: super::super::structural_terms::selected_application_result_reference(
-                program,
-                entry.symbol,
-                selections,
-                result_type,
-            ),
+            result_type: canonical_result_reference(program, result_type),
             target: entry.symbol,
             selections: selections.to_vec(),
             machine: super::super::structural_terms::structural_call_machine_name(
@@ -1186,31 +1240,7 @@ impl AppliedProofBindings {
         )?;
         // Full qualified identities must also be complete. An unavailable
         // index marker is diagnostic payload, never a matching public recipe.
-        if try_normalized_index_identity(
-            program,
-            IndexIdentityArgument::TypeArgument(public),
-            &[],
-            &[],
-        )
-        .as_ref()
-            == Some(&identity)
-        {
-            return Some(public);
-        }
-        program
-            .type_reference_table
-            .references()
-            .find_map(|(reference, _)| {
-                (try_normalized_index_identity(
-                    program,
-                    IndexIdentityArgument::TypeArgument(reference),
-                    &[],
-                    &[],
-                )
-                .as_ref()
-                    == Some(&identity))
-                .then_some(reference)
-            })
+        result_reference_for_identity(program, &identity)
     }
 
     /// A direct formal type is read under this simultaneous application.
@@ -1302,3 +1332,6 @@ pub(super) fn integer(value: &CanonicalConstIdentity) -> Option<numerics::bignum
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod result_reference_tests;
