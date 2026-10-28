@@ -1033,12 +1033,20 @@ enum CallerPrefixSite<'program> {
     },
 }
 
-fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize) {
+fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize, usize) {
     match site {
-        CallerWriteSite::Call(call) => (0, std::ptr::from_ref(call).addr()),
-        CallerWriteSite::Statement(statement) => (1, std::ptr::from_ref(statement).addr()),
-        CallerWriteSite::Expression(expression) => (2, expression.arena_index() as usize),
-        CallerWriteSite::Transition(target) => (3, target.arena_index() as usize),
+        CallerWriteSite::Call(call) => (0, 0, std::ptr::from_ref(call).addr()),
+        CallerWriteSite::Statement(statement) => (1, 0, std::ptr::from_ref(statement).addr()),
+        CallerWriteSite::Expression(expression) => (
+            2,
+            expression.generation() as usize,
+            expression.arena_index() as usize,
+        ),
+        CallerWriteSite::Transition(target) => (
+            3,
+            target.generation() as usize,
+            target.arena_index() as usize,
+        ),
     }
 }
 
@@ -1083,10 +1091,10 @@ fn caller_prefix_site<'program>(
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
 ) -> Option<CallerPrefixSite<'program>> {
-    let (kind, id) = caller_site_key(site);
+    let (kind, generation, id) = caller_site_key(site);
     let entry = memoized(
         &symbols.caller_sites.prefix_site_entries,
-        (machine.symbol, kind, id),
+        (machine.symbol, kind, generation, id),
         || caller_prefix_entry(program, machine, symbols, site),
     )?;
     Some(match entry {
@@ -1238,10 +1246,10 @@ pub(super) fn caller_statement_at_site<'program>(
     &'program StatementNode,
     usize,
 )> {
-    let (kind, id) = caller_site_key(site);
+    let (kind, generation, id) = caller_site_key(site);
     let (state_symbol, index) = memoized(
         &symbols.caller_sites.site_statements,
-        (machine.symbol, kind, id),
+        (machine.symbol, kind, generation, id),
         || {
             caller_statement_owner(program, machine, site)
                 .map(|(state, _statement, index)| (state.symbol, index))
