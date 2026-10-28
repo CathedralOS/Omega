@@ -12,6 +12,7 @@ pub struct ResolvedAuthoredCallBinding {
 }
 
 mod product;
+mod product_target;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
@@ -19,6 +20,7 @@ pub use product::{
     ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
+pub use product_target::ProductTarget;
 
 /// Whether an authored declaration selection contributes only to an
 /// implementation or is exposed through a package's published surface.

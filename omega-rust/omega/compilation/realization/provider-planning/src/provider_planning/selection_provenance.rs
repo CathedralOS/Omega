@@ -340,9 +340,9 @@ pub(crate) struct SelectedProviderPlanIndex {
     pub(crate) selected_by: ProviderSelectionProvenance,
 }
 
-fn resolve_provider_selection_slots(
+fn resolve_provider_selection_slots<'selection>(
     slot_keys: &[ProviderSelectionKey],
-    declarations: &[crate::ProviderSelection],
+    declarations: impl IntoIterator<Item = &'selection crate::ProviderSelection>,
     owner: &str,
 ) -> (
     Vec<(ProviderSelectionKey, crate::ProviderSelection)>,
@@ -380,7 +380,7 @@ fn resolve_provider_selection_slots(
 
 pub(crate) fn select_provider_plan_indices(
     plans: &[effects::provider_plan::ProviderPlan],
-    selected_target: target::NativeTarget,
+    selected_target: target::TargetProfile,
     defaults: &[crate::ProviderSelection],
     requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanIndex>, Vec<diagnostics::Diagnostic>> {
@@ -391,8 +391,7 @@ pub(crate) fn select_provider_plan_indices(
         if target.is_empty() {
             return true; // portable: every target
         }
-        target::NativeTarget::from_omega_target_name(Some(target))
-            .is_ok_and(|resolved| resolved == selected_target)
+        target == selected_target.target_name()
     };
     let mut diagnostics = Vec::new();
     let mut selected = Vec::new();
@@ -407,11 +406,19 @@ pub(crate) fn select_provider_plan_indices(
     // Provider selections arrive after ordinary name resolution. Preserve
     // that exact nominal identity: readable paths are diagnostic material and
     // may never repair or approximate a package-qualified identity.
+    let applicable = |selection: &&crate::ProviderSelection| {
+        selection
+            .target
+            .is_none_or(|target| target.canonical_name() == selected_target.target_name())
+    };
     let (resolved_requests, request_diagnostics) =
-        resolve_provider_selection_slots(&slot_keys, requested, "build");
+        resolve_provider_selection_slots(&slot_keys, requested.iter().filter(applicable), "build");
     diagnostics.extend(request_diagnostics);
-    let (resolved_defaults, default_diagnostics) =
-        resolve_provider_selection_slots(&slot_keys, defaults, "target package");
+    let (resolved_defaults, default_diagnostics) = resolve_provider_selection_slots(
+        &slot_keys,
+        defaults.iter().filter(applicable),
+        "target package",
+    );
     diagnostics.extend(default_diagnostics);
     for slot_key in &slot_keys {
         let declarations = resolved_requests

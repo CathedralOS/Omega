@@ -287,6 +287,7 @@ pass/build/nested_generated_dependency_dual_purpose built 3586ms exit:0 interpre
 pass/build/product_entry_query_product_scope_alias built 2125ms exit:0 interpreter-exit:0 interpreter:agrees @07ad7c55cebd
 pass/build/product_selection_conditional_exit built 931ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
 pass/build/product_selection_helper_exit built 1003ms exit:0 interpreter-exit:0 interpreter:agrees @7530b1177ef5+wt
+pass/build/provider_target_value_forwarding_exit built 2937ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
 pass/build/receiver_view_writeback_exit built 4759ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
 pass/build/retained_domain_and_service_rows_exit built 10968ms exit:0 interpreter-exit:0 interpreter:agrees @a27b9f3d3f39
 pass/build/runtime_opaque_by_value_selected_exit built 18387ms exit:72 interpreter-exit:72 interpreter:agrees @35f5679f7d28
@@ -839,6 +840,15 @@ pass/facts/bound_through_other_machine_exit built 3834ms exit:0 interpreter-exit
 pass/facts/bound_through_other_state_exit built 3824ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_parameter_exit built 3868ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_target_body_exit built 3875ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
+pass/facts/build_target_provider_through_call_result_exit built 3037ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_const_name_exit built 2279ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_field_exit built 2417ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_local_exit built 2430ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_match_join_exit built 2561ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_other_machine_exit built 2405ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_other_state_exit built 2328ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_parameter_exit built 2391ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
+pass/facts/build_target_provider_through_target_body_exit built 2543ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
 pass/facts/call_result_bound_discharge_through_call_result_exit built 7048ms exit:0 interpreter-exit:0 interpreter:agrees @ca0e7bed5361
 pass/facts/call_result_bound_discharge_through_const_name_exit built 8927ms exit:0 interpreter-exit:0 interpreter:agrees @ca0e7bed5361
 pass/facts/call_result_bound_discharge_through_field_exit built 6905ms exit:0 interpreter-exit:0 interpreter:agrees @ca0e7bed5361
@@ -3731,6 +3741,18 @@ pass/facts/unsigned_16bit_wrapping_arithmetic_bound_through_parameter_exit built
 pass/facts/unsigned_16bit_wrapping_arithmetic_bound_through_target_body_exit built 4210ms exit:0 interpreter-exit:0 interpreter:agrees @9b001b8f6afa+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_call_result_exit built 7561ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_const_name_exit built 7569ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
+pass/arithmetic/sparse_captured_utf_path_exit built 37014ms exit:0 interpreter-exit:0 interpreter:agrees @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_call_result_exit built 18702ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_const_name_exit built 18893ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_field_exit built 18449ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_local_exit built 19094ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_match_join_exit built 18992ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_namespaced_tag_exit built 6326ms exit:0 interpreter-exit:0 interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_namespaced_theorem_exit built 6423ms exit:0 interpreter-exit:0 interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_other_machine_exit built 18599ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_other_state_exit built 19177ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_parameter_exit built 18805ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
+pass/facts/nested_machine_statement_completion_target_body_exit built 13229ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @06330bed8ac9
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_field_exit built 7952ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_local_exit built 8205ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_match_join_exit built 7043ms exit:0 interpreter-exit:0 interpreter:agrees @b00162865cc3+wt

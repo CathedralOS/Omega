@@ -360,9 +360,7 @@ fn strands_neighbor(
     }
     for (neighbor, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
         let neighbor_viable = &viable[neighbor];
-        if !active[neighbor]
-            || neighbor_viable.is_empty()
-            || neighbor_viable.len() > max_conflicts
+        if !active[neighbor] || neighbor_viable.is_empty() || neighbor_viable.len() > max_conflicts
         {
             continue;
         }
@@ -485,16 +483,60 @@ fn selection_key(
     }
 }
 
-struct PackedSelectionTree {
-    base: usize,
-    tree: Vec<u128>,
+/// A fixed-width packed selection key: fewest viable views first, then the most
+/// constrained neighbors, then the domain's own static order in the low bits.
+/// One ordering implementation serves both widths — `u64` while every field
+/// fits its narrow range, `u128` otherwise — so the heap and the placement
+/// loop are stated once instead of once per width.
+trait PackedSelectionKey: Copy + Ord {
+    const EMPTY: Self;
+
+    /// `static_key` already carries this domain's static order.
+    fn pack(viable: u32, degree: usize, static_key: Self) -> Self;
+
+    fn domain_index(self) -> usize;
 }
 
-impl PackedSelectionTree {
-    fn new(keys: &[u128]) -> Self {
+impl PackedSelectionKey for u64 {
+    const EMPTY: Self = u64::MAX;
+
+    #[inline]
+    fn pack(viable: u32, degree: usize, static_key: Self) -> Self {
+        let inv_degree = !(degree as u16);
+        ((viable as u64) << 56) | ((inv_degree as u64) << 40) | static_key
+    }
+
+    #[inline]
+    fn domain_index(self) -> usize {
+        (self as u16) as usize
+    }
+}
+
+impl PackedSelectionKey for u128 {
+    const EMPTY: Self = u128::MAX;
+
+    #[inline]
+    fn pack(viable: u32, degree: usize, static_key: Self) -> Self {
+        let inv_degree = !(degree.min(u32::MAX as usize) as u32);
+        ((viable as u128) << 120) | ((inv_degree as u128) << 88) | static_key
+    }
+
+    #[inline]
+    fn domain_index(self) -> usize {
+        (self as u32 & 0xFF_FFFF) as usize
+    }
+}
+
+struct PackedSelectionTree<K: PackedSelectionKey> {
+    base: usize,
+    tree: Vec<K>,
+}
+
+impl<K: PackedSelectionKey> PackedSelectionTree<K> {
+    fn new(keys: &[K]) -> Self {
         let n = keys.len();
         let base = n.next_power_of_two().max(1);
-        let mut tree = vec![u128::MAX; 2 * base];
+        let mut tree = vec![K::EMPTY; 2 * base];
         tree[base..base + n].copy_from_slice(keys);
         for idx in (1..base).rev() {
             tree[idx] = tree[2 * idx].min(tree[2 * idx + 1]);
@@ -503,7 +545,7 @@ impl PackedSelectionTree {
     }
 
     #[inline]
-    fn set_key(&mut self, domain_index: usize, key: u128) {
+    fn set_key(&mut self, domain_index: usize, key: K) {
         let mut idx = self.base + domain_index;
         self.tree[idx] = key;
         idx >>= 1;
@@ -520,69 +562,13 @@ impl PackedSelectionTree {
     #[inline]
     fn pop_first(&mut self) -> Option<usize> {
         let best = self.tree[1];
-        if best == u128::MAX {
+        if best == K::EMPTY {
             return None;
         }
-        let domain_index = (best as u32 & 0xFF_FFFF) as usize;
-        self.set_key(domain_index, u128::MAX);
+        let domain_index = best.domain_index();
+        self.set_key(domain_index, K::EMPTY);
         Some(domain_index)
     }
-}
-
-#[inline]
-fn packed_selection_key(viable: u32, degree: usize, static_key: u128) -> u128 {
-    let inv_degree = !(degree.min(u32::MAX as usize) as u32);
-    ((viable as u128) << 120) | ((inv_degree as u128) << 88) | static_key
-}
-
-struct PackedSelectionTree64 {
-    base: usize,
-    tree: Vec<u64>,
-}
-
-impl PackedSelectionTree64 {
-    fn new(keys: &[u64]) -> Self {
-        let n = keys.len();
-        let base = n.next_power_of_two().max(1);
-        let mut tree = vec![u64::MAX; 2 * base];
-        tree[base..base + n].copy_from_slice(keys);
-        for idx in (1..base).rev() {
-            tree[idx] = tree[2 * idx].min(tree[2 * idx + 1]);
-        }
-        Self { base, tree }
-    }
-
-    #[inline]
-    fn set_key(&mut self, domain_index: usize, key: u64) {
-        let mut idx = self.base + domain_index;
-        self.tree[idx] = key;
-        idx >>= 1;
-        while idx > 0 {
-            let winner = self.tree[2 * idx].min(self.tree[2 * idx + 1]);
-            if self.tree[idx] == winner {
-                break;
-            }
-            self.tree[idx] = winner;
-            idx >>= 1;
-        }
-    }
-
-    #[inline]
-    fn pop_first(&mut self) -> Option<usize> {
-        let best = self.tree[1];
-        if best == u64::MAX {
-            return None;
-        }
-        let domain_index = (best as u16) as usize;
-        self.set_key(domain_index, u64::MAX);
-        Some(domain_index)
-    }
-}
-
-#[inline]
-fn packed_selection_key_64(viable: u32, degree: usize, static_key: u64) -> u64 {
-    let inv_degree = !(degree as u16);
-    ((viable as u64) << 56) | ((inv_degree as u64) << 40) | static_key
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -593,11 +579,9 @@ fn compute_function_bitmask(
     max_reg_id: usize,
     affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts,
-    mut pressure: Option<&mut Vec<RegisterHomeError>>,
+    pressure: Option<&mut Vec<RegisterHomeError>>,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
-    let mut active = vec![true; domains.len()];
-    let mut homes = vec![None::<RegisterViewId>; max_reg_id + 1];
-    let mut viable_masks = domains
+    let viable_masks = domains
         .iter()
         .map(|domain| {
             if domain.candidates.is_empty() {
@@ -611,19 +595,16 @@ fn compute_function_bitmask(
             }
         })
         .collect::<Vec<_>>();
-    let mut degrees = (0..domains.len())
+    let degrees = (0..domains.len())
         .map(|domain_index| conflicts.degree(domain_index))
         .collect::<Vec<_>>();
-    let mut assigned_partner_mask = if affinities.is_empty() {
-        Vec::new()
-    } else {
-        vec![0u128; domains.len()]
-    };
-    let can_use_u64_keys = domains.len() <= u16::MAX as usize
+    // The narrow key holds every field: the roster index, the inverted degree,
+    // and a first point below 2^24.
+    if domains.len() <= u16::MAX as usize
         && domains.windows(2).all(|w| w[0].leader() < w[1].leader())
         && domains.iter().all(|d| d.first_point.0 < (1 << 24))
-        && degrees.iter().all(|&deg| deg <= u16::MAX as usize);
-    if can_use_u64_keys {
+        && degrees.iter().all(|&degree| degree <= u16::MAX as usize)
+    {
         let static_keys = domains
             .iter()
             .enumerate()
@@ -631,80 +612,18 @@ fn compute_function_bitmask(
                 ((domain.first_point.0 as u64) << 16) | (domain_index as u64)
             })
             .collect::<Vec<_>>();
-        let initial_keys = (0..domains.len())
-            .map(|domain_index| {
-                packed_selection_key_64(
-                    viable_masks[domain_index].count_ones(),
-                    degrees[domain_index],
-                    static_keys[domain_index],
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut unassigned = PackedSelectionTree64::new(&initial_keys);
-        while let Some(domain_index) = unassigned.pop_first() {
-            active[domain_index] = false;
-            let view = preferred_view_mask(
-                domain_index,
-                &viable_masks,
-                &active,
-                &homes,
-                &assigned_partner_mask,
-                affinities,
-                conflicts,
-            );
-            let Some(view) = view else {
-                let failure = RegisterHomeError::NoCompatibleHome {
-                    function,
-                    register: domains[domain_index].leader().0,
-                };
-                let Some(pressure) = pressure.as_deref_mut() else {
-                    return Err(failure);
-                };
-                pressure.push(failure);
-                for remaining in conflicts.get_constrained_neighbors(domain_index) {
-                    if active[remaining] {
-                        degrees[remaining] -= 1;
-                        unassigned.set_key(
-                            remaining,
-                            packed_selection_key_64(
-                                viable_masks[remaining].count_ones(),
-                                degrees[remaining],
-                                static_keys[remaining],
-                            ),
-                        );
-                    }
-                }
-                continue;
-            };
-            homes[domains[domain_index].leader_member.virtual_register.0 as usize] = Some(view);
-            for &member in &domains[domain_index].extra_members {
-                homes[member.virtual_register.0 as usize] = Some(view);
-            }
-            if !assigned_partner_mask.is_empty() {
-                let bit = 1u128 << view.0;
-                for affinity in affinities.get_domain_affinities(domain_index) {
-                    if let Some(partner_domain) = affinity.partner_domain {
-                        assigned_partner_mask[partner_domain] |= bit;
-                    }
-                }
-            }
-            for (remaining, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
-                if !active[remaining] {
-                    continue;
-                }
-                degrees[remaining] -= 1;
-                let rev_pair = pair.reversed();
-                viable_masks[remaining] &= !conflicts.conflict_mask(rev_pair, view);
-                unassigned.set_key(
-                    remaining,
-                    packed_selection_key_64(
-                        viable_masks[remaining].count_ones(),
-                        degrees[remaining],
-                        static_keys[remaining],
-                    ),
-                );
-            }
-        }
+        place_packed(
+            function,
+            legality,
+            domains,
+            max_reg_id,
+            affinities,
+            conflicts,
+            pressure,
+            viable_masks,
+            degrees,
+            &static_keys,
+        )
     } else {
         let static_keys = domains
             .iter()
@@ -715,79 +634,115 @@ fn compute_function_bitmask(
                     | (domain_index as u128)
             })
             .collect::<Vec<_>>();
-        let initial_keys = (0..domains.len())
-            .map(|domain_index| {
-                packed_selection_key(
-                    viable_masks[domain_index].count_ones(),
-                    degrees[domain_index],
-                    static_keys[domain_index],
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut unassigned = PackedSelectionTree::new(&initial_keys);
-        while let Some(domain_index) = unassigned.pop_first() {
-            active[domain_index] = false;
-            let view = preferred_view_mask(
-                domain_index,
-                &viable_masks,
-                &active,
-                &homes,
-                &assigned_partner_mask,
-                affinities,
-                conflicts,
-            );
-            let Some(view) = view else {
-                let failure = RegisterHomeError::NoCompatibleHome {
-                    function,
-                    register: domains[domain_index].leader().0,
-                };
-                let Some(pressure) = pressure.as_deref_mut() else {
-                    return Err(failure);
-                };
-                pressure.push(failure);
-                for remaining in conflicts.get_constrained_neighbors(domain_index) {
-                    if active[remaining] {
-                        degrees[remaining] -= 1;
-                        unassigned.set_key(
-                            remaining,
-                            packed_selection_key(
-                                viable_masks[remaining].count_ones(),
-                                degrees[remaining],
-                                static_keys[remaining],
-                            ),
-                        );
-                    }
-                }
-                continue;
+        place_packed(
+            function,
+            legality,
+            domains,
+            max_reg_id,
+            affinities,
+            conflicts,
+            pressure,
+            viable_masks,
+            degrees,
+            &static_keys,
+        )
+    }
+}
+
+/// The most-constrained-first sweep over the packed ordering: the key width is
+/// the only difference between the two admitted widths.
+#[allow(clippy::too_many_arguments)]
+fn place_packed<K: PackedSelectionKey>(
+    function: usize,
+    legality: &FunctionAllocationLegality,
+    domains: &[AllocationDomain<'_>],
+    max_reg_id: usize,
+    affinities: &PreparedAffinities,
+    conflicts: &PreparedConflicts,
+    mut pressure: Option<&mut Vec<RegisterHomeError>>,
+    mut viable_masks: Vec<u128>,
+    mut degrees: Vec<usize>,
+    static_keys: &[K],
+) -> Result<FunctionRegisterHomes, RegisterHomeError> {
+    let mut active = vec![true; domains.len()];
+    let mut homes = vec![None::<RegisterViewId>; max_reg_id + 1];
+    let mut assigned_partner_mask = if affinities.is_empty() {
+        Vec::new()
+    } else {
+        vec![0u128; domains.len()]
+    };
+    let initial_keys = (0..domains.len())
+        .map(|domain_index| {
+            K::pack(
+                viable_masks[domain_index].count_ones(),
+                degrees[domain_index],
+                static_keys[domain_index],
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut unassigned = PackedSelectionTree::<K>::new(&initial_keys);
+    while let Some(domain_index) = unassigned.pop_first() {
+        active[domain_index] = false;
+        let view = preferred_view_mask(
+            domain_index,
+            &viable_masks,
+            &active,
+            &homes,
+            &assigned_partner_mask,
+            affinities,
+            conflicts,
+        );
+        let Some(view) = view else {
+            let failure = RegisterHomeError::NoCompatibleHome {
+                function,
+                register: domains[domain_index].leader().0,
             };
-            homes[domains[domain_index].leader_member.virtual_register.0 as usize] = Some(view);
-            for &member in &domains[domain_index].extra_members {
-                homes[member.virtual_register.0 as usize] = Some(view);
-            }
-            if !assigned_partner_mask.is_empty() {
-                let bit = 1u128 << view.0;
-                for affinity in affinities.get_domain_affinities(domain_index) {
-                    if let Some(partner_domain) = affinity.partner_domain {
-                        assigned_partner_mask[partner_domain] |= bit;
-                    }
+            let Some(pressure) = pressure.as_deref_mut() else {
+                return Err(failure);
+            };
+            pressure.push(failure);
+            for remaining in conflicts.get_constrained_neighbors(domain_index) {
+                if active[remaining] {
+                    degrees[remaining] -= 1;
+                    unassigned.set_key(
+                        remaining,
+                        K::pack(
+                            viable_masks[remaining].count_ones(),
+                            degrees[remaining],
+                            static_keys[remaining],
+                        ),
+                    );
                 }
             }
-            for (remaining, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
-                if !active[remaining] {
-                    continue;
+            continue;
+        };
+        homes[domains[domain_index].leader_member.virtual_register.0 as usize] = Some(view);
+        for &member in &domains[domain_index].extra_members {
+            homes[member.virtual_register.0 as usize] = Some(view);
+        }
+        if !assigned_partner_mask.is_empty() {
+            let bit = 1u128 << view.0;
+            for affinity in affinities.get_domain_affinities(domain_index) {
+                if let Some(partner_domain) = affinity.partner_domain {
+                    assigned_partner_mask[partner_domain] |= bit;
                 }
-                degrees[remaining] -= 1;
-                let rev_pair = pair.reversed();
-                viable_masks[remaining] &= !conflicts.conflict_mask(rev_pair, view);
-                unassigned.set_key(
-                    remaining,
-                    packed_selection_key(
-                        viable_masks[remaining].count_ones(),
-                        degrees[remaining],
-                        static_keys[remaining],
-                    ),
-                );
             }
+        }
+        for (remaining, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
+            if !active[remaining] {
+                continue;
+            }
+            degrees[remaining] -= 1;
+            let rev_pair = pair.reversed();
+            viable_masks[remaining] &= !conflicts.conflict_mask(rev_pair, view);
+            unassigned.set_key(
+                remaining,
+                K::pack(
+                    viable_masks[remaining].count_ones(),
+                    degrees[remaining],
+                    static_keys[remaining],
+                ),
+            );
         }
     }
     if let Some(first) = pressure.and_then(|pressure| pressure.first()).cloned() {
@@ -825,20 +780,19 @@ fn preferred_view_mask(
     if candidates_mask.is_power_of_two() {
         return Some(RegisterViewId(candidates_mask.trailing_zeros() as u16));
     }
-    let max_conflicts = if conflicts.uniform_physical_conflicts()
-        || conflicts.max_any_physical_conflicts() <= 1
-    {
-        conflicts.max_any_physical_conflicts()
-    } else {
-        let mut mc = 0usize;
-        let mut cm = candidates_mask;
-        while cm != 0 {
-            let bit = cm.trailing_zeros() as u16;
-            cm &= cm - 1;
-            mc = mc.max(conflicts.max_physical_conflicts(RegisterViewId(bit)));
-        }
-        mc
-    };
+    let max_conflicts =
+        if conflicts.uniform_physical_conflicts() || conflicts.max_any_physical_conflicts() <= 1 {
+            conflicts.max_any_physical_conflicts()
+        } else {
+            let mut mc = 0usize;
+            let mut cm = candidates_mask;
+            while cm != 0 {
+                let bit = cm.trailing_zeros() as u16;
+                cm &= cm - 1;
+                mc = mc.max(conflicts.max_physical_conflicts(RegisterViewId(bit)));
+            }
+            mc
+        };
     let mut stranded_mask = 0u128;
     // The selection tournament always pops a domain with the minimum positive
     // viable count among active domains, so every active neighbor has at least

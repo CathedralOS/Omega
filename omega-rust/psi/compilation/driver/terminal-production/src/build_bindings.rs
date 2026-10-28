@@ -24,7 +24,7 @@ pub enum TerminalBuildBindingOperation {
     Prepare,
     Bind,
     Select,
-    SelectMode,
+    SelectProvider,
     Exclude,
 }
 
@@ -121,7 +121,7 @@ pub(super) fn capture(
             "prepare" => TerminalBuildBindingOperation::Prepare,
             "bind" | "bind_description" => TerminalBuildBindingOperation::Bind,
             "select" => TerminalBuildBindingOperation::Select,
-            "select_mode" => TerminalBuildBindingOperation::SelectMode,
+            "select_provider" => TerminalBuildBindingOperation::SelectProvider,
             "exclude" => TerminalBuildBindingOperation::Exclude,
             _ => {
                 return Err(diagnostics::Diagnostic::error(

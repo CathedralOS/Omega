@@ -2061,6 +2061,8 @@ fail/build/program_entry_receiver_not_zii rejected 825ms expected @a92f16431042
 	entry machine `Application::launch` requests a provisioned `Application` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/program_entry_returns_value rejected 3930ms expected @a92f16431042
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/provider_selection_missing_target rejected 25ms expected @13c576a20f04
+	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 fail/build/representation_selection_fabricated_activation rejected 8ms expected @7530b1177ef5
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/retained_domain_and_service_rows_invalid_index rejected 68ms expected @a92f16431042
@@ -3888,8 +3890,8 @@ fail/domains/guard_predicate_wrong_bound_rejected rejected 1485ms expected @a92f
 	cannot prove requires contract for call checked from producer: source in u64::Small in state `entry`
 fail/domains/implicit_semantic_domain_local_weakening rejected 421ms expected @a92f16431042
 	implicit domain weakening in machine `Main::main` state `main` local `raw` drops `Degrees`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/domains/imported_provider_unissued_result rejected 1994ms expected @a92f16431042
-	native provider for `named-callable(path(Source::open),parameters(),result-dispatch(declared:package:0101010101010101010101010101010101010101010101010101010101010101:product::Resource::Open))` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
+fail/domains/imported_provider_unissued_result rejected 2510ms expected @13c576a20f04
+	native provider for `named-callable(path(Source::open),parameters(),result-dispatch(declared:package:f64eae9a8d6aef526b0a77ed71827545200fbd581f8c63e660fd11cf17c7c39a:product::Resource::Open))` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
 fail/domains/inactive_payload_cannot_supply_false_contract rejected 1391ms expected @a92f16431042
 	cannot prove requires contract for call forbidden from consume: false (needs fact `false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/domains/inactive_payload_false_guard_cannot_supply_false_contract rejected 1391ms expected @a92f16431042
@@ -5399,6 +5401,24 @@ fail/facts/bounded_scalar_sums_through_target_body_rejected rejected 545ms expec
 	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/build_target_provider_through_call_result_rejected rejected 1066ms expected @13c576a20f04
+	cannot prove ensures contract for exit from acquire at statement 0: result >= 1000
+fail/facts/build_target_provider_through_const_name_rejected rejected 428ms expected @13c576a20f04
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `total(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/build_target_provider_through_field_rejected rejected 402ms expected @13c576a20f04
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/build_target_provider_through_local_rejected rejected 432ms expected @13c576a20f04
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/build_target_provider_through_match_join_rejected rejected 430ms expected @13c576a20f04
+	exact arithmetic in machine `journey` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/build_target_provider_through_other_machine_rejected rejected 1127ms expected @13c576a20f04
+	cannot prove ensures contract for exit from forward at statement 0: result >= 1000
+fail/facts/build_target_provider_through_other_state_rejected rejected 1033ms expected @13c576a20f04
+	cannot prove requires contract for call consume from journey: Reading.total() >= 1000 (needs fact `total >= 1000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/build_target_provider_through_parameter_rejected rejected 1255ms expected @13c576a20f04
+	cannot prove requires contract for call consume from journey: Reading.total() >= 1000 (needs fact `total >= 1000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/build_target_provider_through_target_body_rejected rejected 565ms expected @13c576a20f04
+	exact arithmetic in machine `CalculationBody::consume` state `consume` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `total(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/call_result_bound_discharge_through_call_result_rejected rejected 544ms expected @a92f16431042
 	machine `Main::main` state `main` value call to `echo` violates required fact `scale <= 5`: the instantiated fact is structurally false (`9 <= 5`)
 fail/facts/call_result_bound_discharge_through_const_name_rejected rejected 785ms expected @a92f16431042
@@ -13075,27 +13095,27 @@ fail/facts/predicate_array_copy_through_target_body_rejected rejected 2503ms exp
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/progress_selector_through_call_result_rejected rejected 1799ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_const_name_rejected rejected 1852ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_field_rejected rejected 1735ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_local_rejected rejected 2610ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_call_result_rejected rejected 810ms expected @13c576a20f04
+	machine `select` derives progress premise `package:5f3dd7595f8397fee7323180ba2488419228a961bff38a0c4ab0b82d2778adfb:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_const_name_rejected rejected 984ms expected @13c576a20f04
+	machine `select` derives progress premise `package:614ca21b8a327c6e821374687ef8e828cba5f0d2a0ea426d2d258c6a8bb485c2:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_field_rejected rejected 846ms expected @13c576a20f04
+	machine `select` derives progress premise `package:80d4761b091823d14d8858fa4ca6c8c6aa6b1c81a100d30148db687d7ef7fb67:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_local_rejected rejected 943ms expected @13c576a20f04
+	machine `select` derives progress premise `package:72c65ee1e5186cf818684d40cae3cd8cbd69bd4748a0f82aacae6d5f5d332471:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/progress_selector_through_match_join_rejected rejected 1829ms expected @a92f16431042
 	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_other_machine_rejected rejected 2931ms expected @a92f16431042
-	machine `nested` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_other_state_rejected rejected 2184ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_parameter_rejected rejected 2152ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_target_body_rejected rejected 2118ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_machine_rejected rejected 898ms expected @13c576a20f04
+	machine `nested` derives progress premise `package:0b90d47be46fbe0eef8d00db230cd7d0aadd0f81237921d77dab7f547009c02b:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_state_rejected rejected 893ms expected @13c576a20f04
+	machine `select` derives progress premise `package:1ff8afeac266ca52ce79704e7d9f1995a0b87556fb0434a2a85111f718f43b0d:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_parameter_rejected rejected 939ms expected @13c576a20f04
+	machine `select` derives progress premise `package:2e1db31a8836335092a24244b8a4c96e9b7776fc72147aebe6d150ede02e7073:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_target_body_rejected rejected 932ms expected @13c576a20f04
+	machine `select` derives progress premise `package:eeee3b2997b961ed5fd050c810c75b6d887c025a1f532f26f0dade4467d39354:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:eeee3b2997b961ed5fd050c810c75b6d887c025a1f532f26f0dade4467d39354:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:eeee3b2997b961ed5fd050c810c75b6d887c025a1f532f26f0dade4467d39354:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:eeee3b2997b961ed5fd050c810c75b6d887c025a1f532f26f0dade4467d39354:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/projection_call_premise_through_call_result_rejected rejected 2340ms expected @a92f16431042
 	cannot prove ensures contract for exit from produced at statement 0: result.kept
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17599,6 +17619,56 @@ fail/facts/unsigned_32bit_division_remainder_bound_through_other_machine_rejecte
 	exact arithmetic in machine `forward_eval` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_division_remainder_bound_through_other_state_rejected rejected 853ms expected @a92f16431042
 	exact arithmetic in machine `remainder_other_state` state `check_state` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/sparse_captured_utf_path_unbounded_index rejected 34357ms expected @b0d06a168a00+wt
+	cannot prove index `next_output` is within length 4096 in emit_pair::entry
+fail/arithmetic/unformed_contradiction_cannot_hide_overflow rejected 351ms expected @b0d06a168a00+wt
+	exact arithmetic in machine `unsafe` state `entry` local `__transition_subject#5` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `unsafe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_statement_completion_call_result_rejected rejected 18366ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_const_name_rejected rejected 13379ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_field_rejected rejected 14033ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_local_rejected rejected 13642ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_match_join_rejected rejected 13145ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 1: result != -1
+fail/facts/nested_machine_statement_completion_missing_theorem_citation_rejected rejected 482ms expected @b0d06a168a00+wt
+	machine `conclude` ensures contract proof fact `minus(x, z) == minus(y, z)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/nested_machine_statement_completion_missing_theorem_premise_rejected rejected 529ms expected @b0d06a168a00+wt
+	machine `conclude` cites `minus_swap`, but the callee's requires fact `a == add(b, Nat)` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `conclude` ensures contract proof fact `minus(x, z) == minus(y, z)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/nested_machine_statement_completion_missing_unit_theorem_citation_rejected rejected 546ms expected @b0d06a168a00+wt
+	machine `Laws::minus_swap` ensures contract proof fact `minus(a, c) == minus(b, c)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/nested_machine_statement_completion_other_machine_rejected rejected 12228ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_other_state_rejected rejected 11199ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_overwritten_guard_rejected rejected 11515ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 2: result != -1
+fail/facts/nested_machine_statement_completion_parameter_rejected rejected 12490ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_private_guarantee_rejected rejected 2872ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from probe at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_self_theorem_citation_rejected rejected 510ms expected @b0d06a168a00+wt
+	machine `Laws::forge` ensures contract proof fact `a == b` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/nested_machine_statement_completion_target_body_rejected rejected 12527ms expected @b0d06a168a00+wt
+	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
+fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
+	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_local_exit checked 19784ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_match_join_exit checked 20968ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_namespaced_tag_exit checked 7773ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_namespaced_theorem_exit checked 6788ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_other_machine_exit checked 19975ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_other_state_exit checked 19572ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_parameter_exit checked 20251ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_statement_completion_target_body_exit checked 20912ms check-target:macos_arm64 @b0d06a168a00+wt
 fail/facts/unsigned_32bit_division_remainder_bound_through_parameter_rejected rejected 851ms expected @a92f16431042
 	exact arithmetic in machine `remainder_param` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_division_remainder_bound_through_target_body_rejected rejected 852ms expected @a92f16431042
@@ -22486,18 +22556,18 @@ fail/termination/native_layout_family_unpromised rejected 2935ms expected @a92f1
 	cannot prove published termination for machine `checked_caller`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/nested_field_without_predicate_cannot_bound_result rejected 1851ms expected @a92f16431042
 	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
-fail/termination/progress_selector_owned_snapshot_rejected rejected 2507ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_reference_snapshot_rejected rejected 1868ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_replaced_carrier rejected 1807ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_replaced_slot rejected 1806ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_snapshot_rejected rejected 802ms expected @13c576a20f04
+	machine `select` derives progress premise `package:ed3405ab6d8208be18a7bcd3b5cd4289e7eded3de83248f8f4777886362dea66:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_reference_snapshot_rejected rejected 895ms expected @13c576a20f04
+	machine `select` derives progress premise `package:cb01ac4e72e0890588e8d5a0cc9ee15ba1920cb097e5a9547121e9eec32327f5:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_carrier rejected 956ms expected @13c576a20f04
+	machine `select` derives progress premise `package:58def7c471862450f68da72f9f8bb8c31eeb25645e2f2d4e628b1e156932061b:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_slot rejected 731ms expected @13c576a20f04
+	machine `select` derives progress premise `package:b7b83a584524b5b8ec4638c66de55256b466ddd3a79bd8365ac669745fdb61cb:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/progress_selector_stale_contents rejected 2252ms expected @a92f16431042
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_unknown_alternative rejected 3180ms expected @a92f16431042
-	machine `select` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_unknown_alternative rejected 787ms expected @13c576a20f04
+	machine `select` derives progress premise `package:04d89a3aa8307f4a3c61e39e0c8a8b3e4d0521a060b31c42e85df633b17b04ed:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/proof_joint_machine_cycle_nondecreasing rejected 820ms expected @a92f16431042
 	proof-only machine call cycle: `left`, `right` -- the ranking subject does not structurally decrease on every exact edge; every member must declare `terminates by <param>;`, and every edge must pass a case-payload subterm of the caller's ranking subject
 fail/termination/proof_joint_machine_cycle_unmeasured rejected 739ms expected @a92f16431042
@@ -23775,6 +23845,7 @@ pass/build/product_entry_named_user_machine_exit checked 2112ms check-target:mac
 pass/build/product_entry_query_product_scope_alias checked 2090ms check-target:macos_arm64 @07ad7c55cebd
 pass/build/product_selection_conditional_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
 pass/build/product_selection_helper_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
+pass/build/provider_target_value_forwarding_exit checked 2470ms check-target:macos_arm64 @13c576a20f04
 pass/build/receiver_view_writeback_exit checked 4122ms check-target:macos_arm64 terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
 pass/build/retained_domain_and_service_rows_exit checked 2113ms check-target:macos_arm64 @a92f16431042
 pass/build/runtime_calling_register_copy_exit checked 9302ms check-target:macos_arm64 @a92f16431042
@@ -23829,8 +23900,8 @@ pass/calls/callback_owned_float_record_packing checked 19760ms check-target:maco
 pass/calls/callback_owned_indirect_float_record checked 19108ms check-target:macos_arm64 @a92f16431042
 pass/calls/callback_owned_indirect_record checked 19635ms check-target:macos_arm64 @a92f16431042
 pass/calls/callback_owned_overaligned_record checked 14383ms check-target:macos_arm64 @a92f16431042
-pass/calls/callback_private_deep_forwarded_record rejected 15662ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a92f16431042
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$f62fd2ac2fe74b9e$0 state entry after statement 0: value does not establish Registration::drop clause `registration.atom == 0 && registration.released`
+pass/calls/callback_private_deep_forwarded_record rejected 10270ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @13c576a20f04
+	cannot prove contextual cleanup prerequisite for call drop$specialized$254e78d44155885a$0 from done: retired.atom does not establish Registration::drop clause `registration.atom == 0 && registration.released`
 pass/calls/callback_private_materialization checked 14232ms check-target:windows_x86_64 @a92f16431042
 pass/calls/callback_scalar_loan_permutation checked 14308ms check-target:macos_arm64 @a92f16431042
 pass/calls/caller_result_binding_mutable_loan_exit checked 11689ms check-target:macos_arm64 @a92f16431042
@@ -25571,6 +25642,15 @@ pass/facts/bounded_scalar_sums_through_other_machine_exit checked 2780ms check-t
 pass/facts/bounded_scalar_sums_through_other_state_exit checked 2789ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_scalar_sums_through_parameter_exit checked 2772ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_scalar_sums_through_target_body_exit checked 2778ms check-target:macos_arm64 @a92f16431042
+pass/facts/build_target_provider_through_call_result_exit checked 2286ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_const_name_exit checked 2473ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_field_exit checked 2805ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_local_exit checked 2186ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_match_join_exit checked 2223ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_other_machine_exit checked 2487ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_other_state_exit checked 2661ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_parameter_exit checked 2279ms check-target:macos_arm64 @13c576a20f04
+pass/facts/build_target_provider_through_target_body_exit checked 2246ms check-target:macos_arm64 @13c576a20f04
 pass/facts/call_result_bound_discharge_through_call_result_exit checked 2761ms check-target:macos_arm64 @a92f16431042
 pass/facts/call_result_bound_discharge_through_const_name_exit checked 5873ms check-target:macos_arm64 @a92f16431042
 pass/facts/call_result_bound_discharge_through_field_exit checked 2767ms check-target:macos_arm64 @a92f16431042
@@ -31298,12 +31378,12 @@ pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 4035ms ex
 pass/host/scalar_reference_narrow_backing_foreign_export rejected 4015ms expected check-target:linux_x86_64 native-rejection:match @6983da5d31f4
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(3)), operation: Some(OperationId(41)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 pass/host/std_clock_sleep_exit checked 6442ms check-target:macos_arm64 @a92f16431042
-pass/host/user32_window_procedure_registration rejected 12449ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @a92f16431042
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$f62fd2ac2fe74b9e$0 state entry after statement 0: value does not establish Registration::drop clause `registration.atom == 0 && registration.released`
-	cannot prove default-domain field requirement for return from RegistrarProvider::register, state register, at statement 15: Outcome::Rejected.capacity requires Registration::Vacant
-	cannot prove default-domain field requirement for return from RegistrarProvider::register, state register, at statement 15: Outcome::Rejected.capacity requires Registration::Held
+pass/host/user32_window_procedure_registration rejected 8457ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @13c576a20f04
+	cannot prove contextual cleanup prerequisite for call drop$specialized$3b41440b004088ba$0 from done: retired.atom does not establish Registration::drop clause `registration.atom == 0 && registration.released`
 	construction of `Outcome` field `capacity` is not proven in domain `Registration::Held` in RegistrarProvider::register state `register` at statement 15; a construction value must establish the domain's predicates and any required provenance
 	construction of `Outcome` field `capacity` is not proven in domain `Registration::Vacant` in RegistrarProvider::register state `register` at statement 15; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from RegistrarProvider::register, state register, at statement 15: Outcome::Rejected.capacity requires Registration::Held
+	cannot prove default-domain field requirement for return from RegistrarProvider::register, state register, at statement 15: Outcome::Rejected.capacity requires Registration::Vacant
 pass/inline_asm/asm_aarch64_system_registers_compile checked 1954ms check-target:macos_arm64 @a92f16431042
 pass/inline_asm/asm_block_jmp_state checked 1896ms check-target:macos_arm64 @a92f16431042
 pass/inline_asm/asm_exact_clobbers checked 1717ms @a92f16431042

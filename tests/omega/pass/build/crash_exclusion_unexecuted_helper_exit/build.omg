@@ -2,7 +2,15 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "crash_exclusion_unexecuted_helper_exit");
     Build::depend(builder, Source::Path { location: "../../../packages/assert-kit" });
-    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, linux_arm64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, linux_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, macos_arm64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, macos_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, windows_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, uefi_x86_64);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, cross_platform_cli);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, local_unchecked);
+    Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, alpha_bootstrap);
     Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     maybe_exclude(builder, false);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);

@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "selected_provider_range_arguments");
-    Build::select_provider<Counter, ByteProvider>(builder);
+    Build::select_provider<Counter, ByteProvider>(builder, linux_arm64);
+    Build::select_provider<Counter, ByteProvider>(builder, linux_x86_64);
+    Build::select_provider<Counter, ByteProvider>(builder, macos_arm64);
+    Build::select_provider<Counter, ByteProvider>(builder, macos_x86_64);
+    Build::select_provider<Counter, ByteProvider>(builder, windows_x86_64);
+    Build::select_provider<Counter, ByteProvider>(builder, uefi_x86_64);
+    Build::select_provider<Counter, ByteProvider>(builder, cross_platform_cli);
+    Build::select_provider<Counter, ByteProvider>(builder, local_unchecked);
+    Build::select_provider<Counter, ByteProvider>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

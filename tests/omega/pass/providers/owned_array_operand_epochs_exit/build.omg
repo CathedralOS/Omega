@@ -1,7 +1,23 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "owned_array_operand_epochs_exit");
-    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder);
-    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, linux_arm64);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, linux_x86_64);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, macos_arm64);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, macos_x86_64);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, windows_x86_64);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, uefi_x86_64);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, cross_platform_cli);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, local_unchecked);
+    Build::select_provider<ArrayReader::capture, ArrayReaderProvider>(builder, alpha_bootstrap);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, linux_arm64);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, linux_x86_64);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, macos_arm64);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, macos_x86_64);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, windows_x86_64);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, uefi_x86_64);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, cross_platform_cli);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, local_unchecked);
+    Build::select_provider<ArrayReader::epochs, ArrayReaderProvider>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "discovery");
-    Build::select_provider<Supplied, Actual>(builder);
+    Build::select_provider<Supplied, Actual>(builder, linux_arm64);
+    Build::select_provider<Supplied, Actual>(builder, linux_x86_64);
+    Build::select_provider<Supplied, Actual>(builder, macos_arm64);
+    Build::select_provider<Supplied, Actual>(builder, macos_x86_64);
+    Build::select_provider<Supplied, Actual>(builder, windows_x86_64);
+    Build::select_provider<Supplied, Actual>(builder, uefi_x86_64);
+    Build::select_provider<Supplied, Actual>(builder, cross_platform_cli);
+    Build::select_provider<Supplied, Actual>(builder, local_unchecked);
+    Build::select_provider<Supplied, Actual>(builder, alpha_bootstrap);
     Build::assume_binding_contract<Required::get, Supplied::get>(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

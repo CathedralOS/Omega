@@ -168,6 +168,7 @@ name = "build-declarations"
 version = "0.1.0"
 dependencies = [
  "compiler-storage",
+ "language-semantics",
  "optimization-core",
  "psi-compiler",
  "syntax-trees",

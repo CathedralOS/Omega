@@ -271,7 +271,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
-            // A local jump stages scalar snapshots before transferring its
+            // A terminal invocation stages scalar snapshots before transferring its
             // existing reference carriers. Reading through that same route
             // forms no second retained loan, regardless of the machine's
             // lexical qualification. Fresh borrows and returning invocations
@@ -281,6 +281,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                 facts,
                 state_flow,
                 borrow_call,
+                boundary.as_ref(),
                 access,
                 other_access,
             ) || super::staging::copied_read_before_reference_transfer(
@@ -288,6 +289,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                 facts,
                 state_flow,
                 borrow_call,
+                boundary.as_ref(),
                 other_access,
                 access,
             ) {

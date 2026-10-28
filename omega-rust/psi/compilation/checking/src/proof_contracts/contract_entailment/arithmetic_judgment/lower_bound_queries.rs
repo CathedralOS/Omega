@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 struct PreparedBounds<'engine> {
     exact: Vec<(&'engine Polynomial, &'engine BigInt)>,
     intervals: Vec<(&'engine str, Interval)>,
+    proportional: Vec<usize>,
 }
 
 pub(in crate::proof_contracts::contract_entailment) struct LowerBoundQueries<'engine, 'program> {
@@ -49,6 +50,15 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
                 strongest.push((value, bound));
             }
         }
+        // Positive proportionality requires exactly the same nonconstant
+        // monomials. Index that necessary condition before comparing coefficients;
+        // unrelated captured scalars cannot match a residual merely because they
+        // occur in the same immutable premise batch. Keep the existing proof body
+        // authoritative within each group, including constants and integer slack.
+        let mut proportional: Vec<_> = (0..strongest.len()).collect();
+        proportional.sort_by(|left, right| {
+            nonconstant_monomials_cmp(strongest[*left].0, strongest[*right].0)
+        });
         let mut atoms: Vec<&str> = engine
             .parameter_atoms
             .iter()
@@ -77,6 +87,7 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
             prepared: Some(PreparedBounds {
                 exact: strongest,
                 intervals,
+                proportional,
             }),
         }
     }
@@ -180,9 +191,13 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
             self.prove_proportional_lower_bound(polynomial, bound, stored, stored_bound)
         };
         let established = if let Some(prepared) = &self.prepared {
-            prepared
-                .exact
+            let first = prepared.proportional.partition_point(|position| {
+                nonconstant_monomials_cmp(prepared.exact[*position].0, polynomial).is_lt()
+            });
+            prepared.proportional[first..]
                 .iter()
+                .map(|position| prepared.exact[*position])
+                .take_while(|(stored, _)| nonconstant_monomials_cmp(stored, polynomial).is_eq())
                 .any(|(stored, bound)| proportional(stored, bound))
         } else {
             self.engine
@@ -460,6 +475,13 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         }
         interval.multiply(&atom_interval.correlated_power(previous_power))
     }
+}
+
+fn nonconstant_monomials_cmp(left: &Polynomial, right: &Polynomial) -> std::cmp::Ordering {
+    left.terms
+        .keys()
+        .filter(|monomial| !monomial.is_empty())
+        .cmp(right.terms.keys().filter(|monomial| !monomial.is_empty()))
 }
 
 /// Positive rational alignment is shared by the exact proportional-premise
