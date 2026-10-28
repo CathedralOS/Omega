@@ -91,6 +91,17 @@ fn block_arrival(
     .then_some(parameter)
 }
 
+/// The projected read's root declaration: the exact producer result, else the
+/// parameter's declared referent type. Projection resolves the endpoint leaf.
+fn projected_read_root(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    super::aggregate_result_input::operation_result(source, place)
+        .map(|(_, result)| result.structural_type)
+        .or_else(|| read_parameter(source, place).map(|parameter| parameter.structural_type))
+}
+
 /// Exact field geometry is independent of whether its home came from an owned
 /// value ABI, an established local, or an original borrowed referent.
 pub(super) fn read_storage_codec(
@@ -108,11 +119,7 @@ pub(super) fn read_storage_codec(
             if local(source, *place).is_some() {
                 return runtime_abi::ScalarStorageCodec::from_scalar(scalar);
             }
-            let root = super::aggregate_result_input::operation_result(source, *place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, *place)?;
             crate::structural_inputs::structural_reference_input::projected_scalar_codec(
                 root,
                 path,
@@ -124,12 +131,7 @@ pub(super) fn read_storage_codec(
             field,
             case: None,
         } => {
-            let root = super::aggregate_result_input::operation_result(source, argument.place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, argument.place)
-                        .map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, argument.place)?;
             crate::structural_inputs::structural_reference_input::scalar_field_codec(
                 root,
                 &argument.path,
@@ -154,11 +156,7 @@ pub(super) fn read_storage_fragments<'source>(
             path,
             ..
         } => {
-            let root = super::aggregate_result_input::operation_result(source, *place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, *place)?;
             crate::structural_inputs::structural_reference_input::projected_scalar_fragments(
                 root,
                 path,
@@ -170,12 +168,7 @@ pub(super) fn read_storage_fragments<'source>(
             field,
             case: None,
         } => {
-            let root = super::aggregate_result_input::operation_result(source, argument.place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, argument.place)
-                        .map(|parameter| parameter.structural_type)
-                })?;
+            let root = projected_read_root(source, argument.place)?;
             crate::structural_inputs::structural_reference_input::scalar_field_fragments(
                 root,
                 &argument.path,
@@ -185,6 +178,24 @@ pub(super) fn read_storage_fragments<'source>(
         }
         _ => None,
     }
+}
+
+/// A length read observes an unsigned 64-bit count, and its row traversals must
+/// be exactly the projection's runtime elements.
+fn length_count_matches(
+    scalar: ScalarType,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+) -> Option<()> {
+    let count = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .ok()?,
+    );
+    (scalar == count
+        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices, elements,
+        ))
+    .then_some(())
 }
 
 pub(super) fn read_geometry(
@@ -250,23 +261,8 @@ pub(super) fn read_geometry(
                     &argument.path,
                     &signature.structural_types,
                 )?;
-            let count = ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .ok()?,
-            );
-            (scalar == count
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices,
-                    &geometry.elements,
-                ))
-            .then_some((
-                argument.place,
-                geometry.byte_offset,
-                geometry.pointer_slots,
-            ))
+            length_count_matches(scalar, indices, &geometry.elements)?;
+            Some((argument.place, geometry.byte_offset, geometry.pointer_slots))
         }
         Instruction::StructuralByteSequenceFieldLength {
             source: argument,
@@ -282,19 +278,8 @@ pub(super) fn read_geometry(
                     *field,
                     &signature.structural_types,
                 )?;
-            let count = ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .ok()?,
-            );
-            (scalar == count
-                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                    indices,
-                    &geometry.elements,
-                ))
-            .then_some((
+            length_count_matches(scalar, indices, &geometry.elements)?;
+            Some((
                 argument.place,
                 geometry.length_offset,
                 geometry.pointer_slots,
