@@ -456,6 +456,16 @@ target custody and complete review records; the coordinator does not reconstruct
 them. Terminal production borrows this completed result, and conversion to a
 checked compilation is infallible custody assembly, not a late source phase.
 
+Native proposal construction replaces checked-adapter specialization rows with
+Terminal's complete candidate associations. It uses the same exact selecting
+owner, package, template and closed-coordinate join as target-provider publication;
+unused inherited instances remain part of that roster. Native authority review,
+callback settlement and emitted evidence consume this normalized selection.
+Private native-input records omit source-issued checked specialization rows and
+reload reconstructs them from Terminal. Source checking, review and the optional
+checked interpreter retain their own source-side facts; external applications,
+intrinsic leaves and installation reach are separate custody.
+
 Provider-dependent Product constants currently reject with an explicit
 `unimplemented:` diagnostic. Portable symbolic recipes must cross Psi before
 realization closes them; selected runtime values cannot be folded into shared

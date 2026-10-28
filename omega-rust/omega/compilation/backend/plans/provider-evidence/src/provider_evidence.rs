@@ -707,6 +707,28 @@ impl SelectedProviderPlanFacts {
         &self.specialized_requirement_rows
     }
 
+    /// Native production obtains checked-body instances from Terminal's exact
+    /// candidate associations. Discard the source projection at that boundary;
+    /// leaf applications still need their separately retained binding custody.
+    pub fn without_checked_specializations(mut self) -> Self {
+        self.specialized_requirement_rows.retain(|specialization| {
+            !self.plans.iter().any(|plan| {
+                plan.report_fingerprint() == specialization.provider_plan_report_identity
+                    && plan.rows.iter().any(|row| {
+                        matches!(
+                            row.binding,
+                            crate::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                        ) && Some(plan.identities.text(row.requirement_identity))
+                            == self
+                                .identities
+                                .text(specialization.selected_requirement_identity)
+                    })
+            })
+        });
+        self.refresh_report_fingerprint();
+        self
+    }
+
     /// The roster row joining one closed requirement identity to its selected
     /// plan row. A closed requirement belongs to one requirement template's
     /// boundary slot, so it resolves once across the whole closure.

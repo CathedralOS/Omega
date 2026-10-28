@@ -19,6 +19,7 @@ impl BoundaryApplicationSettlement<'_> {
     pub fn settle(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
+        selected: &effects::SelectedProviderPlanFacts,
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
         let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
             artifact.manifest().semantic(),
@@ -30,6 +31,7 @@ impl BoundaryApplicationSettlement<'_> {
         .map_err(|message| vec![Diagnostic::error(message)])?;
         let realizations = project_terminal_boundary_application_realizations(
             self,
+            selected,
             artifact.semantic_module(),
             &demands,
         )?;
@@ -44,13 +46,14 @@ impl BoundaryApplicationSettlement<'_> {
 
 fn project_terminal_boundary_application_realizations(
     settlement: &BoundaryApplicationSettlement<'_>,
+    selected: &effects::SelectedProviderPlanFacts,
     module: &terminal_psi::TerminalModule,
     demands: &boundary_applications::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
     use boundary_applications::BoundaryApplicationRealization as Realization;
     use effects::provider_plan::ProviderBinding;
     let error = |message| vec![Diagnostic::error(message)];
-    let plans = settlement.selected_provider_plans.plans();
+    let plans = selected.plans();
     let provenance = &settlement.selected_provider_provenance;
     if plans.len() != provenance.len() {
         return Err(error(
