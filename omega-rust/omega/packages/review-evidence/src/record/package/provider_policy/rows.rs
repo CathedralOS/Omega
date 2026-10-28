@@ -13,6 +13,8 @@ pub struct PackagePolicyProviderRow {
     /// plan row has no authored machine to name: its realization is a
     /// toolchain settlement table entry, so this stays `None`.
     pub(crate) realization: Option<PackageReviewNominalIdentity>,
+    /// The actual Build producer when native supply has no realization body.
+    pub(crate) native_build: Option<PackagePolicyEvaluatedBindingProducer>,
     pub(crate) requirement_lifetime_partition: Vec<u32>,
     /// Authored same-stack demand in bytes. Zero means the realization wrote
     /// no `stack N bytes` clause.

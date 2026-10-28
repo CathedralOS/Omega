@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Zero selects Empty; its inactive Ready payload owes no PositiveSmall value.
-domain u64::PositiveSmall(value) requires value > 0 && value < 8;
+domain u64::PositiveSmall requires self > 0 && self < 8;
 
 data Frame [copy] {
     case Empty;

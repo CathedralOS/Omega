@@ -141,7 +141,7 @@ struct CalleeState {
     parameter_types: Vec<TypeReferenceHandle>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum CallSite {
     Statement(StatementHandle),
     Expression(ExpressionHandle),
@@ -248,7 +248,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         crate::conformance::explicit_requirement_calls::refresh_occurrence_selections(program)?;
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        let unavailable = crate::constructed_results::retain_constructed_result_types(program);
+        let unavailable = crate::constructed_results::retain_constructed_result_types(program)?;
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         let subjects = result_locals::materialize_dispatch_subjects(program);
         if !subjects.is_empty() {
@@ -269,7 +269,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let contextual_owners = contextual_calls::close(program)?;
         let contextual_changed = !contextual_owners.is_empty();
         changed_owners.extend(contextual_owners);
-        crate::constructed_results::retain_constructed_result_types(program);
+        crate::constructed_results::retain_constructed_result_types(program)?;
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
         // This is a provisional source-recipe query, not formation admission.
@@ -897,6 +897,13 @@ pub(crate) fn finalize_domain_instance_identities(
     program: &mut TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
 ) -> Result<(), Diagnostic> {
+    if program
+        .domain_definitions()
+        .iter()
+        .all(|domain| domain.type_parameters.is_empty())
+    {
+        return Ok(());
+    }
     let references =
         typed_trees::references::collect_selected_program_references(program, declarations);
     finalize_referenced_domain_instance_identities(program, references)
@@ -906,6 +913,13 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     program: &mut TypedTrees,
     references: typed_trees::references::ProgramReferences,
 ) -> Result<(), Diagnostic> {
+    if program
+        .domain_definitions()
+        .iter()
+        .all(|domain| domain.type_parameters.is_empty())
+    {
+        return Ok(());
+    }
     finalize_type_domain_instance_identities(program, references.type_references)?;
     let mut expressions = references.expressions.into_iter().collect::<Vec<_>>();
     expressions.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));

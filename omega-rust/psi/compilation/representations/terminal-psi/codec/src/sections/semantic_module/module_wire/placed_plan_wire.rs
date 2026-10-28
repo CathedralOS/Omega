@@ -17,10 +17,7 @@ use terminal_psi::{
 /// Native recovery retains these demands; it does not recreate their authority.
 pub fn encode_placed_view_catalog(plans: &[TerminalPlacedViewPlan]) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
-    writer.len("placed view plans", plans.len())?;
-    for plan in plans {
-        encode(&mut writer, plan)?;
-    }
+    writer.counted("placed view plans", plans, encode)?;
     Ok(writer.finish())
 }
 

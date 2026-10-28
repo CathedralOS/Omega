@@ -34,6 +34,7 @@ pub mod collection_operations;
 mod declaration_types;
 pub(crate) use declaration_types::declaration_type_equations;
 pub use declaration_types::declaration_type_reference;
+pub use declaration_types::state_root_type;
 
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
@@ -660,18 +661,14 @@ pub fn collection_element_type(
 }
 
 /// The declared reference access beneath a type's `Constrained` shells —
-/// `None` when the peeled carrier is not a `Reference`.
+/// `None` when the peeled carrier is not a `Reference`. The peel and the
+/// node check are `reference_shells`' classification, shared with every
+/// other reader of a declared borrow.
 pub fn declared_reference_access(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<language_core::ReferenceAccess> {
-    let peeled = peel_declared_constraints(program, type_reference);
-    let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(peeled)
-    else {
-        return None;
-    };
-    Some(*access)
+    super::reference_shells::reference_shell(program, type_reference).map(|shell| shell.access)
 }
 
 mod declared_carriers;
@@ -821,8 +818,8 @@ pub use projection_types::{
     canonical_place_type_reference, collection_element_type_reference,
     expression_type_reference_in_state, loan_carrier_has_owned_storage,
     observed_storage_type_references, owned_projection_type_reference,
-    project_type_reference_from_segments, source_type_application_from_segments,
-    unique_data_definition_by_symbol,
+    project_type_reference_from_segments, qualification_storage_path,
+    source_type_application_from_segments, unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

@@ -73,6 +73,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
     );
     let parameter_claims = build.call_parameter_identities.get(&param_key).cloned();
+    let body_is_present = validation::find_state(program, borrow_call.target_symbol)
+        .is_some_and(|(machine, _)| machine.body_is_present);
     for (argument_position, parameter) in parameters.iter().enumerate() {
         let referent =
             crate::checks::contracts::exclusive_referent_type(program, parameter.type_reference);
@@ -109,8 +111,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .clone()
             .unwrap_or_default();
         let mut paths = paths.as_ref().clone();
-        let body_is_present = validation::find_state(program, borrow_call.target_symbol)
-            .is_some_and(|(machine, _)| machine.body_is_present);
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
@@ -223,11 +223,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             }
         }
     }
-    // Owned lifetime carriers can return a suspended original referent even
-    // though this invocation has no direct &mut formal for that storage.
-    // Reintroduce declared value predicates, never extra root constraints or
-    // routed authority. Normal borrow/resource checking still validates the
-    // exact carrier consumption and full cohort before publication.
+    // The consumed holder returns its exact captured source. Pure declared
+    // predicates follow the normal typed handback; routed descendants also
+    // require every historical input supply's exact membership. The same
+    // immutable receipt is independently replayed by content admission.
     for returned in crate::flow::retained_borrows::handbacks(
         program,
         borrow,
@@ -237,15 +236,19 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         borrow_call,
         argument_sources,
     ) {
-        for (path, domain, identity) in
-            validation::field_domains::declared_result_field_domain_paths(
-                program,
-                returned.reference,
-            )
-        {
-            if crate::checks::contracts::value_provable_domain(program, domain) {
-                rows.push((returned.place.clone(), path, domain, identity));
-            }
+        for membership in crate::flow::retained_borrows::memberships(
+            program,
+            semantic,
+            &build.contexts,
+            &build.control,
+            &returned,
+        ) {
+            rows.push((
+                membership.place,
+                Vec::new(),
+                membership.domain,
+                membership.instance,
+            ));
         }
     }
     // Invalidation deliberately forgets which concrete element a runtime
@@ -253,7 +256,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // overlapping contribution is restored by its own captured formal. Domain
     // dependency overlap uses the very same judgment as invalidation.
     if let Some(writes) = writes.filter(|writes| !writes.is_empty()) {
-        let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
         // Confinement depends only on this immutable write path and its
         // selected formal, not on a live fact or a candidate guarantee. A
         // qualified fixed array can contribute thousands of each: proving
@@ -274,125 +276,151 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 ) && write_stays_in_captured_storage(program, parameters, source)
             })
             .collect();
-        let contexts = build
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(pre_contexts)
-            .iter()
-            .map(|reference| reference.context);
-        for fact_handle in semantic.unique_context_facts(contexts) {
-            let fact = semantic.facts.get(fact_handle);
-            let (
-                FactPlace::Place(handle),
-                FactPayload::DomainMembership {
-                    domain_symbol,
-                    semantic_domain,
-                    ..
-                }
-                | FactPayload::ContractDomainMembership {
-                    domain_symbol,
-                    semantic_domain,
-                    ..
-                },
-            ) = (fact.place, fact.payload)
-            else {
-                continue;
-            };
-            if !semantic_domain.is_valid() {
-                continue;
-            }
-            let semantic_place = semantic.places.get(handle);
-            if !semantic
-                .place_segments
-                .span_or_empty(semantic_place.segments)
+        if confined_writes.iter().any(|&confined| confined) {
+            let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
+            let contexts = build
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(pre_contexts)
                 .iter()
-                .all(crate::flow::place_segment_has_static_identity)
-            {
-                continue;
-            }
-            if !matches!(semantic_place.root, facts::PlaceRoot::Expression(_))
-                && !writes.iter().any(|contribution| {
-                    contribution
-                        .observations
-                        .iter()
-                        .any(|obs| obs.root == semantic_place.root)
-                })
-            {
-                continue;
-            }
-            let Some(place) =
-                crate::flow::canonical_place_from_semantic_place(program, semantic, semantic_place)
-            else {
-                continue;
-            };
-            if !place
-                .segments
-                .iter()
-                .all(crate::flow::place_segment_has_static_identity)
-            {
-                continue;
-            }
-            let mut affected = false;
-            let mut prepared_writes = writes.iter().zip(&confined_writes);
-            let restored = prepared_writes.all(|(contribution, confined)| {
-                if contribution
-                    .write
-                    .region
-                    .preserves_owner_qualification(program, semantic, fact, handle)
-                {
-                    return true;
-                }
-                let Some((mutated, _)) = crate::flow::domain::matching_mutation_for_fact_place(
-                    program,
-                    semantic,
-                    domains,
-                    fact,
-                    handle,
-                    &contribution.observations,
-                ) else {
-                    return true;
-                };
-                affected = true;
-                let write = &contribution.write;
-                let Some(crate::flow::mutation::StorageRegion::Declared(source)) = &write.source
+                .map(|reference| reference.context);
+            for fact_handle in semantic.unique_context_facts(contexts) {
+                let fact = semantic.facts.get(fact_handle);
+                let (
+                    FactPlace::Place(handle),
+                    FactPayload::DomainMembership {
+                        domain_symbol,
+                        semantic_domain,
+                        ..
+                    }
+                    | FactPayload::ContractDomainMembership {
+                        domain_symbol,
+                        semantic_domain,
+                        ..
+                    },
+                ) = (fact.place, fact.payload)
                 else {
-                    return false;
+                    continue;
                 };
-                if !*confined {
-                    // A content guarantee does not restore an owner's
-                    // descriptor fact merely because the loan is anchored
-                    // there. Its own observation frontier must be proved.
-                    return false;
+                if !semantic_domain.is_valid() {
+                    continue;
                 }
-                // A per-byte class is a property of every element. An indexed
-                // store does not retire it when the callee's normal exits
-                // still prove that class on the formal that was written.
-                if element_store_keeps_byte_class(
+                let is_subslice_byte_domain =
+                    validation::field_domains::domain_byte_predicate(program, domain_symbol)
+                        .is_some_and(|restriction| restriction.is_subslice_preserving());
+                if !is_subslice_byte_domain
+                    && !guarantees.has_domain(domain_symbol, semantic_domain)
+                {
+                    continue;
+                }
+                let semantic_place = semantic.places.get(handle);
+                if !semantic
+                    .place_segments
+                    .span_or_empty(semantic_place.segments)
+                    .iter()
+                    .all(crate::flow::place_segment_has_static_identity)
+                {
+                    continue;
+                }
+                if !matches!(semantic_place.root, facts::PlaceRoot::Expression(_))
+                    && !writes.iter().any(|contribution| {
+                        contribution
+                            .observations
+                            .iter()
+                            .any(|obs| obs.root == semantic_place.root)
+                    })
+                {
+                    continue;
+                }
+                let Some(place) = crate::flow::canonical_place_from_semantic_place(
                     program,
                     semantic,
-                    build,
-                    borrow_call.target_symbol,
-                    source.root.as_symbol(),
-                    &place,
-                    mutated,
-                    domain_symbol,
-                ) {
-                    return true;
+                    semantic_place,
+                ) else {
+                    continue;
+                };
+                if !place
+                    .segments
+                    .iter()
+                    .all(crate::flow::place_segment_has_static_identity)
+                {
+                    continue;
                 }
-                guarantees.restores(
-                    program,
-                    source.root.as_symbol(),
-                    &place,
-                    domain_symbol,
-                    semantic_domain,
-                )
-            });
-            if affected && restored {
-                // This is a frame judgment about a pre-existing fact,
-                // not a new claim issued on this exact path by the call.
-                // Keep its original issuer and proof point for the
-                // qualification join; only its liveness changes here.
-                preserved.push((place, fact_handle));
+                if !is_subslice_byte_domain
+                    && !guarantees.can_restore_place(
+                        program,
+                        &place,
+                        domain_symbol,
+                        semantic_domain,
+                    )
+                {
+                    continue;
+                }
+                let mut affected = false;
+                let mut prepared_writes = writes.iter().zip(&confined_writes);
+                let restored = prepared_writes.all(|(contribution, confined)| {
+                    if contribution
+                        .write
+                        .region
+                        .preserves_owner_qualification(program, semantic, fact, handle)
+                    {
+                        return true;
+                    }
+                    let Some((mutated, _)) = crate::flow::domain::matching_mutation_for_fact_place(
+                        program,
+                        semantic,
+                        domains,
+                        fact,
+                        handle,
+                        &contribution.observations,
+                    ) else {
+                        return true;
+                    };
+                    affected = true;
+                    let write = &contribution.write;
+                    let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
+                        &write.source
+                    else {
+                        return false;
+                    };
+                    if !*confined {
+                        // A content guarantee does not restore an owner's
+                        // descriptor fact merely because the loan is anchored
+                        // there. Its own observation frontier must be proved.
+                        return false;
+                    }
+                    // A per-byte class is a property of every element. An indexed
+                    // store does not retire it when the callee's normal exits
+                    // still prove that class on the formal that was written.
+                    if is_subslice_byte_domain
+                        && element_store_keeps_byte_class(
+                            program,
+                            semantic,
+                            build,
+                            borrow_call.target_symbol,
+                            source.root.as_symbol(),
+                            &place,
+                            mutated,
+                            domain_symbol,
+                        )
+                    {
+                        return true;
+                    }
+                    guarantees.restores(
+                        program,
+                        source.root.as_symbol(),
+                        &place,
+                        domain_symbol,
+                        semantic_domain,
+                    )
+                });
+                if affected && restored {
+                    // This is a frame judgment about a pre-existing fact,
+                    // not a new claim issued on this exact path by the call.
+                    // Keep its original issuer and proof point for the
+                    // qualification join; only its liveness changes here.
+                    preserved.push((place, fact_handle));
+                }
             }
         }
     }

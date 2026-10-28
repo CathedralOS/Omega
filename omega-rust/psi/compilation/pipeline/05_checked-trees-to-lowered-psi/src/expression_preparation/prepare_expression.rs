@@ -86,6 +86,12 @@ pub(crate) struct PreparedExpressionContext<'a> {
     pub(crate) proven_indexes: &'a [checked_trees::expression::ExpressionHandle],
 }
 
+#[derive(Clone, Copy)]
+enum SequenceObservationPurpose {
+    Length,
+    Contents,
+}
+
 impl<'a> PreparedExpressionContext<'a> {
     /// Lower one checked scalar expression against these prepared sources.
     pub(crate) fn lower_scalar(
@@ -95,9 +101,13 @@ impl<'a> PreparedExpressionContext<'a> {
     ) -> Result<LoweredDirectExpression, LoweringError> {
         match expression {
             CheckedScalarExpression::StructuralSequenceLength { root, path } => self
-                .sequence_observation(identities, *root, path, |identities, selector| {
-                    self.lower_scalar(identities, selector)
-                })?
+                .sequence_observation(
+                    identities,
+                    *root,
+                    path,
+                    SequenceObservationPurpose::Length,
+                    |identities, selector| self.lower_scalar(identities, selector),
+                )?
                 .ok_or(LoweringError::Unsupported(
                     "length observation requires a live sequence descriptor",
                 )),
@@ -637,7 +647,7 @@ impl<'a> PreparedExpressionContext<'a> {
 
     /// Captured actuals and current locals retain the same complete storage home.
     /// An endpoint declaration never replaces the declaration of its physical root.
-    fn observation_home(
+    fn storage_home(
         &self,
         root: checked_trees::CheckedStorageRoot,
     ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
@@ -648,12 +658,20 @@ impl<'a> PreparedExpressionContext<'a> {
             .flatten();
         let (home, structural_type) = match captured {
             Some(home) => home,
-            None => self.structural_fields.observation_home(
+            None => self.structural_fields.storage_home(
                 root,
                 self.structural_locals,
                 self.view_locals,
             )?,
         };
+        Ok((home, structural_type))
+    }
+
+    fn observation_home(
+        &self,
+        root: checked_trees::CheckedStorageRoot,
+    ) -> Result<(terminal_psi::StructuralArgument, StructuralTypeId), LoweringError> {
+        let (home, structural_type) = self.storage_home(root)?;
         if !matches!(
             home.access,
             terminal_psi::StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
@@ -685,6 +703,7 @@ impl<'a> PreparedExpressionContext<'a> {
                     .cloned()
                     .map(checked_trees::CheckedScalarReadProjection::Static)
                     .collect::<Vec<_>>(),
+                SequenceObservationPurpose::Contents,
                 |_, _| unsupported("byte observation has an unevaluated selector"),
             )?
             .ok_or(LoweringError::Unsupported(
@@ -717,6 +736,7 @@ impl<'a> PreparedExpressionContext<'a> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         root: checked_trees::CheckedStorageRoot,
         path: &[checked_trees::CheckedScalarReadProjection],
+        purpose: SequenceObservationPurpose,
         mut lower_selector: impl FnMut(
             &mut terminal_psi::TerminalIdentityTableBuilder,
             &CheckedScalarExpression,
@@ -724,15 +744,10 @@ impl<'a> PreparedExpressionContext<'a> {
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment as Prepared;
         use checked_trees::{CheckedRuntimeIndex, CheckedScalarReadProjection as Projection};
-        let (home, structural_type) = self.observation_home(root)?;
-        if !matches!(
-            home.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        ) {
-            return unsupported("length observation requires readable storage");
-        }
+        let (home, structural_type) = match purpose {
+            SequenceObservationPurpose::Length => self.storage_home(root)?,
+            SequenceObservationPurpose::Contents => self.observation_home(root)?,
+        };
         let mut selectors = Vec::new();
         let geometry = path
             .iter()
@@ -757,6 +772,11 @@ impl<'a> PreparedExpressionContext<'a> {
     else {
         return Ok(None);
     };
+        let metadata_access = if home.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+            terminal_psi::StructuralAccess::WriteOnlyBorrow
+        } else {
+            terminal_psi::StructuralAccess::SharedBorrow
+        };
         let source = home.place;
         let mut path = home
             .path
@@ -837,14 +857,14 @@ impl<'a> PreparedExpressionContext<'a> {
                 LoweredDirectExpression::ByteSequenceLength {
                     source,
                     path,
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    access: metadata_access,
                     scalar_type,
                 }
             }
             (ViewCarrier::Elements { .. }, None) => LoweredDirectExpression::ElementViewLength {
                 source,
                 path,
-                access: terminal_psi::StructuralAccess::SharedBorrow,
+                access: metadata_access,
                 scalar_type,
             },
             _ => return unsupported("length observation has an inconsistent sequence endpoint"),

@@ -81,10 +81,27 @@ impl<'program> CollectionBoundsObservations<'program> {
                 &mut query,
             )
         };
-        recognized.is_some() && query.seen && query.proven
+        if recognized.is_some() && query.seen && query.proven {
+            return true;
+        }
+        // A private helper's exact descriptor and index arrive together under
+        // its callers' guards. Observe the same closed incoming frames as
+        // operand formation; lexical ancestry alone supplies no bound, and
+        // any unresolved or unproved arrival keeps the operation inadmissible.
+        query.seen = false;
+        query.proven = true;
+        super::structural_prefix::observe_private_arrivals(
+            self.program,
+            self.machine,
+            &mut query,
+            false,
+        ) == Some(true)
+            && query.seen
+            && query.proven
     }
 }
 
+#[derive(Clone)]
 struct Bounds {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
@@ -93,6 +110,10 @@ struct Bounds {
 }
 
 impl StructuralPrefixVisitor for Bounds {
+    fn has_positive_proof(&self) -> bool {
+        self.seen && self.proven
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }
@@ -133,6 +154,12 @@ impl StructuralPrefixVisitor for Bounds {
         };
         self.proven &= !entries.is_empty();
         for entry in entries {
+            if super::struct_trace() {
+                eprintln!(
+                    "STRUCT collection-operands machine={} values={:?}",
+                    machine.name, entry.arguments
+                );
+            }
             let Some(collection) = entry.arguments.first().and_then(Option::as_ref) else {
                 self.proven = false;
                 return;

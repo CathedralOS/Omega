@@ -266,6 +266,34 @@ pub(crate) fn allocate_dense(next: &mut u64) -> Result<u64, LoweringError> {
     Ok(current)
 }
 
+/// Mint the next identity from a dense generated counter.
+///
+/// A generated producer emits one name per authored construct, so a counter
+/// admitted while checking cannot exhaust `u64` here. The bound is stated once
+/// instead of at every arm that mints an identity.
+pub(crate) fn mint<T>(next: &mut u64, construct: impl FnOnce(u64) -> T) -> T {
+    let current = *next;
+    *next = next
+        .checked_add(1)
+        .expect("generated terminal-Psi identity advances");
+    construct(current)
+}
+
+/// Mint the next identity of a namespace a source roster counts, naming that
+/// roster's exhausted bound: a counted roster can outgrow `u64` even where
+/// generated emission cannot.
+pub(crate) fn mint_with<T>(
+    next: &mut u64,
+    construct: impl FnOnce(u64) -> T,
+    exhausted: &'static str,
+) -> Result<T, LoweringError> {
+    let current = *next;
+    *next = next
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(exhausted))?;
+    Ok(construct(current))
+}
+
 /// A selected field snapshot retains its declaration's exact membership in
 /// the shared scalar namespace. Both guard and closed-sum dispatch use this
 /// same observation rule; a scalar carrier alone cannot stand in for it.

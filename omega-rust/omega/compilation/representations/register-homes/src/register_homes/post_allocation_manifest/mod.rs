@@ -7,6 +7,7 @@ mod error;
 mod identity;
 mod model;
 mod rendering;
+mod transformations;
 
 pub use error::{
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,

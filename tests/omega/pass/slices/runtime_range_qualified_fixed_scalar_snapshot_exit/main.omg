@@ -1,4 +1,4 @@
-domain i32::Small(value) requires 0 <= value && value <= 100;
+domain i32::Small requires 0 <= self && self <= 100;
 machine copy(items: &[i32 in Small; 3], index: u64) -> i32 in Small
 requires index < 3 { items[index] }
 machine main() crashes Trap {

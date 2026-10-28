@@ -558,9 +558,11 @@ fn find_data_field<'program>(
     })
 }
 
-/// Spell one authored fact of `definition` over the leaves at `prefix` below
-/// one parameter. Operator-overloaded spellings, arithmetic, case paths,
-/// indexed reads and borrowed fields are outside the vocabulary.
+/// Spell one complete authored fact over exact parameter storage paths.
+/// Tag tests and payload paths retain their selected case identity. An ordinary
+/// predicate relation uses the shared independent equivalence judgment; its
+/// necessary consequence alone is insufficient. Unsupported arithmetic,
+/// indexed reads and borrowed fields remain outside this vocabulary.
 struct FactSpelling<'a> {
     program: &'a dyn crate::CheckingInput,
     operators: &'a CheckedOperatorFacts,

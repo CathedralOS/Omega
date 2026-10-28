@@ -1,0 +1,8 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::package(builder, "private_magnitude");
+ Build::bind<magnitude::RawMagnitude::absolute>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "abs" } });
+ Build::bind<magnitude::RawMagnitude::absolute>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
+ Build::bind<magnitude::RawMagnitude::absolute>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.17" } });
+ Build::bind<magnitude::RawMagnitude::absolute>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" } });
+}

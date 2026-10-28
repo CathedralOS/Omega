@@ -7,6 +7,7 @@
 
 mod artifact;
 mod branch_inspection;
+mod lane;
 mod production;
 mod reflow;
 #[cfg(test)]

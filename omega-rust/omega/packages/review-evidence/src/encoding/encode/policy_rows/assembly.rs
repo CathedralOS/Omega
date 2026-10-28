@@ -30,6 +30,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         representation.selected_availability.len(),
         representation.demands.len(),
         policy.external_supplies.len(),
+        policy.native_bindings.len(),
         policy.dangerous_capabilities.len(),
         policy.slack_uses.len(),
         policy.semantic_dependencies.len(),
@@ -71,6 +72,7 @@ pub(super) fn acceptance_count(
             })
             .count(),
         policy.external_supplies.len(),
+        policy.native_bindings.len(),
         policy.dangerous_capabilities.len(),
         policy.restricted_build_requests.len(),
         policy.assumed_bindings.len(),
@@ -105,6 +107,7 @@ pub(super) fn project(
         terminal_permissions,
         representation,
         external_supplies,
+        native_bindings,
         dangerous_capabilities,
         slack_uses,
         semantic_dependencies,
@@ -120,9 +123,7 @@ pub(super) fn project(
         |_| Ok(()),
         |encoder| {
             encoder.package_identity_field("package", *package)?;
-            encoder.field("target", |encoder| {
-                encoder.string(target.identity().as_str())
-            })
+            encoder.string_field("target", target.identity().as_str())
         },
     )?;
     for (ordinal, row) in assumed_bindings.iter().enumerate() {
@@ -202,6 +203,22 @@ pub(super) fn project(
     }
     components::terminal(builder, terminal_permissions)?;
     components::representation(builder, representation)?;
+    for native in native_bindings {
+        builder.push(
+            PackagePolicyRowKind::NativeBinding,
+            true,
+            true,
+            |encoder| {
+                encode_nominal(encoder, &native.method.requirement)?;
+                let producer = native
+                    .producer()
+                    .ok_or_else(|| rejected("native row has no Build producer"))?;
+                encode_nominal(encoder, &producer.declaration)?;
+                encoder.string(&producer.callable_identity)
+            },
+            |encoder| baseline::native_binding(encoder, native),
+        )?;
+    }
     for supply in external_supplies {
         builder.push(
             PackagePolicyRowKind::ExternalSupply,

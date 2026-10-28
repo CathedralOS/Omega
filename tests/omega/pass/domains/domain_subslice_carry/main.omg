@@ -1,7 +1,7 @@
 // Primitive byte domains survive runtime subslices: `bytes[0..main.end]`
 // stays `in Ascii` through a helper parameter and a named local, and the
 // empty view `prefix[0..0]` remains a valid ASCII view.
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8]::Ascii requires ascii_only(self);
 
 data Main { end: u64; }
 

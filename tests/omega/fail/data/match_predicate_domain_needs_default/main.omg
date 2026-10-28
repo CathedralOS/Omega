@@ -9,10 +9,10 @@ data Entity {
     case Monster(health: i32);
 }
 
-domain Entity::Dangerous(entity)
+domain Entity::Dangerous
 requires
-    entity in Entity::Monster;
-    entity.health > 0;
+    self in Entity::Monster;
+    self.health > 0;
 
 data Main {
     entity: Entity;

@@ -112,7 +112,6 @@ pub(super) struct PreparedPackageInvocation {
     target: target::TargetProfile,
     inputs: Option<PackageCompilationInputs>,
     rollback: optimization_core::OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
     source: build_continuation::BuildSourceInvocation,
 }
 
@@ -213,7 +212,6 @@ impl PreparedPackageInvocation {
             inputs,
             rollback: self.rollback,
             source,
-            permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
         })
     }
 }
@@ -232,7 +230,6 @@ pub(super) fn prepare_settled_package_product(
         inputs.clone(),
         settled.rollback,
         prepared,
-        settled.permit_unsettled_fused_service_fields,
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
@@ -255,7 +252,6 @@ pub(super) fn begin_package_build_worker(
         package_inputs: inputs.as_ref(),
         build: request.build.resolve_compilation_defaults(inputs.as_ref()),
         optimization_rollback: request.optimization_rollback.clone(),
-        permit_unsettled_fused_service_fields: false,
         settled_check_reuse: reuse,
     };
     let source = prepare_build_source_invocation(&request.root_path, source, child, Some(owner))?;
@@ -266,7 +262,6 @@ pub(super) fn begin_package_build_worker(
         inputs,
         rollback: request.optimization_rollback,
         source,
-        permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
     })
 }
 
@@ -278,7 +273,6 @@ pub struct SourceCompilation {
     target: Option<target::TargetProfile>,
     inputs: Option<PackageCompilationInputs>,
     rollback: crate::OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
     reuse: SettledCheckReuse,
     source: build_continuation::BuildSourceInvocation,
 }
@@ -318,7 +312,6 @@ impl SourceCompilation {
             self.target,
             self.inputs.as_ref(),
             &self.rollback,
-            self.permit_unsettled_fused_service_fields,
             self.reuse,
             selections,
         ))
@@ -357,7 +350,6 @@ pub(super) fn prepare_source_compilation(
     let target = child.selected_target_profile;
     let inputs = child.package_inputs.cloned();
     let rollback = child.optimization_rollback.clone();
-    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
     let reuse = child.settled_check_reuse.clone();
     let source =
         prepare_build_source_invocation(root, source, child, Some(pure_build_compilation))?;
@@ -366,7 +358,6 @@ pub(super) fn prepare_source_compilation(
         target,
         inputs,
         rollback,
-        permit_unsettled_fused_service_fields,
         reuse,
         source,
     })
@@ -436,7 +427,6 @@ pub(super) fn select_completed_build(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
     settled_check_reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
 ) -> SelectedCompileOutcome {
@@ -457,7 +447,6 @@ pub(super) fn select_completed_build(
             &source,
             selected_target_profile,
             package_inputs,
-            permit_unsettled_fused_service_fields,
         ),
         Err(diagnostics) => SelectedCompileOutcome {
             result: Err(CompileFailure::from(diagnostics)),

@@ -1,15 +1,14 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, named_view, produced_effects, scalar_abi_cases,
-    validate_effects, validated_effects,
+    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
+    scalar_abi_cases, validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 #[test]
@@ -413,20 +412,6 @@ fn expected_size(
     }
 }
 
-/// Packed-load semantics share one constraint key, so memory declarations are
-/// found by (key, semantic) rather than by key alone.
-fn memory_declaration_mut(
-    catalog: &mut MachineEffectCatalog,
-    key: RegisterConstraintKey,
-    semantic: MachineSemanticKind,
-) -> &mut MachineEffectDeclaration {
-    catalog
-        .declarations
-        .iter_mut()
-        .find(|declaration| declaration.constraint == key && declaration.semantic == semantic)
-        .unwrap_or_else(|| panic!("effect catalog missing memory declaration {key:?}/{semantic:?}"))
-}
-
 /// Every selected memory rule on every declared target/ABI pair is bound to
 /// the ordinary memory mechanism, trap surface, and register custody that
 /// pair's ABI declares.
@@ -673,7 +658,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // access encoded as none (or none encoded as a pointer write)
             // fails structural admission.
             let mut corrupted = catalog.clone();
-            memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .memory = if contract.memory == MachineMemoryEffect::NoneV1 {
                 MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
@@ -733,7 +718,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             };
             if let Some(drifted) = drifted {
                 let mut corrupted = catalog.clone();
-                memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .memory = drifted;
                 assert_eq!(
@@ -750,7 +735,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // a pure rule survives the fallthrough shape and needs canonical
             // ISA replay.
             let mut corrupted = catalog.clone();
-            memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .trap = if contract.faulting {
                 MachineEncodedTrapBehavior::NeverV1
@@ -773,7 +758,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A memory rule encoded as a conditional branch fails the
             // control/barrier join.
             let mut corrupted = catalog.clone();
-            memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .control = MachineEncodedControlEffect::ConditionalRelativeBranchV1;
             assert_eq!(
@@ -787,7 +772,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A stack lifecycle cannot be forged onto a memory rule: no
             // admitted shape joins a byte pop with these semantics.
             let mut corrupted = catalog.clone();
-            memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .stack = MachineEncodedStackEffect::PopBytesV1 {
                 stack_pointer,
@@ -805,9 +790,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // contracted uses and fails structural admission.
             if contract.uses_stack_pointer {
                 let mut corrupted = catalog.clone();
-                let encoded = &mut memory_declaration_mut(&mut corrupted, key, semantic)
-                    .alternatives[0]
-                    .encoded;
+                let encoded =
+                    &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
                 assert!(
                     !encoded.implicit_unit_uses.is_empty(),
                     "{key:?} declares no stack-pointer use"
@@ -827,7 +811,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // structural admission.
             if !row.clobbers.is_empty() {
                 let mut corrupted = catalog.clone();
-                memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .implicit_unit_clobbers
                     .remove(0);
@@ -843,7 +827,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A forged implicit definition outside the row's empty def set
             // fails structural admission before canonical replay runs.
             let mut corrupted = catalog.clone();
-            memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_defs
                 .push(foreign_unit);
@@ -860,8 +844,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // every memory rule.
             if let Some(&dropped) = contract.writes.last() {
                 let mut corrupted = catalog.clone();
-                let writes = &mut memory_declaration_mut(&mut corrupted, key, semantic)
-                    .alternatives[0]
+                let writes = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .external_operand_writes;
                 writes.retain(|write| *write != dropped);
@@ -879,10 +862,9 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // rows no longer admit the smaller set either.
             if let Some(&dropped) = contract.reads.last() {
                 let mut corrupted = catalog.clone();
-                let reads = &mut memory_declaration_mut(&mut corrupted, key, semantic).alternatives
-                    [0]
-                .encoded
-                .external_operand_reads;
+                let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0]
+                    .encoded
+                    .external_operand_reads;
                 reads.retain(|read| *read != dropped);
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
@@ -896,7 +878,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             // A size-knowledge drift keeps a structurally valid bound, so
             // only canonical ISA replay may reject it.
             let mut corrupted = catalog.clone();
-            memory_declaration_mut(&mut corrupted, key, semantic).alternatives[0].size =
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0].size =
                 MachineSizeKnowledge::ExactBytes(997);
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),

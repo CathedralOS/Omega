@@ -67,21 +67,12 @@ impl CheckedResourceAxisAnchor {
         }
     }
 
-    pub const fn machine(&self) -> SymbolHandle {
-        self.machine
-    }
-
-    pub const fn contract_report_fingerprint(&self) -> u64 {
-        self.contract_report_fingerprint
-    }
-
-    pub const fn contract_commitment(&self) -> MachineContractCommitment {
-        self.contract_commitment
-    }
-
-    pub const fn entry(&self) -> SymbolHandle {
-        self.entry
-    }
+    super::contract_identity_accessors!(
+        machine,
+        entry,
+        contract_report_fingerprint,
+        contract_commitment
+    );
 
     pub const fn derivation_obligation(&self) -> CheckedResourceDerivationObligation {
         self.derivation_obligation
@@ -192,21 +183,12 @@ impl CheckedEntryResourceEnvelope {
         }
     }
 
-    pub const fn machine(&self) -> SymbolHandle {
-        self.machine
-    }
-
-    pub const fn contract_report_fingerprint(&self) -> u64 {
-        self.contract_report_fingerprint
-    }
-
-    pub const fn contract_commitment(&self) -> MachineContractCommitment {
-        self.contract_commitment
-    }
-
-    pub const fn entry(&self) -> SymbolHandle {
-        self.entry
-    }
+    super::contract_identity_accessors!(
+        machine,
+        entry,
+        contract_report_fingerprint,
+        contract_commitment
+    );
 
     pub const fn stack(&self) -> &CheckedResourceAxisAnchor {
         &self.stack

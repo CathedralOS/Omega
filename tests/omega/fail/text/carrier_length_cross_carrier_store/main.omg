@@ -11,9 +11,9 @@
 // is a one-cast authoring mistake.
 use omega_language_std::console;
 
-domain [u8; 10]::Utf8(bytes)
+domain [u8; 10]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 data Main {
     message: [u8; 10] in Utf8;

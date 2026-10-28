@@ -20,12 +20,13 @@ use std::path::Path;
 /// Invocation-owned source acquisition. Package policy selects pins and offline
 /// behavior before execution; repeated selectors retain their first Git result.
 pub struct BuildSourceAcquisitions<'operation> {
-    storage: &'operation SourceResolver,
-    options: GitResolutionOptions<'operation>,
+    pub(super) storage: &'operation SourceResolver,
+    pub(super) options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
     locked_source: Option<&'operation CanonicalSourceClosureSubject>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
     sources: Vec<AcquiredBuildSource>,
+    cache_directories: std::sync::OnceLock<Option<super::custody::SourceCacheDirectories>>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
@@ -63,6 +64,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             locked_source: None,
             git_sources: Vec::new(),
             sources: Vec::new(),
+            cache_directories: std::sync::OnceLock::new(),
             workspaces: Vec::new(),
         }
     }
@@ -213,16 +215,12 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             } => {
                 let selected = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
                     .map_err(|error| error.to_string())?;
-                let source = self.acquire_git(&selected, requester.limits)?;
                 let request = GitPackageSourceRequest::new(selected, selection.clone());
                 if let PackageSelection::Named(package) = selection {
-                    match self.acquire_workspace_member(source, request, package)? {
-                        AcquiredSourceSelection::Workspace(workspace) => {
-                            return Ok(AcquiredSourceSelection::Workspace(workspace));
-                        }
-                        AcquiredSourceSelection::Source(acquired) => acquired,
-                    }
-                } else if let Some(existing) = self.sources.iter().find(|acquired| {
+                    return self.acquire_workspace_member(request, package, requester.limits);
+                }
+                let source = self.acquire_git(request.acquisition(), requester.limits)?;
+                if let Some(existing) = self.sources.iter().find(|acquired| {
                     &acquired.lineage == source.lineage()
                         && acquired.navigation == super::PackageSourceNavigation::Root
                 }) {
@@ -253,8 +251,15 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
 
     pub(super) fn retain_source(
         &mut self,
-        acquired: AcquiredBuildSource,
+        mut acquired: AcquiredBuildSource,
     ) -> Result<AcquiredBuildSource, String> {
+        // Always select coordinates from this acquisition owner, including
+        // when a caller brings a clone retained by another resolver session.
+        // A failed optional retention stays a miss for this operation.
+        acquired.cache_directories = self
+            .cache_directories
+            .get_or_init(|| super::custody::SourceCacheDirectories::retain(self.storage))
+            .clone();
         if let Some(existing) = self.sources.iter().find(|source| {
             source.lineage == acquired.lineage && source.navigation == acquired.navigation
         }) {
@@ -360,6 +365,7 @@ pub struct AcquiredBuildSource {
     pub(super) root_request: PackageRootSourceRequest,
     pub(super) navigation: super::PackageSourceNavigation,
     pub(super) selection: super::PackageSourceSelectionEvidence,
+    pub(super) cache_directories: Option<super::custody::SourceCacheDirectories>,
 }
 
 #[derive(Debug)]
@@ -465,6 +471,7 @@ impl AcquiredBuildSource {
             root_request,
             navigation: super::PackageSourceNavigation::Root,
             selection: super::PackageSourceSelectionEvidence::Root,
+            cache_directories: None,
         })
     }
 
@@ -474,8 +481,14 @@ impl AcquiredBuildSource {
         source: &ResolvedGitSource,
         request: GitPackageSourceRequest,
     ) -> Result<Self, String> {
-        if source.workspace_projection().is_some()
-            || source.lineage() != request.acquisition().lineage()
+        let navigation = match (request.selection(), source.selected_member()) {
+            (PackageSelection::Root, None) => super::PackageSourceNavigation::Root,
+            (PackageSelection::Named(_), Some(path)) => {
+                super::PackageSourceNavigation::Member(path.clone())
+            }
+            _ => return Err("Git acquisition has the wrong source selection".into()),
+        };
+        if source.lineage() != request.acquisition().lineage()
             || source.requested_locator() != request.requested_locator()
             || source.requested_revision() != request.requested_revision()
             || source.transport_profile() != request.transport_profile()
@@ -501,8 +514,9 @@ impl AcquiredBuildSource {
             limits: source.source_limits(),
             resolution,
             root_request: PackageRootSourceRequest::Git(request),
-            navigation: super::PackageSourceNavigation::Root,
+            navigation,
             selection: super::PackageSourceSelectionEvidence::Root,
+            cache_directories: None,
         })
     }
 
@@ -552,6 +566,10 @@ impl AcquiredBuildSource {
             requests,
         )
         .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
+        let custody = match &self.cache_directories {
+            Some(directories) => directories.apply_to(custody),
+            None => custody,
+        };
         Ok(DeclaredBuildSource {
             custody,
             root_request: self.root_request.clone(),

@@ -16,7 +16,7 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::directory_nth(path: &[u8
 satisfies WindowsFilesystemHost::directory_nth
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
-    transition handle != 0 { true -> query(handle, ordinal) false -> (windows_directory_entry_error()) }
+    transition handle != 0 { true -> block query(handle, ordinal) false -> (windows_directory_entry_error()) }
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 {
         let result: WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
@@ -43,7 +43,7 @@ windows_x86_64 machine windows_directory_select(handle: i64 in WindowsPrivateNon
 requires handle != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut output: WindowsNativeDirectoryEntryInfo;
-    transition { _ -> next(handle, ordinal, &mut output, 0) }
+    transition { _ -> block next(handle, ordinal, &mut output, 0) }
     machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 && position <= ordinal {
@@ -51,22 +51,22 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         transition step {
             WindowsDirectoryStep::Error { code } -> (WindowsDirectoryEntryResult::Error { code: code })
             WindowsDirectoryStep::End -> WindowsDirectoryEntryResult::End
-            WindowsDirectoryStep::Name { length } -> name(handle, ordinal, output, position, length)
+            WindowsDirectoryStep::Name { length } -> block name(handle, ordinal, output, position, length)
         }
     }
     machine name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 && position <= ordinal {
         transition windows_directory_entry_dot(output, length) {
-            true -> next(handle, ordinal, output, position)
-            false -> selected(handle, ordinal, output, position, length)
+            true -> block next(handle, ordinal, output, position)
+            false -> block selected(handle, ordinal, output, position, length)
         }
     }
     machine selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires handle != 0 && position <= ordinal {
         transition position < ordinal {
-            true -> next(handle, ordinal, output, position + 1)
+            true -> block next(handle, ordinal, output, position + 1)
             false -> (windows_directory_encode_entry(output, length))
         }
     }

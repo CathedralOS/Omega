@@ -65,24 +65,26 @@ impl<'program> Engine<'program> {
     /// residual and scaled judgments as `prove_at_least`, without asking the
     /// identical residual question twice. No new combinations are searched.
     pub(super) fn bounds_are_inconsistent(&self) -> bool {
-        for (bound_position, (polynomial, bound)) in self.bounds.iter().enumerate() {
+        let queries = self.lower_bound_queries();
+        let exact = queries.prepared_exact_bounds();
+        for (bound_position, (polynomial, bound)) in exact.iter().enumerate() {
             let complement = polynomial.neg();
             let complement_bound = BigInt::from_i64(1).sub(bound);
-            if self.prove_base_lower_bound(&complement, &complement_bound) {
+            if queries.prove_base_lower_bound(&complement, &complement_bound) {
                 return true;
             }
-            for (stored_position, (stored, stored_bound)) in self.bounds.iter().enumerate() {
+            for (stored_position, (stored, stored_bound)) in exact.iter().enumerate() {
                 // The reversed pair asks exactly -P-Q >= 1-b-c too. Earlier
                 // rows completed false or we already returned; canonical exact
                 // arithmetic and immutable engine state make that result reusable.
                 // Keep the diagonal and every directed scaled query: scaling's
                 // coefficient selection and integer slack need not be symmetric.
                 if (stored_position >= bound_position
-                    && self.prove_base_lower_bound(
+                    && queries.prove_base_lower_bound(
                         &complement.sub(stored),
                         &complement_bound.sub(stored_bound),
                     ))
-                    || self.prove_scaled_lower_bound(
+                    || queries.prove_scaled_lower_bound(
                         &complement,
                         &complement_bound,
                         stored,
@@ -150,35 +152,19 @@ impl<'program> Engine<'program> {
         Some(through_zero.add(self.matrix.stored_bound_indices(zero, to)?))
     }
 
-    /// Matrix writes are additive. A consistent retained matrix is already
-    /// transitively closed, so one stronger seed needs only paths containing
-    /// that edge once. An inconsistent graph retains the original closure and
-    /// its order-dependent values; speculative updates never enter that route.
+    /// Seed a batch before closing its real dependency components. Independent
+    /// intervals communicate through zero at query time; eagerly extending an
+    /// edge with every virtual through-zero predecessor/successor materializes
+    /// their Cartesian product and turns independent captures into one dense
+    /// graph. Normal-return observation can add hundreds of such captures.
+    ///
+    /// The component closure retains every justified bound, including both
+    /// directions through zero. It also owns the historical lexical order and
+    /// positive-cycle handling for inconsistent premises. Updating its actual
+    /// seeds as one batch keeps those semantics without speculative dense rows.
     pub(super) fn refresh_difference_bounds(&mut self) {
-        if self.requires_unsatisfiable {
-            self.seed_matrix();
+        if self.seed_matrix() || self.requires_unsatisfiable {
             self.close_matrix();
-            return;
-        }
-        let mut original = None;
-        for (from, to, bound) in self.difference_seeds() {
-            if self
-                .matrix
-                .stored_bound(&from, &to)
-                .is_some_and(|previous| previous >= &bound)
-            {
-                continue;
-            }
-            // Clone only once, before this refresh's first changed seed. A
-            // later edge can close a positive cycle through earlier new edges.
-            // Restoring only that edge's input would change old-route history.
-            let original_matrix = original.get_or_insert_with(|| self.matrix.clone());
-            if !self.strengthen_closed_difference(&from, &to, bound) {
-                self.matrix = std::mem::take(original_matrix);
-                self.seed_matrix();
-                self.close_matrix();
-                return;
-            }
         }
     }
 
@@ -217,57 +203,6 @@ impl<'program> Engine<'program> {
             changed |= self.record_difference(&from, &to, bound);
         }
         changed
-    }
-
-    /// Extend a closed consistent max-plus graph by u - v >= bound. A new
-    /// edge can occur at most once on an improving path when the old reverse
-    /// path plus this edge is nonpositive. Capture both old frontiers before
-    /// writing, including virtual zero diagonals for previously unseen vertices.
-    fn strengthen_closed_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
-        if self
-            .matrix_bound(to, from)
-            .is_some_and(|reverse| reverse.add(&bound) > BigInt::zero())
-        {
-            // Do not set unsatisfiable here: the original seed/close route owns
-            // historical diagonal handling and inconsistent graph behavior.
-            return false;
-        }
-        if from == to {
-            // Nonpositive diagonal seeds cannot improve paths, but still retain
-            // the original vertex and stored diagonal inventory.
-            self.record_difference(from, to, bound);
-            return true;
-        }
-        // Capture the old lexical vertex inventory before introducing either
-        // endpoint. Stable indices never determine semantic iteration order.
-        let atoms = self.matrix.lexical_indices().to_vec();
-        let from = self.matrix.intern(from);
-        let to = self.matrix.intern(to);
-        let mut incoming = vec![(from, BigInt::zero())];
-        let mut outgoing = vec![(to, BigInt::zero())];
-        for atom in atoms {
-            if atom != from
-                && let Some(value) = self.matrix_bound_indices(atom, from)
-            {
-                incoming.push((atom, value));
-            }
-            if atom != to
-                && let Some(value) = self.matrix_bound_indices(to, atom)
-            {
-                outgoing.push((atom, value));
-            }
-        }
-        self.matrix.record_indices(from, to, bound.clone());
-        for (source, prefix) in incoming {
-            let through_edge = prefix.add(&bound);
-            for (destination, suffix) in &outgoing {
-                if source != *destination {
-                    self.matrix
-                        .record_indices(source, *destination, through_edge.add(suffix));
-                }
-            }
-        }
-        true
     }
 
     fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {

@@ -31,17 +31,17 @@ reaches FilesystemMetadataQuery {
 windows_x86_64 machine WindowsFilesystemNativeProvider::read_link(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64
 satisfies WindowsFilesystemHost::read_link
 reaches FilesystemMetadataQuery {
-    transition count > 0 && count <= output.len { true -> path(path, output, count) false -> (-87) }
+    transition count > 0 && count <= output.len { true -> block path(path, output, count) false -> (-87) }
     machine path(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64 {
         let mut wide: [u16; 4096];
         let units: i64 = windows_wide_path(path, &mut wide);
         wide[4095] = 0;
-        transition units > 0 { true -> open(wide, output, count) false -> (-87) }
+        transition units > 0 { true -> block open(wide, output, count) false -> (-87) }
     }
     machine open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8], count: u64) -> i64 {
         let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(&path);
         transition handle != 0 {
-            true -> query(handle, output, count)
+            true -> block query(handle, output, count)
             false -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }

@@ -10,6 +10,7 @@ use super::{
     TrappingOperation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 
 /// Select one integer arithmetic operation. The dispatcher routes only this
 /// family's kinds here.
@@ -71,12 +72,7 @@ pub(super) fn emit(
             builder.emit_materialize_i64(
                 *value,
                 output,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![result.value]),
             )?;
             output
         }
@@ -108,12 +104,7 @@ pub(super) fn emit(
                 },
                 constraints.keys.subtract_i64,
                 &[left_register, right_register, output],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -131,12 +122,7 @@ pub(super) fn emit(
                 SelectedInstructionKind::BitwiseNotI64,
                 constraints.keys.copy_i64,
                 &[input, raw],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*operand, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*operand, result.value]),
             )?;
             // Complementing a normalized signed carrier stays
             // sign-extended, but a narrow unsigned result exposes
@@ -192,12 +178,7 @@ pub(super) fn emit(
                 kind,
                 constraint,
                 &operands,
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -230,12 +211,7 @@ pub(super) fn emit(
                 SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
                 constraint,
                 &[left_register, right_register, output, scratch],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -263,12 +239,7 @@ pub(super) fn emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 constraint,
                 &[left_register, right_register, output, scratch],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             output
         }
@@ -293,12 +264,7 @@ pub(super) fn emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 trapping_constraint(*form, &constraints.keys)?,
                 &[input, output, scratch],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*operand, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*operand, result.value]),
             )?;
             output
         }
@@ -542,12 +508,7 @@ pub(super) fn emit(
                 kind,
                 key,
                 &[left_register, right_register, raw],
-                SelectedInstructionProvenance {
-                    operations: vec![operation.operation],
-                    values: vec![*left, *right, result.value],
-                    fuel: operation.fuel.clone(),
-                    ..Default::default()
-                },
+                operation_provenance(operation, vec![*left, *right, result.value]),
             )?;
             // Machine addition is modulo 64 bits. Only the normalized
             // low-width result becomes available to later source uses;

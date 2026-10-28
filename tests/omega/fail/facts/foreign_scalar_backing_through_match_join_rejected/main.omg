@@ -4,6 +4,7 @@ use omega::language::core::external_binding;
 const WORD: u32 = 172180033;
 data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
 data Envelope [copy] { cell: Cell; }
+data ChosenCell [copy] { cell: Cell; branch: bool; }
 public boundary trait Words {
     machine write(descriptor: i32, word: &u32, count: u64) -> i64 reaches;
 }
@@ -31,6 +32,17 @@ linux_arm64 machine arm_write() -> ForeignBinding<9, 5, 10> {
 }
 linux_arm64 machine write(descriptor: i32, word: &u32, count: u64) -> i64
     satisfies Words::write via arm_write();
+// This witness exports exact bytes; MSVCRT stdout must not translate LF.
+public boundary trait WindowsDescriptorMode {
+    machine set_mode(descriptor: i32, mode: i32) -> i32 reaches;
+}
+windows_x86_64 machine windows_descriptor_mode_binding() -> ForeignBinding<10, 8, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "msvcrt.dll", export: "_setmode"
+    } }
+}
+windows_x86_64 machine windows_set_descriptor_mode(descriptor: i32, mode: i32) -> i32
+    satisfies WindowsDescriptorMode::set_mode via windows_descriptor_mode_binding();
 windows_x86_64 machine windows_write() -> ForeignBinding<10, 6, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName {
         library: "msvcrt.dll", export: "_write"
@@ -44,7 +56,12 @@ machine demand(result: bool) crashes Trap {
     machine bad() { crash Trap; }
 }
 macos_arm64 machine through(choice: bool) crashes Trap {
-    let mut backing: Cell = match choice { true -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } false -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } };
+    let joined: ChosenCell = match choice {
+        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true }
+        false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
+    };
+    demand(joined.branch == choice);
+    let mut backing: Cell = joined.cell;
     let selected: &u32 = &backing.word;
     backing.word = 0;
     let written: i64 = Words::write(1, selected, 4);
@@ -52,7 +69,12 @@ macos_arm64 machine through(choice: bool) crashes Trap {
 }
 macos_arm64 machine main() crashes Trap { through(true); through(false); }
 linux_x86_64 machine through(choice: bool) crashes Trap {
-    let mut backing: Cell = match choice { true -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } false -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } };
+    let joined: ChosenCell = match choice {
+        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true }
+        false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
+    };
+    demand(joined.branch == choice);
+    let mut backing: Cell = joined.cell;
     let selected: &u32 = &backing.word;
     backing.word = 0;
     let written: i64 = Words::write(1, selected, 4);
@@ -60,7 +82,12 @@ linux_x86_64 machine through(choice: bool) crashes Trap {
 }
 linux_x86_64 machine main() crashes Trap { through(true); through(false); }
 linux_arm64 machine through(choice: bool) crashes Trap {
-    let mut backing: Cell = match choice { true -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } false -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } };
+    let joined: ChosenCell = match choice {
+        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true }
+        false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
+    };
+    demand(joined.branch == choice);
+    let mut backing: Cell = joined.cell;
     let selected: &u32 = &backing.word;
     backing.word = 0;
     let written: i64 = Words::write(1, selected, 4);
@@ -68,7 +95,14 @@ linux_arm64 machine through(choice: bool) crashes Trap {
 }
 linux_arm64 machine main() crashes Trap { through(true); through(false); }
 windows_x86_64 machine through(choice: bool) crashes Trap {
-    let mut backing: Cell = match choice { true -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } false -> Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 } };
+    let previous_mode: i32 = WindowsDescriptorMode::set_mode(1, 32768);
+    demand(previous_mode != -1);
+    let joined: ChosenCell = match choice {
+        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true }
+        false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
+    };
+    demand(joined.branch == choice);
+    let mut backing: Cell = joined.cell;
     let selected: &u32 = &backing.word;
     backing.word = 0;
     let written: i32 = WindowsWords::write(1, selected, 4);

@@ -351,6 +351,7 @@ impl crate::execution::TerminalExecution<'_> {
             .chain(self.structural_primitive_storage.keys())
             .chain(self.structural_primitive_entry_places.values())
             .chain(self.structural_byte_storage.keys())
+            .chain(self.empty_array_storage.rows.keys())
             .chain(self.structural_byte_descriptors.keys())
             .chain(self.structural_cases.keys())
         {

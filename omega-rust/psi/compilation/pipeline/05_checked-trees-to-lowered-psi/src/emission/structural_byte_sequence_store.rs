@@ -5,8 +5,8 @@
 //! before replacing the destination; neither reuses an initializer's contents
 //! after a call has mutated that home. Destination authority remains separate.
 use super::{
-    CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, OperationResult,
-    PrimitiveType, StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, OperationResult, PrimitiveType,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, allocate_dense,
     obligation_id, place_id, structural_type_id, terminal_scalar_type, unsupported, value_id,
 };
@@ -14,6 +14,7 @@ use crate::emission::operation_emission::buffer::{
     OperationBuffer, StructuralBinding, scalar_result_declaration,
 };
 
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use checked_trees::{CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
@@ -733,19 +734,14 @@ fn emit_literal(
         .push((destination, structural_type));
     qualifications.sort();
     qualifications.dedup();
-    let id = operations.allocate();
-    operations.push(Operation {
-        id,
-        static_reach_binding: None,
-        suspension_crossing: None,
-        result: OperationResult::Unit,
-        kind: OperationKind::EstablishByteSequenceLiteral {
+    operations.push_leaf(
+        OperationResult::Unit,
+        OperationKind::EstablishByteSequenceLiteral {
             destination,
             bytes: bytes.to_vec(),
             qualifications,
         },
-    });
-    id
+    )
 }
 
 /// Publish emitted literal homes regardless of which expression consumed them.
@@ -873,13 +869,7 @@ pub(crate) fn emit_owned_literal(
         return unsupported("owned literal materialization has no owned result");
     };
     Ok((
-        StructuralPlaceDeclaration {
-            id: literal.place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        },
+        operation_result_place(literal.place, producer, structural_type),
         result,
     ))
 }
@@ -951,14 +941,10 @@ impl ByteEmission<'_> {
         kind: OperationKind,
     ) -> Result<semantic_vocabulary::ValueId, LoweringError> {
         let length = value_id(allocate_dense(self.next_value)?);
-        let id = self.operations.allocate();
-        self.operations.push(Operation {
-            id,
+        self.operations.push_leaf(
+            scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
             kind,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
-        });
+        );
         Ok(length)
     }
 
@@ -1023,13 +1009,7 @@ impl ByteEmission<'_> {
             self.next_obligation,
             self.operations,
         )?;
-        let declaration = StructuralPlaceDeclaration {
-            id: source,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type,
-            },
-        };
+        let declaration = operation_result_place(source, id, structural_type);
         Ok((declaration, result))
     }
 }
@@ -1056,7 +1036,6 @@ fn emit_concatenation(
     // Publish the membership set in the identity namespace it now belongs to.
     qualifications.sort();
     qualifications.dedup();
-    let id = operations.allocate();
     let result = terminal_psi::StructuralOperationResult {
         place,
         structural_type,
@@ -1066,17 +1045,14 @@ fn emit_concatenation(
         qualification_establishments: Vec::new(),
         claims: Vec::new(),
     };
-    operations.push(Operation {
-        id,
-        static_reach_binding: None,
-        suspension_crossing: None,
-        result: OperationResult::Structural(result.clone()),
-        kind: OperationKind::EstablishByteSequenceConcatenation {
+    let id = operations.push_leaf(
+        OperationResult::Structural(result.clone()),
+        OperationKind::EstablishByteSequenceConcatenation {
             left,
             right,
             capacity_obligation: obligation_id(allocate_dense(next_obligation)?),
         },
-    });
+    );
     Ok((id, result))
 }
 

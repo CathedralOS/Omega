@@ -561,3 +561,54 @@ fn failed_first_retirement_preserves_logical_equality() {
         assert!(!rows.is_valid(handle));
     }
 }
+#[test]
+fn recovered_storage_preserves_retirement_and_next_allocation() {
+    let mut original = super::Arena::<u32>::with_generation(7);
+    let first = original.insert(11);
+    let second = original.insert(22);
+    let third = original.insert(33);
+    assert!(original.free(first));
+    assert!(original.free(third));
+    let view = original.storage_view();
+    let mut recovered = super::Arena::from_storage(
+        *view.dummy,
+        view.items.to_vec(),
+        view.slots.cloned(),
+        view.fresh_generation,
+        view.fresh,
+    )
+    .expect("valid storage");
+    assert_eq!(original, recovered);
+    assert!(!recovered.is_valid(first));
+    assert!(!recovered.is_valid(third));
+    assert_eq!(recovered.get(second), original.get(second));
+    for value in [44, 55, 66] {
+        let expected = original.insert(value);
+        assert_eq!(recovered.insert(value), expected);
+        assert_eq!(original, recovered);
+    }
+    assert!(!recovered.is_valid(first));
+    assert!(!recovered.is_valid(third));
+}
+
+#[test]
+fn recovered_storage_rejects_incomplete_or_repeated_free_roster() {
+    for free_indices in [vec![], vec![1, 1], vec![0], vec![2]] {
+        let slots = super::ArenaSlotStorage {
+            generations: vec![2],
+            occupied: vec![false],
+            free_indices,
+        };
+        assert!(super::Arena::from_storage(0u32, vec![0], Some(slots), 1, false).is_err());
+    }
+}
+
+#[test]
+fn recovered_storage_refuses_a_false_uniform_generation_claim() {
+    let slots = super::ArenaSlotStorage {
+        generations: vec![3],
+        occupied: vec![true],
+        free_indices: vec![],
+    };
+    assert!(super::Arena::from_storage(0u32, vec![10], Some(slots), 1, true).is_err());
+}

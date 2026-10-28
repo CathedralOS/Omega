@@ -1,6 +1,6 @@
 // Arguments complete left to right (expressions.md). Repairing the source
 // after the owned copy cannot establish that copy's declared field domain.
-domain i32::Positive(value) requires value > 0;
+domain i32::Positive requires self > 0;
 data Gauge [copy] { level: i32 in Positive; }
 
 machine repair(level: &mut i32) -> bool

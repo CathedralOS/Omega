@@ -307,6 +307,7 @@ pub(super) fn install_hypotheses(
     // Captured values are normalized before their occurrence's hypotheses.
     // Revisit their dependent operation bounds now that those facts are live.
     engine.refresh_opaque_intervals();
+    engine.refresh_admitted_integer_remainders();
     true
 }
 

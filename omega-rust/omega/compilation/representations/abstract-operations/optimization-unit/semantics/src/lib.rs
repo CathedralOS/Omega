@@ -76,6 +76,33 @@ pub fn descriptor_argument_accessible(
         )
 }
 
+/// Descriptor extent is metadata, not payload. A write-only source still
+/// resolves its selected descriptor's geometry under its own authority: the
+/// path must traverse without a stored-referent crossing, and the selected
+/// descriptor's backing admission stays the payload contract this observation
+/// never reaches.
+pub fn descriptor_metadata_argument_accessible(
+    function: &optimization_unit::PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    let Some(source) =
+        unit_validation::operation_contracts::structural_source_contract(function, argument.place)
+    else {
+        return false;
+    };
+    requested.admits(argument.access)
+        && terminal_semantics::reference_source_projection_accessible(
+            types.iter(),
+            source.structural_type,
+            source.multiplicity,
+            source.access,
+            &argument.path,
+            requested,
+        )
+}
+
 /// Backing access is distinct from owning a descriptor's carrier. Resolve it
 /// from the same admitted source contract used by call and reference checking;
 /// exact projection, current availability and loan compatibility remain owed.

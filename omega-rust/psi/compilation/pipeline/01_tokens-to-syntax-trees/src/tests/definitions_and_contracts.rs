@@ -38,10 +38,10 @@ fn machine_first_call_argument(
 #[test]
 fn parses_domain_definition_surface() {
     let source = r#"
-        domain Player::Alive(player)
+        domain Player::Alive
         requires
-            player in Player::Valid;
-            player.health > 0
+            self in Player::Valid;
+            self.health > 0
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
@@ -83,18 +83,15 @@ fn parses_domain_definition_surface() {
             &source[span.span.start..span.span.end]
         })
         .collect::<Vec<_>>();
-    assert_eq!(
-        source_slices,
-        ["player in Player::Valid", "player.health > 0"]
-    );
+    assert_eq!(source_slices, ["self in Player::Valid", "self.health > 0"]);
 }
 
 #[test]
 fn parses_domain_requires_and_requirement_routes_independently() {
     let source = r#"
-        domain Reservation::Confirmed(reservation)
+        domain Reservation::Confirmed
         requires
-            reservation.seats > 0
+            self.seats > 0
         established by
             Reservations::confirm,
             Imported::Reservations::restore;
@@ -1275,9 +1272,9 @@ fn parse_domain_facts(
 fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
     let (parsed, facts) = parse_domain_facts(
         r#"
-        domain Extent::Placed(extent)
+        domain Extent::Placed
         requires
-            extent in Granted & Resident<SlotPlacement, Slot>
+            self in Granted & Resident<SlotPlacement, Slot>
         "#,
     );
     let [
@@ -1314,9 +1311,9 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
 fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
     let tokens = Lexer::new(
         r#"
-        domain Extent::Placed(extent)
+        domain Extent::Placed
         requires
-            extent in Granted | Resident<SlotPlacement, Slot>
+            self in Granted | Resident<SlotPlacement, Slot>
         "#,
     )
     .tokenize()
@@ -1332,9 +1329,9 @@ fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
 fn proof_fact_carry_permission_rejects_index_arguments() {
     let tokens = Lexer::new(
         r#"
-        domain Extent::Placed(extent)
+        domain Extent::Placed
         requires
-            extent in Carry::AnyCpu<SlotPlacement>
+            self in Carry::AnyCpu<SlotPlacement>
         "#,
     )
     .tokenize()
@@ -1357,10 +1354,7 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
         ("domain[0] > 0;", false),
         ("operator + invoke<Outer<Inner<i32>>>(limit) > 0;", false),
         ("operator + add(left: i32, right: i32) -> i32;", true),
-        (
-            "public domain [u8; (1 + 2)]::Bytes(value) requires true;",
-            true,
-        ),
+        ("public domain [u8; (1 + 2)]::Bytes requires true;", true),
         ("operator + add(left: ) -> i32;", false),
         ("domain [u8; ]::Bytes;", false),
     ] {

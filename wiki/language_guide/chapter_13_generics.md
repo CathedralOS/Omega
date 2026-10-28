@@ -14,8 +14,8 @@ they illustrate intended semantics rather than every current implementation path
 
 ```omega
 data Optional<T> {
-    case #0 None;
-    case #1 Some(value: T);
+    #0 case None;
+    #1 case Some(value: T);
 }
 
 data Pair<A, B> {
@@ -33,6 +33,29 @@ Concrete runtime instances need valid concrete layouts. Their fields obey
 ordinary ownership, borrowing, and cleanup; a generic wrapper does not erase
 an active payload's substituted linear obligation. Proof-only instances do not
 acquire runtime layout merely by being closed.
+
+## Transparent Aliases
+
+An alias supplies arguments to an existing type expression without declaring
+another nominal carrier:
+
+```omega
+public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
+data ByteBuffer<const Capacity: u64> = Buffer<u8, Capacity>;
+data SmallBytes = ByteBuffer<64>;
+```
+
+This is partial application: fix some arguments and expose the remaining ones.
+An alias may forward or reorder arguments and use admitted compile-time
+expressions for static values. Selected machines and implementations retain
+their exact code identities. The underlying constructor's constraints still
+apply; an alias cannot attenuate them or hide an incompatible representation.
+
+Aliases add no wrapper, storage, conversion or independent type identity.
+Their generic arguments expand before ordinary matching, layout and ABI
+selection. Domain aliases are a separate existing facility, and this general
+type-alias surface is ratified implementation work, not a claim that the current
+parser already accepts it. See [transparent type aliases](../spec/language/generics.md#transparent-type-aliases).
 
 ## Generic Machines
 

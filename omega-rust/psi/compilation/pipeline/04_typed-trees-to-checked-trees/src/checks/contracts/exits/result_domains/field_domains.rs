@@ -5,6 +5,11 @@
 //! claim a stronger encoding on return. Value establishment and return admission
 //! share the occurrence-bound qualification judgment; annotations supply obligations,
 //! not membership. Field requirements still prove at their exact live paths.
+//! A borrowed view's root predicate names its completed descriptor and exact
+//! extent: UTF-8 on a prefix does not certify the complete backing array.
+//! Root qualification therefore uses the existing occurrence-bound value
+//! judgment even when origin reconstruction also identifies live referents.
+//! Projected field requirements continue to use those current referents.
 //! Proof-only predicate roots remain outside this storage judgment, as before;
 //! mathematical constructor entailment is not occurrence-bound storage evidence.
 
@@ -42,18 +47,9 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let mut paths = validation::field_domains::declared_result_field_domain_paths(
+    let mut paths = validation::field_domains::declared_result_field_domain_identities(
         program,
         result_domain_type(program, entry.return_type),
-    )
-    .into_iter()
-    .filter(|(_, domain_symbol, _)| value_provable_domain(program, *domain_symbol))
-    .collect::<Vec<_>>();
-    paths.extend(
-        validation::field_domains::declared_owned_field_domain_identities(
-            program,
-            result_domain_type(program, entry.return_type),
-        ),
     );
     if program
         .primitive_type_reference(entry.return_type)
@@ -132,17 +128,23 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 .collect::<Option<Vec<_>>>()
         })
         .flatten();
-    let cases = super::super::cases::CaseObservation::for_exit(
-        program,
-        facts,
-        exit,
-        &entry_contexts,
-        call_frames,
-    );
+    let cases = std::cell::OnceCell::new();
     for (path, domain_symbol, semantic_domain) in paths {
-        if cases
-            .as_ref()
-            .is_some_and(|cases| cases.result_path_is_inactive(&path))
+        if path
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+            && cases
+                .get_or_init(|| {
+                    super::super::cases::CaseObservation::for_exit(
+                        program,
+                        facts,
+                        exit,
+                        &entry_contexts,
+                        call_frames,
+                    )
+                })
+                .as_ref()
+                .is_some_and(|cases| cases.result_path_is_inactive(&path))
         {
             continue;
         }
@@ -185,11 +187,13 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // evidence available to its body. Use the same occurrence-bound
         // membership judgment as value construction: it proves literals,
         // completed calls and live places without minting routed membership.
-        // A reference return with captured referents proves at that storage
-        // below; one without (a returned literal has no storage) keeps this
-        // value judgment, which is what grants a literal its domain.
+        // A root qualification belongs to this exact completed value. For a
+        // view, substituting the whole backing would lose its captured extent.
+        // The value owner retains formation, exact domain identity, checked
+        // producer contracts and live observation epochs; the receiving return
+        // annotation supplies none of them. Projected referent fields use the
+        // storage judgment below instead.
         let established_root = path.is_empty()
-            && returned_storage.is_none()
             && program.domain_definition(domain_symbol).is_some_and(|_| {
                 // Only this returned root may acquire provenance from the
                 // authorized machine. Its children still owe their own live
@@ -211,7 +215,6 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // Consume the formation walk's exact result judgment, never a cast's
         // prepared receiving type or a different evaluation of its operand.
         let qualified_root = path.is_empty()
-            && returned_storage.is_none()
             && value_qualifications.iter().any(|(_, decision)| {
                 decision.machine == state_flow.machine_symbol
                     && decision.state == state_flow.state_symbol
@@ -223,8 +226,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
             });
         let root_satisfied = qualified_root
             || established_root
-            || (returned_storage.is_none()
-                && path.is_empty()
+            || (path.is_empty()
                 && super::super::super::writes::value_proves_qualification_in_contexts(
                     program,
                     facts,
@@ -236,6 +238,9 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                     &entry_contexts,
                     call_frames,
                 ));
+        if root_satisfied {
+            continue;
+        }
         let satisfied = if let Some(subjects) = returned_storage.as_ref() {
             {
                 subjects.iter().all(|storage| {
@@ -351,17 +356,15 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                 })
                         })
             };
-            root_satisfied
-                || crate::checks::content::completed_membership(
-                    program,
-                    facts,
-                    exit.returned_value,
-                    &path,
-                    domain_symbol,
-                    semantic_domain,
-                )
+            crate::checks::content::completed_membership(
+                program,
+                facts,
+                exit.returned_value,
+                &path,
+                domain_symbol,
+                semantic_domain,
+            ) || captured_satisfies(&path)
                 || completed_satisfies()
-                || captured_satisfies(&path)
         };
         if !satisfied {
             let (root, mut segments) = base

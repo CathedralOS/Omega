@@ -11,7 +11,7 @@ use crate::record::storage::ConstructorStorage;
 use std::sync::Arc;
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryMachineDeclaration, BoundaryReferenceDestination,
-    StructuralAccess, StructuralPathSegment, StructuralTypeShape,
+    StructuralAccess, StructuralPathQualification, StructuralPathSegment, StructuralTypeShape,
 };
 
 fn source<'captured>(
@@ -253,11 +253,87 @@ pub(super) fn stage(
             let mut argument = selected.source_argument.clone();
             argument.path.extend(relative);
             argument.access = output.access;
-            // Empty requested qualifications means this capture cannot mint a
-            // predicate merely because the output slot asks for it. Existing
-            // parameter/field qualification admission remains mandatory.
-            let captured =
-                execution.capture_reference(&argument, endpoint.id, &[], None, identity_cursor)?;
+            // The selected live source supplies membership; the destination
+            // only imposes duties. An exclusive reborrow must retain the exact
+            // actual roster, rather than requesting an unqualified reference.
+            let actual =
+                execution.resolve_live_projection(argument.place, &argument.path, output.access)?;
+            if selected.access != StructuralAccess::SharedBorrow {
+                let normal = bindings
+                    .iter()
+                    .find(|binding| binding.argument_index == selected.argument_index)
+                    .map_or(&[][..], |binding| binding.normal_qualifications.as_slice());
+                if !execution.normal_qualifications_cover(
+                    &actual,
+                    &actual.qualifications,
+                    &actual.projected_qualifications,
+                    normal,
+                )? {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "reference output source lacks exact normal qualification preservation",
+                    ));
+                }
+            }
+            let required = declaration
+                .normal_qualifications
+                .iter()
+                .filter(|row| row.argument_index == destination_index)
+                .filter_map(|row| {
+                    row.path.strip_prefix(output.path.as_slice()).map(|path| {
+                        StructuralPathQualification {
+                            path: path.to_vec(),
+                            domain: row.domain,
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+            if required
+                .iter()
+                .any(|row| !row.path.starts_with(&[StructuralPathSegment::Referent]))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "reference output cannot establish membership on the descriptor itself",
+                ));
+            }
+            let (required_whole, required_paths) = StructuralPathQualification::select(
+                &[],
+                &required,
+                &[StructuralPathSegment::Referent],
+            );
+            let required_paths =
+                crate::structural_inputs::case_membership::active_projected_qualifications(
+                    &types,
+                    &actual,
+                    execution.structural_cases.as_map(),
+                    &required_paths,
+                )?;
+            if required_whole
+                .iter()
+                .any(|domain| !actual.qualifications.contains(domain))
+                || required_paths
+                    .iter()
+                    .any(|row| !actual.projected_qualifications.contains(row))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "reference output selected source lacks a declared normal membership",
+                ));
+            }
+            let mut projected = Vec::new();
+            StructuralPathQualification::append_under(
+                &actual.qualifications,
+                &actual.projected_qualifications,
+                &[StructuralPathSegment::Referent],
+                &mut projected,
+            );
+            projected.sort();
+            projected.dedup();
+            let captured = execution.capture_reference(
+                &argument,
+                endpoint.id,
+                &projected,
+                None,
+                identity_cursor,
+            )?;
             let mut leaves = leaves.iter().filter_map(|leaf| match &leaf.kind {
                 StorageLeafKind::Opaque {
                     destination,

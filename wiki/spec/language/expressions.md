@@ -230,7 +230,7 @@ implicit search among visible satisfying machines.
 | --- | --- |
 | Ordinary direct `machine + Name(...) { ... }` | Its own checked machine body. |
 | Bodyless token-bearing requirement inside an ordinary trait | The explicitly selected implementation, under existing requirement rules. |
-| Bodyless machine requirement inside a boundary trait | The existing boundary realization/provider selection mechanism. |
+| Bodyless machine requirement inside a boundary trait | An explicitly selected checked provider or direct Build-owned native binding under the complete requirement contract. |
 | Exact compiler-owned bodyless machine, with or without a token | Its authorized closed-catalog realization. |
 
 A nonboundary direct machine outside a required-body context or the compiler

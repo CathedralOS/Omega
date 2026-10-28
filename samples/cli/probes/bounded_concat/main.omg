@@ -1,7 +1,7 @@
 // Explicit buffer construction preserves Room A1 and live length 7.
 // Compile-checked probe; hit remains 1 on success.
-domain [u8; 16]::Ascii(bytes) requires ascii_only(bytes);
-domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 16]::Ascii requires ascii_only(self);
+domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
@@ -25,7 +25,7 @@ requires start <= 16; bytes.len <= 16 - start
     machine done() {}
 }
 
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii requires ascii_only(self);
 data Label where used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
 machine label_live(label: &Label) -> &[u8] in Ascii
 ensures result.len == label.used && result.len <= 4

@@ -191,6 +191,20 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             .zip(&retained.provider.row_realizations)
             .zip(&retained.row_external_completion_leaves)
         {
+            let Some(realization_symbol) = realization_symbol.authored() else {
+                // Neither a Build locator nor a settlement table supplies a
+                // sealed intrinsic execution identity or an authored completion.
+                if matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                ) {
+                    diagnostics.push(Diagnostic::error(
+                        "intrinsic row has no exact authored realization",
+                    ));
+                }
+                rows.push(None);
+                continue;
+            };
             if !matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -206,7 +220,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     row,
                     retained.provider.schema.symbol(),
                     *requirement_symbol,
-                    *realization_symbol,
+                    realization_symbol,
                     !completion_leaves.is_empty(),
                     accepted_console_binding,
                     accepted_process_exit_binding,
@@ -228,7 +242,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 retained.provider.schema,
                 row,
                 *requirement_symbol,
-                *realization_symbol,
+                realization_symbol,
                 selected_target,
                 accepted_console_binding.map(unresolved),
                 accepted_process_exit_binding.map(unresolved),
@@ -242,7 +256,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                             row,
                             retained.provider.schema.symbol(),
                             *requirement_symbol,
-                            *realization_symbol,
+                            realization_symbol,
                             !completion_leaves.is_empty(),
                             accepted_console_binding,
                             accepted_process_exit_binding,
@@ -260,7 +274,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                         row,
                         retained.provider.schema.symbol(),
                         *requirement_symbol,
-                        *realization_symbol,
+                        realization_symbol,
                         !completion_leaves.is_empty(),
                         accepted_console_binding,
                         accepted_process_exit_binding,
@@ -367,7 +381,13 @@ pub(crate) fn close_direct_boundary_candidates(
             source.provenance.schema,
             row,
             source.provenance.row_requirements[0],
-            source.provenance.row_realizations[0],
+            source.provenance.row_realizations[0]
+                .authored()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "direct intrinsic leaf lost its authored realization",
+                    )]
+                })?,
             target,
             accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
             accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),

@@ -1,0 +1,178 @@
+{
+  "schema": "omega-fact-observations-v1",
+  "parent": "NORMALIZED-ABI-LOWERING",
+  "target": "macos_arm64",
+  "compiler_revision": "843cfd786cce856a0678ce6c58514bc41b28ed21",
+  "compiler_profiles": {
+    "cli": {
+      "sha256": "05f9bbc5ca3fb65b3b9535a8a79e655457ad9fc34e5d97d1aea154c2626f6fe2",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "runner": {
+      "sha256": "7a588ad9f9f3f31ce775e6d227e9a4979619749649b6286f96c29c86ca2b17cf",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "consumer_revision": "b78d64e8fd65641d35e6fb1c831a4d56b3a325df",
+  "baseline": {
+    "revision": "70f2db5eccd21e1770ed5b3abed916daa67fc0ec",
+    "native_exit": 0,
+    "terminal_exit": 0,
+    "kernel_peak_bytes": 1603846144,
+    "seconds": 2.8575978749999997
+  },
+  "public_observations": [
+    {
+      "place": "root",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 356089856,
+      "seconds": 1.6693130420000002,
+      "canonical_exit": 0
+    },
+    {
+      "place": "local",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 362184704,
+      "seconds": 1.781566792,
+      "canonical_exit": 0
+    },
+    {
+      "place": "field",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 359530496,
+      "seconds": 1.560870417,
+      "canonical_exit": 0
+    },
+    {
+      "place": "parameter",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 355811328,
+      "seconds": 1.546534792,
+      "canonical_exit": 0
+    },
+    {
+      "place": "call_result",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 352354304,
+      "seconds": 1.581955625,
+      "canonical_exit": 0
+    },
+    {
+      "place": "match_join",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 359776256,
+      "seconds": 1.569782666,
+      "canonical_exit": 0
+    },
+    {
+      "place": "const_name",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 358039552,
+      "seconds": 1.560682125,
+      "canonical_exit": 0
+    },
+    {
+      "place": "other_state",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 356745216,
+      "seconds": 1.617344334,
+      "canonical_exit": 0
+    },
+    {
+      "place": "other_machine",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 357875712,
+      "seconds": 1.542128208,
+      "canonical_exit": 0
+    },
+    {
+      "place": "target_body",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 346128384,
+      "seconds": 1.5818633340000001,
+      "canonical_exit": 0
+    },
+    {
+      "place": "zeroed_source",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 349831168,
+      "seconds": 1.509493209,
+      "canonical_exit": 0
+    },
+    {
+      "place": "nonzero_control",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 303595520,
+      "seconds": 1.2139208750000001,
+      "canonical_exit": 0
+    },
+    {
+      "place": "snapshot_replacement",
+      "exit": 0,
+      "native_zero": true,
+      "terminal_zero": true,
+      "kernel_peak_bytes": 341835776,
+      "seconds": 1.254178334,
+      "canonical_exit": 0
+    }
+  ],
+  "memory_limit_bytes": 536870912,
+  "corpus": {
+    "positive_places_and_controls": 23,
+    "intended_rejections": 11,
+    "new_checked_rows": 23,
+    "new_macos_runtime_rows": 12
+  },
+  "evidence_sha256": {
+    "build/zero-leaf-evidence/native-closure-producer.json": "462db8835289136846c720d7b4fc74fc91566f7ca161da1a412c39e99e174452",
+    "build/zero-leaf-evidence/baseline-observation.json": "5603115f4275d19136cd216aec85abf8ce01e03694ec16ae15f77ba84ff4ee61",
+    "build/zero-leaf-evidence/closure-replay-v3/observations.json": "6a0f768c11d015d5e66920bb7bca595013d46a26b3a677a4fdb3d32425a79ca5",
+    "build/zero-leaf-evidence/closure-corpus/checking.json": "db24f7b12b4e491a87dfc03acca3edbd408744d36fb18dc7da1cb1276f3edda7",
+    "build/zero-leaf-evidence/closure-corpus/both.json": "29ed8cc5c12f0a54c95507f84964346d9010af7f7e1801cc0b37483167ed8867",
+    "build/zero-leaf-evidence/record-new-checking.json": "c2e620f386a4cb3533301d927ce0755508cfd97a1e9126d33625d65aff8ffcec",
+    "build/zero-leaf-evidence/record-new-both-loader-env.json": "727b48293a883d9fe258f50c52fe5fa7cc66b24ccf170253345f60a77dff6364",
+    "build/zero-leaf-evidence/provider.json": "b289a742a83c0217219428832b33123cb7d955c4efab5697beee7b6db57922a5",
+    "build/zero-leaf-evidence/baseline-snapshot-constructor-reviewed.log": "84b42d1342d130b725c8ca30a414eb93d0fcf77adf607e20e346d9098f2d217e",
+    "build/zero-leaf-evidence/baseline-zero-snapshot-address.log": "eb739dc4d41bfdc05d1cc7731df875c109efb87bb9b9749b6d0e3bb9d36365c2"
+  },
+  "unverified_targets": [
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64"
+  ],
+  "remaining": [
+    "Matching-host qualification on Windows and both Linux targets.",
+    "Live borrowed array elements in a returned nested array literal remain unsupported; the original auxiliary probe also refuses on baseline70f.",
+    "No claim of arbitrary opaque/reference/claim-carrying zero-size descendants or complete restoration-union coverage."
+  ]
+}

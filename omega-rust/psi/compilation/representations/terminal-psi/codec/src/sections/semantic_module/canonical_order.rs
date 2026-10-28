@@ -14,28 +14,24 @@ use terminal_psi::{
 
 use super::proposition_wire::encode_proposition;
 use super::scalar_term_wire::encode_scalar_term;
-use super::wire::Writer;
+use super::wire::{Writer, require_increasing, strictly_increasing};
 use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH};
 
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
-    if !strictly_increasing(
+    require_increasing(
         module
             .structural_referents
             .iter()
             .map(|referent| referent.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "structural referent identities",
-        ));
-    }
-    if !strictly_increasing(
+        "structural referent identities",
+    )?;
+    require_increasing(
         module
             .callback_applications
             .iter()
             .map(|row| row.application_index),
-    ) {
-        return Err(CodecError::NonCanonicalOrder("callback applications"));
-    }
+        "callback applications",
+    )?;
     for application in &module.callback_applications {
         if application.requirement.is_empty()
             || application.published_contract == [0; 32]
@@ -46,29 +42,54 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             ));
         }
     }
-    if !strictly_increasing(module.boundary_application_candidates.iter()) {
-        return Err(CodecError::NonCanonicalOrder(
-            "boundary application candidates",
-        ));
-    }
-    if !strictly_increasing(
+    require_increasing(
+        module.boundary_application_candidates.iter(),
+        "boundary application candidates",
+    )?;
+    require_increasing(
+        module.task_activation_demands.demands.iter().map(|demand| {
+            (
+                demand.report_fingerprint,
+                demand.machine_callable_identity,
+                demand.entry,
+            )
+        }),
+        "task activation demands by report fingerprint, machine, and entry",
+    )?;
+    require_increasing(
         module
             .task_activation_demands
-            .demands
+            .structural_referents
             .iter()
-            .map(|demand| (demand.report_fingerprint, demand.machine, demand.entry)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "task activation demands by report fingerprint, machine, and entry",
-        ));
+            .map(|row| row.id),
+        "task structural referents",
+    )?;
+    require_increasing(
+        module
+            .task_activation_demands
+            .target_layout_applications
+            .iter()
+            .map(|row| row.id),
+        "task target layout applications",
+    )?;
+    for application in &module.task_activation_demands.target_layout_applications {
+        require_increasing(
+            application
+                .realizations
+                .iter()
+                .map(|row| row.target.as_str()),
+            "task target layout alternatives",
+        )?;
     }
     for demand in &module.task_activation_demands.demands {
-        if !strictly_increasing(demand.frames.iter().map(|frame| frame.identity)) {
-            return Err(CodecError::NonCanonicalOrder("task activation frames"));
-        }
-        if !strictly_increasing(demand.crossings.iter().map(|crossing| crossing.identity)) {
-            return Err(CodecError::NonCanonicalOrder("task activation crossings"));
-        }
+        require_increasing(
+            demand.frames.iter().map(|frame| frame.identity),
+            "task activation frames",
+        )?;
+        require_increasing(
+            demand.crossings.iter().map(|crossing| crossing.identity),
+            "task activation crossings",
+        )?;
         for crossing in &demand.crossings {
             if crossing
                 .live_carry
@@ -81,27 +102,21 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             }
         }
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .task_activation_demands
             .structural_types
             .iter()
             .map(|declaration| declaration.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "task activation structural types by StructuralTypeId",
-        ));
-    }
-    if !strictly_increasing(
+        "task activation structural types by StructuralTypeId",
+    )?;
+    require_increasing(
         module
             .boundary_application_demands
             .iter()
             .map(|demand| demand.terminal_operation()),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "boundary application demands by operation",
-        ));
-    }
+        "boundary application demands by operation",
+    )?;
     for candidate in &module.boundary_application_candidates {
         if candidate.selection_identity.is_absent()
             || candidate.target.as_ref().is_some_and(String::is_empty)
@@ -157,51 +172,40 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             }
         }
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .target_machine_families
             .iter()
             .map(|family| family.canonical),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "target-machine families by canonical callable",
-        ));
-    }
+        "target-machine families by canonical callable",
+    )?;
     for family in &module.target_machine_families {
-        if !strictly_increasing(family.members.iter().map(|member| member.target.as_str())) {
-            return Err(CodecError::NonCanonicalOrder(
-                "target-family members by deployment tag",
-            ));
-        }
+        require_increasing(
+            family.members.iter().map(|member| member.target.as_str()),
+            "target-family members by deployment tag",
+        )?;
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .scalar_block_invariants
             .iter()
             .map(|invariant| (invariant.machine, invariant.header)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "scalar block invariants by machine and header",
-        ));
-    }
+        "scalar block invariants by machine and header",
+    )?;
     for invariant in &module.scalar_block_invariants {
         validate_canonical_proposition(&invariant.predicate, 0)?;
-        if !strictly_increasing(invariant.arrivals.iter().map(|arrival| arrival.edge)) {
-            return Err(CodecError::NonCanonicalOrder(
-                "scalar block invariant arrivals by EdgeId",
-            ));
-        }
+        require_increasing(
+            invariant.arrivals.iter().map(|arrival| arrival.edge),
+            "scalar block invariant arrivals by EdgeId",
+        )?;
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .operation_crash_contracts
             .iter()
             .map(|contract| (contract.machine, contract.operation)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "operation crash contracts by machine and operation",
-        ));
-    }
+        "operation crash contracts by machine and operation",
+    )?;
     for contract in &module.operation_crash_contracts {
         if contract.published_routes.is_empty()
             || !crash_routes_are_canonical(&contract.published_routes)
@@ -218,26 +222,20 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         }
         validate_crash_route_predicates(&contract.crash_continuations)?;
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .suspension_call_sites
             .iter()
             .map(|site| (site.operation, site.crossing)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "suspension call sites by operation and crossing",
-        ));
-    }
-    if !strictly_increasing(
+        "suspension call sites by operation and crossing",
+    )?;
+    require_increasing(
         module
             .suspension_call_plans
             .iter()
             .map(|plan| (plan.operation, plan.crossing)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "suspension call plans by operation and crossing",
-        ));
-    }
+        "suspension call plans by operation and crossing",
+    )?;
     for plan in &module.suspension_call_plans {
         // Storage identity is not value-occurrence identity. A repeated actual
         // still occupies two formal positions, and each row retains its own
@@ -263,27 +261,21 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             ));
         }
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .structural_types
             .iter()
             .map(|declaration| declaration.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "structural types by StructuralTypeId",
-        ));
-    }
-    if !strictly_increasing(
+        "structural types by StructuralTypeId",
+    )?;
+    require_increasing(
         module
             .proof_output_calls
             .iter()
             .map(|invocation| (invocation.caller, invocation.ordinal)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "evidence package invocations by caller and ordinal",
-        ));
-    }
-    if !strictly_increasing(
+        "evidence package invocations by caller and ordinal",
+    )?;
+    require_increasing(
         module
             .closed_conformance_applications
             .iter()
@@ -297,11 +289,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     application.report_fingerprint,
                 )
             }),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "closed conformance applications by owner, declaration, and fingerprint",
-        ));
-    }
+        "closed conformance applications by owner, declaration, and fingerprint",
+    )?;
     for invocation in &module.proof_output_calls {
         if invocation
             .outputs
@@ -385,19 +374,17 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             _ => {}
         }
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .structural_domains
             .iter()
             .map(|declaration| declaration.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "structural domains by StructuralDomainId",
-        ));
-    }
-    if !strictly_increasing(module.services.iter().map(|declaration| declaration.id)) {
-        return Err(CodecError::NonCanonicalOrder("services by ServiceId"));
-    }
+        "structural domains by StructuralDomainId",
+    )?;
+    require_increasing(
+        module.services.iter().map(|declaration| declaration.id),
+        "services by ServiceId",
+    )?;
     if module
         .services
         .iter()
@@ -407,12 +394,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "service parents by ServiceId",
         ));
     }
-    if !strictly_increasing(module.root_service_reach.concrete.iter().copied()) {
-        return Err(CodecError::NonCanonicalOrder(
-            "concrete root service reach by ServiceId",
-        ));
-    }
-    if !strictly_increasing(
+    require_increasing(
+        module.root_service_reach.concrete.iter().copied(),
+        "concrete root service reach by ServiceId",
+    )?;
+    require_increasing(
         module
             .root_service_reach
             .installation_dependencies
@@ -423,11 +409,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     .text(dependency.requirement_identity)
                     .unwrap_or_default()
             }),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "installation reach dependencies by requirement identity",
-        ));
-    }
+        "installation reach dependencies by requirement identity",
+    )?;
     if module
         .root_service_reach
         .installation_dependencies
@@ -453,28 +436,20 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "float-meaning equalities by dense proposition ID and ordered operands",
         ));
     }
-    if !strictly_increasing(
+    require_increasing(
         module
             .boundary_machines
             .iter()
             .map(|declaration| declaration.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "boundary machines by BoundaryMachineId",
-        ));
-    }
+        "boundary machines by BoundaryMachineId",
+    )?;
     for declaration in &module.boundary_machines {
         if let terminal_psi::BoundaryMachineResult::Structural(result) = &declaration.result {
-            if !strictly_increasing(result.qualifications.iter().copied()) {
-                return Err(CodecError::NonCanonicalOrder(
-                    "boundary result qualifications by StructuralDomainId",
-                ));
-            }
-            if result
-                .projected_qualifications
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
-            {
+            require_increasing(
+                result.qualifications.iter().copied(),
+                "boundary result qualifications by StructuralDomainId",
+            )?;
+            if !strictly_increasing(result.projected_qualifications.iter()) {
                 return Err(CodecError::NonCanonicalOrder(
                     "boundary result projected qualifications by path and domain",
                 ));
@@ -487,21 +462,18 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         }
         validate_crash_route_predicates(&declaration.crash_routes)?;
         validate_parameter_order(&declaration.structural_parameters)?;
-        if !strictly_increasing(declaration.requires.iter().copied()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary requirements by argument index and domain",
-            ));
-        }
-        if !strictly_increasing(declaration.normal_qualifications.iter().copied()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary normal parameter qualifications",
-            ));
-        }
-        if !strictly_increasing(declaration.scalar_domain_requirements.iter().copied()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary scalar domain requirements by argument index and domain",
-            ));
-        }
+        require_increasing(
+            declaration.requires.iter(),
+            "boundary requirements by argument index, path and domain",
+        )?;
+        require_increasing(
+            declaration.normal_qualifications.iter(),
+            "boundary normal parameter qualifications",
+        )?;
+        require_increasing(
+            declaration.scalar_domain_requirements.iter().copied(),
+            "boundary scalar domain requirements by argument index and domain",
+        )?;
         for proposition in &declaration.scalar_requires {
             validate_canonical_proposition(proposition, 0)?;
         }
@@ -518,39 +490,36 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "boundary scalar ensures propositions",
             ));
         }
-        if !strictly_increasing(declaration.published_service_ceiling.iter().copied()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary published service ceiling by ServiceId",
-            ));
-        }
-        if !strictly_increasing(declaration.fixed_service_reach.iter().copied()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "boundary fixed service reach by ServiceId",
-            ));
-        }
+        require_increasing(
+            declaration.published_service_ceiling.iter().copied(),
+            "boundary published service ceiling by ServiceId",
+        )?;
+        require_increasing(
+            declaration.fixed_service_reach.iter().copied(),
+            "boundary fixed service reach by ServiceId",
+        )?;
     }
-    if !strictly_increasing(module.provider_candidates.iter().map(|candidate| {
-        (
-            candidate.boundary,
-            module
-                .identities
-                .text(candidate.provider_identity)
-                .unwrap_or_default(),
-            module
-                .identities
-                .text(candidate.provider_declaration.identity())
-                .unwrap_or_default(),
-            module
-                .identities
-                .text(candidate.candidate_identity)
-                .unwrap_or_default(),
-            candidate.candidate,
-        )
-    })) {
-        return Err(CodecError::NonCanonicalOrder(
-            "provider candidates by exact conformance identity",
-        ));
-    }
+    require_increasing(
+        module.provider_candidates.iter().map(|candidate| {
+            (
+                candidate.boundary,
+                module
+                    .identities
+                    .text(candidate.provider_identity)
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(candidate.provider_declaration.identity())
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(candidate.candidate_identity)
+                    .unwrap_or_default(),
+                candidate.candidate,
+            )
+        }),
+        "provider candidates by exact conformance identity",
+    )?;
     let mut float_projection_sources = Vec::new();
     for (index, projection) in module.float_meaning_projections.iter().enumerate() {
         let Ok(index) = u32::try_from(index) else {
@@ -579,83 +548,72 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             float_projection_sources.push(source.id);
         }
     }
-    if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
-        |mut declaration| {
-            declaration.id = PropositionId::new(1).expect("one is nonzero");
-            declaration
-        },
-    )) {
-        return Err(CodecError::NonCanonicalOrder(
-            "proposition declarations by semantic identity",
-        ));
-    }
-    if !strictly_increasing(
+    require_increasing(
+        module
+            .proposition_declarations
+            .iter()
+            .cloned()
+            .map(|mut declaration| {
+                declaration.id = PropositionId::new(1).expect("one is nonzero");
+                declaration
+            }),
+        "proposition declarations by semantic identity",
+    )?;
+    require_increasing(
         module
             .proposition_declarations
             .iter()
             .map(|declaration| declaration.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "proposition declarations by PropositionId",
-        ));
-    }
-    if !strictly_increasing(module.proposition_applications.iter().cloned().map(
-        |mut application| {
-            application.id = PropositionId::new(1).expect("one is nonzero");
-            application
-        },
-    )) {
-        return Err(CodecError::NonCanonicalOrder(
-            "proposition applications by semantic identity",
-        ));
-    }
-    if !strictly_increasing(
+        "proposition declarations by PropositionId",
+    )?;
+    require_increasing(
+        module
+            .proposition_applications
+            .iter()
+            .cloned()
+            .map(|mut application| {
+                application.id = PropositionId::new(1).expect("one is nonzero");
+                application
+            }),
+        "proposition applications by semantic identity",
+    )?;
+    require_increasing(
         module
             .proposition_applications
             .iter()
             .map(|application| application.id),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "proposition applications by PropositionId",
-        ));
-    }
-    if !strictly_increasing(
+        "proposition applications by PropositionId",
+    )?;
+    require_increasing(
         module
             .evidence_terms
             .iter()
             .map(|term| (term.proposition, &term.interface, term.id)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "evidence terms by proposition and EvidenceTermId",
-        ));
-    }
-    if !strictly_increasing(module.evidence_terms.iter().map(|term| term.id)) {
-        return Err(CodecError::NonCanonicalOrder(
-            "evidence terms by EvidenceTermId",
-        ));
-    }
-    if !strictly_increasing(
+        "evidence terms by proposition and EvidenceTermId",
+    )?;
+    require_increasing(
+        module.evidence_terms.iter().map(|term| term.id),
+        "evidence terms by EvidenceTermId",
+    )?;
+    require_increasing(
         module
             .evidence_contract_lanes
             .iter()
             .map(|lane| (lane.machine, lane.kind, lane.position)),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "evidence contract lanes by machine, kind, and position",
-        ));
-    }
-    if !strictly_increasing(module.machines.iter().map(|machine| machine.id)) {
-        return Err(CodecError::NonCanonicalOrder("machines by MachineId"));
-    }
+        "evidence contract lanes by machine, kind, and position",
+    )?;
+    require_increasing(
+        module.machines.iter().map(|machine| machine.id),
+        "machines by MachineId",
+    )?;
     for machine in &module.machines {
         validate_parameter_order(&machine.structural_parameters)?;
         for block in &machine.blocks {
             if let Some(invocation) = block.terminator.module_invocation() {
-                if !strictly_increasing(invocation.claim_transfers.iter()) {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "invocation claim transfers by claim and argument index",
-                    ));
-                }
+                require_increasing(
+                    invocation.claim_transfers.iter(),
+                    "invocation claim transfers by claim and argument index",
+                )?;
                 if !crash_routes_are_canonical(invocation.crash_continuations) {
                     return Err(CodecError::NonCanonicalOrder(
                         "invocation crash continuation buckets",
@@ -675,55 +633,49 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             }
             validate_parameter_order(&block.structural_parameters)?;
         }
-        if !strictly_increasing(machine.entry_claims.iter().map(|claim| claim.claim)) {
-            return Err(CodecError::NonCanonicalOrder("entry claims by ClaimId"));
-        }
-        if !strictly_increasing(machine.block_entry_claims.iter().map(|claim| claim.claim)) {
-            return Err(CodecError::NonCanonicalOrder(
-                "block entry claims by ClaimId",
-            ));
-        }
-        if !strictly_increasing(
+        require_increasing(
+            machine.entry_claims.iter().map(|claim| claim.claim),
+            "entry claims by ClaimId",
+        )?;
+        require_increasing(
+            machine.block_entry_claims.iter().map(|claim| claim.claim),
+            "block entry claims by ClaimId",
+        )?;
+        require_increasing(
             machine
                 .loan_completions
                 .iter()
                 .map(|completion| (completion.operation, completion.place, &completion.path)),
-        ) {
-            return Err(CodecError::NonCanonicalOrder(
-                "loan completions by call and owned region",
-            ));
-        }
+            "loan completions by call and owned region",
+        )?;
         for completion in &machine.loan_completions {
-            if !strictly_increasing(completion.claims.iter().map(|claim| claim.claim)) {
-                return Err(CodecError::NonCanonicalOrder(
-                    "loan completion claims by ClaimId",
-                ));
-            }
+            require_increasing(
+                completion.claims.iter().map(|claim| claim.claim),
+                "loan completion claims by ClaimId",
+            )?;
         }
-        if !strictly_increasing(machine.published_service_ceiling.iter().copied()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "machine published service ceiling by ServiceId",
-            ));
-        }
+        require_increasing(
+            machine.published_service_ceiling.iter().copied(),
+            "machine published service ceiling by ServiceId",
+        )?;
         if !crash_routes_are_canonical(&machine.contract.crash_routes) {
             return Err(CodecError::NonCanonicalOrder("crash route buckets"));
         }
         validate_crash_route_predicates(&machine.contract.crash_routes)?;
-        if !strictly_increasing(machine.blocks.iter().map(|block| block.id)) {
-            return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
-        }
+        require_increasing(
+            machine.blocks.iter().map(|block| block.id),
+            "blocks by BlockId",
+        )?;
         for operation in machine.operations() {
             if let Some(result) = operation.result.as_structural() {
-                if !strictly_increasing(result.qualifications.iter().copied()) {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "structural operation result qualifications by StructuralDomainId",
-                    ));
-                }
-                if !strictly_increasing(result.claims.iter().map(|binding| binding.claim)) {
-                    return Err(CodecError::NonCanonicalOrder(
-                        "structural operation result claims by ClaimId",
-                    ));
-                }
+                require_increasing(
+                    result.qualifications.iter().copied(),
+                    "structural operation result qualifications by StructuralDomainId",
+                )?;
+                require_increasing(
+                    result.claims.iter().map(|binding| binding.claim),
+                    "structural operation result claims by ClaimId",
+                )?;
             }
             let crash_continuations = match &operation.kind {
                 OperationKind::Call {
@@ -829,21 +781,17 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 }
             }
         }
-        if !strictly_increasing(machine.structural_places.iter().map(|place| place.id)) {
-            return Err(CodecError::NonCanonicalOrder(
-                "structural places by PlaceId",
-            ));
-        }
-        if !strictly_increasing(
+        require_increasing(
+            machine.structural_places.iter().map(|place| place.id),
+            "structural places by PlaceId",
+        )?;
+        require_increasing(
             machine
                 .content_entry_claims
                 .iter()
                 .map(|binding| binding.claim),
-        ) {
-            return Err(CodecError::NonCanonicalOrder(
-                "content entry claims by ClaimId",
-            ));
-        }
+            "content entry claims by ClaimId",
+        )?;
         if machine
             .content_entry_claims
             .iter()
@@ -854,42 +802,35 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             ));
         }
         validate_identity_reshuffles(&machine.content_identity_reshuffles)?;
-        if !strictly_increasing(machine.content_partition_compositions.iter()) {
-            return Err(CodecError::NonCanonicalOrder(
-                "content partition compositions",
-            ));
-        }
+        require_increasing(
+            machine.content_partition_compositions.iter(),
+            "content partition compositions",
+        )?;
         for composition in &machine.content_partition_compositions {
-            if !strictly_increasing(
+            require_increasing(
                 composition
                     .source_structural_places
                     .iter()
                     .map(|place| place.id),
-            ) {
-                return Err(CodecError::NonCanonicalOrder(
-                    "partition source structural places by PlaceId",
-                ));
-            }
-            if !strictly_increasing(composition.input_claims.iter().copied()) {
-                return Err(CodecError::NonCanonicalOrder(
-                    "partition input claims by ClaimId",
-                ));
-            }
-            if !strictly_increasing(composition.substitutions.iter()) {
-                return Err(CodecError::NonCanonicalOrder(
-                    "partition place substitutions",
-                ));
-            }
+                "partition source structural places by PlaceId",
+            )?;
+            require_increasing(
+                composition.input_claims.iter().copied(),
+                "partition input claims by ClaimId",
+            )?;
+            require_increasing(
+                composition.substitutions.iter(),
+                "partition place substitutions",
+            )?;
         }
-        if !strictly_increasing(
+        require_increasing(
             machine
                 .contract
                 .ensures
                 .iter()
                 .map(|clause| clause.obligation),
-        ) {
-            return Err(CodecError::NonCanonicalOrder("ensures by ObligationId"));
-        }
+            "ensures by ObligationId",
+        )?;
         let propositions = machine
             .contract
             .requires
@@ -937,12 +878,10 @@ fn validate_parameter_order(
             "structural parameter qualifications by StructuralDomainId",
         ));
     }
-    if parameters.iter().any(|parameter| {
-        parameter
-            .projected_qualifications
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-    }) {
+    if parameters
+        .iter()
+        .any(|parameter| !strictly_increasing(parameter.projected_qualifications.iter()))
+    {
         return Err(CodecError::NonCanonicalOrder(
             "projected structural qualifications by path and StructuralDomainId",
         ));
@@ -951,13 +890,10 @@ fn validate_parameter_order(
 }
 
 pub(crate) fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
-    !routes.windows(2).any(|pair| pair[0].cause >= pair[1].cause)
+    strictly_increasing(routes.iter().map(|bucket| bucket.cause))
         && routes.iter().all(|bucket| {
             !bucket.alternatives.is_empty()
-                && !bucket
-                    .alternatives
-                    .windows(2)
-                    .any(|pair| pair[0] >= pair[1])
+                && strictly_increasing(bucket.alternatives.iter())
                 && (!bucket.alternatives.contains(&CrashRouteGuard::Truth)
                     || bucket.alternatives == [CrashRouteGuard::Truth])
         })
@@ -1211,17 +1147,6 @@ fn validate_content_term_depth(term: &ContentTerm) -> Result<(), CodecError> {
         }
     }
     Ok(())
-}
-
-fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
-    let mut previous = None;
-    for value in values {
-        if previous.as_ref().is_some_and(|previous| previous >= &value) {
-            return false;
-        }
-        previous = Some(value);
-    }
-    true
 }
 
 /// Receiving canonicality keeps one input claim across exclusive destinations.

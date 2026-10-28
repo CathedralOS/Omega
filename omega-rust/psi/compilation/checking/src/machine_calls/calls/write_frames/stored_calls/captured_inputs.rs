@@ -79,16 +79,12 @@ pub(super) fn instantiate_sources(
     }
     let index =
         typed_trees::signature::state_parameter_position(parameters, supplied.carrier.root)?;
-    let carrier = SlotSource {
-        carrier_backing: None,
-        origin: super::super::FramePlaceOrigin {
-            path: super::path(program, &supplied.carrier),
-            precision: supplied.origin.precision,
-            source: supplied.carrier.clone(),
-        },
-        carrier: supplied.carrier.clone(),
-        lifetime_access: supplied.lifetime_access,
-    };
+    let carrier = SlotSource::from_place(
+        program,
+        supplied.carrier.clone(),
+        supplied.origin.precision,
+        supplied.lifetime_access,
+    );
     let mut observations = observations(
         program,
         machine,

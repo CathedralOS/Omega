@@ -1,8 +1,8 @@
 // Declaring a record reserves storage; filling its view member establishes
 // that descriptor without inventing a zero reference or copying its backing.
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 use omega_language_std::console;
 
 data Room [copy] { label: &[u8] in Utf8; }

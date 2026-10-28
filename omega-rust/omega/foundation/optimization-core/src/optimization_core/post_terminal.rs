@@ -1,6 +1,4 @@
-use super::{
-    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
-};
+use super::{Optimization, OptimizationSelectionIdentity, OptimizationSelections};
 use std::fmt;
 
 /// Canonical selection vocabulary accepted after sealed Terminal Psi.
@@ -17,10 +15,17 @@ pub struct PostTerminalOptimizationSelections {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostTerminalOptimizationSelectionProjection {
     pub(super) complete_selection: OptimizationSelectionIdentity,
+    pub(super) complete_selections: OptimizationSelections,
     pub(super) selected: PostTerminalOptimizationSelections,
 }
 
 impl PostTerminalOptimizationSelectionProjection {
+    /// Retain the complete authored input for compiler-private recovery. The
+    /// phase subset alone cannot reconstruct the original selection identity.
+    pub const fn complete_selections(&self) -> &OptimizationSelections {
+        &self.complete_selections
+    }
+
     pub const fn complete_selection(&self) -> OptimizationSelectionIdentity {
         self.complete_selection
     }
@@ -32,12 +37,12 @@ impl PostTerminalOptimizationSelectionProjection {
 
 impl PostTerminalOptimizationSelections {
     pub fn new(selected: OptimizationSelections) -> Result<Self, PreTerminalOptimizationSelection> {
-        if let Some(optimization) = selected.as_slice().iter().copied().find(|optimization| {
-            matches!(
-                optimization.execution_phase(),
-                OptimizationExecutionPhase::CheckedTrees | OptimizationExecutionPhase::Psi
-            )
-        }) {
+        if let Some(optimization) = selected
+            .as_slice()
+            .iter()
+            .copied()
+            .find(|optimization| !optimization.execution_phase().is_post_terminal())
+        {
             return Err(PreTerminalOptimizationSelection(optimization));
         }
         Ok(Self { selected })

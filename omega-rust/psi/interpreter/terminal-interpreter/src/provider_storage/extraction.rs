@@ -306,7 +306,7 @@ impl TerminalExecution<'_> {
         // retained non-byte bindings now replace the private snapshot together.
         let _original = std::mem::take(self.provider_storage.residents.get_mut(binding.resident));
         self.provider_storage.residents.free(binding.resident);
-        retirement.commit(self);
+        retirement.commit(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         Ok(())

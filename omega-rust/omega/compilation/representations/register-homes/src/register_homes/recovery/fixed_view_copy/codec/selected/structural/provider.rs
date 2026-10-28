@@ -6,7 +6,9 @@ use terminal_psi::{
     ProviderSignature, ProviderSignatureParameter, StructuralDomainRequirement,
 };
 
+use super::declarations::decode_qualification_path;
 use crate::FixedViewCopyDecodeError;
+use selected_instructions::effects::program::identity::encode_path;
 
 use super::{
     declarations::{decode_access, decode_multiplicity, encode_access, encode_multiplicity},
@@ -68,6 +70,7 @@ pub(super) fn encode(
     length(bytes, provider.refinement.required_domains.len());
     for requirement in &provider.refinement.required_domains {
         crate::codec_bytes::push_encoded(bytes, requirement.argument_index.to_le_bytes());
+        encode_path(bytes, &requirement.path);
         crate::codec_bytes::push_encoded(bytes, requirement.domain.get().to_le_bytes());
     }
     encode_ids(
@@ -126,6 +129,7 @@ pub(super) fn decode(
     let required_domains = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(StructuralDomainRequirement {
             argument_index: cursor.u32()?,
+            path: decode_qualification_path(cursor)?,
             domain: decode_id(cursor, semantic_vocabulary::StructuralDomainId::new)?,
         })
     })?;

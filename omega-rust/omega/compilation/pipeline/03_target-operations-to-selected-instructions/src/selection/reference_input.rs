@@ -119,6 +119,7 @@ pub(in crate::selection) fn borrowed_scalar_source(
 /// from the loan contract or from every retained physical backing alternative.
 pub(in crate::selection) fn validate_scalar_foreign_export(
     function: &LegalizedScalarFunction,
+    backings: &super::foreign_scalar_backings::ForeignScalarBackings<'_>,
     argument: &terminal_psi::StructuralArgument,
     scalar: semantic_vocabulary::ScalarType,
     width: u32,
@@ -126,7 +127,7 @@ pub(in crate::selection) fn validate_scalar_foreign_export(
     if terminal_semantics::reference_storage_export_byte_width(scalar, argument.access)
         .map(u32::from)
         == Some(width)
-        || super::storage_origin_input::scalar_backing_width_matches(function, argument, width)?
+        || backings.matches(function, argument, width)?
     {
         Ok(())
     } else {
@@ -234,10 +235,8 @@ pub(super) fn establishment(
                 &path[segment_start..position],
                 declarations,
             )?;
-        let StructuralTypeShape::Reference { referent, .. } = declarations
-            .iter()
-            .find(|declaration| declaration.id == carrier)?
-            .shape
+        let StructuralTypeShape::Reference { referent, .. } =
+            terminal_psi::find_structural_type(declarations, carrier)?.shape
         else {
             return None;
         };

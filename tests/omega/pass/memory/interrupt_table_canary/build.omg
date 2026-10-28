@@ -17,11 +17,75 @@ machine build(builder: &mut Build) {
     Build::select_provider<
         InterruptAcknowledgementCompletion,
         AcknowledgementCompletion
-    >(builder);
+    >(builder, linux_arm64);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, linux_x86_64);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, macos_arm64);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, macos_x86_64);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, windows_x86_64);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, uefi_x86_64);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, cross_platform_cli);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, local_unchecked);
+    Build::select_provider<
+        InterruptAcknowledgementCompletion,
+        AcknowledgementCompletion
+    >(builder, alpha_bootstrap);
     Build::select_provider<
         InterruptMaskControl,
         InterruptMaskProviderMaskControl
-    >(builder);
+    >(builder, linux_arm64);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, linux_x86_64);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, macos_arm64);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, macos_x86_64);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, windows_x86_64);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, uefi_x86_64);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, cross_platform_cli);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, local_unchecked);
+    Build::select_provider<
+        InterruptMaskControl,
+        InterruptMaskProviderMaskControl
+    >(builder, alpha_bootstrap);
     Build::select_representation<
         InterruptAcknowledgement,
         CriticalAcknowledgementRepresentation

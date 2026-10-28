@@ -89,6 +89,39 @@ impl Writer {
         }
         Ok(())
     }
+
+    /// Write a length-prefixed roster of semantic identities: the `u32`
+    /// count, then each identity. The read side states the same roster once
+    /// (`decode_ids`); this is its emitting form, so one call owns the count
+    /// and the rows it counts.
+    pub(crate) fn ids<I: PsiSemanticId>(
+        &mut self,
+        label: &'static str,
+        values: &[I],
+    ) -> Result<(), CodecError> {
+        self.len(label, values.len())?;
+        for value in values {
+            self.id(*value);
+        }
+        Ok(())
+    }
+
+    /// Write a length-prefixed roster through a shared row encoder: the `u32`
+    /// count, then every element through `encode`. The read side states the
+    /// same collection once (`decode_counted`); this is its emitting form, so
+    /// the count and the rows cannot be written from two spellings.
+    pub(crate) fn counted<T>(
+        &mut self,
+        label: &'static str,
+        values: &[T],
+        encode: fn(&mut Writer, &T) -> Result<(), CodecError>,
+    ) -> Result<(), CodecError> {
+        self.len(label, values.len())?;
+        for value in values {
+            encode(self, value)?;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) struct Reader<'bytes> {
@@ -232,6 +265,27 @@ pub(crate) fn decode_ids<I: PsiSemanticId>(
     label: &'static str,
 ) -> Result<Vec<I>, CodecError> {
     decode_counted(reader, |reader| reader.id(label))
+}
+
+/// Whether a roster is strictly increasing by its own order: the wire admits
+/// exactly one spelling of a set of rows, and this is the comparison that
+/// decides it. Sites that report their own error class ask this predicate;
+/// sites whose failure is noncanonical order ask [`require_increasing`].
+pub(crate) fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
+    values.into_iter().is_sorted_by(|left, right| left < right)
+}
+
+/// The requirement form of [`strictly_increasing`]: refuse a roster that is
+/// not strictly increasing, naming the roster the caller checked.
+pub(crate) fn require_increasing<T: Ord>(
+    values: impl IntoIterator<Item = T>,
+    label: &'static str,
+) -> Result<(), CodecError> {
+    if strictly_increasing(values) {
+        Ok(())
+    } else {
+        Err(CodecError::NonCanonicalOrder(label))
+    }
 }
 
 /// Read a length-prefixed byte payload: a `u32` length the remaining input

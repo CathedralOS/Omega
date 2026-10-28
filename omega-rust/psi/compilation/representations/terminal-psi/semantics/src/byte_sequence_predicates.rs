@@ -970,7 +970,7 @@ pub fn machine_scalar_constant_origin(
     machine: &terminal_psi::TerminalMachine,
     value: semantic_vocabulary::ValueId,
 ) -> Option<ScalarConstantOrigin> {
-    use terminal_psi::{OperationKind, Terminator};
+    use terminal_psi::OperationKind;
     if let Some((scalar_type, literal)) = machine.operations().find_map(|operation| {
         let result = operation.result.scalar_ref()?;
         let OperationKind::IntegerConstant { value: literal } = operation.kind else {
@@ -992,29 +992,13 @@ pub fn machine_scalar_constant_origin(
     }
     let mut incoming = Vec::new();
     for block in &machine.blocks {
-        match &block.terminator {
-            Terminator::Jump {
-                target, arguments, ..
-            } if *target == owner => {
-                incoming.push(*arguments.get(ordinal)?);
+        if crate::control_graph::reaches_by_case(block, owner) {
+            return None;
+        }
+        for binding in crate::control_graph::forwarded_bindings(block) {
+            if binding.target == owner {
+                incoming.push(*binding.arguments.get(ordinal)?);
             }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    if edge.target == owner {
-                        incoming.push(*edge.arguments.get(ordinal)?);
-                    }
-                }
-            }
-            Terminator::StructuralCase { cases, .. }
-                if cases.iter().any(|edge| edge.target == owner) =>
-            {
-                return None;
-            }
-            _ => {}
         }
     }
     Some(ScalarConstantOrigin::Incoming(incoming))

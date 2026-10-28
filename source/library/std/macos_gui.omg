@@ -17,9 +17,9 @@ use omega::language::core::process_authority;
 use omega::language::core::process_exit;
 use targets::macos_arm64::macos_gui_impl;
 
-public domain [u8]::CString(bytes)
+public domain [u8]::CString
 requires
-    no_nul(bytes);
+    no_nul(self);
 
 // AppKit must be loaded before looking up Cocoa classes through libobjc.
 // The explicit import owns that dependency; class names do not select libraries.

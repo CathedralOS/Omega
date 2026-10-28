@@ -3,7 +3,7 @@
 use optimization_core::hex;
 use std::fmt::Write;
 
-use super::{PostAllocationOptimizationManifest, PostAllocationSelectedTransformation};
+use super::PostAllocationOptimizationManifest;
 
 impl PostAllocationOptimizationManifest {
     pub fn render_text(&self) -> String {
@@ -49,63 +49,11 @@ impl PostAllocationOptimizationManifest {
         )
         .unwrap();
         for (index, transformation) in self.selected_transformations.iter().enumerate() {
-            let (kind, identity) = match transformation {
-                PostAllocationSelectedTransformation::FixedViewCopy(identity) => {
-                    ("fixed-view-copy", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::LiteralFold(identity) => {
-                    ("literal-fold", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
-                    ("pressure-rematerialization", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::RuntimeSpill(identity) => {
-                    ("runtime-spill", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::RuntimeRematerialization(identity) => {
-                    ("runtime-rematerialization", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::CopyRemoval(identity) => {
-                    ("copy-removal", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::RedundantExtension(identity) => {
-                    ("redundant-extension", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::AddressFold(identity) => {
-                    ("address-fold", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::ConstantBoolean(identity) => {
-                    ("constant-boolean", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::ConstantBranch(identity) => {
-                    ("constant-branch", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::DeadCompare(identity) => {
-                    ("dead-compare", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::RedundantCompare(identity) => {
-                    ("redundant-compare", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
-                    ("equivalent-compare", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::FixedOccurrences(identity) => {
-                    ("fixed-occurrences", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
-                    ("runtime-split", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
-                    ("copied-call-operand", identity.bytes())
-                }
-                PostAllocationSelectedTransformation::StoredLoadForwarding(identity) => {
-                    ("stored-load-forwarding", identity.bytes())
-                }
-            };
             writeln!(
                 output,
-                "selected transformation {index}: {kind} {}",
-                hex(&identity)
+                "selected transformation {index}: {} {}",
+                transformation.kind(),
+                hex(&transformation.identity_bytes())
             )
             .unwrap();
         }

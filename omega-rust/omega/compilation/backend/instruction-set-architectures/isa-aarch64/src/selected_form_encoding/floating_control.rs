@@ -188,14 +188,7 @@ pub(crate) fn validate_aarch64_selected_floating_control_form(
 /// Decode the direction and slot offset, then require the canonical bytes:
 /// the access word carries the low bits and any page steps the rest.
 fn decode(bytes: &[u8]) -> Option<(bool, i64)> {
-    let (chunks, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return None;
-    }
-    let words = chunks
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect::<Vec<_>>();
+    let words = super::word_stream(bytes)?;
     let (restore, steps, access, address) = match words.as_slice() {
         [steps @ .., access, 0xd51b_4409] => (true, steps, *access, 9),
         [0xd53b_4409, steps @ .., access] => (false, steps, *access, 16),

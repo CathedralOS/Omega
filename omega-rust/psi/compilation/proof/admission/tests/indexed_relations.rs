@@ -260,13 +260,12 @@ fn a_squashed_family_is_existence_without_witness_access() {
     // The squashed judgment re-decides as a certificate. `isup`, `IW`
     // and the rest of the scheme are *definitions*, so the assumption
     // closure is exactly empty — the judgment commits to no axioms.
-    let certificate = MathematicalCertificate {
-        signature: indexed_scheme(&mut arena),
-        level_arity: 0,
-        context: vec![g_binding],
-        term: witness,
-        expected: squashed,
-    };
+    let certificate = MathematicalCertificate::with_signature(
+        indexed_scheme(&mut arena),
+        vec![g_binding],
+        witness,
+        squashed,
+    );
     let mut spent = measure_budget();
     let before = spent.remaining();
     verify_mathematical_certificate(&mut arena, &certificate, &mut spent).unwrap();

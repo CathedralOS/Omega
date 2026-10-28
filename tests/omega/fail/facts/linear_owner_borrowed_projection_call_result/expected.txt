@@ -1,0 +1,1 @@
+reads `cells[1].value` while local borrow

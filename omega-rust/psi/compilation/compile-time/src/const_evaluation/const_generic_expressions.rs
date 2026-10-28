@@ -36,24 +36,16 @@ pub(crate) fn evaluate(
     let sources = context.sources.clone();
     let bindings = context.source_scoped_top_level_bindings;
     let authority = context.selection_authority.as_deref();
-    let data_arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax,
-            sources.clone(),
-            bindings.to_vec(),
-            context.retained_base(),
-        )?;
-    let extent_arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_array_extent_expressions(
-            &mut syntax,
-        );
-    let machine_arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            &syntax,
-            sources.clone(),
-            bindings.to_vec(),
-            context.retained_base(),
-        )?;
+    let syntax_trees_to_symbol_resolved_trees::pre_resolution::ClosedConstArguments {
+        data_arguments,
+        extent_arguments,
+        machine_arguments,
+    } = syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_const_arguments(
+        &mut syntax,
+        sources.clone(),
+        bindings.to_vec(),
+        context.retained_base(),
+    )?;
     phase_profile::count(
         "pre_resolution.constant_expressions.data",
         data_arguments.len() as u64,
@@ -121,29 +113,6 @@ pub(crate) fn evaluate(
         arguments.push((argument, destination, public));
         lexical_arguments.push(argument);
     }
-    if !aggregate_arguments.is_empty() {
-        // Aggregate substitution still uses the existing canonical-value route.
-        // Resolve its authored path first so that route cannot capture a static
-        // declaration through a runtime parameter or prior local binding.
-        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            context.resolution_request(syntax.clone()),
-        )?;
-        for (argument, original) in aggregate_arguments {
-            if let TypeReferenceNode::ConstExpression(expression) =
-                syntax.type_references.type_reference(argument)
-            {
-                lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!("const argument expression: {reason}"))
-                            .with_source_span(syntax.expressions.source_span(*expression)),
-                    ]
-                })?;
-            }
-            syntax
-                .type_references
-                .replace_type_reference(argument, original);
-        }
-    }
     let pending = arguments
         .iter()
         .filter_map(|(argument, destination, public)| {
@@ -164,37 +133,73 @@ pub(crate) fn evaluate(
             Some((*argument, *expression, *destination, *public))
         })
         .collect::<Vec<_>>();
+    let need_aggregate_resolution = aggregate_arguments.iter().any(|(argument, _)| {
+        matches!(
+            syntax.type_references.type_reference(*argument),
+            TypeReferenceNode::ConstExpression(expression)
+                if lexical_selection::needs_resolution(&syntax, *expression)
+        )
+    });
+    let need_lexical_resolution = pending.iter().any(|(argument, expression, _, _)| {
+        lexical_arguments.contains(argument)
+            && lexical_selection::needs_resolution(&syntax, *expression)
+    });
+    let mut lexical_origins = Vec::new();
+    if need_aggregate_resolution || need_lexical_resolution {
+        // Resolve the original machine owners before placeholder synthesis.
+        // Their runtime bodies are neither typed as probes nor executed here.
+        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
+            context.resolution_request(syntax.clone()),
+        )?;
+        for (argument, original) in aggregate_arguments {
+            if let TypeReferenceNode::ConstExpression(expression) =
+                syntax.type_references.type_reference(argument)
+                && lexical_selection::needs_resolution(&syntax, *expression)
+            {
+                lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!("const argument expression: {reason}"))
+                            .with_source_span(syntax.expressions.source_span(*expression)),
+                    ]
+                })?;
+            }
+            syntax
+                .type_references
+                .replace_type_reference(argument, original);
+        }
+        for (argument, expression, _, _) in &pending {
+            if lexical_arguments.contains(argument) {
+                let origins = if lexical_selection::needs_resolution(&syntax, *expression) {
+                    lexical_selection::retain(&syntax, &resolved, *expression).map_err(|reason| {
+                        vec![
+                            Diagnostic::error(format!("const argument expression: {reason}"))
+                                .with_source_span(syntax.expressions.source_span(*expression)),
+                        ]
+                    })?
+                } else {
+                    Vec::new()
+                };
+                lexical_origins.push((*argument, origins));
+            }
+        }
+    } else {
+        for (argument, original) in aggregate_arguments {
+            syntax
+                .type_references
+                .replace_type_reference(argument, original);
+        }
+        for (argument, _, _, _) in &pending {
+            if lexical_arguments.contains(argument) {
+                lexical_origins.push((*argument, Vec::new()));
+            }
+        }
+    }
     phase_profile::count(
         "pre_resolution.constant_expressions.pending",
         pending.len() as u64,
     );
     if pending.is_empty() {
         return Ok(syntax);
-    }
-
-    let mut lexical_origins = Vec::new();
-    if pending
-        .iter()
-        .any(|(argument, _, _, _)| lexical_arguments.contains(argument))
-    {
-        // Resolve the original machine owners before placeholder synthesis.
-        // Their runtime bodies are neither typed as probes nor executed here.
-        let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            context.resolution_request(syntax.clone()),
-        )?;
-        for (argument, expression, _, _) in &pending {
-            if lexical_arguments.contains(argument) {
-                let origins = lexical_selection::retain(&syntax, &resolved, *expression).map_err(
-                    |reason| {
-                        vec![
-                            Diagnostic::error(format!("const argument expression: {reason}"))
-                                .with_source_span(syntax.expressions.source_span(*expression)),
-                        ]
-                    },
-                )?;
-                lexical_origins.push((*argument, origins));
-            }
-        }
     }
 
     // Normalize only the demanded private probes. Unready surrounding indices
@@ -237,13 +242,11 @@ pub(crate) fn evaluate(
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
         .collect::<Result<Vec<_>, _>>()?;
-    let prepared = crate::syntax_probes::prepare_owned_probe_evaluation(
+    let typed = crate::syntax_probes::prepare_call_free_probe_typing(
         frontier,
         &owner_symbols,
-        &[],
         context.predecessor.clone(),
     )?;
-    let typed = prepared.typed;
 
     for ((argument, original, _, public), owner) in pending.into_iter().zip(owner_symbols) {
         let reference = syntax.expressions.source_span(original);

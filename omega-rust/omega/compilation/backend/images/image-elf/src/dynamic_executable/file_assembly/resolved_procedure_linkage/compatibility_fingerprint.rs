@@ -10,12 +10,9 @@ pub(crate) fn non_authoritative_resolved_linkage_compatibility_fingerprint(
     envelope: &ValidatedElfDynamicFileEnvelope,
     contents: &ElfResolvedProcedureLinkageContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.resolved-procedure-linkage.v1");
-    hash.bytes(
-        &envelope
-            .non_authoritative_envelope_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = crate::dynamic_executable::checked::stage_fingerprint(
+        b"omega.elf.resolved-procedure-linkage.v1",
+        envelope.non_authoritative_envelope_compatibility_fingerprint(),
     );
     hash.bytes(&contents.source_text_bytes);
     hash.bytes(&contents.source_data_bytes);

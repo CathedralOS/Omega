@@ -14,9 +14,8 @@
 //! [x86-64 psABI]: https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex
 //! [AArch64 System V ABI]: https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::require_name;
 use crate::dynamic_executable::checked::{checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ValidatedElfProcedureLinkageTemplatePlan;
 use diagnostics::Diagnostic;
@@ -344,28 +343,13 @@ fn target(templates: &ValidatedElfProcedureLinkageTemplatePlan) -> TargetProfile
         .target()
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfProcedureLinkageSectionDescriptorPlan, CandidateValidationError<Candidate>>
-{
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.templates, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_descriptor_compatibility_fingerprint
-                == non_authoritative_descriptor_compatibility_fingerprint(
-                    &candidate.templates,
-                    &candidate.contents,
-                )
-        },
-        "ELF linkage-descriptor compatibility fingerprint does not replay",
-        |candidate| ValidatedElfProcedureLinkageSectionDescriptorPlan {
-            templates: candidate.templates,
-            contents: candidate.contents,
-            non_authoritative_descriptor_compatibility_fingerprint: candidate
-                .non_authoritative_descriptor_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: templates,
+    contents: contents,
+    validated: ValidatedElfProcedureLinkageSectionDescriptorPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+    message: "ELF linkage-descriptor compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -476,18 +460,11 @@ fn validate_name(
     seed: &[u8],
     row: &ElfProcedureLinkageSectionDescriptor,
 ) -> Result<(), Diagnostic> {
-    let offset = usize::try_from(row.name_offset)
-        .map_err(|_| Diagnostic::error("ELF linkage sh_name exceeds usize"))?;
-    let tail = seed
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("ELF linkage sh_name is outside the name seed"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("ELF linkage section name is not NUL-terminated"))?;
-    require(
-        tail.get(..terminator) == Some(row.kind.name()),
-        "ELF linkage sh_name does not select its exact semantic name",
+    require_name(
+        seed,
+        row.name_offset,
+        row.kind.name(),
+        "ELF linkage sh_name",
     )
 }
 
@@ -495,12 +472,9 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     templates: &ValidatedElfProcedureLinkageTemplatePlan,
     contents: &ElfProcedureLinkageSectionDescriptorContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-procedure-linkage-section-descriptors.v1");
-    hash.bytes(
-        &templates
-            .non_authoritative_template_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-procedure-linkage-section-descriptors.v1",
+        templates.non_authoritative_template_compatibility_fingerprint(),
     );
     hash.bytes(&contents.section_name_table_seed);
     hash.bytes(&(contents.descriptors.len() as u64).to_le_bytes());

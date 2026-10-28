@@ -42,13 +42,7 @@ impl FlowFacts {
             .iter()
             .filter_map(|constraint| match constraint.kind {
                 FlowConstraintKind::BorrowCall { call } => Some(call),
-                FlowConstraintKind::Unknown
-                | FlowConstraintKind::SemanticContext { .. }
-                | FlowConstraintKind::BorrowState { .. }
-                | FlowConstraintKind::BorrowWritableRoot { .. }
-                | FlowConstraintKind::BorrowAccess { .. }
-                | FlowConstraintKind::BorrowLoan { .. }
-                | FlowConstraintKind::BorrowIncomingReference { .. } => None,
+                _ => None,
             })
     }
 
@@ -60,13 +54,7 @@ impl FlowFacts {
             .iter()
             .filter_map(|constraint| match constraint.kind {
                 FlowConstraintKind::BorrowWritableRoot { root } => Some(root),
-                FlowConstraintKind::Unknown
-                | FlowConstraintKind::SemanticContext { .. }
-                | FlowConstraintKind::BorrowState { .. }
-                | FlowConstraintKind::BorrowCall { .. }
-                | FlowConstraintKind::BorrowAccess { .. }
-                | FlowConstraintKind::BorrowLoan { .. }
-                | FlowConstraintKind::BorrowIncomingReference { .. } => None,
+                _ => None,
             })
     }
 

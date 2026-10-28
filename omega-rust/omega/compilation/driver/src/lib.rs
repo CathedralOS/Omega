@@ -27,7 +27,9 @@ mod product_execution;
 #[cfg(test)]
 mod product_boundary;
 
-pub use identity::{compiler_build_profile, compiler_identity, compiler_optimization_level};
+pub use identity::{
+    compiler_build_profile, compiler_identity, compiler_input_identity, compiler_optimization_level,
+};
 
 pub mod checked;
 mod terminal;
@@ -55,8 +57,8 @@ pub use compilation_products::{
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
 pub use compiler::PreparedCompilation;
+pub use native_production::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{CompilationOutput, CompilationProduct, CompilationProductError};
 pub use target::ExplicitTargetSet;
-pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;

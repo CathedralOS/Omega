@@ -1,0 +1,2 @@
+domain u64::Tag(unused);
+machine check() {}

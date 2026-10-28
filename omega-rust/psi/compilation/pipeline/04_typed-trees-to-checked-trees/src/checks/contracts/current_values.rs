@@ -62,6 +62,13 @@ pub(crate) fn proves_exit<'program>(
                 exit.transition_target,
                 frames,
             )?;
+            // `at` is the incoming operation frontier. A postcondition reads
+            // current referents after the returned operation has completed.
+            // Retire its may-writes before consuming prefix scalar values;
+            // exact result/post-storage captures have their own proof owner.
+            values.invalidate_operand_writes(
+                frames.map(|frames| frames.expression_write_frame(machine, returned)),
+            );
             values.prepare_exit_return(returned);
             Some((machine, values, returned))
         })

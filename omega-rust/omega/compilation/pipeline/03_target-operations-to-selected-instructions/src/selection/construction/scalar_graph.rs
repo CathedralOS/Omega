@@ -2,6 +2,7 @@
 //! Scalar instructions share one selection path regardless of the caller's result.
 
 use crate::selection::constraints::{fixed_input_constraint, row};
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::model::SelectedInstructionError;
 use calling_conventions::ValueLocation;
 use legalized_operations::{
@@ -76,6 +77,7 @@ pub(super) fn build_with_environment(
     source: &LegalizedScalarFunction,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let mut current_operation = None;
     select_function(
@@ -84,6 +86,7 @@ pub(super) fn build_with_environment(
         constraints,
         environment,
         &mut current_operation,
+        backings,
     )
     .map_err(|error| error.attributed(source.machine, current_operation))
 }
@@ -94,6 +97,7 @@ fn select_function(
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
+    backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
@@ -105,6 +109,7 @@ fn select_function(
     let class = operand.class;
     let mut builder = Builder {
         environment,
+        backings,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: crate::selection::value_transport::required_values(source),
         class,
@@ -396,12 +401,7 @@ fn select_function(
                             SelectedInstructionKind::ImageAddress { reference },
                             key,
                             &[output],
-                            SelectedInstructionProvenance {
-                                operations: vec![operation.operation],
-                                values: vec![result.value],
-                                fuel: operation.fuel.clone(),
-                                ..Default::default()
-                            },
+                            operation_provenance(operation, vec![result.value]),
                         )?;
                         output
                     }
@@ -638,6 +638,7 @@ fn select_function(
 }
 
 struct Builder<'a> {
+    backings: &'a crate::selection::foreign_scalar_backings::ForeignScalarBackings<'a>,
     environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
     // Zero-payload constructors retain their source position without storage.
     // The next instruction in this same block carries their ordered charges.

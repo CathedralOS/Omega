@@ -107,6 +107,22 @@ pub(super) fn stage(
     let changed_case = visible.iter().any(|leaf| matches!(leaf.kind, StorageLeafKind::Case { case, .. }
         if binding.original.binary_search_by(|value| value.path.cmp(&leaf.path)).ok()
             .is_none_or(|position| binding.original[position].contents != TerminalStorageContents::Case(case))));
+    if changed_case {
+        let changed = visible
+            .iter()
+            .filter_map(|leaf| match &leaf.kind {
+                StorageLeafKind::Case {
+                    destination, case, ..
+                } => Some((destination.clone(), *case)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        execution.validate_normal_case_preservation(
+            &binding.referent,
+            &binding.normal_qualifications,
+            &changed,
+        )?;
+    }
     let mut staged = ConstructorStorage::new(execution.account.as_ref());
     for (leaf, value) in visible.into_iter().zip(&buffer.values) {
         if leaf.path != value.path {
@@ -218,6 +234,15 @@ pub(super) fn stage(
                         crate::values::StructuralFieldNamespace::Member
                     };
                     staged.retain_byte_field(execution, parent, *field, namespace)?;
+                }
+                StorageLeafKind::EmptyScalarArray {
+                    destination,
+                    structural_type,
+                } => {
+                    // A completed case replacement constructs this unique
+                    // empty payload under the existing writable owner. No
+                    // bytes, references, claims or opaque contents are inferred.
+                    staged.stage_array(execution, *structural_type, &[], destination)?;
                 }
                 StorageLeafKind::ByteArray {
                     destination,

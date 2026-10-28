@@ -49,5 +49,5 @@ pub use target_semantics::{
 };
 pub use x86_features::{
     AdmittedX86ScalarFmaProvider, X86_SCALAR_FMA_REQUIRED_FEATURES, X86DeploymentFeatures,
-    X86FeatureRequirement, X86ScalarFmaSlot,
+    X86FeatureRequirement, X86ScalarFmaDifferentialReceipt, X86ScalarFmaSlot, X86TargetFeature,
 };

@@ -17,21 +17,21 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 invokes WindowsFilesystemHost;
 {
     transition cap <= buffer.len && cap <= 4294967295 {
-        true -> acquire(from, to, buffer, cap)
+        true -> block acquire(from, to, buffer, cap)
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
     machine acquire(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
         let acquired: OpenResult = block windows_filesystem_open(from);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
-            OpenResult::Ok { file } -> metadata(file, to, buffer, cap)
+            OpenResult::Ok { file } -> block metadata(file, to, buffer, cap)
         }
     }
     machine metadata(source: File, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
         let result: MetadataResult = block windows_filesystem_metadata(source);
         transition result {
-            MetadataResult::Error { kind } -> failed(source, kind)
-            MetadataResult::Ok { meta } -> read(source, to, buffer, cap, meta.permissions)
+            MetadataResult::Error { kind } -> block failed(source, kind)
+            MetadataResult::Ok { meta } -> block read(source, to, buffer, cap, meta.permissions)
         }
     }
     machine failed(file: File, kind: ErrorKind) -> IoResult {
@@ -44,12 +44,12 @@ invokes WindowsFilesystemHost;
         let finished: IoResult = windows_filesystem_finish_read(result, released);
         transition finished {
             IoResult::Error { kind } -> (IoResult::Error { kind: kind })
-            IoResult::Ok { count } -> bounded(to, buffer, count, permissions)
+            IoResult::Ok { count } -> block bounded(to, buffer, count, permissions)
         }
     }
     machine bounded(to: &[u8] in Path, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult {
         transition count <= buffer.len {
-            true -> destination(to, buffer, count, permissions)
+            true -> block destination(to, buffer, count, permissions)
             false -> (IoResult::Error { kind: ErrorKind::Other })
         }
     }
@@ -63,15 +63,15 @@ invokes WindowsFilesystemHost;
         let acquired: OpenResult = windows_filesystem_opened(handle);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
-            OpenResult::Ok { file } -> write(file, buffer, count, permissions)
+            OpenResult::Ok { file } -> block write(file, buffer, count, permissions)
         }
     }
     machine write(destination: File, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult
     requires count <= buffer.len {
         let result: UnitResult = block windows_filesystem_write_complete(destination, buffer[0..count]);
         transition result {
-            UnitResult::Error { kind } -> failed(destination, kind)
-            UnitResult::Ok -> restore(destination, count, permissions)
+            UnitResult::Error { kind } -> block failed(destination, kind)
+            UnitResult::Ok -> block restore(destination, count, permissions)
         }
     }
     machine restore(destination: File, count: u64, permissions: Permissions) -> IoResult {

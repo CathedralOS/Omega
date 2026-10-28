@@ -6,6 +6,7 @@
 //! instructions.
 
 use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::order::strictly_increasing;
 
 use machine_code::{
     ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarControlAffineCleanupRecord,
@@ -165,13 +166,8 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
         || !cleanups.is_empty() && crash_leaves.iter().any(|crash| *crash)
         || !cleanups.is_empty() && !division_branches.is_empty()
         || evidence.cleanup_preservation.is_some()
-        || decisions
-            .windows(2)
-            .any(|pair| pair[0].branch_offset >= pair[1].branch_offset)
-        || evidence
-            .mutations
-            .windows(2)
-            .any(|pair| pair[0].offset >= pair[1].offset)
+        || !strictly_increasing(&decisions, |row| row.branch_offset)
+        || !strictly_increasing(&evidence.mutations, |row| row.offset)
     {
         return Err(ObjectError::InvalidScalarConditionalEvidence {
             machine,

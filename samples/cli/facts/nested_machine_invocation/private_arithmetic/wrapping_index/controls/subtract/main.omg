@@ -1,0 +1,37 @@
+// An offset between 17 and 528 makes its wrapping difference with 17 a valid index.
+// Expected exit: 0
+data Window { bytes: [u8; 512]; offset: u64 in Wrapping; index: u64 in Wrapping; canary: u64; }
+machine probe(window: &mut Window, enabled: bool) -> u8 {
+    let ready: bool = window.offset >= 17 && window.offset < 529;
+    transition enabled && ready { true -> read(window) false -> 0 }
+    machine read(window: &mut Window) -> u8 {
+        window.index = window.offset - 17;
+        window.bytes[window.index]
+    }
+}
+machine main() crashes Trap {
+    let mut window: Window;
+    window.canary = 33;
+    window.bytes[511] = 37;
+    window.bytes[0] = 11;
+    window.offset = 528;
+    let value_0: u8 = probe(&mut window, true);
+    let index_0: u64 in Wrapping = window.index;
+    window.offset = 17;
+    let value_1: u8 = probe(&mut window, true);
+    let index_1: u64 in Wrapping = window.index;
+    window.offset = 16;
+    let value_2: u8 = probe(&mut window, true);
+    let index_2: u64 in Wrapping = window.index;
+    window.offset = 18446744073709551615;
+    let value_3: u8 = probe(&mut window, true);
+    let index_3: u64 in Wrapping = window.index;
+    window.offset = 528;
+    let value_4: u8 = probe(&mut window, false);
+    let index_4: u64 in Wrapping = window.index;
+    transition value_0 == 37 && index_0 == 511 && value_1 == 11 && index_1 == 0 && value_2 == 0 && index_2 == 0 && value_3 == 0 && index_3 == 0 && value_4 == 0 && index_4 == 0 && window.canary == 33 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

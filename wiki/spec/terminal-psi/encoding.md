@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 198 even when every table
+order below. This layout uses semantic format marker 201 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 198 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 201 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -802,12 +802,28 @@ Older markers are rejected before their payload is read.
 | 30 | scalar block invariants | the counted invariant rows above |
 | 31 | operation crash contracts | counted operation crash contract rows |
 | 32 | machines | counted machine rows |
-| 33 | target-machine families | counted family rows |
+| 33 | legacy target-machine families | counted family rows; removal pending |
 | 34 | target layout applications | counted complete checked policy alternatives |
 | 35 | boundary application demands | counted exact requirement/application rows |
 | 36 | callback applications | counted checked registrar occurrences |
 | 37 | boundary application candidates | counted checked bodies for closed applications |
 | 38 | task activation demands | counted task activation demand rows |
+
+Marker 199 task demands carry canonical callable/entry identity indices, exact
+requirement package ownership, specialization commitment, signature storage
+types, the root frame identity, the reachable frame graph and checked carry
+crossings. Each frame stores a counted list of alternative states; each state
+stores its resident values and a counted list of alternative staged-call
+argument lists. Native storage is the maximum over those alternatives, not
+their concatenation. Values use tag `0` for Unit, `1` for a scalar, and
+`2` for a bundle-local structural declaration. The bundle retains its own
+structural declarations and identity-only referents, followed by checked
+target-layout extent/alignment alternatives. Layout rows have no fabricated
+module machine coordinates. Old flat-frame payloads reject rather than being
+read as the new state/crossing grammar. External ingress rejects missing or
+duplicate identities, absent root/callee frames, invalid structural references,
+incomplete layout alternatives and truncated payloads. Provider coverage and
+target storage composition remain the receiving Omega join's responsibility.
 
 A placement lifecycle row encodes its boundary machine id, `u8` operation
 (`0` initialize, `1` move-out), then `u8` execution kind (`0` selected provider,
@@ -900,7 +916,16 @@ Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
 
-A family row carries its canonical callable, a nonzero 32-byte checked head
+The reference wire still contains the legacy family section below. It documents
+existing bytes, not accepted target-prefixed source syntax or a second provider
+selection model. `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../../TASKS.md#pipeline-route) removes family rows and
+portable heads, including layout-policy references to family callables. The
+replacement retains ordinary implementation identities and exact requirement
+edges; target selection belongs to the Build companion. A codec migration must
+change the format identity rather than reinterpret these old fields.
+
+A legacy family row carries its canonical callable, a nonzero 32-byte checked head
 contract commitment, and counted members ordered by the exact authored
 deployment tag. A callable is a `u8` tag (`1` machine,
 `2` boundary) followed by its nonzero id. Each member carries a counted UTF-8
@@ -925,7 +950,7 @@ The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
 
-Marker 140 adds target layout applications after target-machine families. A
+Marker 140 adds target layout applications after the legacy family section. A
 record whose geometry remains target dependent uses structural shape tag `13`,
 a nonzero layout-application `u32`, and its counted structural fields. It has
 no packed or host-selected geometry in the portable artifact.
@@ -941,6 +966,10 @@ every alternative against the retained invariant Schema argument. This is
 representation validation; semantic checking remains the producer's obligation.
 Deployment selection consumes one retained alternative without changing the
 canonical portable artifact or inferring default storage for an unresolved row.
+The family callable/member roster in this reference layout encoding is also
+migration work. Target-dependent geometry remains supported, but its policy
+applications must name ordinary checked implementations and join target-keyed
+Build rows, not require target-prefixed source bodies.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1317,6 +1346,53 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
+Marker 201 adds a counted module-level external-provider conformance roster
+after boundary machines and before checked provider candidates. It is independent
+of call shapes: directly lowered comparisons still require satisfaction evidence.
+Each row contains the requirement's nominal declaration and callable identity
+indices, optional requirement package digest, optional four-byte numeric meaning,
+optional authored target membership string, checked realization machine
+declaration, optional realization package digest, optional selecting owner
+(nominal declaration index, provider identity index, optional package digest),
+and the structural external binding. Package digests are 32 bytes with a
+presence Boolean; owners likewise have a presence Boolean. Binding tags retain
+the language vocabulary: 2 = syscall followed by an i64 number, 3 = compiler
+intrinsic with no payload, 4 = vtable slot followed by an i64 index, 5 = vtable
+field and 6 = table function, each followed by a counted field string.
+Rows are strictly ordered and unique. Referenced declarations and signatures
+must exist; checked commitments, target membership and field names must be
+nonempty. Numeric meaning agrees with any corresponding callable boundary.
+These are checked satisfaction edges, not provider choices or external execution
+grants. Authored target membership retains the existing family migration
+vocabulary; it is never inferred from a normalized overload's spelling.
+
+Marker 200 added optional numeric meaning immediately after the optional checked
+callable: a presence Boolean followed, when
+present, by four bytes. This meaning is independent of provider selection and
+authority. Decoding checks the complete parameter/result signature, including
+the structural IEEE classification result. Non-callable evidence cannot carry it.
+
+| Kind | Byte 0 | Bytes 1–3 |
+| --- | --- | --- |
+| Named IEEE operation | 0 | operation tag, format, zero |
+| Primitive IEEE binary | 1 | binary-operation tag, format, zero |
+| Integer comparison | 2 | comparison tag, numeric type, zero |
+| IEEE negation | 3 | format, zero, zero |
+| Numeric conversion | 4 | source type, result type, arithmetic domain |
+
+Formats are 0 = binary32, 1 = binary64. Numeric types are, in tag order:
+i8, i16, i32, i64, u8, u16, u32, u64, f32, f64. Arithmetic domains are
+0 = Exact, 1 = Wrapping, 2 = Saturating, 3 = Trapping; Wrapping conversions
+and non-Exact conversions into floats are unsupported. Binary tags are
+add, subtract, multiply, divide, equal, not-equal, less, less-or-equal, greater,
+greater-or-equal; comparison tags are the last six in that order, starting at 0.
+Named tags, starting at 0, are minimum, maximum, square_root,
+multiply_then_add, fused_multiply_add, is_nan, is_finite, is_infinite, is_normal,
+is_subnormal, classify, then add/subtract/multiply/divide/square_root/
+fused_multiply_add, each with toward_zero, toward_positive, toward_negative in
+that order. Unknown tags and nonzero padding reject. Changing this order
+requires a format change; display spelling does not select a provider.
+
 | Row | Fields |
 | --- | --- |
 | boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling |
@@ -1334,7 +1410,7 @@ are not re-sorted by the canonical-order checker.
 
 Declaration-role tags are `0` for Callable and `1` for ContractEvidence.
 Unknown tags reject. ContractEvidence retains proof-only foreign loan custody;
-it cannot be invoked, installed, imported, or used as a target-family member.
+it cannot be invoked, installed, imported, or selected as a callable provider.
 Its schema owner introduces no runtime provider demand. Callable signatures
 retain their exact declaring schema owner; provider candidates retain their
 exact selecting declaration independently of display labels and callable bodies.

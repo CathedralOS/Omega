@@ -84,18 +84,16 @@ fn bounds(
     encoder: &mut Encoder,
     bounds: &PackagePolicyRestrictedBuildBounds,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("filesystem_sponsor_limits", |encoder| {
-        encoder.option(
-            bounds.filesystem_sponsor_limits.as_ref(),
-            filesystem_sponsor_limits,
-        )
-    })?;
-    encoder.field("evaluation_sponsor_limits", |encoder| {
-        encoder.option(
-            bounds.evaluation_sponsor_limits.as_ref(),
-            evaluation_sponsor_limits,
-        )
-    })?;
+    encoder.option_field(
+        "filesystem_sponsor_limits",
+        bounds.filesystem_sponsor_limits.as_ref(),
+        filesystem_sponsor_limits,
+    )?;
+    encoder.option_field(
+        "evaluation_sponsor_limits",
+        bounds.evaluation_sponsor_limits.as_ref(),
+        evaluation_sponsor_limits,
+    )?;
     encoder.field("required_outputs", |encoder| {
         encoder.sequence(&bounds.required_outputs, |encoder, output| {
             encoder.bytes(output)

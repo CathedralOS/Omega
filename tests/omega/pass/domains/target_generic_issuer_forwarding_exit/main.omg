@@ -1,5 +1,5 @@
 // Expected exit: 0. Target specialization retains the exact issuer declaration.
-domain u64::Issued(value) requires value >= 100 established by issue;
+domain u64::Issued requires self >= 100 established by issue;
 macos_arm64 machine issue<Element>(value: u64) -> u64 in Issued requires value >= 100 { value }
 linux_arm64 machine issue<Element>(value: u64) -> u64 in Issued requires value >= 100 { value }
 linux_x86_64 machine issue<Element>(value: u64) -> u64 in Issued requires value >= 100 { value }

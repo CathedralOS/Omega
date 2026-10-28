@@ -356,9 +356,19 @@ preserving evidence-binder presence, subject ordinal, trait, selected applicatio
 lifetimes, and structural arguments. Ignore only local evidence-binder numbering.
 Both complete telescopes remain identity even when a demand is omitted.
 
-Evaluated imports require a bijection between retained typed `via` expressions
-and the complete evaluated table, including private/unselected leaves. Legacy
-review retains the exact target, atomic locator, producer package/callable/closure,
+Under the ratified Build-owned native-binding contract, evaluated imports require
+a bijection between retained typed native-binding intent receipts and the complete
+evaluated binding table, including private/runtime-unselected rows. Retain the
+exact designated requirement/application, target, immutable supplier package,
+calling policy, atomic locator, and authored selection/evaluation provenance;
+neither a `via` span nor a synthetic forwarding callable is an identity anchor.
+
+The current materializer still captures typed `via` expressions and bodyless
+declarations. That schema is legacy migration work under
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../TASKS.md#pipeline-route),
+not an alternate accepted binding API. Migration must change affected schema
+identities rather than reinterpret those existing records. Legacy review
+retains the exact target, atomic locator, producer package/callable/closure,
 evaluator semantics and measured usage, evaluation result, materializer
 schema/result, and locator/aggregate commitments. Every axis affects legacy
 review bytes. The normalized policy component intentionally excludes these

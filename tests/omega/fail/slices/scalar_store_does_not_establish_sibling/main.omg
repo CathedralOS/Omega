@@ -1,4 +1,4 @@
-domain u64::Positive(value) requires value >= 1;
+domain u64::Positive requires self >= 1;
 
 machine main() {
     let mut values: [u64 in Positive; 2];

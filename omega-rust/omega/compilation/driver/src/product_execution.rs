@@ -10,16 +10,14 @@ mod component;
 mod native_inputs;
 
 use crate::execution_settlement::SelectedProductTarget;
-use crate::terminal::{
-    ProducedTerminalApplication, TerminalProductRequest, TerminalProductionView,
-    finish_terminal_application,
-};
+use crate::terminal::{TerminalProductRequest, TerminalProductionView};
 use crate::{CheckedCompilation, CompileReport};
 use compilation_products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
 };
 use component::ComponentPublication;
 use diagnostics::Diagnostic;
+use native_production::TerminalApplication;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
@@ -122,7 +120,10 @@ pub(crate) enum ProductRequest {
     },
     /// Review and dependency demands already own installed checked custody.
     /// They publish a component without selecting or installing it again.
-    Component(CheckedCompilation),
+    Component {
+        checked: CheckedCompilation,
+        retain_native_inputs: bool,
+    },
 }
 
 pub(crate) enum CompilationWork {
@@ -153,8 +154,11 @@ impl ProductRequest {
                 product,
                 permissions,
             } => (realization, root, product, permissions),
-            Self::Component(checked) => {
-                let component = ComponentPublication::prepare(checked)?;
+            Self::Component {
+                checked,
+                retain_native_inputs,
+            } => {
+                let component = ComponentPublication::prepare(checked, retain_native_inputs)?;
                 return Ok(CompilationWork::Terminal(TerminalCompilation::Component(
                     component,
                 )));
@@ -210,7 +214,7 @@ impl TerminalCompilation {
 
     pub(crate) fn finish(
         self,
-        produced: ProducedTerminalApplication,
+        produced: TerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
         match self {
             Self::Requested(product) => product.finish(produced),
@@ -237,10 +241,11 @@ impl RequestedTerminalCompilation {
 
     pub(crate) fn finish(
         self,
-        produced: ProducedTerminalApplication,
+        produced: TerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
-        let checked =
-            phase_profile::scope("06.0.a_realization_install", || self.realization.install())?;
+        let checked = phase_profile::scope("06.0.a_realization_install", || {
+            self.realization.install_after_terminal()
+        })?;
         phase_profile::scope(
             "06.0.b_admit_permissions_and_trust",
             || -> Result<_, CompilationProductError> {
@@ -267,7 +272,7 @@ impl RequestedTerminalCompilation {
             } => {
                 let request =
                     checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                let terminal = finish_terminal_application(produced, request)?;
+                let terminal = produced.prepare(request)?;
                 settlement
                     .with_timings(checked.timings().phases().to_vec())
                     .finish_terminal(terminal, rollback.into_receipt())?
@@ -280,7 +285,7 @@ impl RequestedTerminalCompilation {
                 let terminal = phase_profile::scope("06.0.d_finish_terminal_application", || {
                     let request =
                         checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                    finish_terminal_application(produced, request)
+                    produced.prepare(request)
                 })?;
                 let produced = phase_profile::scope("06.0.e_produce_native_product", || {
                     let accepted_package_terminal_authority_permission_policy =

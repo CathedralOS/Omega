@@ -45,7 +45,9 @@ struct OriginInventory {
     /// Terminal backing coordinates, excluding opaque completed-call homes.
     storage_origins: Vec<usize>,
     /// An inexact call origin cannot establish a scalar storage footprint.
-    unknown_storage: bool,
+    unknown_storage: Vec<usize>,
+    scalar_widths: Vec<(usize, u32)>,
+    scalar_width_edges: BTreeSet<usize>,
 }
 
 impl OriginInventory {
@@ -76,7 +78,9 @@ impl OriginInventory {
         if let Some(index) = self.active.last() {
             self.origins.push(*index);
         }
-        self.unknown_storage |= !complete;
+        if !complete && let Some(index) = self.active.last() {
+            self.unknown_storage.push(*index);
+        }
     }
 
     fn leave(&mut self) {
@@ -108,15 +112,17 @@ impl OriginInventory {
     }
 }
 
-/// A thin foreign scalar pointer drops the descriptor codec. Follow the same
-/// conservative storage-origin inventory used for memory reach, requiring every
-/// terminal backing to have the requested width. Unknown descriptor ingress
-/// remains unknown; its logical referent is not its physical storage contract.
-pub(super) fn scalar_backing_width_matches(
+/// The same conservative local origin inventory used for memory reach. The
+/// caller owns cross-function ingress; a local parameter is an obligation,
+/// never evidence that the logical referent has native storage.
+pub(super) enum ScalarStorageOrigin {
+    Width(u32),
+    Source(terminal_psi::StructuralArgument),
+}
+pub(super) fn scalar_storage_origins(
     function: &LegalizedScalarFunction,
     coordinate: &terminal_psi::StructuralArgument,
-    width: u32,
-) -> Result<bool, SelectedInstructionError> {
+) -> Result<Option<Vec<ScalarStorageOrigin>>, SelectedInstructionError> {
     let mut geometry = SourceGeometry {
         function,
         selected_types: BTreeMap::new(),
@@ -129,36 +135,44 @@ pub(super) fn scalar_backing_width_matches(
         &mut BTreeSet::new(),
     )?;
     inventory.validate()?;
-    let signature = function
-        .structural
-        .as_ref()
-        .ok_or(SelectedInstructionError::custody())?;
-    if inventory.unknown_storage {
-        return Ok(false);
-    }
-    for index in &inventory.storage_origins {
-        let origin = &inventory.coordinates[*index];
-        // A crossing in a terminal origin reaches external descriptor backing.
-        // Its actual codec was not recovered by this inventory.
-        if origin
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
-            || super::reference_input::borrowed_scalar_source(function, origin.place).is_some()
+    let mut pending = vec![0];
+    let mut seen = BTreeSet::new();
+    let mut origins = Vec::new();
+    while let Some(index) = pending.pop() {
+        if !seen.insert(index) {
+            continue;
+        }
+        if let Some((_, width)) = inventory
+            .scalar_widths
+            .iter()
+            .find(|(node, _)| *node == index)
         {
-            return Ok(false);
+            origins.push(ScalarStorageOrigin::Width(*width));
         }
-        let root = super::reference_input::root_type(function, origin.place)
-            .ok_or(SelectedInstructionError::custody())?;
-        let codec = crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-            root,
-            &origin.path,
-            &signature.structural_types,
+        if inventory.unknown_storage.contains(&index) {
+            return Ok(None);
+        }
+        if inventory.storage_origins.contains(&index) {
+            origins.push(ScalarStorageOrigin::Source(
+                inventory.coordinates[index].clone(),
+            ));
+        }
+        pending.extend(
+            inventory
+                .dependencies
+                .iter()
+                .enumerate()
+                .filter(|(edge, (parent, _))| {
+                    *parent == index && !inventory.scalar_width_edges.contains(edge)
+                })
+                .map(|(_, (_, child))| *child),
         );
-        if codec.map(|codec| u32::from(codec.byte_size())) != Some(width) {
-            return Ok(false);
-        }
     }
-    Ok(!inventory.storage_origins.is_empty())
+    if origins.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(origins))
+    }
 }
 
 pub(super) fn replay_memory_origins(
@@ -539,12 +553,41 @@ fn collect_calls(
                 }
                 I::EstablishReference { source: parent, .. }
                 | I::EstablishPlacedReference { source: parent, .. } => {
+                    let known_width = if (coordinate.path.is_empty()
+                        || coordinate.path == [terminal_psi::StructuralPathSegment::Referent])
+                    {
+                        super::reference_input::establishment(function, row)
+                            .filter(|address| !address.load_codec)
+                            .and_then(|address| address.codec)
+                            .map(|codec| u32::from(codec.byte_size()))
+                    } else {
+                        None
+                    };
                     let suffix = match coordinate.path.split_first() {
                         Some((terminal_psi::StructuralPathSegment::Referent, suffix)) => suffix,
                         None => &[],
                         _ => return Err(SelectedInstructionError::custody()),
                     };
+                    let backing_edge = visited.dependencies.len();
+                    let owner = *visited
+                        .active
+                        .last()
+                        .ok_or_else(SelectedInstructionError::custody)?;
                     collect_calls(geometry, &rebased(parent, suffix), visited, calls)?;
+                    if let Some(width) = known_width {
+                        // Replace only this producer's backing edge by its
+                        // exact codec fact. Independently retained replacement
+                        // sources still contribute every possible alternative.
+                        if visited
+                            .dependencies
+                            .get(backing_edge)
+                            .is_none_or(|(parent, _)| *parent != owner)
+                        {
+                            return Err(SelectedInstructionError::custody());
+                        }
+                        visited.scalar_widths.push((owner, width));
+                        visited.scalar_width_edges.insert(backing_edge);
+                    }
                 }
                 I::EstablishRecord { fields, .. } => {
                     constructed_fields(
@@ -775,7 +818,7 @@ fn contains_borrowed_storage(
     if !visited.insert(identity) {
         return false;
     }
-    let Some(declaration) = types.iter().find(|declaration| declaration.id == identity) else {
+    let Some(declaration) = terminal_psi::find_structural_type(types, identity) else {
         return true;
     };
     match &declaration.shape {

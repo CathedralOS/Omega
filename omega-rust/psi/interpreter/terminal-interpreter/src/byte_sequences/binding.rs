@@ -541,6 +541,14 @@ impl TerminalExecution<'_> {
                 bytes.clone().with_descriptor_home(selected.clone()),
             ));
         }
+        let home = crate::values::StructuralRuntimePlace::from(selected);
+        if self.initialized_empty_byte_array(&home)? {
+            let storage = crate::structural_inputs::byte_arrays::storage::ArrayStorage::from(home);
+            let bytes = self.stored_byte_array_snapshot(&storage, 0, 0)?;
+            return Ok(ByteSequenceBinding::Immutable(
+                bytes.with_descriptor_home(selected.clone()),
+            ));
+        }
         self.byte_sequence_values
             .iter()
             .find_map(|(place, binding)| {

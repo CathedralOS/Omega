@@ -1,0 +1,1 @@
+from main: distinct(forward_indices) == true

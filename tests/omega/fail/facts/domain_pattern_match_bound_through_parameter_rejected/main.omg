@@ -2,8 +2,8 @@
 // Expected exit: 0
 
 data Cell [copy] { value: u64; }
-domain Cell::Ready(cell)
-requires cell.value >= 72u64;
+domain Cell::Ready
+requires self.value >= 72u64;
 
 machine subtract(value: u64) -> u64
 requires value >= 73u64

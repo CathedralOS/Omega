@@ -383,8 +383,10 @@ selected machine, and a boundary-trait requirement additionally requires provide
 and admission. Public ordinary conformances are allowed when the domain author
 deliberately publishes an open checked route.
 
-`established by` belongs to the domain. A machine's `satisfies` clause realizes
-the named requirement; an external `via` payload supplies its foreign binding.
+`established by` belongs to the domain. A checked machine's `satisfies` clause
+implements the named requirement; package Build records irreducible native
+backing through [a direct binding](../spec/build/foreign_bindings.md#build-owned-native-binding),
+not a source `via` clause or a per-symbol forwarding machine.
 These are separate relationships; naming an exact-machine route requires no
 artificial trait or additional `satisfies` declaration.
 

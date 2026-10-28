@@ -227,12 +227,22 @@ come from admitted compiler-owned metadata on exact identities, never
 package-controlled names. Custom critical-service additions come only from the
 root audit selections above and do not reclassify physical mechanisms.
 
-Each package-owned bodyless external realization, including an unused private
-leaf, has a separate executable-supply trust row. Its self-contained key binds
-the exact callable/signature and tagged requirement application; its value
-retains the exact mechanism. Ordinary trait implementation, boundary-trait
+Each evaluated package-owned native binding intent, including a private or
+runtime-unselected row, has a separate executable-supply trust row. Its
+self-contained key binds the exact requirement application and signature,
+target, immutable supplying package, pinned calling policy, normalized locator,
+and authored selection/evaluation provenance; its value retains the exact
+mechanism and admitted foreign promise. It needs no synthetic forwarding
+machine identity or `via` token. Untaken Build calls create no evaluated binding
+row, and unresolved product references must close before product admission.
+Ordinary trait implementation, boundary-trait
 implementation and operator overload are different requirement roles. Disclosure neither
 selects that provider nor proves its implementation satisfies the contract.
+
+The reference review schema still records legacy external declarations.
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md#pipeline-route)
+owns the identity/capture migration; old records cannot be relabeled as direct
+Build bindings without their exact intent and source custody.
 
 Provider selection, representation availability/selection/demand, and supplied
 terminal permissions remain distinct facts. A grant does not prove a mechanism

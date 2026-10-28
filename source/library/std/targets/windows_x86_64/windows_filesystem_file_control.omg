@@ -22,12 +22,12 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::set_file_length(handle: 
 satisfies WindowsFilesystemHost::set_file_length
 reaches FilesystemContentWrite + FilesystemMetadataMutation {
     transition length >= 0 {
-        true -> pin(handle, length)
+        true -> block pin(handle, length)
         false -> (-87)
     }
     machine pin(handle: u64, length: i64) -> i32 {
         let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
-        transition duplicate != 0 { true -> update(duplicate, length) false -> failed() }
+        transition duplicate != 0 { true -> block update(duplicate, length) false -> failed() }
     }
     machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine update(duplicate: u64, length: i64) -> i32 {
@@ -44,7 +44,7 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::set_handle_readonly(hand
 satisfies WindowsFilesystemHost::set_handle_readonly
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
-    transition duplicate != 0 { true -> update(duplicate, readonly) false -> failed() }
+    transition duplicate != 0 { true -> block update(duplicate, readonly) false -> failed() }
     machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine update(duplicate: u64, readonly: bool) -> i32 {
         block windows_set_readonly_owned(duplicate, readonly)
@@ -57,11 +57,11 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let mut wide: [u16; 4096];
     let count: i64 = windows_wide_path(path, &mut wide);
     wide[4095] = 0;
-    transition count > 0 { true -> acquire(wide, readonly) false -> (-87) }
+    transition count > 0 { true -> block acquire(wide, readonly) false -> (-87) }
     machine acquire(wide: [u16; 4096] in WindowsNativePath, readonly: bool) -> i32 {
         let raw: i64 = block WindowsFilesystemFileControlIo::open_attributes(&wide, 384, 7, 0, 3, 34603008, 0);
         let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
-        transition handle != 0 { true -> update(handle, readonly) false -> failed() }
+        transition handle != 0 { true -> block update(handle, readonly) false -> failed() }
     }
     machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine update(handle: u64, readonly: bool) -> i32 { block windows_set_readonly_owned(handle, readonly) }
@@ -77,23 +77,23 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
 windows_x86_64 machine windows_update_readonly(handle: u64, readonly: bool) -> i32
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let classified: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(handle);
-    transition classified != 0 { true -> query(classified, readonly) false -> failed() }
+    transition classified != 0 { true -> block query(classified, readonly) false -> failed() }
     machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine query(handle: i64 in WindowsDiskFileOrAbsent, readonly: bool) -> i32 requires handle != 0 {
         let mut current: WindowsNativeFileBasicInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, &mut current, 40);
         // The classifier authorizes the typed query. The setter accepts the
         // ordinary HANDLE contract and reports incompatible objects as errors.
-        transition succeeded != 0 { true -> select(handle as i64, current.attributes, readonly) false -> failed() }
+        transition succeeded != 0 { true -> block select(handle as i64, current.attributes, readonly) false -> failed() }
     }
     machine select(handle: i64, attributes: u32, readonly: bool) -> i32 {
         transition readonly {
-            true -> update(handle, (attributes & 4294967167) | 1)
-            false -> writable(handle, attributes & 4294967294)
+            true -> block update(handle, (attributes & 4294967167) | 1)
+            false -> block writable(handle, attributes & 4294967294)
         }
     }
     machine writable(handle: i64, attributes: u32) -> i32 {
-        transition attributes == 0 { true -> update(handle, 128) false -> update(handle, attributes) }
+        transition attributes == 0 { true -> block update(handle, 128) false -> block update(handle, attributes) }
     }
     machine update(handle: i64, attributes: u32) -> i32 {
         let input: WindowsNativeFileBasicInfo = WindowsNativeFileBasicInfo {

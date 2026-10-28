@@ -108,15 +108,82 @@ pub(super) fn derive_summaries(
             indices
         })
         .collect();
+    let component_geometries: Vec<Option<projections::ComponentProjectionGeometry>> = components
+        .iter()
+        .map(|component| {
+            projections::prepare_component_geometry(
+                program,
+                flow,
+                semantic,
+                component,
+                call_frames,
+            )
+        })
+        .collect();
     let mut summaries = machines
         .iter()
         .map(|machine| no_guarantee(machine.symbol))
         .collect::<Vec<_>>();
+    let mut non_component_constant = vec![false; machines.len()];
+    for (index, machine) in machines.iter().enumerate() {
+        if !in_any_component[index] {
+            let summary = derive_machine_summary(
+                program,
+                flow,
+                semantic,
+                cleanup_dependencies,
+                machine,
+                &summaries,
+                call_frames,
+                rank_arrivals,
+            )
+            .unwrap_or_else(|| no_guarantee(machine.symbol));
+            if matches!(
+                &summary.guarantee,
+                TerminationGuarantee::Terminates { premises } if premises.is_empty()
+            ) || (!machine.target_family_interface
+                && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                    || !super::super::retained_machine_local_summary(machine, rank_arrivals)
+                        .promises_termination()))
+            {
+                non_component_constant[index] = true;
+            }
+            summaries[index] = summary;
+        }
+    }
+    let initial = machines
+        .iter()
+        .map(|machine| no_guarantee(machine.symbol))
+        .collect::<Vec<_>>();
+    for ((component, indices), geometry) in components
+        .iter()
+        .zip(&component_indices)
+        .zip(&component_geometries)
+    {
+        derive_component(
+            program,
+            flow,
+            semantic,
+            cleanup_dependencies,
+            component,
+            indices,
+            geometry.as_ref(),
+            &initial,
+            &mut summaries,
+            maximum_fact_projection_length,
+            call_frames,
+            rank_arrivals,
+        );
+    }
+    if equivalent(&summaries, &initial) {
+        return summaries;
+    }
+    let mut last_external = initial;
     loop {
         let previous = summaries.clone();
         for (index, machine) in machines.iter().enumerate() {
-            if !in_any_component[index] {
-                summaries[index] = derive_machine_summary(
+            if !in_any_component[index] && !non_component_constant[index] {
+                let summary = derive_machine_summary(
                     program,
                     flow,
                     semantic,
@@ -127,9 +194,32 @@ pub(super) fn derive_summaries(
                     rank_arrivals,
                 )
                 .unwrap_or_else(|| no_guarantee(machine.symbol));
+                if matches!(
+                    &summary.guarantee,
+                    TerminationGuarantee::Terminates { premises } if premises.is_empty()
+                ) {
+                    non_component_constant[index] = true;
+                }
+                summaries[index] = summary;
             }
         }
-        for (component, indices) in components.iter().zip(&component_indices) {
+        let external_changed = previous
+            .iter()
+            .zip(&last_external)
+            .enumerate()
+            .any(|(index, (curr, prev))| {
+                !in_any_component[index] && !summary_equivalent(curr, prev)
+            });
+        for ((component, indices), geometry) in components
+            .iter()
+            .zip(&component_indices)
+            .zip(&component_geometries)
+        {
+            if !external_changed
+                && components.len() == 1
+            {
+                continue;
+            }
             derive_component(
                 program,
                 flow,
@@ -137,6 +227,7 @@ pub(super) fn derive_summaries(
                 cleanup_dependencies,
                 component,
                 indices,
+                geometry.as_ref(),
                 &previous,
                 &mut summaries,
                 maximum_fact_projection_length,
@@ -144,6 +235,7 @@ pub(super) fn derive_summaries(
                 rank_arrivals,
             );
         }
+        last_external = previous.clone();
         // Premises are sets. Their discovery order can rotate around a cycle
         // without changing the judgment.
         if equivalent(&summaries, &previous) {
@@ -157,8 +249,9 @@ fn derive_component(
     flow: &FlowFacts,
     semantic: &facts::FactPlan,
     cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
-    component: &[SymbolHandle],
+    _component: &[SymbolHandle],
     component_indices: &[usize],
+    geometry: Option<&projections::ComponentProjectionGeometry>,
     external: &[CheckedProgressSummary],
     destination: &mut [CheckedProgressSummary],
     maximum_fact_projection_length: usize,
@@ -170,12 +263,9 @@ fn derive_component(
     let mut unavailable = vec![false; summaries.len()];
     let projection_limit = projections::finite_projection_limit(
         program,
-        flow,
-        semantic,
         maximum_fact_projection_length,
-        component,
+        geometry,
         external,
-        call_frames,
     );
     for &index in component_indices {
         let machine = &machines[index];

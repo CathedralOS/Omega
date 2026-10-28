@@ -13,9 +13,29 @@ pub(super) struct RootNameIndex {
     pub(super) by_leaf: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
+/// Selected bindings and their derived namespace environment belong to one
+/// immutable table frontier. Queries borrow these rows without rebuilding paths.
 #[derive(Clone, Default)]
 pub(super) struct BindingSourceIndex {
-    pub(super) by_source: crate::SymbolKeyMap<SourceId, Vec<SourceScopedTopLevelBinding>>,
+    pub(super) by_source: crate::SymbolKeyMap<SourceId, SourceLookupScope>,
+    pub(super) has_selected_module: bool,
+}
+
+#[derive(Clone, Default)]
+pub(super) struct SourceLookupScope {
+    pub(super) bindings: Vec<SourceScopedTopLevelBinding>,
+    pub(super) imports: Vec<PreparedModuleImport>,
+    pub(super) has_exact_import: bool,
+}
+
+/// `binding_position` addresses this scope's ordered binding batch. Derived
+/// spellings describe lookup only; visibility and package authority remain queries.
+#[derive(Clone)]
+pub(super) struct PreparedModuleImport {
+    pub(super) binding_position: usize,
+    pub(super) logical: String,
+    pub(super) package_prefix: String,
+    pub(super) module_leaf: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -39,19 +59,22 @@ pub(super) struct ModuleScopeIndex {
     pub(super) domain_leaves: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
-/// Declare one deferred index cache around its index. The once cell is filled
-/// on the first lookup and cleared by every mutation of the roster the index
-/// describes; the cache is invisible to equality (a warmed table compares
-/// equal to a cold one) and renders as its own name.
+/// Clones share one immutable lookup frontier, including its deferred work.
+/// A mutation detaches a shared cell; clearing a unique cell needs no new
+/// allocation. The cache is invisible to semantic equality and debug output.
 macro_rules! index_cache {
     ($(#[$cache_meta:meta])* $cache:ident, $index:ty, $label:literal) => {
         $(#[$cache_meta])*
         #[derive(Clone, Default)]
-        pub(super) struct $cache(pub(super) std::sync::OnceLock<$index>);
+        pub(super) struct $cache(pub(super) Arc<std::sync::OnceLock<$index>>);
 
         impl $cache {
             pub(super) fn clear(&mut self) {
-                self.0.take();
+                if let Some(cell) = Arc::get_mut(&mut self.0) {
+                    cell.take();
+                } else {
+                    self.0 = Arc::default();
+                }
             }
         }
 

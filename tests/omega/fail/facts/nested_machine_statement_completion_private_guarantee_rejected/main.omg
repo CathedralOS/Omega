@@ -1,0 +1,11 @@
+// A selected implementation's stronger guarantee is not the public call contract.
+boundary trait Reading { machine read() -> i64 reaches; machine note() reaches; }
+Actual satisfies Reading {
+ machine read() -> i64 ensures result != -1 { 0 }
+ machine note() {}
+}
+machine probe() -> i64 ensures result != -1; reaches Reading {
+ transition { _ -> helper() }
+ machine helper() -> i64 reaches Reading { Reading::note(); Reading::read() }
+}
+machine main() {}

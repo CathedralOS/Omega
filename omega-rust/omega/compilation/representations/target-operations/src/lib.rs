@@ -6,37 +6,11 @@
 //! subordinate control, value, call, storage, and evidence owners.
 
 pub mod target_operations;
-pub use abstract_operations::ValueBinding;
-pub use target_operations::{
-    AbstractResult, BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
-    BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
-    CallSiteOwner, ClaimCompletionOnlyRealization, CompilerBuiltinExecution, CompletionClaimSource,
-    DirectPortReadU8Realization, ExternalCompletionBinding, ForeignCallOperands,
-    HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
-    IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
-    IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, LinuxWriteLineRealization,
-    MachineRegister, MetadataOnlyPortRealization, MixedStructuralScalarFunctionAbi,
-    NativeCallOrigin, NativeCallTarget, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
-    PlacedScalarAccessRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
-    ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation, TargetBooleanExpression,
-    TargetBoundaryResult, TargetByteView, TargetCallResult, TargetControlBlock,
-    TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
-    TargetControlSuccessor, TargetControlTerminator, TargetElementView, TargetElementViewRegion,
-    TargetFloatResultPolicy, TargetFunction, TargetIntegerExpression,
-    TargetNativeCallbackArgument, TargetOperationPlan, TargetOperationPlanWithPlacedViewInputs,
-    TargetPlacedCallAssociation, TargetPlacedCallBinding, TargetPlacedInterpretation,
-    TargetPlacedViewInput, TargetReferenceOrigin, TargetReferenceOriginBase, TargetReferenceResult,
-    TargetScalarBlockParameter, TargetScalarBlockValue, TargetScalarExpression,
-    TargetScalarImmediate, TargetStructuralArgument, TargetStructuralArgumentSource,
-    TargetStructuralCaseSource, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
-    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetStructuralResultContract,
-    TargetStructuralReturnSource, TargetStructuralRuntimeIndex, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent, TerminalPsiProvenance, boundary,
-    calls, control_flow, conventional_atomic_once_layout, conventional_float_class_layout,
-    operations, provenance, selector_carrier_type, storage, values,
-};
+// The crate surface is the module's own roster: every name, module and helper
+// the program root re-exports. Spelling it again here made two lists that had
+// to be kept in step, and the sibling representation crates (`terminal-psi`,
+// `checked-trees`) already read their module surface this way.
+pub use target_operations::*;
 
+pub use abstract_operations::ValueBinding;
 pub use installation_evidence::InstalledAssumedBindingEvidence;

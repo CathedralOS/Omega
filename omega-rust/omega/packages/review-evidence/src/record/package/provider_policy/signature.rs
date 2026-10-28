@@ -1,5 +1,8 @@
 //! Target-independent source signature of a selected service application.
 
+use crate::record::package::callable_policy::validation::signature::Scope;
+use crate::record::public_policy::validation::scope;
+use crate::record::public_policy::validation::signatures::parameters;
 use crate::record::{
     PackagePolicyTypeParameter, PackageReviewSignatureParameter, PackageReviewTypeIdentity,
 };
@@ -59,18 +62,12 @@ impl super::PackagePolicyServiceMethod {
                 "provider typed service signature has inconsistent parameters or lifetimes",
             );
         }
-        let scope = crate::record::package::callable_policy::validation::signature::Scope {
-            outer: None,
-            statics: &[],
-            policy_statics: &signature.static_parameters,
-            proposition_binders: &[],
-            static_offset: 0,
-            lifetimes: lifetime_count as usize,
+        let scope = Scope {
             parameters: signature.parameters.len(),
             result: signature.result.is_some(),
-            domain_subject: false,
+            ..scope(&signature.static_parameters, lifetime_count as usize)
         };
-        crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
+        parameters(&scope, 0)?;
         if let Some(calling) = &self.calling
             && (signature.schema_arguments != calling.boundary_arguments
                 || signature.schema_lifetime_parameter_count

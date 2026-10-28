@@ -42,7 +42,6 @@ impl CompilationSession {
             let Some((first_position, first_owner, first)) = members.next() else {
                 continue;
             };
-            let permits_unsettled = first.permits_unsettled_fused_service_fields();
             let (_, target, inputs, rollback, mut prepared) = first.into_continuation();
             let first_timings = std::mem::replace(&mut prepared.timings, completion_timings);
             let discovery = prepared
@@ -70,21 +69,37 @@ impl CompilationSession {
                             &source,
                             Some(target),
                             Some(&inputs),
-                            permits_unsettled,
                         ),
                     ));
                     for (position, owner, member) in members {
-                        let permits_unsettled = member.permits_unsettled_fused_service_fields();
                         let (_, target, inputs, _, prepared) = member.into_continuation();
                         let mut application = source.clone();
                         // The program and source custody are common; admission,
                         // accounting and Build receipts belong to this member.
                         application.admission = prepared.built.admission;
-                        application.computed_build_config = std::sync::Arc::new(
-                            source
-                                .computed_build_config
-                                .with_execution_observation(&prepared.built.computed_build_config),
-                        );
+                        let observed = match source
+                            .computed_build_config
+                            .with_execution_observation(&prepared.built.computed_build_config)
+                        {
+                            Ok(observed) => observed,
+                            Err(reason) => {
+                                outcomes.push((
+                                    position,
+                                    owner,
+                                    SelectedCompileOutcome {
+                                        result: Err(CompileFailure::from(vec![
+                                            diagnostics::Diagnostic::error(reason),
+                                        ])),
+                                        independent_components: prepared
+                                            .built
+                                            .computed_build_config
+                                            .independent_components(),
+                                    },
+                                ));
+                                continue;
+                            }
+                        };
+                        application.computed_build_config = std::sync::Arc::new(observed);
                         application.retained_checks.build = prepared.built.retained_build_check;
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);
@@ -95,7 +110,6 @@ impl CompilationSession {
                                 &application,
                                 Some(target),
                                 Some(&inputs),
-                                permits_unsettled,
                             ),
                         ));
                     }

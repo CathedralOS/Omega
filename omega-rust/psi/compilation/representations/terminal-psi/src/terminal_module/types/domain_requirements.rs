@@ -62,21 +62,30 @@ struct Closure<'a, Node> {
     complete: bool,
 }
 
-/// Iteration keeps an untrusted chain from consuming the native call stack.
-/// Unknown leaves make the closure incomplete; they never denote no duties.
-fn closure<'a, Node: RequirementNode>(root: &Node, rows: &'a [Node]) -> Option<Closure<'a, Node>> {
+/// The prerequisite rows reachable from `root`, in pre-order and in ascending
+/// prerequisite order at each node. Iteration keeps an untrusted chain from
+/// consuming the native call stack. `prune` drops the subtree below a domain an
+/// independent membership already supplies, before the cycle guards: a supplied
+/// row closes its own chain rather than repeating it.
+fn walk<'a, Node: RequirementNode>(
+    root: &Node,
+    rows: &'a [Node],
+    mut prune: impl FnMut(DomainSemanticId) -> bool,
+) -> Option<Vec<&'a Node>> {
     let carrier = root.carrier();
     let mut pending = vec![(root.semantic_domain(), false)];
     let mut active = Vec::new();
     let mut visited = Vec::new();
     let mut nodes = Vec::new();
-    let mut complete = true;
     while let Some((domain, completed)) = pending.pop() {
         if completed {
             if active.pop() != Some(domain) {
                 return None;
             }
             visited.push(domain);
+            continue;
+        }
+        if prune(domain) {
             continue;
         }
         if active.contains(&domain) {
@@ -94,129 +103,89 @@ fn closure<'a, Node: RequirementNode>(root: &Node, rows: &'a [Node]) -> Option<C
                 return None;
             }
             pending.extend(required.iter().rev().map(|domain| (*domain, false)));
-        } else {
-            complete = false;
         }
     }
+    Some(nodes)
+}
+
+/// Unknown leaves make the closure incomplete; they never denote no duties.
+fn closure<'a, Node: RequirementNode>(root: &Node, rows: &'a [Node]) -> Option<Closure<'a, Node>> {
+    let nodes = walk(root, rows, |_| false)?;
+    let complete = nodes.iter().all(|node| node.required().is_some());
     Some(Closure { nodes, complete })
 }
 
-fn missing<'a, Node: RequirementNode>(
+/// Resolve each supplied local row id to that row's prerequisite closure. A
+/// local id names one row of this module on this exact carrier.
+fn supplied_closures<'a, Node: RequirementNode, Id: Copy + Eq>(
     root: &Node,
     rows: &'a [Node],
-    supplied: &[DomainSemanticId],
-) -> Option<Vec<&'a Node>> {
-    let supplied = supplied
+    supplied: &[Id],
+    local_id: impl Fn(&Node) -> Id,
+) -> Option<Vec<Closure<'a, Node>>> {
+    supplied
         .iter()
-        .map(|domain| closure(resolve(rows, *domain, root.carrier())?, rows))
-        .collect::<Option<Vec<_>>>()?;
-    let mut pending = vec![(root.semantic_domain(), false)];
-    let mut active = Vec::new();
-    let mut visited = Vec::new();
-    let mut missing = Vec::new();
-    while let Some((domain, completed)) = pending.pop() {
-        if completed {
-            if active.pop() != Some(domain) {
-                return None;
-            }
-            visited.push(domain);
-            continue;
-        }
-        if supplied.iter().any(|closure| {
-            closure
-                .nodes
+        .map(|id| {
+            let mut matches = rows
                 .iter()
-                .any(|row| row.semantic_domain() == domain)
-        }) {
-            continue;
-        }
-        if active.contains(&domain) {
-            return None;
-        }
-        if visited.contains(&domain) {
-            continue;
-        }
-        let row = resolve(rows, domain, root.carrier())?;
-        let required = row.required()?;
-        if !required.windows(2).all(|pair| pair[0] < pair[1]) {
-            return None;
-        }
-        missing.push(row);
-        active.push(domain);
-        pending.push((domain, true));
-        pending.extend(required.iter().rev().map(|domain| (*domain, false)));
-    }
-    Some(missing)
+                .filter(|row| local_id(row) == *id && row.carrier() == root.carrier());
+            let row = matches.next()?;
+            matches.next().is_none().then_some(())?;
+            closure(resolve(rows, row.semantic_domain(), root.carrier())?, rows)
+        })
+        .collect()
 }
 
-impl StructuralDomainDeclaration {
-    pub fn has_no_required_memberships(&self) -> bool {
-        self.required_memberships
-            .as_ref()
-            .is_some_and(Vec::is_empty)
-    }
+/// The four carrier-bound prerequisite queries. Both declaration kinds answer
+/// them through the same traversal; only the local row-id type differs, so the
+/// method bodies exist once.
+macro_rules! requirement_queries {
+    ($declaration:ty, $id:ty) => {
+        impl $declaration {
+            pub fn has_no_required_memberships(&self) -> bool {
+                self.required().is_some_and(<[DomainSemanticId]>::is_empty)
+            }
 
-    pub fn required_memberships_are_well_formed(&self, domains: &[Self]) -> bool {
-        closure(self, domains).is_some()
-    }
+            pub fn required_memberships_are_well_formed(&self, domains: &[Self]) -> bool {
+                closure(self, domains).is_some()
+            }
 
-    pub fn required_domain_closure<'a>(&self, domains: &'a [Self]) -> Option<Vec<&'a Self>> {
-        let closure = closure(self, domains)?;
-        closure.complete.then_some(closure.nodes)
-    }
+            pub fn required_domain_closure<'a>(
+                &self,
+                domains: &'a [Self],
+            ) -> Option<Vec<&'a Self>> {
+                let closure = closure(self, domains)?;
+                closure.complete.then_some(closure.nodes)
+            }
 
-    /// Rows whose local predicate and direct origin are still owed. Already
-    /// supplied descendant memberships cover their retained prerequisites.
-    pub fn missing_membership_requirements<'a>(
-        &self,
-        domains: &'a [Self],
-        supplied: &[StructuralDomainId],
-    ) -> Option<Vec<&'a Self>> {
-        let supplied = supplied
-            .iter()
-            .map(|id| {
-                let mut matches = domains
+            /// Rows whose local predicate and direct origin are still owed.
+            /// Already supplied descendant memberships cover their retained
+            /// prerequisites.
+            pub fn missing_membership_requirements<'a>(
+                &self,
+                domains: &'a [Self],
+                supplied: &[$id],
+            ) -> Option<Vec<&'a Self>> {
+                let supplied = supplied_closures(self, domains, supplied, |row| row.id)?;
+                // A supplied row closes its own chain instead of repeating it.
+                let nodes = walk(self, domains, |domain| {
+                    supplied.iter().any(|closure| {
+                        closure
+                            .nodes
+                            .iter()
+                            .any(|row| row.semantic_domain() == domain)
+                    })
+                })?;
+                // A row with no retained prerequisite list leaves the answer
+                // unknown, never complete.
+                nodes
                     .iter()
-                    .filter(|row| row.id == *id && row.carrier == self.carrier);
-                let row = matches.next()?;
-                matches.next().is_none().then_some(row.semantic_domain)
-            })
-            .collect::<Option<Vec<_>>>()?;
-        missing(self, domains, &supplied)
-    }
+                    .all(|node| node.required().is_some())
+                    .then_some(nodes)
+            }
+        }
+    };
 }
 
-impl ScalarDomainDeclaration {
-    pub fn has_no_required_memberships(&self) -> bool {
-        self.required_memberships
-            .as_ref()
-            .is_some_and(Vec::is_empty)
-    }
-
-    pub fn required_memberships_are_well_formed(&self, domains: &[Self]) -> bool {
-        closure(self, domains).is_some()
-    }
-
-    pub fn required_domain_closure<'a>(&self, domains: &'a [Self]) -> Option<Vec<&'a Self>> {
-        let closure = closure(self, domains)?;
-        closure.complete.then_some(closure.nodes)
-    }
-
-    pub fn missing_membership_requirements<'a>(
-        &self,
-        domains: &'a [Self],
-        supplied: &[ScalarDomainId],
-    ) -> Option<Vec<&'a Self>> {
-        let supplied = supplied
-            .iter()
-            .map(|id| {
-                let mut matches = domains
-                    .iter()
-                    .filter(|row| row.id == *id && row.carrier == self.carrier);
-                let row = matches.next()?;
-                matches.next().is_none().then_some(row.semantic_domain)
-            })
-            .collect::<Option<Vec<_>>>()?;
-        missing(self, domains, &supplied)
-    }
-}
+requirement_queries!(StructuralDomainDeclaration, StructuralDomainId);
+requirement_queries!(ScalarDomainDeclaration, ScalarDomainId);

@@ -1,7 +1,7 @@
 // A nested borrowed record preserves the final-word-is-zero qualification for a consuming call.
 // Place: const_name.
 // Expected exit: 0
-domain [u16; 4]::Terminated(words) requires words[3] == 0;
+domain [u16; 4]::Terminated requires self[3] == 0;
 data Name<'scope> { words: &'scope [u16; 4] in Terminated; }
 data Attributes<'scope> { name: &'scope Name<'scope>; }
 machine final_word(word: u16) -> u16 requires word == 0 { word }

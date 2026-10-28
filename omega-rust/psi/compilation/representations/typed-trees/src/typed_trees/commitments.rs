@@ -7,6 +7,11 @@ use arena::HandleSpan;
 /// `[u8; 32]` digest newtype — one nominal commitment identity per
 /// contract domain, sharing the `from_digest`/`as_bytes`/`is_zero`
 /// surface.
+///
+/// Exported because psi representations outside this crate retain the same
+/// digest carrier (`checked-trees` operator and contract commitments): a
+/// second declaration would re-state this surface instead of delegating.
+#[macro_export]
 macro_rules! digest_commitment {
     ($(#[$attr:meta])* $name:ident) => {
         $(#[$attr])*

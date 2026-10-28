@@ -7145,6 +7145,12 @@ pass/host/runtime_semantic_gui_reach_exit built 100471ms @a92f16431042
 pass/host/runtime_stored_scalar_reference_foreign_export_exit built 3180ms exit:0 stdout:match @a92f16431042
 pass/host/runtime_windows_bitmap_client_cleanup_exit built 8537ms @a92f16431042
 pass/host/runtime_windows_gui_argument_failures_exit built 7603ms @a92f16431042
+pass/host/scalar_reference_mixed_backing_foreign_export rejected 2821ms expected native-rejection:match @6983da5d31f4
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(4)), operation: Some(OperationId(49)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 2732ms expected native-rejection:match @6983da5d31f4
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(3)), operation: Some(OperationId(48)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+pass/host/scalar_reference_narrow_backing_foreign_export rejected 2871ms expected native-rejection:match @6983da5d31f4
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(3)), operation: Some(OperationId(41)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 pass/host/std_clock_sleep_exit built 7228ms exit:70 @a92f16431042
 pass/host/user32_window_procedure_registration rejected 12928ms @a92f16431042
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$f62fd2ac2fe74b9e$0 state entry after statement 0: value does not establish Registration::drop clause `registration.atom == 0 && registration.released`

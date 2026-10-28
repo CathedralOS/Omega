@@ -60,8 +60,10 @@ impl PackageReviewSource {
 
     pub fn publish_component(&self) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
         super::run_on_compile_thread(|| {
-            let request =
-                crate::product_execution::ProductRequest::Component(self.retained.checked.clone());
+            let request = crate::product_execution::ProductRequest::Component {
+                checked: self.retained.checked.clone(),
+                retain_native_inputs: false,
+            };
             let ((), output) = crate::compiler::produce_products(vec![((), Ok(request))])
                 .into_iter()
                 .next()
@@ -96,9 +98,6 @@ impl CompilationSession {
             )
             .map_err(PackageReviewFailure::Projection)?;
             let facts = PackageReviewSourceFacts {
-                tolerated_unsettled_service_fields: checked
-                    .execution()
-                    .tolerated_unsettled_service_fields(),
                 consumed_units: checked
                     .sources()
                     .package_subject()

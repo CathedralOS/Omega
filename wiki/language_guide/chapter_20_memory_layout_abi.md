@@ -78,7 +78,7 @@ only the active case. Padding and inactive payload are not a serialization API.
 
 ## Default Layout
 
-Ordinary data leaves representation choices to the compiler:
+Data declares semantic structure, not an ambient representation:
 
 ```omega
 data Player {
@@ -88,29 +88,66 @@ data Player {
 ```
 
 Do not infer a foreign record layout from declaration order, total size or a
-particular compiler's current offsets. Internal layout choices may change unless
-the declaration selects a stable representation policy.
+particular compiler's current offsets. Ordinary storage declarations use the
+default representation when no explicit family is selected. That default is a
+rule of the storage use, not a policy attached to the data declaration.
 
 ## Stable Representation
 
-A fully static policy can make a declared layout the value's in-memory form:
+A storage or parameter declaration can select a library representation:
 
 ```omega
-data WinHandle in CLayout {
+data WinHandle {
     value: u64;
+}
+
+machine consume(handle: &CLayout<WinHandle>) {
+    inspect_handle(handle);
 }
 ```
 
-Here `CLayout` denotes a layout policy, not a new modifier or unchecked ABI string.
-The policy receives the schema and returns a plan that must validate. The semantic
-field remains `value: u64`. Platform and wire formats use the same policy mechanism,
-with different applicability requirements.
+`WinHandle` remains layout-neutral. `CLayout<T>` is a
+[transparent generic alias](../spec/language/generics.md#transparent-type-aliases)
+for the general core fixed-storage constructor with a selected library C ABI
+policy. A community package can define another family through the same facility;
+the compiler recognizes neither C nor protobuf by its spelling. Data declarations
+cannot select a layout through `in`, and domain qualification never changes
+geometry. This is the ratified design, with implementation tracked under
+`LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../TASKS.md).
+
+Policies are ordinary named implementations, not empty data types with attached
+machines. The compiler supplies the authorized schema and explicit target facts,
+evaluates the pure terminating policy, validates its plan and realizes the
+representation. Build declares dependencies and target/configuration; it does
+not register or bless each layout. A foreign call retains its separate selected
+provider, calling plan and authority contract.
+
+For a complete C structure, the reusable policy computes placement and padding.
+A sparse foreign view needs an explicit custom implementation: a record listing
+only Darwin timestamp seconds omits the native nanoseconds fields, so a C policy
+cannot infer the real structure from it. Complete declarations or explicit sparse
+policies belong in the platform library, not a compiler-owned OS catalog.
 
 The [placement vocabulary](../spec/layouts/plans.md#placement-vocabulary) covers
 whole fields, stored integers and fragmented bits. A new format normally needs
 a policy; a new primitive needs compiler support. Programmable union and
 runtime-stride source forms remain unspecified; conventional sum reports do not
 define them.
+
+## Representation Conversions
+
+Standard fallible `TryFrom` contracts connect selected complete representations
+through semantic T. Libraries author reusable conversion rules; typed reflection
+and specialization supply each supported type's field and active-case work.
+Conversions are explicit, not silent coercions or bitcasts. Output buffers,
+allocators and custody remain explicit inputs. An infallible convenience may
+delegate to the same implementation only after totality is established.
+
+`ProtoLayout<T>` may be a community library's encoded-storage family. Its
+variable-length bytes do not promise C-style field addresses or fixed size.
+Unknown-field handling and historical migration are explicit codec contracts,
+not an automatic consequence of sharing T. Geometry-only and one-way views do
+not falsely promise complete conversion. See [representation conversions](../spec/layouts/codecs.md#representation-conversions).
 
 ## Alignment And Padding
 
@@ -309,21 +346,19 @@ Keep three questions separate:
 - `AccessPlan`: which primitive operations does this view request?
 - `ResourceProfile`: what can the admitted backing actually support?
 
-A nominal placement policy combines layout, access and required reach. This
-schematic policy assumes the named layout and access machines are in scope:
+A selected placement implementation combines layout, access and required reach.
+This schematic example assumes its ordinary package helpers are in scope:
 
 ```omega
-boundary data UartMmio;
-
-machine UartMmio::plan(schema: Schema) -> PlacementPlan
-    satisfies Placement::plan
-{
-    let layout: UartLayout = UartLayout::plan(schema);
-    let access: UartAccess = UartAccess::plan(schema, layout);
-    PlacementPlan {
-        layout: layout,
-        access: access,
-        reach: DeviceIo::reach()
+UartMmio satisfies Placement {
+    machine plan(schema: Schema) -> PlacementPlan {
+        let layout: Plan = uart_layout_plan(schema);
+        let access: AccessPlan = uart_access_plan(schema, layout);
+        PlacementPlan {
+            layout: layout,
+            access: access,
+            reach: device_io_reach()
+        }
     }
 }
 
@@ -334,7 +369,9 @@ data UartRegisters {
 ```
 
 `Placed<UartMmio, UartRegisters>` interprets qualified backing; it is not a newly
-allocated record. Projection is pure and returns an accessor:
+allocated record. Constructing the plan values above supplies no backing or
+access authority; placement still checks the exact policy and admitted supply.
+Projection is pure and returns an accessor:
 
 ```omega
 let status: u32 = uart.status.read();

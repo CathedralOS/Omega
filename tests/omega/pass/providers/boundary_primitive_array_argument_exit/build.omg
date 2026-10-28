@@ -2,7 +2,15 @@ machine build(builder: &mut Build) {
     Build::application(builder, "boundary_primitive_array_argument_exit");
     builder.identifier = "com.omega.boundaryarray";
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::select_provider<Thing, ThingProviderThingImplementation>(builder);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, linux_arm64);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, linux_x86_64);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, macos_arm64);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, macos_x86_64);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, windows_x86_64);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, local_unchecked);
+    Build::select_provider<Thing, ThingProviderThingImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

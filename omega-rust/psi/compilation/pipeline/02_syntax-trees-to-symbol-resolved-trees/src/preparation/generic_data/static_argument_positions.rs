@@ -5,7 +5,7 @@
 //! every invocation before publishing a canonical value.
 
 use super::{
-    Identifier, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
+    HashSet, Identifier, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
@@ -15,22 +15,28 @@ pub(super) fn collect(
     syntax: &SyntaxTrees,
     selection: &ConstantSelection<'_>,
     positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    public_positions: &HashSet<TypeReferenceHandle>,
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
+    let mut positions_set: Option<HashSet<TypeReferenceHandle>> = None;
     let mut visit = |name: Identifier, arguments: &[StaticMachineArgument]| {
+        let positions_set =
+            positions_set.get_or_insert_with(|| positions.iter().copied().collect());
         collect_application(
             syntax,
             selection,
             &name,
             arguments,
-            positions,
+            positions_set,
             public_positions,
             pending,
         );
     };
     for (_, expression) in syntax.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
+            if !has_const_expression_argument(syntax, &call.machine_arguments) {
+                continue;
+            }
             let mut name = call.target.as_str(syntax).to_owned();
             if call.receiver.is_valid() {
                 let ExpressionNode::Name(path) = syntax.expressions.expression(call.receiver)
@@ -58,6 +64,9 @@ pub(super) fn collect(
             .statements(syntax.items.state(state).statements)
         {
             if let StatementNode::Call(call) = syntax.statements.statement(*statement) {
+                if !has_const_expression_argument(syntax, &call.machine_arguments) {
+                    continue;
+                }
                 let mut path = syntax
                     .statements
                     .identifier_path_members(call.receiver)
@@ -74,16 +83,45 @@ pub(super) fn collect(
     }
 }
 
+fn has_const_expression_argument(
+    syntax: &SyntaxTrees,
+    arguments: &[StaticMachineArgument],
+) -> bool {
+    arguments.iter().any(|argument| {
+        (argument.type_reference.is_valid()
+            && matches!(
+                syntax
+                    .type_references
+                    .type_reference(argument.type_reference),
+                TypeReferenceNode::ConstExpression(_)
+            ))
+            || argument
+                .application
+                .as_ref()
+                .is_some_and(|application| {
+                    has_const_expression_argument(syntax, &application.arguments)
+                })
+    })
+}
+
 fn collect_application(
     syntax: &SyntaxTrees,
     selection: &ConstantSelection<'_>,
     name: &Identifier,
     arguments: &[StaticMachineArgument],
-    positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    positions: &HashSet<TypeReferenceHandle>,
+    public_positions: &HashSet<TypeReferenceHandle>,
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
-    if let Some(parameters) = selection.static_parameters(syntax, name)
+    if arguments.iter().any(|argument| {
+        argument.type_reference.is_valid()
+            && matches!(
+                syntax
+                    .type_references
+                    .type_reference(argument.type_reference),
+                TypeReferenceNode::ConstExpression(_)
+            )
+    }) && let Some(parameters) = selection.static_parameters(syntax, name)
         && parameters.len() == arguments.len()
     {
         for (parameter, argument) in parameters.iter().zip(arguments) {

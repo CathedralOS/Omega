@@ -93,17 +93,48 @@ pub(crate) fn is_canonical_virtual_toolchain_path(path: &std::path::Path) -> boo
     })
 }
 
-/// Whether the symbol's declaration lives on the product dependency scope.
-/// A source imported on both the product and build scopes is checked once
-/// per scope; review projections name authored declarations, so they see
-/// only the product instance. Source-free and toolchain declarations keep
-/// their existing behavior.
-pub(crate) fn is_product_scope_instance(
-    symbols: &symbols::SymbolTable,
+/// Current Product declaration membership is checked against immutable custody.
+/// Retained backing can supply referenced identities but is not another review
+/// root. A supplied selection mask cannot hide a live checked declaration.
+pub(crate) fn is_checked_source_instance(
+    compilation: &PackageReviewInput<'_>,
     symbol: SymbolHandle,
-) -> bool {
-    symbols
-        .symbol_provenance_source_span(symbol)
-        .and_then(|span| symbols.source_file(span))
-        .is_none_or(|file| file.dependency_scope != source::DependencyScope::Build)
+) -> Result<bool, Vec<Diagnostic>> {
+    let symbols = &compilation.typed.symbols;
+    let original = &compilation.custody.typed.symbols;
+    if !symbols.symbols().nodes().is_valid(symbol) || !original.symbols().nodes().is_valid(symbol) {
+        return Err(vec![Diagnostic::error(
+            "reviewed declaration has no exact checked symbol coordinate",
+        )]);
+    }
+    let membership = |symbols: &symbols::SymbolTable| {
+        let scope = symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| symbols.source_file(span))
+            .map(|file| file.dependency_scope);
+        (symbols.symbol_source_is_selected(symbol), scope)
+    };
+    let selected = membership(symbols);
+    if selected != membership(original) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed declaration `{}` source membership differs from checked source custody",
+            symbols.display_path(symbol, "::"),
+        ))]);
+    }
+    Ok(selected.0)
+}
+
+/// Product review roots exclude Build declarations. Build/service consumers
+/// separately retain their selected source membership under the same custody.
+pub(crate) fn is_product_scope_instance(
+    compilation: &PackageReviewInput<'_>,
+    symbol: SymbolHandle,
+) -> Result<bool, Vec<Diagnostic>> {
+    Ok(is_checked_source_instance(compilation, symbol)?
+        && compilation
+            .typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| compilation.typed.symbols.source_file(span))
+            .is_none_or(|file| file.dependency_scope != source::DependencyScope::Build))
 }

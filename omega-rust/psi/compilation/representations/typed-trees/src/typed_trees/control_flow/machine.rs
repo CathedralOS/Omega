@@ -16,6 +16,34 @@ impl crate::TypedTrees {
     ) -> Option<&'program str> {
         machine.authored_target.as_ref().map(Identifier::as_str)
     }
+
+    /// Source target context follows semantic lexical containment, including
+    /// retained specialization/capture correspondence. A nested body inherits
+    /// that context without becoming an authored member of the family roster.
+    pub fn source_target_context<'program>(
+        &'program self,
+        machine: &Machine,
+    ) -> Option<&'program str> {
+        let mut owner = machine.symbol;
+        let mut visited = Vec::new();
+        while owner.is_valid() {
+            owner = self.lifetime_declaration_owner(owner);
+            if !owner.is_valid() || visited.contains(&owner) {
+                return None;
+            }
+            if let Some(declaration) = self.machine_declaration_for_lexical_scope(owner) {
+                if let Some(target) = self.machine_authored_target(declaration) {
+                    return Some(target);
+                }
+            } else if self.symbols.get(owner).kind == symbols::SymbolKind::Machine {
+                // Conflicting or missing retained headers cannot lend context.
+                return None;
+            }
+            visited.push(owner);
+            owner = self.declaration_scope_parent(owner);
+        }
+        None
+    }
 }
 
 /// Whether this declaration's implementation has entered typed storage.

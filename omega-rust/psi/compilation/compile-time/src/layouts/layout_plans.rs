@@ -34,6 +34,7 @@ pub fn compute_native_layout_plan_for_machine(
         &fields,
         fingerprint,
         selection,
+        None,
         &Default::default(),
     )
 }
@@ -47,6 +48,7 @@ pub(super) fn compute_native_layout_plan_with_schema(
     schema_fields: &[super::schema_reflection::SchemaFieldInfo],
     schema_report_fingerprint: u64,
     selection: Option<crate::AuthorizedSelection>,
+    shared_admission: Option<&BuildTimeAdmissionPlan>,
     accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<NativeLayoutPlanReport, String> {
     let machine = typed
@@ -59,7 +61,14 @@ pub(super) fn compute_native_layout_plan_with_schema(
     };
     let schema_value = build_schema_value(typed, schema_data, schema_fields)?;
 
-    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
+    let owned_admission;
+    let admission = match shared_admission {
+        Some(admission) => admission,
+        None => {
+            owned_admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
+            &owned_admission
+        }
+    };
     match custody {
         Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
         None => admission.require_common_floor(typed, machine)?,

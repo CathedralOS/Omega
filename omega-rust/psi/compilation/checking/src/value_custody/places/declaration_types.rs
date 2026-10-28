@@ -36,6 +36,24 @@ pub(crate) fn declaration_type_equations(
     substitutions
 }
 
+/// The declared type of one current-state root: a state parameter, else the
+/// `let` local of the same state. A rendered name, a template's caller, or
+/// another declaration kind supplies no state coordinate's type here.
+pub fn state_root_type(
+    program: &dyn crate::CheckingInput,
+    state: &typed_trees::state::State,
+    root: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    program
+        .state_parameter_by_symbol(state, root)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program
+                .state_local_declaration(state, root)
+                .map(|(_, local)| local.type_reference)
+        })
+}
+
 pub fn declaration_type_reference(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
@@ -119,18 +137,8 @@ pub fn declaration_type_reference(
             .iter()
             .filter(|state| state.symbol == parent)
         {
-            if let Some(type_reference) =
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .find_map(|parameter| {
-                        (parameter.symbol == symbol).then_some(parameter.type_reference)
-                    })
-            {
+            if let Some(type_reference) = state_root_type(program, state, symbol) {
                 return Some(type_reference);
-            }
-            if let Some((_, local)) = program.state_local_declaration(state, symbol) {
-                return Some(local.type_reference);
             }
         }
     }

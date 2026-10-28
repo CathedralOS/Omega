@@ -4,12 +4,12 @@ data RangePair [copy] {
     first_base: u64; first_length: u64;
     second_base: u64; second_length: u64;
 }
-domain RangePair::Separated(value)
-requires value.first_length > 0 && value.second_length > 0 &&
-    embed(value.first_base) + embed(value.first_length) <= 18446744073709551615 &&
-    embed(value.second_base) + embed(value.second_length) <= 18446744073709551615 &&
-    (embed(value.first_base) + embed(value.first_length) <= embed(value.second_base) ||
-     embed(value.second_base) + embed(value.second_length) <= embed(value.first_base));
+domain RangePair::Separated
+requires self.first_length > 0 && self.second_length > 0 &&
+    embed(self.first_base) + embed(self.first_length) <= 18446744073709551615 &&
+    embed(self.second_base) + embed(self.second_length) <= 18446744073709551615 &&
+    (embed(self.first_base) + embed(self.first_length) <= embed(self.second_base) ||
+     embed(self.second_base) + embed(self.second_length) <= embed(self.first_base));
 data Checked { case Rejected; case Ready(value: RangePair in Separated); }
 machine check(value: RangePair) -> Checked {
     transition value.first_length > 0 && value.second_length > 0 &&
@@ -59,8 +59,8 @@ machine main() crashes Trap {
 // Revisit the same read sites after a mutation. The first iteration establishes
 // a range; the second must reject an overflowing replacement, not reuse it.
 data Range [copy] { base: u64; length: u64; }
-domain Range::Bounded(value)
-requires embed(value.base) + embed(value.length) <= 18446744073709551615;
+domain Range::Bounded
+requires embed(self.base) + embed(self.length) <= 18446744073709551615;
 data RangeChecked { value: Range in Bounded; }
 machine mutation_cycle(value: Range) -> bool {
     transition { _ -> inspect(value, false) }

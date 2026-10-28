@@ -6,9 +6,10 @@
 use super::super::StructuralArgument;
 use super::{
     LoweringError, Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id,
+    StructuralTypeId, allocate_dense, lookup_type_id, place_id,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
@@ -76,15 +77,13 @@ pub(crate) fn publish_storage(
         qualifications: Default::default(),
     };
     let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
+    operations.push(Operation::unsuspended(
         id,
-        result: terminal_psi::OperationResult::Scalar(value.clone()),
-        kind: OperationKind::IntegerConstant {
+        terminal_psi::OperationResult::Scalar(value.clone()),
+        OperationKind::IntegerConstant {
             value: semantic_vocabulary::IntegerValue::Unsigned(0),
         },
-    });
+    ));
     Ok((
         PublishedReferenceStorage::RepresentationView(terminal_psi::ReferenceStorageView {
             byte_offset,
@@ -396,18 +395,6 @@ pub(crate) fn emit_carrier(
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
     }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result,
-        kind,
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    operations.push(Operation::unsuspended(id, result, kind));
+    Ok(operation_result_place(place, id, structural_type))
 }

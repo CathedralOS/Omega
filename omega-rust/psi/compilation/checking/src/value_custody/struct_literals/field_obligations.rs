@@ -230,19 +230,22 @@ pub(super) fn enforce_construction_field_obligations(
                 else {
                     return writes;
                 };
-                let bounds = format!(
-                    "{}..={}",
-                    range.low().map(|low| low.to_string()).unwrap_or_default(),
-                    range
-                        .high()
-                        .map(|high| high.to_string())
-                        .unwrap_or_default(),
-                );
+                let format_bounds = || {
+                    format!(
+                        "{}..={}",
+                        range.low().map(|low| low.to_string()).unwrap_or_default(),
+                        range
+                            .high()
+                            .map(|high| high.to_string())
+                            .unwrap_or_default(),
+                    )
+                };
                 match construction_field_literal(program, field.value) {
                     Some(value) => {
                         let below = range.low().is_some_and(|low| value < low);
                         let above = range.high().is_some_and(|high| value > high);
                         if below || above {
+                            let bounds = format_bounds();
                             diagnostics.push(Diagnostic::error(format!(
                                 "construction of `{type_name}` field `{}`: value {value} is outside its declared range `{bounds}`",
                                 field.name.as_str()
@@ -263,6 +266,7 @@ pub(super) fn enforce_construction_field_obligations(
                             interval.high().is_some_and(|value_high| value_high <= high)
                         });
                         if !provably_in_range {
+                            let bounds = format_bounds();
                             diagnostics.push(Diagnostic::error(format!(
                                 "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
                                 field.name.as_str()
@@ -645,6 +649,12 @@ pub(crate) fn construction_application(
         .authored_selection_occurrences(expression)
     {
         if let Some(selection) = program.authored_declaration_selections().get(occurrence) {
+            // Initializer roots retain their complete dependency inventory.
+            // Only this occurrence's selection supplies its carrier; a nested
+            // constant operand cannot select the enclosing constructor's type.
+            if selection.source_span() != program.expression_table.source_span(expression) {
+                continue;
+            }
             if let Some(selected) = selection.target().as_resolved() {
                 if let Some(declaration) =
                     program.const_declaration_by_symbol(selected.selected_symbol())
@@ -657,7 +667,7 @@ pub(crate) fn construction_application(
     TypeReferenceHandle::invalid()
 }
 
-pub(crate) fn selected_construction_definition<'a>(
+pub fn selected_construction_definition<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,

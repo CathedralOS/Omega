@@ -13,10 +13,7 @@ use crate::lowering::statement::place_operand_capture::{
     SelectorCapture, capture_address_operands, capture_reference_initializer_selectors,
     capture_subject_address_operands,
 };
-use crate::lowering::statement::value_call_hoisting::{
-    hoist_scalar_value_call_comparison, hoist_terminal_value_machine_call,
-    is_scalar_return_computation,
-};
+use crate::lowering::statement::value_call_hoisting::hoist_scalar_value_call_comparison;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -330,11 +327,6 @@ pub(crate) fn lower_statement_node(
                 &mut hoisted,
                 OperandHoisting::Computation,
             );
-            // A free or direct-self value-machine call as the trailing return
-            // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
-            // let-bound spelling, exactly as the transition-value face.
-            // Trailing returns are unconditional, so no guard gate applies.
-            let expression = hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
             hoisted.push(Statement::Expression(expression));
             Ok(hoisted)
         }
@@ -399,26 +391,13 @@ pub(crate) fn lower_statement_node(
                     transition.guard,
                     syntax::statement::TransitionGuardNode::Always
                 );
-            let mut target = lower_transition_target_node(
+            let target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,
                 transition.target,
                 &mut hoisted,
                 unconditional,
             )?;
-            // Value-producing terminal calls retain their result binding for
-            // checking. Unit invocations have no value to bind: the shared
-            // normalization leaves their full call and acknowledgement intact.
-            if unconditional
-                && let TransitionTarget::Value(expression) = target
-                && !is_scalar_return_computation(lowerer, expression)
-            {
-                target = TransitionTarget::Value(hoist_terminal_value_machine_call(
-                    lowerer,
-                    expression,
-                    &mut hoisted,
-                ));
-            }
             // A continuation arm runs only when the guard fails, so its calls
             // are never hoisted ahead of the transition either. A lone
             // wildcard arm of an Always transition keeps its target intact

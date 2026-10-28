@@ -75,20 +75,33 @@ mod target_machine_families;
 pub(crate) fn validate_resolved_semantics(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
+    validate_resolved_semantics_in(symbol_resolved_trees, &TypingCohort::default())
+}
+
+pub(crate) fn validate_resolved_semantics_in(
+    symbol_resolved_trees: &SymbolResolvedTrees,
+    cohort: &TypingCohort<'_>,
+) -> Result<(), Diagnostic> {
     // Decision 11: user-written `==` against bare payload-bearing case names
     // must be rejected BEFORE membership lowering synthesizes its internal
     // tag-equality compares, which are deliberately the same typed shape.
-    crate::expressions::equality::validate_equality_operands(symbol_resolved_trees)?;
+    crate::expressions::equality::validate_equality_operands_in(symbol_resolved_trees, cohort)?;
 
     // Synthesized Equatable rows check their structural prerequisites at
     // the implementation, before any `==` site tries to expand them.
-    crate::expressions::equatable::validate_equatable_conformances(symbol_resolved_trees)?;
+    crate::expressions::equatable::validate_equatable_conformances_in(
+        symbol_resolved_trees,
+        cohort,
+    )?;
 
     // Exhaustiveness counting over case domains also needs the resolved
     // trees: membership is still a distinct node here, so case arms and
     // domain arms are recognizable before lowering erases them into tag
     // compares and classifier expansions.
-    crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness(symbol_resolved_trees)
+    crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in(
+        symbol_resolved_trees,
+        cohort,
+    )
 }
 
 pub fn lower_symbol_resolved_trees(
@@ -155,6 +168,7 @@ pub(crate) struct TypingCohort<'completed> {
     pub(crate) traits: usize,
     pub(crate) conformances: usize,
     pub(crate) wire_schemas: usize,
+    pub(crate) generic_application_origins: usize,
     /// Retained machine bodies this run completes in place, in declaration
     /// order. Their destinations land beside the appended machines'.
     pub(crate) completed_machines: &'completed [SymbolHandle],
@@ -182,6 +196,7 @@ impl<'completed> TypingCohort<'completed> {
             traits: resolved.traits.len(),
             conformances: resolved.conformances.len(),
             wire_schemas: resolved.wire_schemas.len(),
+            generic_application_origins: resolved.tables.types.generic_application_origins.len(),
             completed_machines: &[],
             typed_machines: typed.machines().len(),
             typed_type_references: typed.type_reference_table.type_reference_count(),
@@ -346,6 +361,10 @@ pub(crate) fn close_typed_cohort(
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
+    crate::expressions::build_selections::normalize_native_locators(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    )?;
     crate::type_reference::normalize_const_argument_carriers(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
@@ -373,7 +392,22 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_machines,
         cohort.completed_machines,
     )?;
-    crate::type_reference::validate_range_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
+    if !(cohort.generic_application_origins > 0
+        && cohort.generic_application_origins
+            == lowerer
+                .source_trees
+                .tables
+                .types
+                .generic_application_origins
+                .len()
+        && cohort.operators == lowerer.source_trees.operators.len()
+        && cohort.data_definitions == lowerer.source_trees.data_definitions.len())
+    {
+        crate::type_reference::validate_range_arguments(
+            lowerer.source_trees,
+            &lowerer.typed_trees,
+        )?;
+    }
     crate::declarations::provider_defaults::finalize_provider_default_calls(
         &mut lowerer.typed_trees,
     )?;

@@ -93,6 +93,7 @@ pub(crate) fn prepare_permission_events(
     let call_frames =
         crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
 
+    let state_loop_guard = phase_profile::guard("05.d.3.b.perm.1_state_loop");
     let state_flows = facts
         .flow
         .control
@@ -101,6 +102,7 @@ pub(crate) fn prepare_permission_events(
         .map(|(handle, state)| (handle, state.clone()))
         .collect::<Vec<_>>();
     for (state_handle, state_flow) in state_flows {
+        let _setup_guard = phase_profile::guard("05.perm.a_setup");
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
         };
@@ -249,6 +251,7 @@ pub(crate) fn prepare_permission_events(
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
                     authored_expression: call.authored_expression,
+                    input_reference_loans: None,
                     reference_slot_effects: Default::default(),
                     completed_reference_loans: Default::default(),
                     receiver_symbol: call.receiver_symbol,
@@ -369,6 +372,27 @@ pub(crate) fn prepare_permission_events(
             ));
             continue;
         }
+        let state_needs_case_exclusions = !places.is_empty()
+            || !moves.is_empty()
+            || !temporary_owners.is_empty()
+            || statements.iter().any(|statement| {
+                statement.as_local_data().is_some_and(|local| {
+                    !local.relevance.is_erased()
+                        && validation::reference_result_custody::result_multiplicity(
+                            program,
+                            local.type_reference,
+                        ) != Multiplicity::Unrestricted
+                })
+            })
+            || program.state_parameters(state).iter().any(|parameter| {
+                !parameter.relevance.is_erased()
+                    && validation::reference_result_custody::result_multiplicity(
+                        program,
+                        parameter.type_reference,
+                    ) != Multiplicity::Unrestricted
+            });
+        drop(_setup_guard);
+        let _walk_guard = phase_profile::guard("05.perm.b_walk");
         super::permission_schedule::walk(
             program,
             state,
@@ -383,9 +407,16 @@ pub(crate) fn prepare_permission_events(
             |step, custody| {
                 let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
                     custody;
-                if let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                    program, facts, machine, state, step,
-                ) {
+                if state_needs_case_exclusions
+                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                        program,
+                        facts,
+                        &state_flow,
+                        machine,
+                        state,
+                        step,
+                    )
+                {
                     selected.apply_claims(places);
                     selected.apply_cleanup(remaining);
                 }
@@ -679,19 +710,24 @@ pub(crate) fn prepare_permission_events(
             .get_mut(state_handle)
             .storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
     }
+    drop(state_loop_guard);
 
-    append_borrow_permission_events(
-        program,
-        facts,
-        &mut permission_events,
-        &mut claim_identities,
-    );
-    let claim_outcome_maps = reconcile_state_call_result_origins(
-        program,
-        &facts.borrow,
-        &mut facts.flow.ownership,
-        &mut permission_events,
-    )
+    phase_profile::scope("05.d.3.b.perm.2_append_borrow", || {
+        append_borrow_permission_events(
+            program,
+            facts,
+            &mut permission_events,
+            &mut claim_identities,
+        );
+    });
+    let claim_outcome_maps = phase_profile::scope("05.d.3.b.perm.3_reconcile_origins", || {
+        reconcile_state_call_result_origins(
+            program,
+            &facts.borrow,
+            &mut facts.flow.ownership,
+            &mut permission_events,
+        )
+    })
     .map_err(|message| vec![Diagnostic::error(message)])?;
 
     // Reconciliation can prove that a returned sum never establishes a
@@ -718,8 +754,10 @@ pub(crate) fn prepare_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    let joined_receivers = publish_call_claim_joins(program, facts)
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+    let joined_receivers = phase_profile::scope("05.d.3.b.perm.4_publish_joins", || {
+        publish_call_claim_joins(program, facts)
+    })
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let joined_events = facts
         .flow
         .ownership
@@ -727,12 +765,14 @@ pub(crate) fn prepare_permission_events(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let joined_maps = derive_checked_claim_outcome_maps(
-        program,
-        &facts.borrow,
-        &facts.flow.ownership,
-        &joined_events,
-    )
+    let joined_maps = phase_profile::scope("05.d.3.b.perm.5_derive_maps", || {
+        derive_checked_claim_outcome_maps(
+            program,
+            &facts.borrow,
+            &facts.flow.ownership,
+            &joined_events,
+        )
+    })
     .map_err(|message| vec![Diagnostic::error(message)])?;
     let correspondence_changed = claim_outcomes
         .update(joined_maps.clone(), joined_receivers)
@@ -753,13 +793,17 @@ pub(crate) fn prepare_permission_events(
         // carrier. Select that death while source windows still distinguish
         // a live old value from an already extracted hole, before deriving
         // hook prerequisites and effects from the complete death roster.
-        super::linear_obligations::prepare_storage_deaths(program, facts)?;
+        phase_profile::scope("05.d.3.b.perm.6_storage_deaths", || {
+            super::linear_obligations::prepare_storage_deaths(program, facts)
+        })?;
         let mut cleanup_dispositions = std::mem::take(&mut facts.contextual_cleanup);
-        crate::facts::contextual_cleanup::bind_applications(
-            program,
-            &facts.flow,
-            &mut cleanup_dispositions,
-        );
+        phase_profile::scope("05.d.3.b.perm.7_bind_applications", || {
+            crate::facts::contextual_cleanup::bind_applications(
+                program,
+                &facts.flow,
+                &mut cleanup_dispositions,
+            );
+        });
         facts.contextual_cleanup = cleanup_dispositions;
         Ok(false)
     } else {
@@ -816,6 +860,12 @@ pub(crate) fn record_crash_frontier_lower_bounds(
         let incoming = incoming_guards.for_machine(machine.symbol);
         let proven_conditional_claims =
             proven_conditional_entry_claims(program, state, incoming, &places);
+        let has_case_places = places.iter().any(|place| {
+            place
+                .path
+                .iter()
+                .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        });
 
         let mut ignored_diagnostics = Vec::new();
         super::permission_schedule::walk(
@@ -824,9 +874,11 @@ pub(crate) fn record_crash_frontier_lower_bounds(
             facts.flow.control.calls.span_or_empty(state_flow.calls),
             places,
             |step, places| {
-                if let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                    program, facts, machine, state, step,
-                ) {
+                if has_case_places
+                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                        program, facts, state_flow, machine, state, step,
+                    )
+                {
                     selected.apply_claims(places);
                 }
                 match step {

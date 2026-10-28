@@ -1,7 +1,8 @@
 //! Ordered graph operations and their durable scalar result homes.
+use super::RowSite;
 use super::observations;
-use super::{KnownUnitInteger, RowSite};
 use crate::LoweringError;
+use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
@@ -83,16 +84,7 @@ pub(super) fn lower_operation(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let result_home =
-                super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if site
-                .live
-                .structural_homes
-                .insert(result.place, result_home.clone())
-                .is_some()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let result_home = site.establish_home(*psi_operation, result)?;
             site.operations
                 .push(TargetUnitOperation::EstablishActivationClaim {
                     psi_operation: *psi_operation,
@@ -131,16 +123,7 @@ pub(super) fn lower_operation(
             rejected_case,
         } => {
             let committed = super::scalar_sources::source(*committed_at, function, site.live)?;
-            let result_home =
-                super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if site
-                .live
-                .structural_homes
-                .insert(result.place, result_home.clone())
-                .is_some()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let result_home = site.establish_home(*psi_operation, result)?;
             site.operations
                 .push(TargetUnitOperation::SplitActivationClaim {
                     psi_operation: *psi_operation,
@@ -165,16 +148,7 @@ pub(super) fn lower_operation(
             covered_case,
             rejected_case,
         } => {
-            let result_home =
-                super::aggregate_results::home(*psi_operation, result, structural_types)?;
-            if site
-                .live
-                .structural_homes
-                .insert(result.place, result_home.clone())
-                .is_some()
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let result_home = site.establish_home(*psi_operation, result)?;
             site.operations
                 .push(TargetUnitOperation::MergeActivationClaim {
                     psi_operation: *psi_operation,
@@ -348,21 +322,11 @@ pub(super) fn lower_operation(
                 shape: crate::lowering::scalar_abi::fixed_native_scalar_shape(*target_type)
                     .ok_or(LoweringError::ValueTypeMismatch(*result))?,
             };
-            let duplicate = match target_type {
-                ScalarType::Integer(_) => site
-                    .live
-                    .integers
-                    .insert(*result, KnownUnitInteger::Home(result_home))
-                    .is_some(),
-                ScalarType::Boolean | ScalarType::IeeeFloat(_) => site
-                    .live
-                    .scalar_homes
-                    .insert(*result, result_home)
-                    .is_some(),
-            };
-            if duplicate {
-                return Err(LoweringError::DuplicateValue(*result));
-            }
+            insert_scalar_home(
+                &mut site.live.integers,
+                &mut site.live.scalar_homes,
+                result_home,
+            )?;
             site.provenance.operations.push(*psi_operation);
             site.operations
                 .push(TargetUnitOperation::ScalarRepresentationView {
@@ -531,7 +495,7 @@ pub(super) fn lower_operation(
             ..
         } => {
             let values = observations::scalar_values(site.live, &prepared.scalar_parameters)?;
-            let (view, _) = super::super::scalar::element_views::element_view_for_place(
+            let (view, _, _) = super::super::scalar::element_views::resolve_element_view(
                 function,
                 structural_types,
                 &prepared.parameters,

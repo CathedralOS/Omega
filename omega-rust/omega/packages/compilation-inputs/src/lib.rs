@@ -50,12 +50,14 @@ pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use package_compilation::{
-    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
-    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyAcquisition,
-    PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
-    PackageSourceBinding,
+    CompilerProductRetention, IndependentComponentDescription, PackageCompilationInputError,
+    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
+    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
+    PackageGeneratedSourceBundle, PackageSourceBinding,
 };
-pub use review_cache_digests::{review_cache_inputs_digest, review_cache_snapshot_digest};
+pub use review_cache_digests::{
+    generated_source_bundle_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
+};
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
     program_entry_semantic_binding_role,
@@ -69,4 +71,9 @@ pub use source_consumption::{
 pub(crate) use source_snapshot::capture_scoped_source_input;
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
+};
+
+pub use package_compilation::{
+    NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,
+    PackageNativeBindingBundle, PackageNativeBindingOrigin,
 };

@@ -1,0 +1,14 @@
+// Expected error: cannot prove index `handle` is within length 4
+data Table where self.count <= 5 {
+    count: u64;
+    rows: [u64; 4];
+}
+machine read_table(table: &Table, handle: u64 in Trapping) -> u64 {
+    transition handle < table.count {
+        true -> read(table, handle)
+        _ -> (0)
+    }
+    machine read(table: &Table, handle: u64 in Trapping) -> u64 {
+        table.rows[handle]
+    }
+}

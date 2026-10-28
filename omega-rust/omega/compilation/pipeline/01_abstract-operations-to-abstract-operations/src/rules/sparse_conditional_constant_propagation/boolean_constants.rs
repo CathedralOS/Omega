@@ -6,14 +6,12 @@
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, OptimizationNode, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiRewriteCandidate,
+    IntegerEvaluationWitness, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiRewriteCandidate,
 };
-use semantic_vocabulary::{OperationId, ValueId};
 
-use crate::rules::control_flow_cleanup::node_realized_provenance;
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract as contract, integer_constant, integer_value_type, node_location,
+    constant_evaluation_contract as contract, integer_constant, integer_value_type,
 };
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -37,13 +35,6 @@ pub(super) enum BooleanEvaluationKind {
     IntegerLessOrEqual,
 }
 
-pub(super) struct BooleanEvaluation {
-    pub source_operation: OperationId,
-    pub result: ValueId,
-    pub constant: bool,
-    pub witness: IntegerEvaluationWitness,
-}
-
 fn propose(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
@@ -51,46 +42,9 @@ fn propose(
     kind: BooleanEvaluationKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
-    let mut candidates = Vec::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            for (node_index, node) in block.nodes.iter().enumerate() {
-                let Some(BooleanEvaluation {
-                    source_operation,
-                    result,
-                    constant,
-                    witness,
-                }) = evaluate(function, node, constants, kind)
-                else {
-                    continue;
-                };
-                let location = node_location(
-                    function.machine,
-                    block.id,
-                    u32::try_from(node_index).expect("optimization node indices are u32"),
-                );
-                candidates.push(
-                    PsiRewriteCandidate::new_boolean_evaluation(
-                        unit.identity,
-                        contract,
-                        vec![block.id],
-                        Vec::new(),
-                        vec![node_realized_provenance(location, node)],
-                        witness,
-                        -1,
-                        BooleanConstantRewrite {
-                            location,
-                            source_operation,
-                            result,
-                            constant,
-                        },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
-            }
-        }
-    }
-    Ok(candidates)
+    super::propose_boolean_evaluations(unit, contract, |function, _, node, _| {
+        evaluate(function, node, constants, kind)
+    })
 }
 
 fn evaluate(
@@ -98,7 +52,7 @@ fn evaluate(
     node: &OptimizationNode,
     constants: &ScalarConstantAnalysis,
     kind: BooleanEvaluationKind,
-) -> Option<BooleanEvaluation> {
+) -> Option<super::BooleanConstantEvaluation> {
     let (source_operation, result, constant, witness) = match (&node.operation, kind) {
         (
             O::BooleanNot {
@@ -189,7 +143,7 @@ fn evaluate(
         }
         _ => return None,
     };
-    Some(BooleanEvaluation {
+    Some(super::BooleanConstantEvaluation {
         source_operation,
         result,
         constant,

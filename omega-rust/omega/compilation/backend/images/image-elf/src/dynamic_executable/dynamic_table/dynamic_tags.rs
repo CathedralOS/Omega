@@ -15,6 +15,7 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::bytes::name_at;
 use crate::constants::ELF64_RELA_SIZE;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
@@ -385,27 +386,13 @@ fn target(descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan) -> Ta
         .target()
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicTagPlan, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.descriptors, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_tag_compatibility_fingerprint
-                == non_authoritative_tag_compatibility_fingerprint(
-                    &candidate.descriptors,
-                    &candidate.contents,
-                )
-        },
-        "ELF dynamic-tag compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicTagPlan {
-            descriptors: candidate.descriptors,
-            contents: candidate.contents,
-            non_authoritative_tag_compatibility_fingerprint: candidate
-                .non_authoritative_tag_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: descriptors,
+    contents: contents,
+    validated: ValidatedElfDynamicTagPlan,
+    validate: validate_contents,
+    fingerprint: non_authoritative_tag_compatibility_fingerprint,
+    message: "ELF dynamic-tag compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -481,7 +468,7 @@ fn validate_needed_rows(
             }),
             "DT_NEEDED row drifted from the exact significant roster",
         )?;
-        let object = dynamic_string(dynstr, *expected_offset)?;
+        let object = name_at(dynstr, *expected_offset, "DT_NEEDED string offset")?;
         require(
             !object.is_empty(),
             "DT_NEEDED references an empty object name",
@@ -715,29 +702,13 @@ fn validate_relocation_closure(
     )
 }
 
-fn dynamic_string(bytes: &[u8], offset: u32) -> Result<&[u8], Diagnostic> {
-    let offset = usize::try_from(offset)
-        .map_err(|_| Diagnostic::error("DT_NEEDED string offset exceeds usize"))?;
-    let tail = bytes
-        .get(offset..)
-        .ok_or_else(|| Diagnostic::error("DT_NEEDED string offset is outside .dynstr"))?;
-    let terminator = tail
-        .iter()
-        .position(|byte| *byte == 0)
-        .ok_or_else(|| Diagnostic::error("DT_NEEDED object name is not NUL-terminated"))?;
-    Ok(&tail[..terminator])
-}
-
 fn non_authoritative_tag_compatibility_fingerprint(
     descriptors: &ValidatedElfProcedureLinkageSectionDescriptorPlan,
     contents: &ElfDynamicTagContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-tags.v2");
-    hash.bytes(
-        &descriptors
-            .non_authoritative_descriptor_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf-dynamic-tags.v2",
+        descriptors.non_authoritative_descriptor_compatibility_fingerprint(),
     );
     hash.bytes(&(contents.rows.len() as u64).to_le_bytes());
     for row in &contents.rows {

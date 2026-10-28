@@ -1,7 +1,7 @@
 data Command { case None; case Quit; case Move(dx: i32); case Say(volume: i32); }
-domain Command::Interactive(command)
+domain Command::Interactive
 requires
-    command in Command::Move | Command::Say;
+    self in Command::Move | Command::Say;
 data Main { cmd: Command; }
 machine Main::main(main: &mut Main) {
     main.cmd = Command::Say { volume: 9 };

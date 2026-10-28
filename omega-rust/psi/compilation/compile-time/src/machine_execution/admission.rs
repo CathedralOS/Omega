@@ -141,10 +141,18 @@ pub struct BuildTimeAdmissionPlan {
     suspension: Vec<BuildTimeSuspensionRow>,
     blocking: Vec<BuildTimeBlockingRow>,
     call_edges: Vec<BuildTimeCallEdge>,
+    pub(crate) operators: checked_trees::CheckedOperatorFacts,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
     pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
+    checked_closures: std::cell::RefCell<
+        Vec<(
+            (usize, usize, usize),
+            crate::build_time_evaluation::EvaluationDomain,
+            Result<std::rc::Rc<(CheckedTrees, Self)>, String>,
+        )>,
+    >,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,11 +240,47 @@ impl BuildTimeAdmissionPlan {
     ) -> Self {
         let operational = validation::infer_operational_may(program);
         let service_reaches = validation::infer_service_reaches(program, &operational);
-        let (suspension, blocking, mut call_edges) = project_operational_axes(&operational);
+        let operators = validation::derive_pre_flow_operator_selections(program);
+        let (suspension, blocking, call_edges) =
+            Self::project_axes_and_operator_edges(&operational, &operators);
+        Self {
+            service_reaches,
+            suspension,
+            blocking,
+            call_edges,
+            operators,
+            selection_authority,
+            selected_operators: Vec::new(),
+            selected_machine_bodies: Vec::new(),
+            accounting: Default::default(),
+            checked_closures: Default::default(),
+        }
+    }
+
+    /// Infer only the call-edge axes needed for execution dependency discovery,
+    /// reusing pre-computed operator selections and skipping service-reach inference.
+    pub(crate) fn infer_execution_dependencies(
+        program: &TypedTrees,
+        operators: &checked_trees::CheckedOperatorFacts,
+        execution: &mut Vec<SymbolHandle>,
+    ) {
+        let operational = validation::infer_operational_may(program);
+        let (_, _, call_edges) = Self::project_axes_and_operator_edges(&operational, operators);
+        Self::append_edges_to_execution_dependencies(&call_edges, program, execution);
+    }
+
+    fn project_axes_and_operator_edges(
+        operational: &flow_effects::OperationalPlan,
+        operators: &checked_trees::CheckedOperatorFacts,
+    ) -> (
+        Vec<BuildTimeSuspensionRow>,
+        Vec<BuildTimeBlockingRow>,
+        Vec<BuildTimeCallEdge>,
+    ) {
+        let (suspension, blocking, mut call_edges) = project_operational_axes(operational);
         // Selected trait algebra is an exact source execution edge, just like
         // an ordinary named call. Retain the selected body so every admission
         // axis traverses it; this does not select an external provider.
-        let operators = validation::derive_pre_flow_operator_selections(program);
         for (expression, origin, _, _) in operators.resolved_expression_selections() {
             let Some(owner) = origin.machine_symbol() else {
                 continue;
@@ -249,7 +293,7 @@ impl BuildTimeAdmissionPlan {
                 || !candidate.realization_state_symbol.is_valid()
             {
                 continue;
-            }
+            };
             call_edges.push(BuildTimeCallEdge {
                 source_machine_symbol: owner,
                 target_machine_symbol: candidate.realization_machine_symbol,
@@ -257,16 +301,7 @@ impl BuildTimeAdmissionPlan {
                 target_operator_symbol: candidate.trait_requirement_symbol,
             });
         }
-        Self {
-            service_reaches,
-            suspension,
-            blocking,
-            call_edges,
-            selection_authority,
-            selected_operators: Vec::new(),
-            selected_machine_bodies: Vec::new(),
-            accounting: Default::default(),
-        }
+        (suspension, blocking, call_edges)
     }
 
     /// Provisional typing retains equation and pending-type obligations.
@@ -325,6 +360,7 @@ impl BuildTimeAdmissionPlan {
             }
         }
         self.selected_machine_bodies = selections.to_vec();
+        self.checked_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -351,11 +387,18 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         execution: &mut Vec<SymbolHandle>,
     ) {
+        Self::append_edges_to_execution_dependencies(&self.call_edges, program, execution);
+    }
+
+    fn append_edges_to_execution_dependencies(
+        call_edges: &[BuildTimeCallEdge],
+        program: &TypedTrees,
+        execution: &mut Vec<SymbolHandle>,
+    ) {
         let mut position = 0;
         while let Some(&machine) = execution.get(position) {
             position += 1;
-            for edge in self
-                .call_edges
+            for edge in call_edges
                 .iter()
                 .filter(|edge| edge.source_machine_symbol == machine)
             {
@@ -375,6 +418,7 @@ impl BuildTimeAdmissionPlan {
     ) -> Result<Self, String> {
         crate::validate_selected_operators(program, operators)?;
         self.selected_operators = operators.to_vec();
+        self.checked_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -505,6 +549,68 @@ impl BuildTimeAdmissionPlan {
         self.require_checked_invocation_floor(program, machine, custody, true)
     }
 
+    pub(super) fn checked_closure_admission(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+    ) -> Result<std::rc::Rc<(CheckedTrees, Self)>, String> {
+        let program_key = (
+            std::ptr::from_ref(program) as usize,
+            program.machines().len(),
+            program.data_definitions().len(),
+        );
+        let mut roots = vec![machine_symbol];
+        for family in &program.target_machine_families {
+            if family.canonical == machine_symbol
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == machine_symbol)
+            {
+                if !roots.contains(&family.canonical) {
+                    roots.push(family.canonical);
+                }
+                for member in &family.members {
+                    if !roots.contains(&member.machine) {
+                        roots.push(member.machine);
+                    }
+                }
+            }
+        }
+        let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_admission(
+            program,
+            self,
+            &roots,
+            &[],
+        );
+        if let Some(cached) = self
+            .checked_closures
+            .borrow()
+            .iter()
+            .find_map(|(key, cached_domain, result)| {
+                (*key == program_key && *cached_domain == domain).then(|| result.clone())
+            })
+        {
+            let pair = cached?;
+            concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
+            return Ok(pair);
+        }
+        let computed = (|| {
+            let checked = concrete_invocation::checked_demanded_closure(&domain, program)?;
+            let execution = checked.typed.as_ref();
+            let admission = Self::infer(execution, self.selection_authority.clone())
+                .with_selected_operators(execution, &self.selected_operators)?
+                .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
+            Ok(std::rc::Rc::new((checked, admission)))
+        })();
+        self.checked_closures
+            .borrow_mut()
+            .push((program_key, domain, computed.clone()));
+        let pair = computed?;
+        concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
+        Ok(pair)
+    }
+
     fn require_checked_invocation_floor(
         &self,
         program: &TypedTrees,
@@ -512,16 +618,14 @@ impl BuildTimeAdmissionPlan {
         custody: BuildTimeInvocationCustody,
         discharge_authored_requires: bool,
     ) -> Result<(), BuildTimeAdmissionRejection> {
-        let checked = concrete_invocation::checked_demanded_closure(self, program, machine.symbol)?;
+        let pair = self.checked_closure_admission(program, machine.symbol)?;
+        let (checked, admission) = pair.as_ref();
         let execution = checked.typed.as_ref();
         let root = execution
             .machine_by_symbol(machine.symbol)
             .ok_or_else(|| "checked invocation lost its exact declaration".to_owned())?;
-        let admission = Self::infer(execution, self.selection_authority.clone())
-            .with_selected_operators(execution, &self.selected_operators)?
-            .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
         admission.require_floor(
-            BuildTimeProgram::Checked(&checked),
+            BuildTimeProgram::Checked(checked),
             root,
             Some(custody),
             discharge_authored_requires,
@@ -1052,16 +1156,14 @@ impl BuildTimeAdmissionPlan {
         };
         let discharge_authored_requires = discharge_authored_requires
             || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
-        let checked = concrete_invocation::checked_demanded_closure(self, program, machine_symbol)?;
+        let pair = self.checked_closure_admission(program, machine_symbol)?;
+        let (checked, admission) = pair.as_ref();
         let execution = checked.typed.as_ref();
         let machine = execution
             .machine_by_symbol(machine_symbol)
             .ok_or("checked constant invocation lost its exact machine")?;
-        let admission = Self::infer(execution, self.selection_authority.clone())
-            .with_selected_operators(execution, &self.selected_operators)?
-            .with_selected_machine_bodies(execution, &self.selected_machine_bodies)?;
         admission.require_floor(
-            BuildTimeProgram::Checked(&checked),
+            BuildTimeProgram::Checked(checked),
             machine,
             Some(custody),
             discharge_authored_requires,
@@ -1069,7 +1171,7 @@ impl BuildTimeAdmissionPlan {
         let measured = self
             .accounting
             .evaluate(
-                checked_interpreter::BuildMachineProgram::Checked(&checked),
+                checked_interpreter::BuildMachineProgram::Checked(checked),
                 BuildMachineEvaluationRequest {
                     product_entry_compatibility: None,
                     operators: &self.selected_operators,

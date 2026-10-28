@@ -134,7 +134,7 @@ linux_arm64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
 reaches TimeHost
 blocks;
 {
-    transition { _ -> wait(milliseconds) }
+    transition { _ -> block wait(milliseconds) }
 
     machine wait(milliseconds: u32) {
         let request: LinuxArm64TimeHostInstant = LinuxArm64TimeHostInstant {
@@ -144,7 +144,7 @@ blocks;
         let outcome: i64 = block LinuxArm64TimeRead::nanosleep(&request, 0);
         transition outcome == 0 {
             true -> done()
-            _ -> wait(milliseconds)
+            _ -> block wait(milliseconds)
         }
     }
 

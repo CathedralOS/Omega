@@ -6,6 +6,7 @@
 //! continuation proceeds to final checking without executing the Build again.
 
 use crate::{ComputedBuildConfig, PreparedBuild};
+mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{
@@ -21,9 +22,9 @@ pub struct PreparedPackageBuild {
     target: TargetProfile,
     inputs: PackageCompilationInputs,
     rollback: OptimizationRollback,
-    permit_unsettled_fused_service_fields: bool,
     prepared: PreparedBuild,
     generated_sources: PackageGeneratedSourceBundle,
+    native_bindings: package_compilation::PackageNativeBindingBundle,
 }
 
 impl PreparedPackageBuild {
@@ -34,21 +35,14 @@ impl PreparedPackageBuild {
         &self,
         inputs: &PackageCompilationInputs,
         rollback: &OptimizationRollback,
-        permit_unsettled_fused_service_fields: bool,
     ) -> bool {
-        self.rollback == *rollback
-            && self.permit_unsettled_fused_service_fields == permit_unsettled_fused_service_fields
-            && self.same_source_inputs(inputs)
+        self.rollback == *rollback && self.same_source_inputs(inputs)
     }
 
     fn same_source_inputs(&self, inputs: &PackageCompilationInputs) -> bool {
         let execution = self.prepared.build_sources.build_execution_profile;
         package_compilation::SourceAssemblyInputs::new(Some(inputs), execution)
             == package_compilation::SourceAssemblyInputs::new(Some(&self.inputs), execution)
-            && inputs.semantic_role_discovery() == self.inputs.semantic_role_discovery()
-            && inputs
-                .accepted_semantic_bindings()
-                .eq(self.inputs.accepted_semantic_bindings())
     }
     /// Select a realization context from one completed Build. The source
     /// continuation, executed effects and charges remain shared. Target-local
@@ -71,7 +65,6 @@ impl PreparedPackageBuild {
             inputs,
             self.rollback.clone(),
             self.prepared.clone(),
-            self.permit_unsettled_fused_service_fields,
         )
     }
 
@@ -87,10 +80,12 @@ impl PreparedPackageBuild {
             && self.prepared.build_sources == other.prepared.build_sources
             // Execution receipts and charges remain on each activation. They
             // cannot partition source work, nor be replaced by a sibling's.
-            && build.config == other_build.config
+            && build.config.same_source_choices(&other_build.config)
             && build.root_binding_requests == other_build.root_binding_requests
             && build.declared_product_selections == other_build.declared_product_selections
             && build.product_selection_requests == other_build.product_selection_requests
+            && build.native_binding_requests == other_build.native_binding_requests
+            && build.native_formations == other_build.native_formations
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
             && build.project_declaration == other_build.project_declaration
@@ -123,7 +118,6 @@ impl PreparedPackageBuild {
         inputs: PackageCompilationInputs,
         rollback: OptimizationRollback,
         prepared: PreparedBuild,
-        permit_unsettled_fused_service_fields: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         let generated_sources = prepared.build_sources.package_generated_source_bundle(
             prepared.built.source.typed(),
@@ -135,19 +129,41 @@ impl PreparedPackageBuild {
                 .generated_sources
                 .clone(),
         )?;
+        let build = &prepared.built.computed_build_config;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                inputs.root(),
+                &build.native_formations,
+                &build.native_binding_requests,
+            )?;
+        let native_bindings = package_compilation::PackageNativeBindingBundle::from_checked(
+            generated_sources.clone(),
+            declarations,
+            intents,
+            build.config.native_binding_evaluation.clone(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {
             root_path,
             target,
             inputs,
             rollback,
-            permit_unsettled_fused_service_fields,
             prepared,
             generated_sources,
+            native_bindings,
         })
     }
 
     pub fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
         &self.generated_sources
+    }
+
+    pub fn native_binding_bundle(&self) -> &package_compilation::PackageNativeBindingBundle {
+        &self.native_bindings
+    }
+
+    pub fn optimization_rollback(&self) -> &optimization_core::OptimizationRollback {
+        &self.rollback
     }
 
     pub fn root_path(&self) -> &std::path::Path {
@@ -160,10 +176,6 @@ impl PreparedPackageBuild {
 
     pub fn package_inputs(&self) -> &PackageCompilationInputs {
         &self.inputs
-    }
-
-    pub fn permits_unsettled_fused_service_fields(&self) -> bool {
-        self.permit_unsettled_fused_service_fields
     }
 
     pub fn timings(&self) -> &artifacts::compile_timings::CompileTimings {

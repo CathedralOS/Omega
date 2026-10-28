@@ -1,5 +1,5 @@
 use crate::capture::PackageReviewInput;
-use crate::capture::contracts::facts::ContractProjectionContext;
+use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::record::{
@@ -27,15 +27,7 @@ pub(crate) fn project_contract_cast(
                 ))]
             })?;
         let identity = nominal_identity(compilation, domain.symbol)?;
-        let reviewed_package = compilation
-            .custody
-            .sources()
-            .package_identity()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "package review requires package-aware checked compilation",
-                )]
-            })?;
+        let reviewed_package = reviewed_package(compilation, "package")?;
         if context.requires_public_nominals()
             && reviewed_package_owns(&identity, reviewed_package)?
             && !domain.is_public

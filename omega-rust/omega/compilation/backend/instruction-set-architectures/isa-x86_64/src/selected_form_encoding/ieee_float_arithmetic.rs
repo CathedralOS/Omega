@@ -78,11 +78,10 @@ use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
-    IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
-    MachineAlternative, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, ieee_float_arithmetic_is_trapping,
+    IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    ieee_float_arithmetic_is_trapping,
 };
 
 mod conversions;
@@ -203,39 +202,30 @@ pub(crate) fn declaration(
     form: IeeeFloatArithmeticForm,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, Error> {
-    Ok(MachineEffectDeclaration {
-        semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
+    Ok(super::alternative_declaration(
         constraint,
-        memory: if form.operation.rounding_direction().is_some() {
+        MachineSemanticKind::NearestIeeeFloatArithmetic(form),
+        if form.operation.rounding_direction().is_some() {
             MachineMemoryEffect::TemporaryStackStorageV1
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if form.operation.rounding_direction().is_some() {
+        if form.operation.rounding_direction().is_some() {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else if ieee_float_arithmetic_is_trapping(form) {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if ieee_float_arithmetic_is_trapping(form) {
+        if ieee_float_arithmetic_is_trapping(form) {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
         },
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: size(form)?,
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(form),
-        }],
-    })
+        MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+        size(form)?,
+        effects(form),
+    ))
 }
 
 /// One instruction of a form, by its fields.

@@ -5,8 +5,10 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// write, delegating to `Encoder::field` for the field's own framing. A policy
 /// row states the scalar value and the field's name; the wrapper closure that
 /// restated the framing at every site is not part of the encoder's surface.
+/// A writer either reports a failure or cannot: the field's own check reports
+/// either, so both kinds are the same form here.
 macro_rules! scalar_field_forms {
-    ($($method:ident($value:ty) => $writer:ident),+ $(,)?) => {
+    (@total $($method:ident($value:ty) => $writer:ident),+ $(,)?) => {
         $(
             pub(crate) fn $method(
                 &mut self,
@@ -20,10 +22,24 @@ macro_rules! scalar_field_forms {
             }
         )+
     };
+    (@fallible $($method:ident($value:ty) => $writer:ident),+ $(,)?) => {
+        $(
+            pub(crate) fn $method(
+                &mut self,
+                name: &'static str,
+                value: $value,
+            ) -> Result<(), PackageReviewEncodingError> {
+                self.field(name, |encoder| {
+                    encoder.$writer(value)?;
+                    Ok(())
+                })
+            }
+        )+
+    };
 }
 
 impl Encoder<'_> {
-    scalar_field_forms!(
+    scalar_field_forms!(@total
         byte_field(u8) => byte,
         u16_field(u16) => u16,
         u32_field(u32) => u32,
@@ -33,6 +49,10 @@ impl Encoder<'_> {
         fixed_bytes_field(&[u8]) => fixed_bytes,
         package_identity_field(PackageKeyIdentity) => package_identity,
         optional_package_identity_field(Option<PackageKeyIdentity>) => optional_package_identity,
+    );
+    scalar_field_forms!(@fallible
+        string_field(&str) => string,
+        usize_field(usize) => usize,
     );
 
     /// One tag field: the tag's own name and value under this field's name,

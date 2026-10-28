@@ -5,6 +5,8 @@
 //! of later siblings or statements. Consumers judge that captured value; they
 //! cannot import a machine's eventual guarantees as premises at an earlier cut.
 
+use std::ops::ControlFlow;
+
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
@@ -49,15 +51,20 @@ pub fn completed_value_is_bounded_by_static(
     if program.primitive_type_reference(bound_type) != Some(primitive) {
         return false;
     }
-    let mut proven = true;
-    let complete = observe_completed_values(
+    let result = fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        true,
+        |proven| *proven,
+        |proven, observation| {
+            let Some((judge, value)) = observation else {
+                *proven = false;
+                return ControlFlow::Break(());
+            };
             let predicate = StructuralTerm::ScalarBinary {
                 references: [reference, bound_type],
                 operator: if strict {
@@ -69,13 +76,18 @@ pub fn completed_value_is_bounded_by_static(
                 left: Box::new(value),
                 right: Box::new(StructuralTerm::BoundValue(binder)),
             };
-            proven &= matches!(
+            *proven &= matches!(
                 judge.judge_observed_predicate(predicate, 0),
                 super::structural_judgment::StructuralJudgment::Proven
             );
+            if *proven {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
+            }
         },
     );
-    complete == Some(true) && proven
+    result.is_some_and(|result| result.complete && result.state)
 }
 
 /// Prove a finite receiving interval on the actual completed scalar value.
@@ -100,15 +112,20 @@ pub(crate) fn completed_value_fits_integer_interval(
     else {
         return false;
     };
-    let mut proven = true;
-    let complete = observe_completed_values(
+    let result = fold_completed_values(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
+        true,
+        |proven| *proven,
+        |proven, observation| {
+            let Some((judge, value)) = observation else {
+                *proven = false;
+                return ControlFlow::Break(());
+            };
             for (bound, lower) in [(interval.low, true), (interval.high, false)] {
                 let Some(bound) = bound else {
                     continue;
@@ -132,33 +149,50 @@ pub(crate) fn completed_value_fits_integer_interval(
                         "STRUCT completed interval expression={expression:?} predicate={predicate:?} judgment={judgment:?}"
                     );
                 }
-                proven &= matches!(
+                *proven &= matches!(
                     judgment,
                     super::structural_judgment::StructuralJudgment::Proven
                 );
+                if !*proven {
+                    return ControlFlow::Break(());
+                }
             }
+            ControlFlow::Continue(())
         },
     );
     if super::struct_trace() {
-        eprintln!(
-            "STRUCT completed interval expression={expression:?} coverage={complete:?} proven={proven}"
-        );
+        eprintln!("STRUCT completed interval expression={expression:?} result={result:?}");
     }
-    complete == Some(true) && proven
+    result.is_some_and(|result| result.complete && result.state)
 }
 
-/// Visit every reachable completion. None means the prefix was unavailable;
-/// false means that the callbacks do not cover all reachable completions.
-/// Partial observations may refute a predicate, but cannot establish one.
-pub(super) fn observe_completed_values(
+/// A query-owned fold result. Partial universal observations may refute a
+/// predicate, but only complete coverage may establish it.
+#[derive(Debug)]
+pub(super) struct CompletedValueFold<FoldState> {
+    pub state: FoldState,
+    pub complete: bool,
+}
+
+/// Fold completed values without publishing a tentative arrival's judgment.
+/// Complete universal evidence avoids a private-arrival traversal. Otherwise
+/// try a fresh closed-private batch and retain it only with complete coverage;
+/// a failed private attempt leaves the saved universal result unchanged.
+/// The fold owns every mutable result; it must not publish effects externally.
+/// A missing observation is delivered as None. Breaking aborts the batch and
+/// marks it incomplete, so an early failure can never establish a predicate.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn fold_completed_values<FoldState: Clone>(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    observe: impl FnMut(&StructuralJudge<'_>, StructuralTerm),
-) -> Option<bool> {
+    initial: FoldState,
+    succeeds: impl Fn(&FoldState) -> bool,
+    fold: impl Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
+) -> Option<CompletedValueFold<FoldState>> {
     let mut visitor = CompletedObservation {
         site: StructuralPrefixSite {
             state: state.symbol,
@@ -172,33 +206,85 @@ pub(super) fn observe_completed_values(
         },
         expression,
         reference,
-        observe,
+        fold: &fold,
+        succeeds: &succeeds,
+        state: initial.clone(),
         complete: true,
         observed: false,
+        halted: false,
     };
-    observe_runtime_state_prefix(program, machine, state, &mut visitor)?;
-    Some(visitor.complete && visitor.observed)
+    let recognized = observe_runtime_state_prefix(program, machine, state, &mut visitor).is_some();
+    let universal = recognized.then_some(CompletedValueFold {
+        state: std::mem::replace(&mut visitor.state, initial),
+        complete: visitor.complete && visitor.observed,
+    });
+    if universal
+        .as_ref()
+        .is_some_and(|result| result.complete && succeeds(&result.state))
+    {
+        return universal;
+    }
+    visitor.complete = true;
+    visitor.observed = false;
+    visitor.halted = false;
+    if super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
+        == Some(true)
+        && visitor.complete
+        && visitor.observed
+    {
+        return Some(CompletedValueFold {
+            state: visitor.state,
+            complete: true,
+        });
+    }
+    universal
 }
 
-struct CompletedObservation<Observer> {
+#[derive(Clone)]
+struct CompletedObservation<FoldState, Fold, Succeeds> {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    observe: Observer,
+    fold: Fold,
+    succeeds: Succeeds,
+    state: FoldState,
     complete: bool,
     observed: bool,
+    halted: bool,
 }
 
-impl<Observer> StructuralPrefixVisitor for CompletedObservation<Observer>
+impl<FoldState, Fold, Succeeds> CompletedObservation<FoldState, Fold, Succeeds>
 where
-    Observer: FnMut(&StructuralJudge<'_>, StructuralTerm),
+    Fold: Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
 {
+    fn unavailable(&mut self) {
+        self.complete = false;
+        if (self.fold)(&mut self.state, None).is_break() {
+            self.halted = true;
+        }
+    }
+}
+
+impl<FoldState, Fold, Succeeds> StructuralPrefixVisitor
+    for CompletedObservation<FoldState, Fold, Succeeds>
+where
+    Fold: Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
+    Succeeds: Fn(&FoldState) -> bool,
+{
+    fn has_positive_proof(&self) -> bool {
+        self.complete && self.observed && !self.halted && (self.succeeds)(&self.state)
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }
 
+    fn is_complete(&self) -> bool {
+        self.halted
+    }
+
     fn unresolved(&mut self, _machine: &Machine) {
-        self.complete = false;
+        self.unavailable();
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
@@ -209,15 +295,28 @@ where
             environment,
             (machine, state, self.reference),
         ) else {
-            self.complete = false;
+            self.unavailable();
             return;
         };
-        self.observed |= !outcomes.is_empty();
+        if outcomes.is_empty() {
+            self.unavailable();
+            return;
+        }
+        self.observed = true;
         for outcome in outcomes {
-            (self.observe)(
-                &outcome.judge,
-                outcome.judge.completed_value_identity(outcome.value),
-            );
+            if (self.fold)(
+                &mut self.state,
+                Some((
+                    &outcome.judge,
+                    outcome.judge.completed_value_identity(outcome.value),
+                )),
+            )
+            .is_break()
+            {
+                self.halted = true;
+                self.complete = false;
+                break;
+            }
         }
     }
 }

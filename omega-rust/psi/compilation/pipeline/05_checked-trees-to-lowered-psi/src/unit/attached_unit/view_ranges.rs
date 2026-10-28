@@ -12,11 +12,12 @@
 //! expression would lose that identity and could repeat a call's effects. Both
 //! schedules then narrow the same half-open descriptor with exact arithmetic.
 use super::{CheckedTrees, LoweringError, allocate_dense, place_id, unsupported};
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
     emit_prepared_path, path_with_current_bounds,
 };
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::ExpressionHandle;
@@ -565,22 +566,10 @@ pub(crate) fn emit_view(
     operations: &mut OperationBuffer,
 ) -> StructuralPlaceDeclaration {
     let access = source.access;
-    operations.push(terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: terminal_psi::OperationResult::Structural(
-            terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type,
-                multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            },
-        ),
-        kind: if access == terminal_psi::StructuralAccess::MutableBorrow {
+    operations.push(terminal_psi::Operation::unsuspended(
+        producer,
+        structural_result_declaration(place, structural_type, multiplicity),
+        if access == terminal_psi::StructuralAccess::MutableBorrow {
             terminal_psi::OperationKind::EstablishMutableElementView {
                 destination: place,
                 source,
@@ -595,14 +584,8 @@ pub(crate) fn emit_view(
                 region,
             }
         },
-    });
-    StructuralPlaceDeclaration {
-        id: place,
-        kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    }
+    ));
+    operation_result_place(place, producer, structural_type)
 }
 
 /// The established view a range narrows, as the emitting route found it.

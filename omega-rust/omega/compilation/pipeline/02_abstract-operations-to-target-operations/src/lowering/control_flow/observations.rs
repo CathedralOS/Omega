@@ -1,5 +1,6 @@
 //! Once-only scalar observations and live immutable descriptor establishments.
 
+use super::aggregate_results::established_home;
 use super::{KnownUnitInteger, LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::scalar::{
@@ -124,7 +125,7 @@ pub(super) fn lower(
         ..
     } = operation
     {
-        let (view, _) = element_views::element_view_for_place(
+        let (view, _, _) = element_views::resolve_element_view(
             function,
             structural_types,
             &prepared.parameters,
@@ -727,10 +728,7 @@ fn record_view_result(
     {
         return Err(LoweringError::unsupported_control_flow(machine));
     }
-    let home = super::aggregate_results::home(psi_operation, result, structural_types)?;
-    if live.structural_homes.insert(result.place, home).is_some() {
-        return Err(LoweringError::unsupported_control_flow(machine));
-    }
+    established_home(live, psi_operation, result, structural_types, machine)?;
     provenance.operations.push(psi_operation);
     Ok(())
 }

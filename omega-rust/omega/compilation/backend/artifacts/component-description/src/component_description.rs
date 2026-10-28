@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId};
-use terminal_psi::{OperationKind, TerminalModule, TerminalPsiIdentity};
+use terminal_psi::{OperationKind, TerminalIdentityIndex, TerminalModule, TerminalPsiIdentity};
 
 /// Wire magic for the canonical component-description encoding.
 const DESCRIPTION_MAGIC: &[u8; 8] = b"OMGCMPD\0";
@@ -32,6 +32,32 @@ const CANONICAL_ENTRY_CONTRACT_DOMAIN: &[u8] = b"omega-component-canonical-entry
 /// Domain prefix for a derived port-space mechanism assumption.
 const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
 const REGISTER_MECHANISM_DOMAIN: &[u8] = b"omega-component-register-mechanism-v1";
+
+/// One wire-tag table per enum, generated whole.
+///
+/// The forward `tag` and the reverse `from_tag` are one list here, so a variant
+/// cannot be given a number in one direction only: the previous hand-written
+/// pairs kept two match tables per enum in step by inspection, and a new variant
+/// added to one of them read back as an unsupported tag or silently aliased
+/// another variant's number.
+macro_rules! wire_tagged {
+    ($name:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
+        impl $name {
+            pub(crate) fn tag(self) -> u8 {
+                match self {
+                    $(Self::$variant => $tag),+
+                }
+            }
+
+            fn from_tag(tag: u8) -> Option<Self> {
+                match tag {
+                    $($tag => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
+        }
+    };
+}
 
 /// Current and only published description schema.
 ///
@@ -65,24 +91,11 @@ pub enum DescriptionFrontier {
     TerminalArtifactClosure,
 }
 
-impl DescriptionFrontier {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::AuthoredDeclaration => 1,
-            Self::SelectedPlan => 2,
-            Self::TerminalArtifactClosure => 3,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::AuthoredDeclaration),
-            2 => Some(Self::SelectedPlan),
-            3 => Some(Self::TerminalArtifactClosure),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(DescriptionFrontier {
+    AuthoredDeclaration = 1,
+    SelectedPlan = 2,
+    TerminalArtifactClosure = 3,
+});
 
 /// One import slot: an outgoing requirement the component demands but does
 /// not itself seal to a retained provider. Installation must bind each slot
@@ -165,32 +178,15 @@ pub enum ComponentEntryKind {
     RetainedProvider,
 }
 
-impl ComponentEntryKind {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::Canonical => 1,
-            Self::SuspensionResumption => 2,
-            Self::Startup => 3,
-            Self::RegisteredCallback => 4,
-            Self::Timer => 5,
-            Self::Cleanup => 6,
-            Self::RetainedProvider => 7,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::Canonical),
-            2 => Some(Self::SuspensionResumption),
-            3 => Some(Self::Startup),
-            4 => Some(Self::RegisteredCallback),
-            5 => Some(Self::Timer),
-            6 => Some(Self::Cleanup),
-            7 => Some(Self::RetainedProvider),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(ComponentEntryKind {
+    Canonical = 1,
+    SuspensionResumption = 2,
+    Startup = 3,
+    RegisteredCallback = 4,
+    Timer = 5,
+    Cleanup = 6,
+    RetainedProvider = 7,
+});
 
 /// Evidence binding one entry row to independently checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -225,26 +221,12 @@ pub enum OutgoingAuthorityClass {
     ServiceCeiling,
 }
 
-impl OutgoingAuthorityClass {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::BoundaryRequirement => 1,
-            Self::PortSpaceWrite => 2,
-            Self::ServiceCeiling => 3,
-            Self::RegisterAccess => 4,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::BoundaryRequirement),
-            2 => Some(Self::PortSpaceWrite),
-            3 => Some(Self::ServiceCeiling),
-            4 => Some(Self::RegisterAccess),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(OutgoingAuthorityClass {
+    BoundaryRequirement = 1,
+    PortSpaceWrite = 2,
+    ServiceCeiling = 3,
+    RegisterAccess = 4,
+});
 
 /// Evidence binding one outgoing-authority row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -313,34 +295,16 @@ pub enum CustodyKind {
     Lease,
 }
 
-impl CustodyKind {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::PlacedViewInput => 1,
-            Self::ReborrowRestoredCall => 3,
-            Self::CompletionReceipt => 4,
-            Self::ProgramLocalRootIntroduction => 5,
-            Self::BoundaryContentGuarantee => 6,
-            Self::SuspensionFrontier => 8,
-            Self::Mapping => 9,
-            Self::Lease => 10,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::PlacedViewInput),
-            3 => Some(Self::ReborrowRestoredCall),
-            4 => Some(Self::CompletionReceipt),
-            5 => Some(Self::ProgramLocalRootIntroduction),
-            6 => Some(Self::BoundaryContentGuarantee),
-            8 => Some(Self::SuspensionFrontier),
-            9 => Some(Self::Mapping),
-            10 => Some(Self::Lease),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(CustodyKind {
+    PlacedViewInput = 1,
+    ReborrowRestoredCall = 3,
+    CompletionReceipt = 4,
+    ProgramLocalRootIntroduction = 5,
+    BoundaryContentGuarantee = 6,
+    SuspensionFrontier = 8,
+    Mapping = 9,
+    Lease = 10,
+});
 
 /// Evidence binding one custody row to checkable fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -395,30 +359,14 @@ pub enum ObligationKind {
     Lease,
 }
 
-impl ObligationKind {
-    pub(crate) fn tag(self) -> u8 {
-        match self {
-            Self::StackProvision => 1,
-            Self::ProviderOccurrence => 2,
-            Self::ImportBinding => 3,
-            Self::ResourceAdmission => 5,
-            Self::Mapping => 6,
-            Self::Lease => 7,
-        }
-    }
-
-    fn from_tag(tag: u8) -> Option<Self> {
-        match tag {
-            1 => Some(Self::StackProvision),
-            2 => Some(Self::ProviderOccurrence),
-            3 => Some(Self::ImportBinding),
-            5 => Some(Self::ResourceAdmission),
-            6 => Some(Self::Mapping),
-            7 => Some(Self::Lease),
-            _ => None,
-        }
-    }
-}
+wire_tagged!(ObligationKind {
+    StackProvision = 1,
+    ProviderOccurrence = 2,
+    ImportBinding = 3,
+    ResourceAdmission = 5,
+    Mapping = 6,
+    Lease = 7,
+});
 
 /// One installation obligation. The `identity` is the canonical obligation
 /// coordinate; `detail` carries bounded human-readable context only.
@@ -543,26 +491,18 @@ impl std::error::Error for DescriptionDecodeRejection {}
 
 /// Collision-resistant identity of one exact encoded description.
 pub(crate) fn component_description_identity(canonical_bytes: &[u8]) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(DESCRIPTION_IDENTITY_DOMAIN);
-    digest.raw(
-        &u64::try_from(canonical_bytes.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    digest.raw(&canonical_bytes);
-    digest.finish()
+    crate::digest_encoder::DomainDigestEncoder::content(
+        DESCRIPTION_IDENTITY_DOMAIN,
+        canonical_bytes,
+    )
 }
 
 /// Collision-resistant contract identity of one requirement spelling.
 pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(REQUIREMENT_CONTRACT_DOMAIN);
-    digest.raw(
-        &u64::try_from(requirement_identity.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    digest.raw(requirement_identity.as_bytes());
-    digest.finish()
+    crate::digest_encoder::DomainDigestEncoder::content(
+        REQUIREMENT_CONTRACT_DOMAIN,
+        requirement_identity.as_bytes(),
+    )
 }
 
 /// Distinguishes a concrete root from a portable family head in exported labels.
@@ -575,6 +515,16 @@ fn canonical_entry_label(entry: terminal_psi::TargetMachineCallable) -> String {
             format!("boundary:{}", boundary.get())
         }
     }
+}
+
+/// The rendered spelling of one interned identity.
+///
+/// A codec-decoded module's indices are in range, so a producer publishing an
+/// identity has no failure to report here and the fallback is the empty
+/// spelling. Every roster that names an identity reads it through this one
+/// place rather than repeating the fallback decision.
+pub(crate) fn identity_text(module: &TerminalModule, identity: TerminalIdentityIndex) -> &str {
+    module.identities.text(identity).unwrap_or_default()
 }
 
 /// Collision-resistant contract identity of the canonical entry export.
@@ -620,14 +570,8 @@ pub(crate) fn register_mechanism_assumption(
     digest.finish()
 }
 
-pub(crate) fn hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write;
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
-}
+/// Lowercase hex rendering of digest bytes, taken from the shared encoder.
+pub(crate) use crate::digest_encoder::hex;
 
 /// Every fact `verify_component` can re-derive from the embedded artifact
 /// alone. The producer emits exactly these rows (plus declared rows bound to
@@ -829,22 +773,13 @@ pub(crate) fn derive_component_inventory(
         let declaration = declarations
             .get(boundary)
             .ok_or(DescribeError::UndeclaredBoundary(*boundary))?;
-        called_requirement_identities.push(
-            module
-                .identities
-                .text(declaration.identity)
-                .unwrap_or_default()
-                .to_string(),
-        );
+        called_requirement_identities.push(identity_text(module, declaration.identity).to_string());
         for schema in &declaration.program_local_root_introductions {
             custody.push(CustodyConstraint {
                 kind: CustodyKind::ProgramLocalRootIntroduction,
                 identity: format!(
                     "root-introduction:{}:{}",
-                    module
-                        .identities
-                        .text(declaration.identity)
-                        .unwrap_or_default(),
+                    identity_text(module, declaration.identity),
                     schema.argument_index,
                 ),
                 evidence: CustodyEvidence::ModuleDerived,
@@ -855,10 +790,7 @@ pub(crate) fn derive_component_inventory(
                 kind: CustodyKind::BoundaryContentGuarantee,
                 identity: format!(
                     "content-guarantee:{}:{index}",
-                    module
-                        .identities
-                        .text(declaration.identity)
-                        .unwrap_or_default()
+                    identity_text(module, declaration.identity)
                 ),
                 evidence: CustodyEvidence::ModuleDerived,
             });
@@ -874,10 +806,7 @@ pub(crate) fn derive_component_inventory(
                 "placed-view:{}:{}:{}",
                 input.machine.get(),
                 input.position,
-                module
-                    .identities
-                    .text(input.view_identity)
-                    .unwrap_or_default(),
+                identity_text(module, input.view_identity),
             ),
             evidence: CustodyEvidence::ModuleDerived,
         });
@@ -937,10 +866,7 @@ pub(crate) fn derive_component_inventory(
             bound.sort();
             bound.dedup();
             InstallationServiceBound {
-                requirement_identity: module
-                    .identities
-                    .text(dependency.requirement_identity)
-                    .unwrap_or_default()
+                requirement_identity: identity_text(module, dependency.requirement_identity)
                     .to_string(),
                 bound,
             }
@@ -962,25 +888,14 @@ pub(crate) fn derive_component_inventory(
     for candidate in &module.provider_candidates {
         export_contracts.push(ExportContract {
             identity: requirement_export_identity(
-                module
-                    .identities
-                    .text(candidate.requirement_identity)
-                    .unwrap_or_default(),
-                module
-                    .identities
-                    .text(candidate.provider_identity)
-                    .unwrap_or_default(),
-                module
-                    .identities
-                    .text(candidate.candidate_identity)
-                    .unwrap_or_default(),
+                identity_text(module, candidate.requirement_identity),
+                identity_text(module, candidate.provider_identity),
+                identity_text(module, candidate.candidate_identity),
             ),
-            contract_identity: requirement_contract_identity(
-                module
-                    .identities
-                    .text(candidate.requirement_identity)
-                    .unwrap_or_default(),
-            ),
+            contract_identity: requirement_contract_identity(identity_text(
+                module,
+                candidate.requirement_identity,
+            )),
         });
     }
     export_contracts.sort();
@@ -1235,64 +1150,44 @@ pub(crate) fn describe_decoded_component_facts(
 // Canonical wire codec
 // ---------------------------------------------------------------------------
 
-struct Reader<'a> {
-    bytes: &'a [u8],
-    offset: usize,
+// The read half of the wire protocol is the workspace's shared cursor; this
+// decoder supplies only its own roster and identity bounds.
+use optimization_core::cursor::{Cursor, Truncated};
+
+/// The shared bounded cursor, narrowed to this decoder's own failure: a
+/// truncated read is a corrupt description.
+///
+/// `cursor::Cursor` owns the read half of the workspace's byte protocol
+/// (truncation and length handling); this wire adds only its own roster and
+/// identity bounds below, and maps a truncated read onto its corrupt row.
+type Reader<'a> = Cursor<'a>;
+
+impl From<Truncated> for DescriptionDecodeRejection {
+    fn from(_: Truncated) -> Self {
+        Self::Corrupt("truncated input")
+    }
 }
 
-impl<'a> Reader<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, offset: 0 }
+/// One roster's declared row count, bounded before any row is read.
+fn roster_len(
+    reader: &mut Reader<'_>,
+    what: &'static str,
+) -> Result<usize, DescriptionDecodeRejection> {
+    let count = reader.u32()? as usize;
+    if count > MAX_DESCRIPTION_ROSTER {
+        return Err(DescriptionDecodeRejection::RosterBoundExceeded(what));
     }
+    Ok(count)
+}
 
-    fn remaining(&self) -> usize {
-        self.bytes.len() - self.offset
+/// One length-framed identity string, bounded before it is read.
+fn read_identity(reader: &mut Reader<'_>) -> Result<String, DescriptionDecodeRejection> {
+    let length = reader.u32()? as usize;
+    if length > MAX_IDENTITY_BYTES {
+        return Err(DescriptionDecodeRejection::IdentityInvalid("too long"));
     }
-
-    fn take(&mut self, count: usize) -> Result<&'a [u8], DescriptionDecodeRejection> {
-        if self.remaining() < count {
-            return Err(DescriptionDecodeRejection::Corrupt("truncated input"));
-        }
-        let slice = &self.bytes[self.offset..self.offset + count];
-        self.offset += count;
-        Ok(slice)
-    }
-
-    fn u8(&mut self) -> Result<u8, DescriptionDecodeRejection> {
-        Ok(self.take(1)?[0])
-    }
-
-    fn u32(&mut self) -> Result<u32, DescriptionDecodeRejection> {
-        Ok(u32::from_le_bytes(self.array()?))
-    }
-
-    fn u64(&mut self) -> Result<u64, DescriptionDecodeRejection> {
-        Ok(u64::from_le_bytes(self.array()?))
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], DescriptionDecodeRejection> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| DescriptionDecodeRejection::Corrupt("truncated fixed bytes"))
-    }
-
-    fn roster_len(&mut self, what: &'static str) -> Result<usize, DescriptionDecodeRejection> {
-        let count = self.u32()? as usize;
-        if count > MAX_DESCRIPTION_ROSTER {
-            return Err(DescriptionDecodeRejection::RosterBoundExceeded(what));
-        }
-        Ok(count)
-    }
-
-    fn identity(&mut self) -> Result<String, DescriptionDecodeRejection> {
-        let length = self.u32()? as usize;
-        if length > MAX_IDENTITY_BYTES {
-            return Err(DescriptionDecodeRejection::IdentityInvalid("too long"));
-        }
-        let bytes = self.take(length)?;
-        String::from_utf8(bytes.to_vec())
-            .map_err(|_| DescriptionDecodeRejection::IdentityInvalid("not utf-8"))
-    }
+    String::from_utf8(reader.take(length)?.to_vec())
+        .map_err(|_| DescriptionDecodeRejection::IdentityInvalid("not utf-8"))
 }
 
 fn push_u32(out: &mut Vec<u8>, value: u32) {
@@ -1454,7 +1349,7 @@ pub fn decode_component_description(
 /// Decode the description and retain its independently replayed canonical
 /// artifact for verification. This proves canonical encoding only; subject,
 /// proof admission, and inventory checks remain the verifier's responsibility.
-pub(crate) fn decode_component_description_with_artifact(
+pub fn decode_component_description_with_artifact(
     bytes: &[u8],
 ) -> Result<
     (
@@ -1468,7 +1363,7 @@ pub(crate) fn decode_component_description_with_artifact(
             "description byte length",
         ));
     }
-    let mut reader = Reader::new(bytes);
+    let mut reader = Cursor::new(bytes);
     if reader.take(DESCRIPTION_MAGIC.len())? != DESCRIPTION_MAGIC {
         return Err(DescriptionDecodeRejection::InvalidMagic);
     }
@@ -1478,7 +1373,7 @@ pub(crate) fn decode_component_description_with_artifact(
             "description schema",
         ));
     }
-    let frontier = DescriptionFrontier::from_tag(reader.u8()?)
+    let frontier = DescriptionFrontier::from_tag(reader.byte()?)
         .ok_or(DescriptionDecodeRejection::UnsupportedTag("frontier tag"))?;
 
     let artifact_length = reader.u32()? as usize;
@@ -1488,9 +1383,9 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut imports = Vec::new();
     let mut last_import: Option<(u32, String)> = None;
-    for _ in 0..reader.roster_len("import")? {
+    for _ in 0..roster_len(&mut reader, "import")? {
         let slot = reader.u32()?;
-        let requirement_identity = reader.identity()?;
+        let requirement_identity = read_identity(&mut reader)?;
         let contract_identity = reader.array::<32>()?;
         let key = (slot, requirement_identity.clone());
         if last_import.as_ref() >= Some(&key) {
@@ -1506,8 +1401,8 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut exports = Vec::new();
     let mut last_export: Option<String> = None;
-    for _ in 0..reader.roster_len("export")? {
-        let identity = reader.identity()?;
+    for _ in 0..roster_len(&mut reader, "export")? {
+        let identity = read_identity(&mut reader)?;
         if last_export.as_ref() >= Some(&identity) {
             return Err(DescriptionDecodeRejection::NonCanonicalOrder("export"));
         }
@@ -1517,11 +1412,11 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut entries = Vec::new();
     let mut last_entry: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("entry")? {
-        let kind = ComponentEntryKind::from_tag(reader.u8()?)
+    for _ in 0..roster_len(&mut reader, "entry")? {
+        let kind = ComponentEntryKind::from_tag(reader.byte()?)
             .ok_or(DescriptionDecodeRejection::UnsupportedTag("entry kind"))?;
-        let identity = reader.identity()?;
-        let evidence = match reader.u8()? {
+        let identity = read_identity(&mut reader)?;
+        let evidence = match reader.byte()? {
             0 => EntryEvidence::ModuleDerived,
             1 => EntryEvidence::AssumptionBound(reader.array::<32>()?),
             _ => return Err(DescriptionDecodeRejection::UnsupportedTag("entry evidence")),
@@ -1540,12 +1435,12 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut outgoing = Vec::new();
     let mut last_outgoing: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("outgoing authority")? {
-        let class = OutgoingAuthorityClass::from_tag(reader.u8()?).ok_or(
+    for _ in 0..roster_len(&mut reader, "outgoing authority")? {
+        let class = OutgoingAuthorityClass::from_tag(reader.byte()?).ok_or(
             DescriptionDecodeRejection::UnsupportedTag("authority class"),
         )?;
-        let identity = reader.identity()?;
-        let evidence = match reader.u8()? {
+        let identity = read_identity(&mut reader)?;
+        let evidence = match reader.byte()? {
             0 => OutgoingEvidence::ModuleDerived,
             1 => OutgoingEvidence::ProviderSealed(reader.array::<32>()?),
             2 => OutgoingEvidence::PhysicalMechanism(reader.array::<32>()?),
@@ -1572,11 +1467,11 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut service_bounds = Vec::new();
     let mut last_bound: Option<(String, Vec<ServiceId>)> = None;
-    for _ in 0..reader.roster_len("service bound")? {
-        let requirement_identity = reader.identity()?;
+    for _ in 0..roster_len(&mut reader, "service bound")? {
+        let requirement_identity = read_identity(&mut reader)?;
         let mut bound = Vec::new();
         let mut last_service: Option<ServiceId> = None;
-        for _ in 0..reader.roster_len("service bound services")? {
+        for _ in 0..roster_len(&mut reader, "service bound services")? {
             let service = ServiceId::new(reader.u64()?)
                 .ok_or(DescriptionDecodeRejection::Corrupt("zero service identity"))?;
             if last_service >= Some(service) {
@@ -1602,11 +1497,11 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut custody = Vec::new();
     let mut last_custody: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("custody")? {
-        let kind = CustodyKind::from_tag(reader.u8()?)
+    for _ in 0..roster_len(&mut reader, "custody")? {
+        let kind = CustodyKind::from_tag(reader.byte()?)
             .ok_or(DescriptionDecodeRejection::UnsupportedTag("custody kind"))?;
-        let identity = reader.identity()?;
-        let evidence = match reader.u8()? {
+        let identity = read_identity(&mut reader)?;
+        let evidence = match reader.byte()? {
             0 => CustodyEvidence::ModuleDerived,
             1 => CustodyEvidence::AssumptionBound(reader.array::<32>()?),
             _ => {
@@ -1629,7 +1524,7 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut providers = Vec::new();
     let mut last_provider: Option<u64> = None;
-    for _ in 0..reader.roster_len("provider")? {
+    for _ in 0..roster_len(&mut reader, "provider")? {
         let report_identity = reader.u64()?;
         let plan_digest = reader.array::<32>()?;
         let plan_input_length = reader.u32()? as usize;
@@ -1639,11 +1534,11 @@ pub(crate) fn decode_component_description_with_artifact(
             ));
         }
         let plan_input = reader.take(plan_input_length)?.to_vec();
-        let requirement_count = reader.roster_len("provider requirement")?;
+        let requirement_count = roster_len(&mut reader, "provider requirement")?;
         let mut requirement_identities = Vec::with_capacity(requirement_count);
         let mut last_requirement: Option<String> = None;
         for _ in 0..requirement_count {
-            let requirement = reader.identity()?;
+            let requirement = read_identity(&mut reader)?;
             if last_requirement.as_ref() >= Some(&requirement) {
                 return Err(DescriptionDecodeRejection::NonCanonicalOrder(
                     "provider requirement",
@@ -1667,12 +1562,12 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut obligations = Vec::new();
     let mut last_obligation: Option<(u8, String)> = None;
-    for _ in 0..reader.roster_len("obligation")? {
-        let kind = ObligationKind::from_tag(reader.u8()?).ok_or(
+    for _ in 0..roster_len(&mut reader, "obligation")? {
+        let kind = ObligationKind::from_tag(reader.byte()?).ok_or(
             DescriptionDecodeRejection::UnsupportedTag("obligation kind"),
         )?;
-        let identity = reader.identity()?;
-        let detail = reader.identity()?;
+        let identity = read_identity(&mut reader)?;
+        let detail = read_identity(&mut reader)?;
         let key = (kind.tag(), identity.clone());
         if last_obligation.as_ref() >= Some(&key) {
             return Err(DescriptionDecodeRejection::NonCanonicalOrder("obligation"));
@@ -1687,7 +1582,7 @@ pub(crate) fn decode_component_description_with_artifact(
 
     let mut assumptions = Vec::new();
     let mut last_assumption: Option<[u8; 32]> = None;
-    for _ in 0..reader.roster_len("assumption")? {
+    for _ in 0..roster_len(&mut reader, "assumption")? {
         let assumption = reader.array::<32>()?;
         if last_assumption >= Some(assumption) {
             return Err(DescriptionDecodeRejection::NonCanonicalOrder("assumption"));
@@ -1696,7 +1591,7 @@ pub(crate) fn decode_component_description_with_artifact(
         assumptions.push(assumption);
     }
 
-    let realization_identity = match reader.u8()? {
+    let realization_identity = match reader.byte()? {
         0 => None,
         1 => Some(reader.array::<32>()?),
         _ => {

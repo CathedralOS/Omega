@@ -58,8 +58,8 @@ mod unit_returns;
 mod write_frames;
 pub(crate) use write_frames::provider_completion_covers_writable_slots;
 
-pub(crate) use unit_returns::call_completes_unit_state;
 pub use unit_returns::machine_has_unit_result;
+pub(crate) use unit_returns::{call_completes_unit_state, unit_type};
 pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
 
 use argument_bounds::report_argument_bounds;
@@ -357,7 +357,7 @@ fn report_argument_reference_access(
 /// Prefer the occurrence's applied result. A declaration's raw result still
 /// contains its own static and region binders; consumers must not compare those
 /// foreign binders with a caller's type after preparation applied the call.
-pub(crate) fn call_result_type(
+pub fn call_result_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -619,11 +619,11 @@ pub(crate) fn validate_call_arguments(
         // Mutable-to-shared attenuation changes permission, not carrier or
         // domain. Keep the same type correspondence and proof checks below.
 
-        let expected_type =
-            program.display_type_reference_with_constraints(parameter.type_reference);
         let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
 
         if !type_matches(*argument, parameter.type_reference) {
+            let expected_type =
+                program.display_type_reference_with_constraints(parameter.type_reference);
             if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(
                     "ARGUMENT_MISMATCH caller={} scope={} target={} formal={} actual={}",
@@ -895,6 +895,7 @@ fn validate_value_call_arguments(
 
 mod topology;
 pub use topology::target_family_members;
+pub(crate) use topology::target_normal_completion_possible;
 pub use topology::{
     CompletingTransfer, call_target_entry_symbol, call_target_has_checked_body_contract,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,

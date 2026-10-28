@@ -4,7 +4,7 @@
 // The same operand appears in a local initializer, a statement call, a
 // transition argument, a constructor field, a case payload, a doubly
 // nested producer, a transition condition and a later state.
-domain [u8; 5]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 5]::Utf8 requires valid_utf8(self);
 data Label { text: [u8; 5] in Utf8; }
 data Holder { label: Label; }
 data Reply { case Empty; case Message(content: [u8; 5] in Utf8); }

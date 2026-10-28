@@ -5,12 +5,10 @@ use super::{
 };
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey,
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    LocalStorageSlotId, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SelectedInstructionKind,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 pub(crate) fn effects(restore: bool) -> MachineEncodedEffects {
@@ -57,32 +55,23 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
-    MachineEffectDeclaration {
-        semantic,
+    super::alternative_declaration(
         constraint,
-        memory: if restore {
+        semantic,
+        if restore {
             MachineMemoryEffect::ReadFrameStorageV1
         } else {
             MachineMemoryEffect::WriteFrameStorageV1
         },
-        trap: MachineTrapBehavior::MayArchitecturalFaultV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 4,
-                maximum_bytes: Some(8),
-            },
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(restore),
-        }],
-    }
+        MachineTrapBehavior::MayArchitecturalFaultV1,
+        MachineBarrier::ExternalEffect,
+        semantic.into(),
+        MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 4,
+            maximum_bytes: Some(8),
+        },
+        effects(restore),
+    )
 }
 
 fn request(

@@ -92,6 +92,17 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         self.stream.text(token)
     }
 
+    /// The `index`-th semantic token of the cursor, counting its own head as 0.
+    /// The head is trivia-free (`new`, `advanced` and `restarted` skip leading
+    /// trivia), but trivia between tokens is retained, so every peek past the
+    /// head continues from here instead of re-skipping by hand.
+    fn peek(&self, index: usize) -> Option<&'tokens Token> {
+        if index == 0 {
+            return self.tokens.first();
+        }
+        skip_non_semantic_tokens(self.tokens.get(1..)?).get(index - 1)
+    }
+
     pub(crate) fn depth(&self) -> u16 {
         self.depth
     }
@@ -296,14 +307,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// An integer literal as its ANONYMOUS payload (D14) -- the expression
     /// path, where the literal's type comes from a later use.
     pub(crate) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
+        self.take_parsed_integer("integer literal")
+    }
+
+    /// Parse the current token's spelling as an integer literal of its lexed
+    /// base, reporting `expected` when the token is not one. Every caller owns
+    /// only the payload rule it needs (anonymous, i64 ceiling, u64 identity):
+    /// none of them re-reads the spelling or the literal's validity.
+    fn take_parsed_integer(self, expected: &str) -> Result<(IntegerLiteral, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(self.text(token).as_str(), kind)
-                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            Ok((literal, rest))
-        } else {
-            Err(diagnostics::expected(self, token, "integer literal"))
-        }
+        let Some(kind) = token.integer_literal_kind() else {
+            return Err(diagnostics::expected(self, token, expected));
+        };
+        let literal = parse_integer_literal(self.text(token).as_str(), kind)
+            .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
+        Ok((literal, rest))
     }
 
     /// An integer literal at a STRUCTURAL position that needs a number at
@@ -312,40 +330,28 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// error -- they are not value-binding uses, so D14's fit-at-use does not
     /// apply.
     pub(crate) fn take_integer(self) -> Result<(i64, Self), ParseError> {
-        let (token, rest) = self.expect_token()?;
-        if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(self.text(token).as_str(), kind)
-                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            let value = literal.value_i64().ok_or_else(|| {
-                ParseError::at_source_span(
-                    "integer literal exceeds i64; this position needs a parse-time number",
-                    self.source_span(token),
-                )
-            })?;
-            Ok((value, rest))
-        } else {
-            Err(diagnostics::expected(self, token, "integer literal"))
-        }
+        let (literal, rest) = self.take_parsed_integer("integer literal")?;
+        let value = literal.value_i64().ok_or_else(|| {
+            ParseError::at_source_span(
+                "integer literal exceeds i64; this position needs a parse-time number",
+                self.current_source_span(),
+            )
+        })?;
+        Ok((value, rest))
     }
 
     /// A nonnegative structural identity carried through the complete `u64`
     /// range. Unlike signed structural integers, stable schema identities are
     /// opaque unsigned keys rather than arithmetic values.
     pub(crate) fn take_identity(self) -> Result<(u64, Self), ParseError> {
-        let (token, rest) = self.expect_token()?;
-        if let Some(kind) = token.integer_literal_kind() {
-            let literal = parse_integer_literal(self.text(token).as_str(), kind)
-                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
-            let value = literal.value_u64().ok_or_else(|| {
-                ParseError::at_source_span(
-                    "stable identity must be a nonnegative u64 value",
-                    self.source_span(token),
-                )
-            })?;
-            Ok((value, rest))
-        } else {
-            Err(diagnostics::expected(self, token, "stable identity"))
-        }
+        let (literal, rest) = self.take_parsed_integer("stable identity")?;
+        let value = literal.value_u64().ok_or_else(|| {
+            ParseError::at_source_span(
+                "stable identity must be a nonnegative u64 value",
+                self.current_source_span(),
+            )
+        })?;
+        Ok((value, rest))
     }
 
     pub(crate) fn take_string(self) -> Result<(String, Self), ParseError> {
@@ -447,49 +453,33 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
-    /// True when the input leads with a bare identifier IMMEDIATELY followed by
-    /// the contextual keyword `name` -- a 2-token peek for identifier-led items
-    /// like `<target> machine Path(..)`, which have no leading keyword to
-    /// dispatch on. Consumes nothing.
     /// True when the input leads with the contextual keyword `name` IMMEDIATELY
     /// followed (past trivia) by a string literal -- the prefixed-string shape
     /// (`utf16"..."`). A bare identifier followed by a string literal is never
     /// otherwise valid, so the peek cannot shadow user code. Consumes nothing.
     pub(crate) fn at_contextual_then_string(&self, name: &str) -> bool {
-        let Some((first, rest)) = self.tokens.split_first() else {
-            return false;
-        };
-        if !(matches!(first.kind, TokenKind::Identifier) && self.text(first).as_str() == name) {
-            return false;
-        }
-        skip_non_semantic_tokens(rest)
-            .first()
-            .is_some_and(|token| token.kind == TokenKind::StringLiteral)
+        self.peek(0).is_some_and(|token| {
+            token.kind == TokenKind::Identifier && self.text(token).as_str() == name
+        }) && self.peek(1).is_some_and(Token::is_string_literal)
     }
 
+    /// True when the input leads with a bare identifier IMMEDIATELY followed by
+    /// the contextual keyword `name` -- a 2-token peek for identifier-led items
+    /// like `<target> machine Path(..)`, which have no leading keyword to
+    /// dispatch on. Consumes nothing.
     pub(crate) fn at_identifier_then_contextual(&self, name: &str) -> bool {
-        // `self.tokens[0]` is semantic (leading trivia was skipped in `new`), but
-        // trivia between it and the next token is retained, so skip past it before
-        // peeking the SECOND semantic token.
-        let Some((first, rest)) = self.tokens.split_first() else {
-            return false;
-        };
-        if first.kind != TokenKind::Identifier {
-            return false;
-        }
-        skip_non_semantic_tokens(rest).first().is_some_and(|token| {
-            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && self.text(token).as_str() == name
-        })
+        self.peek(0)
+            .is_some_and(|first| first.kind == TokenKind::Identifier)
+            && self.peek(1).is_some_and(|token| {
+                matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                    && self.text(token).as_str() == name
+            })
     }
 
     /// A contextual prefix such as `move value` applies only to a following
     /// name; `move(...)` stays an ordinary call of a declaration named `move`.
     pub(crate) fn at_contextual_then_name(&self, name: &str) -> bool {
-        self.at_contextual(name)
-            && skip_non_semantic_tokens(&self.tokens[1..])
-                .first()
-                .is_some_and(is_identifier_token_for_parser)
+        self.at_contextual(name) && self.peek(1).is_some_and(is_identifier_token_for_parser)
     }
 
     pub(crate) fn at_name_like(&self) -> bool {
@@ -513,24 +503,16 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// by its full shape. The peek cannot shadow user code: `stack <integer>
     /// bytes` is not otherwise a valid start of a proposition. Consumes nothing.
     pub(crate) fn at_same_stack_demand(&self) -> bool {
-        let Some((first, rest)) = self.tokens.split_first() else {
-            return false;
-        };
-        if !(matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-            && self.text(first).as_str() == "stack")
-        {
-            return false;
-        }
-        let Some((integer, rest)) = skip_non_semantic_tokens(rest).split_first() else {
-            return false;
-        };
-        if integer.integer_literal_kind().is_none() {
-            return false;
-        }
-        skip_non_semantic_tokens(rest).first().is_some_and(|token| {
-            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && self.text(token).as_str() == "bytes"
-        })
+        self.peek(0).is_some_and(|first| {
+            matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                && self.text(first).as_str() == "stack"
+        }) && self
+            .peek(1)
+            .is_some_and(|integer| integer.integer_literal_kind().is_some())
+            && self.peek(2).is_some_and(|token| {
+                matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                    && self.text(token).as_str() == "bytes"
+            })
     }
 
     pub(crate) fn has_newline_before(self, later: Self) -> bool {

@@ -1,6 +1,7 @@
 //! Batch checking shares only successful signature formation in one owned arena.
 
 use super::{MathematicalCertificate, run_on_verification_stack};
+use crate::mathematical_core::term::MAX_SUBTERMS;
 use crate::mathematical_core::{
     Budget, Context, CoreError, Declaration, Signature, Term, TermArena, TermHandle,
     check_signature, check_type, infer_sort,
@@ -118,135 +119,17 @@ impl ImportedTerms {
             return term.ok_or(CoreError::DummyTerm);
         }
         local.insert(handle, None);
-        let term = match source.get(handle) {
-            Term::Dummy => Term::Dummy,
-            Term::Variable(index) => Term::Variable(index),
-            Term::Sort(sort) => Term::Sort(sort),
-            Term::Two => Term::Two,
-            Term::TwoZero => Term::TwoZero,
-            Term::TwoOne => Term::TwoOne,
-            Term::Empty => Term::Empty,
-            Term::Constant {
-                declaration,
-                levels,
-            } => Term::Constant {
-                declaration,
-                levels,
-            },
-            Term::Pi { domain, codomain } => Term::Pi {
-                domain: self.term(source, domain, local)?,
-                codomain: self.term(source, codomain, local)?,
-            },
-            Term::Lambda { domain, body } => Term::Lambda {
-                domain: self.term(source, domain, local)?,
-                body: self.term(source, body, local)?,
-            },
-            Term::Apply { function, argument } => Term::Apply {
-                function: self.term(source, function, local)?,
-                argument: self.term(source, argument, local)?,
-            },
-            Term::Sigma { domain, codomain } => Term::Sigma {
-                domain: self.term(source, domain, local)?,
-                codomain: self.term(source, codomain, local)?,
-            },
-            Term::Pair { first, second } => Term::Pair {
-                first: self.term(source, first, local)?,
-                second: self.term(source, second, local)?,
-            },
-            Term::Fst { pair } => Term::Fst {
-                pair: self.term(source, pair, local)?,
-            },
-            Term::Snd { pair } => Term::Snd {
-                pair: self.term(source, pair, local)?,
-            },
-            Term::CaseTwo {
-                motive,
-                zero_branch,
-                one_branch,
-                scrutinee,
-            } => Term::CaseTwo {
-                motive: self.term(source, motive, local)?,
-                zero_branch: self.term(source, zero_branch, local)?,
-                one_branch: self.term(source, one_branch, local)?,
-                scrutinee: self.term(source, scrutinee, local)?,
-            },
-            Term::Id { ty, left, right } => Term::Id {
-                ty: self.term(source, ty, local)?,
-                left: self.term(source, left, local)?,
-                right: self.term(source, right, local)?,
-            },
-            Term::Refl { ty, value } => Term::Refl {
-                ty: self.term(source, ty, local)?,
-                value: self.term(source, value, local)?,
-            },
-            Term::IdElim {
-                motive,
-                base,
-                endpoint,
-                proof,
-            } => Term::IdElim {
-                motive: self.term(source, motive, local)?,
-                base: self.term(source, base, local)?,
-                endpoint: self.term(source, endpoint, local)?,
-                proof: self.term(source, proof, local)?,
-            },
-            Term::W { carrier, children } => Term::W {
-                carrier: self.term(source, carrier, local)?,
-                children: self.term(source, children, local)?,
-            },
-            Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            } => Term::Sup {
-                carrier: self.term(source, carrier, local)?,
-                children: self.term(source, children, local)?,
-                label: self.term(source, label, local)?,
-                function: self.term(source, function, local)?,
-            },
-            Term::IndW { motive, step, tree } => Term::IndW {
-                motive: self.term(source, motive, local)?,
-                step: self.term(source, step, local)?,
-                tree: self.term(source, tree, local)?,
-            },
-            Term::EmptyElim { ty, scrutinee } => Term::EmptyElim {
-                ty: self.term(source, ty, local)?,
-                scrutinee: self.term(source, scrutinee, local)?,
-            },
-            Term::Squash { ty } => Term::Squash {
-                ty: self.term(source, ty, local)?,
-            },
-            Term::SquashIntro { ty, value } => Term::SquashIntro {
-                ty: self.term(source, ty, local)?,
-                value: self.term(source, value, local)?,
-            },
-            Term::SquashElim {
-                proposition,
-                function,
-                scrutinee,
-            } => Term::SquashElim {
-                proposition: self.term(source, proposition, local)?,
-                function: self.term(source, function, local)?,
-                scrutinee: self.term(source, scrutinee, local)?,
-            },
-            Term::Box { ty } => Term::Box {
-                ty: self.term(source, ty, local)?,
-            },
-            Term::BoxIntro { ty, value } => Term::BoxIntro {
-                ty: self.term(source, ty, local)?,
-                value: self.term(source, value, local)?,
-            },
-            Term::BoxElim {
-                motive,
-                body,
-                scrutinee,
-            } => Term::BoxElim {
-                motive: self.term(source, motive, local)?,
-                body: self.term(source, body, local)?,
-                scrutinee: self.term(source, scrutinee, local)?,
-            },
-        };
+        // The node layout comes from `Term::subterms` / `Term::with_children`,
+        // so importing a term graph never re-lists the variants: every slot
+        // lands in the owned arena first, then the node is rebuilt from them
+        // and interned by syntax.
+        let node = source.get(handle);
+        let slots = node.subterms();
+        let mut children = [handle; MAX_SUBTERMS];
+        for (index, (child, _binders)) in slots.iter().enumerate() {
+            children[index] = self.term(source, child, local)?;
+        }
+        let term = node.with_children(&children[..slots.len()]);
         let term = *self
             .by_syntax
             .entry(term.clone())
@@ -297,13 +180,12 @@ mod tests {
             function: constant,
             argument: zero,
         });
-        let certificate = MathematicalCertificate {
-            signature: vec![Declaration::definition(0, function_type, function)],
-            level_arity: 0,
-            context: Vec::new(),
+        let certificate = MathematicalCertificate::with_signature(
+            vec![Declaration::definition(0, function_type, function)],
+            Vec::new(),
             term,
-            expected: two,
-        };
+            two,
+        );
         (arena, certificate)
     }
 

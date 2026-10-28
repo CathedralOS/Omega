@@ -1,4 +1,4 @@
-domain [u8; 4]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 4]::Ascii requires ascii_only(self);
 data Holder { bytes: [u8; 4] in Ascii; }
 
 machine overwrite(bytes: &mut [u8; 4]) { bytes = "é!!"; }

@@ -1,0 +1,19 @@
+data Pair { left: u64; right: u32; }
+const BYTES: u64 = size_of<Pair>();
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "layout_query_constant_exit");
+    transition BYTES == 16 {
+        true -> ready(builder)
+        _ -> wrong_geometry(builder)
+    }
+    machine ready(builder: &mut Build) {
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+    }
+    machine wrong_geometry(builder: &mut Build) {
+        _ = BuildProduct::entry(&builder.product, "incorrect_build_layout", "macos_arm64::ProgramEntry");
+    }
+}

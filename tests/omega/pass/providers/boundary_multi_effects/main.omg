@@ -2,9 +2,9 @@
 // the declared set is the ceiling for that surface — `write_line`
 // reaches both `Net` and `Allocator`.
 
-public domain [u8]::Utf8(bytes)
+public domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 boundary trait Allocator {
 }

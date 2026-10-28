@@ -275,21 +275,12 @@ impl CrashContractCapsule {
         self
     }
 
-    pub const fn target_machine(&self) -> SymbolHandle {
-        self.target_machine
-    }
-
-    pub const fn target_state(&self) -> SymbolHandle {
-        self.target_state
-    }
-
-    pub const fn target_contract_report_fingerprint(&self) -> u64 {
-        self.target_contract_report_fingerprint
-    }
-
-    pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
-        self.target_contract_commitment
-    }
+    super::contract_identity_accessors!(
+        target_machine,
+        target_state,
+        target_contract_report_fingerprint,
+        target_contract_commitment
+    );
 
     pub fn published_buckets(&self) -> &[CrashRouteBucket] {
         &self.published_buckets
@@ -359,21 +350,12 @@ impl CheckedCrashCallSite {
         self.location
     }
 
-    pub const fn target_machine(&self) -> SymbolHandle {
-        self.target_machine
-    }
-
-    pub const fn target_state(&self) -> SymbolHandle {
-        self.target_state
-    }
-
-    pub const fn target_contract_report_fingerprint(&self) -> u64 {
-        self.target_contract_report_fingerprint
-    }
-
-    pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
-        self.target_contract_commitment
-    }
+    super::contract_identity_accessors!(
+        target_machine,
+        target_state,
+        target_contract_report_fingerprint,
+        target_contract_commitment
+    );
 
     pub fn path_guard_conjuncts(&self) -> &[CrashPredicateIdentity] {
         &self.path_guard_conjuncts

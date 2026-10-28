@@ -1,7 +1,7 @@
 // A later normal-return guarantee cannot qualify an earlier completed operand.
 data Amount [copy] { number: u64; }
 data Envelope [copy] { amount: Amount; }
-domain Amount::Positive(amount) requires amount.number > 0;
+domain Amount::Positive requires self.number > 0;
 data Pair { amount: Amount in Positive; checked: u64; }
 
 machine validate(number: u64) -> u64

@@ -2,7 +2,7 @@
 // Selected copyable payloads preserve whole and nested memberships into
 // ordinary state arrivals, whether the sum came from a parameter or a call.
 data Range [copy] { start: u64; length: u64; }
-domain Range::Nonempty(range) requires range.length > 0;
+domain Range::Nonempty requires self.length > 0;
 data Outcome { case Ready(range: Range in Nonempty); case Rejected; }
 data Wrapper [copy] { range: Range in Nonempty; }
 data Nested { case Ready(wrapper: Wrapper); case Rejected; }

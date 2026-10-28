@@ -1,6 +1,7 @@
 //! Rejoin supplied permissions to the complete live service declaration.
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::capture::semantics::declarations::{nominal_identity, provider_requirement_identity};
 use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use diagnostics::Diagnostic;
@@ -130,8 +131,4 @@ pub(super) fn resolve_services<'a>(
     Ok(services)
 }
 
-pub(super) fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "terminal permission review rejects {reason}"
-    ))]
-}
+refusal!(pub(super) reason, "terminal permission review rejects {reason}");

@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Qualification cannot add a length header or turn N zero bytes into an empty owner.
-domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+domain [u8; 8]::Ascii requires ascii_only(self);
 data Plain { bytes: [u8; 8]; }
 data Qualified { bytes: [u8; 8] in Ascii; }
 machine main() crashes Trap {

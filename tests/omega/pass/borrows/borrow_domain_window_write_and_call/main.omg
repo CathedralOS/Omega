@@ -1,4 +1,4 @@
-domain u64::Upper(value) requires value >= 2;
+domain u64::Upper requires self >= 2;
 
 data WindowBuffer { items: [i32; 4]; }
 

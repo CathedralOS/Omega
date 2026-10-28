@@ -3,9 +3,10 @@
 use super::{
     Candidate, ValidatedElfDynamicSectionPlan, decode_dynsym, decode_gnu_hash, decode_sysv_hash,
     decode_verneed, decode_versym, encode_payloads,
-    non_authoritative_payload_compatibility_fingerprint, read_u16, read_u32, referenced_string,
+    non_authoritative_payload_compatibility_fingerprint, read_u16, read_u32,
     serialize_elf_dynamic_sections, validate_candidate, validate_payloads,
 };
+use crate::bytes::name_at;
 use crate::plan_elf_dynamic_sections;
 use crate::test_support::{SINGLE_SITE_IMPORTS as IMPORTS, SingleSiteImportFixture};
 use target::TargetProfile;
@@ -286,5 +287,5 @@ fn adversarial_lengths_counts_indexes_and_offsets_reject_without_panicking() {
 
     assert!(decode_dynsym(&[0; 23], 1).is_err());
     assert!(decode_versym(&[0], 1).is_err());
-    assert!(referenced_string(&[0], u32::MAX).is_err());
+    assert!(name_at(&[0], u32::MAX, "ELF dynamic string reference").is_err());
 }

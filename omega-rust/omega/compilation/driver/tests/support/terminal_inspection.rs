@@ -20,6 +20,8 @@ mod host_provisions;
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "task_activation_controls.rs"]
+mod task_activation_controls;
 
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
@@ -32,6 +34,7 @@ enum InspectionControls {
     DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
+    TaskActivations,
 }
 
 #[derive(Clone, Copy)]
@@ -105,6 +108,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "dynamic-image-controls"] => {
                 (*machine, false, Some(InspectionControls::DynamicImage))
             }
+            [machine, "task-activation-controls"] => {
+                (*machine, false, Some(InspectionControls::TaskActivations))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
@@ -117,7 +123,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         inspected = true;
         let source_controls = matches!(
             conformance_controls,
-            Some(InspectionControls::MathematicalActuals | InspectionControls::IndexedFamily)
+            Some(
+                InspectionControls::MathematicalActuals
+                    | InspectionControls::IndexedFamily
+                    | InspectionControls::TaskActivations
+            )
         );
         let product = if source_controls {
             compiler::CompilationProduct::Check
@@ -152,6 +162,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 }
                 Some(InspectionControls::IndexedFamily) => {
                     let _artifact = indexed_family_controls::produce(&checked, machine)?;
+                }
+                Some(InspectionControls::TaskActivations) => {
+                    task_activation_controls::produce(checked, machine, profile)?;
                 }
                 _ => unreachable!("source controls selected above"),
             }
@@ -243,7 +256,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 }
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
-                InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
+                InspectionControls::TaskActivations
+                | InspectionControls::IndexedFamily
+                | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }
             }

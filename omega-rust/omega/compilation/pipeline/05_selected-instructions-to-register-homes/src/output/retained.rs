@@ -42,63 +42,32 @@ impl RetainedAllocation {
     }
 }
 
-impl TryFrom<StagedOptimizedRegisterHomes> for RetainedAllocation {
-    type Error = AllocationAdmissionError;
+/// One owner row per staged allocation result: each route retains its staged
+/// result through the same projection and admission check, so the conversion is
+/// stated once with the staged types that take it. Runtime spill alone carries a
+/// declared recovery prefix; that one conversion is spelled out below.
+macro_rules! retained_allocation_from_staged {
+    ($($source:ty),+ $(,)?) => {
+        $(
+            impl TryFrom<$source> for RetainedAllocation {
+                type Error = AllocationAdmissionError;
 
-    fn try_from(source: StagedOptimizedRegisterHomes) -> Result<Self, Self::Error> {
-        Self::capture(&source.project_allocation(), None)
-    }
+                fn try_from(source: $source) -> Result<Self, Self::Error> {
+                    Self::capture(&source.project_allocation(), None)
+                }
+            }
+        )+
+    };
 }
 
-impl TryFrom<StagedOptimizedRegisterHomesAfterFixedViewCopies> for RetainedAllocation {
-    type Error = AllocationAdmissionError;
-
-    fn try_from(
-        source: StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    ) -> Result<Self, Self::Error> {
-        Self::capture(&source.project_allocation(), None)
-    }
-}
-
-impl TryFrom<StagedOptimizedRegisterHomesAfterLiteralFolds> for RetainedAllocation {
-    type Error = AllocationAdmissionError;
-
-    fn try_from(
-        source: StagedOptimizedRegisterHomesAfterLiteralFolds,
-    ) -> Result<Self, Self::Error> {
-        Self::capture(&source.project_allocation(), None)
-    }
-}
-
-impl TryFrom<StagedOptimizedRegisterHomesAfterSelectedLowering> for RetainedAllocation {
-    type Error = AllocationAdmissionError;
-
-    fn try_from(
-        source: StagedOptimizedRegisterHomesAfterSelectedLowering,
-    ) -> Result<Self, Self::Error> {
-        Self::capture(&source.project_allocation(), None)
-    }
-}
-
-impl TryFrom<StagedOptimizedRegisterHomesAfterPreAllocation> for RetainedAllocation {
-    type Error = AllocationAdmissionError;
-
-    fn try_from(
-        source: StagedOptimizedRegisterHomesAfterPreAllocation,
-    ) -> Result<Self, Self::Error> {
-        Self::capture(&source.project_allocation(), None)
-    }
-}
-
-impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocation {
-    type Error = AllocationAdmissionError;
-
-    fn try_from(
-        source: StagedOptimizedActiveResidentRematerialization,
-    ) -> Result<Self, Self::Error> {
-        Self::capture(&source.project_allocation(), None)
-    }
-}
+retained_allocation_from_staged!(
+    StagedOptimizedRegisterHomes,
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterSelectedLowering,
+    StagedOptimizedRegisterHomesAfterPreAllocation,
+    StagedOptimizedActiveResidentRematerialization,
+);
 
 impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for RetainedAllocation {
     type Error = AllocationAdmissionError;

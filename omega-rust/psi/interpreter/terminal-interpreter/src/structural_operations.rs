@@ -279,12 +279,28 @@ impl TerminalExecution<'_> {
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
-        retirement.commit(self);
+        retirement.commit(self)?;
         Ok(())
     }
 
     /// Retire precisely the consumed subtree after its cells have been staged.
-    pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+    pub(crate) fn prepare_subtree_retirement(
+        &self,
+        from: &StructuralRuntimePlace,
+    ) -> Result<crate::scalar_array::empty_storage::EmptyArrayRetirement, TerminalInterpretError>
+    {
+        self.empty_array_storage.prepare_retirement(
+            &self.program.structural_types(),
+            self.account.as_ref(),
+            from,
+        )
+    }
+
+    pub(crate) fn prune_subtree(
+        &mut self,
+        retirement: crate::scalar_array::empty_storage::EmptyArrayRetirement,
+    ) -> Result<(), TerminalInterpretError> {
+        let from = retirement.root();
         crate::structural_storage::prune_rows(&mut self.original_storage_roots, from);
         crate::structural_storage::prune_rows(&mut self.provider_storage.descriptors, from);
         crate::structural_storage::prune_rows(&mut self.activation_storage.claim_descriptors, from);
@@ -298,6 +314,7 @@ impl TerminalExecution<'_> {
         crate::structural_storage::prune_rows(&mut self.reference_referents, from);
         crate::structural_storage::prune_rows(&mut self.structural_element_view_fields, from);
         self.structural_primitive_storage.prune(from);
+        self.empty_array_storage.retire(retirement)
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
@@ -497,6 +514,19 @@ impl TerminalExecution<'_> {
                     self.structural_scalar_fields.insert(
                         StructuralScalarRuntimeField::case_payload(parent, *field),
                         zero(*scalar_type).ok_or_else(malformed)?,
+                    )?;
+                }
+                terminal_semantics::ZeroedStructuralLeaf::EmptyScalarArray {
+                    structural_type,
+                    ..
+                } => {
+                    self.empty_array_storage.establish(
+                        &self.program.structural_types(),
+                        StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: storage_path(),
+                        },
+                        *structural_type,
                     )?;
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ByteArray { length, .. } => {
@@ -1160,9 +1190,15 @@ impl TerminalExecution<'_> {
                 ConstructorValue::PackedScalars { .. } => None,
             };
             storage.preserve_replaced_residents(self, &hole)?;
-            self.prune_subtree(&hole);
-            if !copies_storage && let Some(source) = source {
-                self.prune_subtree(&source);
+            let hole_retirement = self.prepare_subtree_retirement(&hole)?;
+            let source_retirement = source
+                .as_ref()
+                .filter(|_| !copies_storage)
+                .map(|source| self.prepare_subtree_retirement(source))
+                .transpose()?;
+            self.prune_subtree(hole_retirement)?;
+            if let Some(retirement) = source_retirement {
+                self.prune_subtree(retirement)?;
             }
             storage.publish(self)?;
         }
@@ -1405,9 +1441,13 @@ impl TerminalExecution<'_> {
         let mut storage = crate::record::storage::ConstructorStorage::new(self.account.as_ref());
         storage.stage_subtree(self, from, to, vacate)?;
         storage.preserve_replaced_residents(self, to)?;
-        self.prune_subtree(to);
-        if vacate {
-            self.prune_subtree(from);
+        let destination_retirement = self.prepare_subtree_retirement(to)?;
+        let source_retirement = vacate
+            .then(|| self.prepare_subtree_retirement(from))
+            .transpose()?;
+        self.prune_subtree(destination_retirement)?;
+        if let Some(retirement) = source_retirement {
+            self.prune_subtree(retirement)?;
         }
         storage.publish(self)
     }

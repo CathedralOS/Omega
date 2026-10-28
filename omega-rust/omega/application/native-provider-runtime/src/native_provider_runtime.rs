@@ -26,13 +26,13 @@ use std::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NativeAdapterId {
-    era: u64,
-    ordinal: u64,
+    pub(crate) era: u64,
+    pub(crate) ordinal: u64,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NativeHomeId {
-    era: u64,
-    ordinal: u64,
+    pub(crate) era: u64,
+    pub(crate) ordinal: u64,
 }
 
 /// Value transport and pointee geometry are separate joins. A foreign C
@@ -76,12 +76,12 @@ impl From<io::Error> for NativeProviderError {
 pub struct NativeProviderProcess {
     child: Option<BoundedProcessChild>,
     channel: Box<dyn Duplex>,
-    homes: BTreeMap<u64, SharedBacking>,
+    pub(crate) homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
-    era: u64,
+    pub(crate) era: u64,
     adapters: u64,
     timeout: Duration,
-    faulted: bool,
+    pub(crate) faulted: bool,
 }
 
 impl NativeProviderProcess {
@@ -343,7 +343,7 @@ impl NativeProviderProcess {
         Ok(())
     }
 
-    fn exchange(&mut self, packet: Packet) -> Result<Vec<u8>, NativeProviderError> {
+    pub(crate) fn exchange(&mut self, packet: Packet) -> Result<Vec<u8>, NativeProviderError> {
         if self.faulted || self.child.is_none() {
             return Err(invalid("native provider incarnation is closed or faulted").into());
         }

@@ -1,10 +1,14 @@
 # Layout policies and plans
 
-Layouts are library policies over ordinary `data` declarations. They choose
-physical representation without replacing the semantic fields or introducing
-a language keyword for each foreign format. This contract describes the
-intended language; the [implementation boundary](../../../omega-rust/psi/compilation/compile-time/layouts.md)
-identifies the supported subset.
+Named decision: `library-authored-representation-families`, settled 2026-10-27.
+
+Data declarations define semantic structure, never an ambient storage layout.
+A storage declaration or parameter chooses a representation of that structure.
+Library-authored policies compute its geometry; one general compiler mechanism
+validates and applies the result. No format name receives special recognition.
+This contract describes the accepted language, not completed implementation;
+the [implementation boundary](../../../omega-rust/psi/compilation/compile-time/layouts.md)
+identifies the supported subset and legacy migration.
 
 Firmware structures follow the same rule: their target package supplies data
 and layout policies, while the compiler validates and consumes the resulting
@@ -13,11 +17,50 @@ does not introduce a compiler-owned table schema or a separate layout mechanism.
 
 ## Policy evaluation and schema
 
-A policy satisfies `Layout` through a build-time-admissible machine
-`plan(schema: Schema) -> Plan`. `Plan` is the source spelling of `LayoutPlan`
-in `omega::language::core::layout`. The complete machine contract governs
-evaluation. A returned plan must validate before layout, projection, recast,
-codec, or ABI consumers use it.
+A fixed-memory policy is a named implementation of the ordinary core trait
+`FixedLayout<T>`. It is not a data type or a boundary service:
+
+```omega
+public trait FixedLayout<T> {
+  machine plan(
+    schema: Schema,
+    target: LayoutTarget
+  ) -> Plan
+  reaches
+  terminates;
+}
+```
+
+The empty reach ceiling and termination guarantee apply to the complete
+selected execution closure. Ordinary checked helpers are permitted; hidden
+host calls, runtime-only assumed bindings, and imported effects are not.
+`LayoutTarget` supplies immutable target representation facts, including scalar
+geometry, alignment, endianness and applicable ABI facts. It grants no access
+to host services, private source structure, or compiler storage.
+
+`Plan` is the source spelling of `LayoutPlan` in
+`omega::language::core::layout`. It is ordinary data, not a certificate that its
+contents are valid. A returned plan must validate before storage, projection,
+recast, or ABI consumers use it. A package-defined implementation has the same
+rights and obligations as one shipped in core or std.
+
+For example, an intentionally sparse Darwin view may select:
+
+```omega
+public DarwinStatLayout satisfies FixedLayout<DarwinStatRecord> {
+  machine plan(
+    schema: Schema,
+    target: LayoutTarget
+  ) -> Plan {
+    darwin_stat_plan(schema, target)
+  }
+}
+```
+
+Here `darwin_stat_plan` is an ordinary package helper returning the authored
+placements. There is no empty policy data declaration, data-owned machine,
+implicit receiver, or attached-`plan` naming convention. Selection follows
+[named implementation rules](../language/conformances.md#declaration-and-selection).
 
 This target-resolved `layout::Schema` is not the target-neutral
 [`reflect::TypeSchema`](../language/reflection.md#schema-and-layout). Their checked
@@ -58,8 +101,8 @@ byte counts for the exact selected target and validated layout of `T`. These
 are core names, not keywords, casts, or permission to replace the layout policy.
 
 ```omega
-const descriptor_bytes: u64 = size_of<Descriptor>();
-const descriptor_alignment: u64 = align_of<Descriptor>();
+const descriptor_bytes: u64 = size_of<CLayout<Descriptor>>();
+const descriptor_alignment: u64 = align_of<CLayout<Descriptor>>();
 ```
 
 `size_of` requires a fixed complete extent and includes the plan's padding.
@@ -71,6 +114,9 @@ length, not a fabricated fixed `size_of`. Erased fields contribute no physical
 storage; a valid zero-sized layout can report zero, but a proof-only carrier
 with no runtime layout cannot receive a fabricated size or alignment.
 
+An explicit representation application identifies the geometry being measured.
+A bare `size_of<T>()` or `align_of<T>()` uses the ordinary default-storage rule
+for that occurrence; it does not attach a layout to the declaration of T.
 Queries consume the same exact schema, target and layout-policy application as
 placement and ABI. They run under ordinary semantic-evaluation admission once
 those inputs are available. Interpretation reports the selected target's
@@ -173,19 +219,88 @@ combine layout, access demand, and boundary reach; a separate provider receipt
 gives a resource profile standing as supply. Layout compatibility alone grants
 neither backing authority, resident custody, nor device correspondence.
 
-## Type-position layout
+## Representation applications
 
-A fully static policy may be attached to a data declaration:
+`LayoutStorage<T, Policy>` is the general compiler-supported core constructor
+for fixed representation storage. T is the complete semantic type application;
+Policy is an explicitly selected named implementation satisfying
+`FixedLayout<T>`, not a data subject or an inferred visible conformance.
+Its normalized application retains both selections, validated geometry, target
+dependencies, ownership, qualifications and lifetime obligations. It adds no
+wrapper header or separately stored T. Field projection uses T's authorized
+members through the selected geometry, not an ordinary `value: T` wrapper.
+
+Library families use [transparent generic aliases](../language/generics.md#transparent-type-aliases):
 
 ```omega
-data Descriptor in CLayout {
-    kind: u32;
-    address: u64;
+public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
+public data PackedLayout<T> = LayoutStorage<T, PackedPolicy<T>>;
+
+data Descriptor {
+  kind: u32;
+  address: u64;
+}
+
+machine consume(descriptor: &CLayout<Descriptor>) {
+  inspect_descriptor(descriptor);
 }
 ```
 
-Fields remain semantic Omega fields; `CLayout` controls placement. Packed
-layout is a policy, not a `[packed]` escape hatch. Bit-addressable fields use
-ordinary integer carriers with range contracts, not additional `u3`/`u17`
-primitive types. `OmegaLayout` is the default policy family for Omega-native
-numbered schemas; platform ABIs and foreign formats are sibling policies.
+`CAbiPolicy<T>` and `PackedPolicy<T>` denote ordinary generic named
+implementations. Their package names and bodies are not compiler syntax.
+Core or std may supply C layout; community packages may supply other policies
+without changing the compiler while using its existing placement vocabulary.
+Nested representation choices are explicit parts of policy composition;
+an outer policy cannot accidentally inherit an unrelated native child layout.
+
+`data T in Policy`, layout selection through domain qualification, and a
+layout-specific `@` operator are not source forms. Ordinary data declarations
+remain layout-neutral. An unqualified storage declaration or parameter uses
+the language's default storage rules for that occurrence, not a layout ambiently
+attached to T. Distinct representations do not implicitly coerce, repack, copy
+linear content, or become interchangeable references. Recasts retain their
+existing compatibility and custody rules; conversions are explicit
+[representation conversions](codecs.md#representation-conversions).
+
+For a complete C record, the reusable C policy computes placement from its
+declared members and the target ABI. A sparse foreign view instead needs an
+explicit custom policy. For example, Darwin's timestamp members include both
+seconds and nanoseconds; a record listing only seconds cannot infer the omitted
+foreign members or the full native extent. Layout validation establishes
+internal geometry, not agreement with a foreign header or external behavior.
+
+Packed layout is a policy, not a `[packed]` escape hatch. Bit-addressable fields
+use ordinary integer carriers with range contracts, not extra integer primitives.
+The default Omega storage policy, C ABI policies and custom fixed policies use
+the same mechanism. Variable-length wire formats do not thereby acquire fixed
+offsets, addressable fields or by-value C ABI eligibility.
+
+## Compile-time journey and Build
+
+The using representation application selects the exact implementation. The
+compiler supplies its authorized schema and target facts, checks compile-time
+admission, evaluates the policy, validates the complete returned plan, then
+creates the representation application consumed by storage, projections and ABI
+planning. Reflection and a plan record do not supply their own validation
+authority. Equivalent applications share canonical identities under the
+normalizer; a fabricated name, digest or successful helper call is not a plan
+receipt. Cyclic representation dependencies reject.
+
+The package's `build.omg` declares ordinary dependencies and target/configuration
+inputs. Separate foreign calls retain their own provider and binding selection.
+There is no per-layout registration, Build blessing, manual invocation of
+`plan`, or layout-specific host grant. Merely importing a package does not
+instantiate its layouts. Normal package review and compile-time execution
+admission still apply.
+
+Applying a layout to existing storage cannot enlarge its authorized footprint
+or widen its access mode, exclusive loan, lifetime or content custody. New
+storage follows ordinary allocation and storage-admission rules; a plan supplies
+none of that authority. Owning mutable bytes permits writes to those bytes under
+the existing rules; a layout introduces no new authority system. Encoding
+address bits or reconstructing an inert pointer is not access authority. Typed
+observations must establish the values and qualifications they use, and byte
+writes obey existing invariant-window and restoration rules.
+The actual foreign API, representation, calling plan and admitted external
+contract remain explicit audit points. No geometry check proves an external
+implementation honest or supplies authority over addresses encoded in storage.

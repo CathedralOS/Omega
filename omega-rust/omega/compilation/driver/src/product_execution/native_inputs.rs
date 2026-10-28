@@ -103,24 +103,7 @@ pub(super) fn independent_components<'input>(
 /// the independently supplied receiver-admission policy.
 pub(crate) fn accepted_terminal_authority_permission_policy(
     checked: &CheckedCompilation,
-) -> Result<
-    terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
-    Vec<Diagnostic>,
-> {
-    use terminal_psi_to_abstract_operations::provider_admission::{
-        terminal_authority_permission_policy_with_rows,
-        terminal_authority_permissions::validate_package_terminal_authority_permission_custody,
-    };
+) -> Result<native_production::TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
     let (permissions, permission_identities) = checked.execution().terminal_authority_permissions();
-    validate_package_terminal_authority_permission_custody(
-        permissions.iter(),
-        &permission_identities,
-    )?;
-    terminal_authority_permission_policy_with_rows(permissions, permission_identities).map_err(
-        |error| {
-            vec![Diagnostic::error(format!(
-                "checked package terminal-authority permissions are invalid: {error:?}"
-            ))]
-        },
-    )
+    native_production::admit_package_permissions(permissions, permission_identities)
 }

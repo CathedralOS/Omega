@@ -280,7 +280,7 @@ pub fn validate_selected_provider_bodies(
         program,
         selected,
         "selected build-time provider body",
-        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
+        |row| (!row.provider.is_zero()).then_some((row.expression, row.origin.machine_symbol())),
     )?
     else {
         return Ok(());
@@ -422,7 +422,7 @@ pub fn validate_selected_provider_bodies(
         }
         if row.target_scope.is_empty()
             || program
-                .machine_authored_target(provider)
+                .source_target_context(provider)
                 .is_some_and(|target| target != row.target_scope)
         {
             return Err("selected build-time provider belongs to another target capsule".into());
@@ -716,7 +716,7 @@ pub fn validate_selected_operators(
         program,
         selected,
         "selected build-time operator",
-        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
+        |row| (!row.provider.is_zero()).then_some((row.expression, row.origin.machine_symbol())),
     )?
     else {
         return Ok(());

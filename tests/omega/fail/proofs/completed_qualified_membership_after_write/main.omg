@@ -1,6 +1,6 @@
 // Expected exit: 0
 data Counter [copy] { value: u64; }
-domain Counter::One(value) requires value.value == 1;
+domain Counter::One requires self.value == 1;
 machine make() -> Counter in One { Counter { value: 1 } }
 machine observe(value: Counter) -> u64
 requires value in One

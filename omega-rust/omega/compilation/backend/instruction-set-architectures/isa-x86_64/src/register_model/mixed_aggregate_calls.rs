@@ -3,7 +3,7 @@
 use super::{x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys};
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-    RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    ValidatedPhysicalRegisterModel,
 };
 /// System V rows ordered by result fragment count (1–2), then mixed Unit-call key.
 pub fn x86_64_system_v_mixed_aggregate_call_keys() -> Vec<RegisterConstraintKey> {
@@ -53,14 +53,11 @@ pub(super) fn append_constraints(
                     let Some(view) = model.model().view_named(name) else {
                         return;
                     };
-                    row.operands.push(RegisterOperandConstraint {
-                        operand: row.operands.len() as u16,
-                        access: RegisterOperandAccess::Def,
-                        class: view.class,
-                        fixed_view: Some(view.id),
-                        tied_to: None,
-                        early_clobber: false,
-                    });
+                    row.operands.push(super::fixed_operand(
+                        row.operands.len() as u16,
+                        RegisterOperandAccess::Def,
+                        view,
+                    ));
                     // Definitions supply known result payloads; all other
                     // volatile units and call effects remain the Unit row's.
                     row.clobbers.retain(|unit| !view.write_units.contains(unit));

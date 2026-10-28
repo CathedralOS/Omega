@@ -24,15 +24,17 @@ mod fnv1a;
 mod host_operations;
 mod hosts;
 mod plans;
+pub mod terminal_layout;
 
 pub use aggregate_layout::{
     ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
     evaluate_conventional_sum_layout,
 };
 pub use boundary_application::{
-    BoundaryCallbackLayout, BoundaryCallingApplication, BoundaryNativeParameterGeometry,
-    BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
-    CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
+    BoundaryCallbackLayout, BoundaryCallingApplication, BoundaryCallingApplicationCandidate,
+    BoundaryNativeParameterGeometry, BoundaryNativeParameterShape, BoundaryOpaqueApplication,
+    BoundarySignatureGeometry, CallbackDataGeometry, CallbackInlineFieldGeometry,
+    CallbackSlotGeometry,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,

@@ -1,1 +1,9 @@
-machine build(builder: &mut Build) { Build::package(builder, "instruction_disposition_foreign_owner"); builder.freestanding = true; Build::select_provider<ForeignCompletion, ForeignFinisher>(builder); }
+machine build(builder: &mut Build) { Build::package(builder, "instruction_disposition_foreign_owner"); builder.freestanding = true; Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, linux_arm64);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, linux_x86_64);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, macos_arm64);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, macos_x86_64);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, windows_x86_64);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, uefi_x86_64);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, cross_platform_cli);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, local_unchecked);
+Build::select_provider<ForeignCompletion, ForeignFinisher>(builder, alpha_bootstrap); }

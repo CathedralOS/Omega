@@ -1049,6 +1049,7 @@ fn initial_build_source_isolation() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
+    let mut catalogue = source::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
@@ -1129,6 +1130,7 @@ fn deferred_product_uses_captured_imports() {
     }
     let root = std::fs::canonicalize(&temporary).expect("temporary root");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
+    let mut catalogue = source::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,

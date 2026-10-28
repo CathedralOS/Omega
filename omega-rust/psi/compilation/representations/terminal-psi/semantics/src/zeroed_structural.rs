@@ -62,6 +62,12 @@ pub enum ZeroedStructuralLeaf {
         path: Vec<StructuralPathSegment>,
         length: u64,
     },
+    /// An explicitly initialized scalar-array subtree with no primitive
+    /// payload. Its type retains every logical dimension and restriction.
+    EmptyScalarArray {
+        path: Vec<StructuralPathSegment>,
+        structural_type: StructuralTypeId,
+    },
     /// The case-tag cell of a sum whose zeroed image selects its first
     /// declared case — the tag stores the case ordinal and all-zero bits
     /// name ordinal 0. `structural_type` retains the sum's own identity so
@@ -111,6 +117,7 @@ impl ZeroedStructuralLeaf {
             | ZeroedStructuralLeaf::CaseField { path, .. }
             | ZeroedStructuralLeaf::ArrayScalar { path, .. }
             | ZeroedStructuralLeaf::ByteArray { path, .. }
+            | ZeroedStructuralLeaf::EmptyScalarArray { path, .. }
             | ZeroedStructuralLeaf::SumSelection { path, .. } => path,
         }
     }
@@ -386,6 +393,15 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                     path,
                     scalar_type: *scalar_type,
+                });
+            }
+            StructuralTypeShape::FixedArray { .. }
+                if crate::scalar_array_leaf_shape(declarations.iter().copied(), current)
+                    .is_some_and(|(_, count)| count == 0) =>
+            {
+                leaves.push(ZeroedStructuralLeaf::EmptyScalarArray {
+                    path,
+                    structural_type: current,
                 });
             }
             StructuralTypeShape::FixedArray { element, length }

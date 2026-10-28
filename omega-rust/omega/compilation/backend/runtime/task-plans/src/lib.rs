@@ -14,8 +14,10 @@
 //! model, identities and report fingerprints beneath it.
 
 pub(crate) use optimization_core::digest_encoder;
+mod activation;
 mod fnv1a;
 mod task_plans;
+pub use activation::realize_task_activations;
 
 pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
 pub(crate) use task_plans::StackPlan;

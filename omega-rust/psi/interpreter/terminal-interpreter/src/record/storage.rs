@@ -113,6 +113,16 @@ impl<'execution> ConstructorValue<'execution> {
         destination_path: &[StructuralPathSegment],
     ) -> Result<Option<crate::primitive_storage::PrimitiveStorageWrites>, TerminalInterpretError>
     {
+        if terminal_semantics::scalar_array_leaf_shape(
+            execution.program.structural_types().values(),
+            self.structural_type(),
+        )
+        .is_some_and(|(_, count)| count == 0)
+        {
+            // No physical stores can publish a new empty subtree's initialized
+            // home. It needs the same constructor transaction as other payloads.
+            return Ok(None);
+        }
         let mut writes = crate::primitive_storage::PrimitiveStorageWrites::default();
         let supported =
             self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {
@@ -255,6 +265,7 @@ pub(crate) struct ConstructorStorage {
     references: RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     primitives: crate::scalar_storage::ScalarStorageRows<StructuralRuntimePlace>,
     byte_arrays: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+    empty_arrays: crate::scalar_array::empty_storage::EmptyArrayStorage,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
         ByteSequenceView,
@@ -285,7 +296,7 @@ impl ConstructorResidentWrites {
 /// Boundary writeback retains the complete admitted replacement, including
 /// original resident endpoints, before any input or result commits.
 pub(crate) struct PreparedConstructorReplacement {
-    root: StructuralRuntimePlace,
+    retirement: crate::scalar_array::empty_storage::EmptyArrayRetirement,
     storage: ConstructorStorage,
     residents: ConstructorResidentWrites,
 }
@@ -296,7 +307,7 @@ impl PreparedConstructorReplacement {
         execution: &mut TerminalExecution<'_>,
     ) -> Result<(), TerminalInterpretError> {
         self.residents.commit(&mut self.storage)?;
-        execution.prune_subtree(&self.root);
+        execution.prune_subtree(self.retirement)?;
         self.storage.publish(execution)
     }
 }
@@ -350,6 +361,7 @@ impl ConstructorStorage {
             self.references.len(),
             self.primitives.len(),
             self.byte_arrays.len(),
+            self.empty_arrays.rows.len(),
             self.cases.len(),
         ] {
             custody.add_cells(count)?;
@@ -397,6 +409,7 @@ impl ConstructorStorage {
             references: RuntimeRows::new(account),
             primitives: crate::scalar_storage::ScalarStorageRows::new(account),
             byte_arrays: RuntimeRows::new(account),
+            empty_arrays: crate::scalar_array::empty_storage::EmptyArrayStorage::new(account),
             owner_writes: Vec::new(),
             cases: RuntimeRows::new(account),
         }
@@ -477,6 +490,9 @@ impl ConstructorStorage {
         self.primitives.append(&mut decoded.primitives)?;
         self.bytes.append(&mut decoded.bytes)?;
         self.byte_arrays.append(&mut decoded.byte_arrays)?;
+        self.empty_arrays
+            .rows
+            .append(&mut decoded.empty_arrays.rows)?;
         self.cases.append(&mut decoded.cases)?;
         Ok(())
     }
@@ -725,6 +741,14 @@ impl ConstructorStorage {
                 .ok_or_else(malformed)?;
                 if u64::try_from(elements.len()).ok() != Some(leaf_count) {
                     return Err(malformed());
+                }
+                if leaf_count == 0 {
+                    self.empty_arrays.establish(
+                        &execution.program.structural_types(),
+                        destination.clone(),
+                        structural_type,
+                    )?;
+                    return Ok(());
                 }
                 if matches!(
                     execution
@@ -1081,6 +1105,13 @@ impl ConstructorStorage {
                 self.byte_arrays.insert(target, bytes.clone())?;
             }
         }
+        self.empty_arrays.stage_subtree(
+            &execution.program.structural_types(),
+            &execution.empty_array_storage,
+            &execution.structural_byte_storage,
+            source,
+            destination,
+        )?;
         for (home, atom) in
             crate::structural_storage::cells(&execution.structural_host_atoms, source)
         {
@@ -1115,7 +1146,7 @@ impl ConstructorStorage {
         self.preserve_original_roots(execution, &root)?;
         let residents = self.prepare_resident_writes(execution, &root)?;
         Ok(PreparedConstructorReplacement {
-            root,
+            retirement: execution.prepare_subtree_retirement(&root)?,
             storage: self,
             residents,
         })
@@ -1222,6 +1253,10 @@ impl ConstructorStorage {
         execution
             .structural_byte_storage
             .validate_append(&self.byte_arrays)?;
+        execution
+            .empty_array_storage
+            .rows
+            .validate_append(&self.empty_arrays.rows)?;
         execution.structural_cases.validate_append(&self.cases)?;
         execution
             .structural_host_atoms
@@ -1268,6 +1303,10 @@ impl ConstructorStorage {
         execution
             .structural_byte_storage
             .append(&mut self.byte_arrays)?;
+        execution
+            .empty_array_storage
+            .rows
+            .append(&mut self.empty_arrays.rows)?;
         execution.structural_cases.append(&mut self.cases)?;
         execution
             .structural_host_atoms

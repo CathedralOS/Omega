@@ -119,6 +119,26 @@ carrier and an explicit checked mapping to a sum, including unknown-code
 handling. Stable `#N` member numbers are schema identities, not runtime integer
 values or byte offsets.
 
+Numbered members put the identity first, including alternatives:
+
+```omega
+data Reading {
+    #1 sensor_id: u32;
+    #2 recorded_at_ms: u64;
+    #3 sequence: u32;
+
+    #10 case WarmingUp;
+    #11 case Sample(#1 temperature_celcius: i32);
+    #12 case Fault(#1 code: u32);
+}
+```
+
+Only one case is active; the common fields are present in every case. Each
+payload has its own field-identity scope. The prefix changes neither schema
+identity nor runtime discriminator meaning. There is no case-group declaration
+or additional group number. The canonical numbered spelling is `#N case Name`;
+the old case-before-number spelling is migration debt, not another dialect.
+
 ## Constraints On Individual Cases
 
 Use the data's default domain to constrain its active case. `self` names the

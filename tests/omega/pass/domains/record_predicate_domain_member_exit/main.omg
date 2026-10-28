@@ -3,7 +3,7 @@
 // value is deliberately not zero: field validity is not a NonZero special case.
 use omega_language_std::console;
 
-domain i32::NotFive(value) requires value != 5;
+domain i32::NotFive requires self != 5;
 data Gauge { level: i32 in NotFive; }
 data Main { gauge: Gauge; spare: Gauge; }
 

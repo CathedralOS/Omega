@@ -11,9 +11,11 @@ use target::NativeTarget;
 mod callback_admission;
 mod callback_catalog;
 mod identity;
+mod recovery;
 pub use callback_catalog::{
     BoundaryCallbackLayout, CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
 };
+pub use recovery::BoundaryCallingApplicationCandidate;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingApplication {
@@ -24,6 +26,9 @@ pub struct BoundaryCallingApplication {
     pub plan: ValidatedBoundaryEntryPlan,
     pub signature: BoundarySignatureGeometry,
     pub opaque_applications: Vec<BoundaryOpaqueApplication>,
+    /// Complete producer context, including binders and demands whose absence
+    /// from a candidate plan must still make that candidate fail validation.
+    pub callback_context: crate::CallbackMaterializationContext,
     pub callback_context_closed: bool,
 }
 

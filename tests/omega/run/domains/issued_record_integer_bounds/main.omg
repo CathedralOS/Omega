@@ -1,8 +1,8 @@
 // Expected exit: 0. A routed root owes predicates on the evaluated fields,
 // not one constant value or an assumption from its own result annotation.
 data Handle { value: u64; ignored: u64; }
-domain Handle::Open(handle)
-requires handle.value != 0 && handle.value <= 2147483648
+domain Handle::Open
+requires self.value != 0 && self.value <= 2147483648
 established by local_handle, inline_handle, returned_handle, stored_handle, snapshot_handle;
 data Storage { value: u64; }
 

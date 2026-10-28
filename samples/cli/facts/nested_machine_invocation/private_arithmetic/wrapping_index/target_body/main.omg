@@ -1,0 +1,37 @@
+// Every recorded offset is below 495, so its wrapping sum with 17 is below 512 and read can index the window.
+// Expected exit: 0
+data Window { bytes: [u8; 512]; offset: u64 in Wrapping; index: u64 in Wrapping; canary: u64; }
+boundary trait HostedProbe { machine apply(window: &mut Window, enabled: bool) -> u8 reaches; }
+HostedProbeBody satisfies HostedProbe {
+machine apply(window: &mut Window, enabled: bool) -> u8 {
+    transition enabled && window.offset < 495 { true -> read(window) false -> 0 }
+    machine read(window: &mut Window) -> u8 {
+        window.index = window.offset + 17;
+        window.bytes[window.index]
+    }
+}
+}
+machine main() crashes Trap {
+    let mut window: Window;
+    window.canary = 33;
+    window.bytes[511] = 37;
+    window.bytes[17] = 11;
+    window.offset = 494;
+    let first: u8 = HostedProbe::apply(&mut window, true);
+    let first_index: u64 in Wrapping = window.index;
+    window.offset = 0;
+    let second: u8 = HostedProbe::apply(&mut window, true);
+    let second_index: u64 in Wrapping = window.index;
+    window.offset = 495;
+    let third: u8 = HostedProbe::apply(&mut window, true);
+    window.offset = 18446744073709551615;
+    let fourth: u8 = HostedProbe::apply(&mut window, true);
+    window.offset = 494;
+    let disabled: u8 = HostedProbe::apply(&mut window, false);
+    transition first == 37 && first_index == 511 && second == 11 && second_index == 17
+        && third == 0 && fourth == 0 && disabled == 0 && window.index == 17 && window.canary == 33 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

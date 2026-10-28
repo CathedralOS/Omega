@@ -21,6 +21,45 @@ pub(super) use total::total_scalar_expression;
 
 pub(in crate::rules) type ScalarExpressionRow<K> = (K, OperationId, ValueId, ScalarType);
 
+/// A scalar-expression key's own operand queries. `translated` is the key's
+/// join translation projected into the `Option` the phi-translated proposal
+/// reads, so that proposal accepts any family's key without naming it.
+pub(in crate::rules) trait ScalarExpressionKey: Copy {
+    fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool;
+
+    fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self>;
+}
+
+impl ScalarExpressionKey for TotalScalarExpressionKey {
+    fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
+        self.references_any(values)
+    }
+
+    fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
+        self.translate(values)
+    }
+}
+
+impl ScalarExpressionKey for ProofCertifiedScalarExpressionKey {
+    fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
+        self.references_any(values)
+    }
+
+    fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
+        Some(self.translate(values))
+    }
+}
+
+impl ScalarExpressionKey for CompatiblePolicyScalarExpressionKey {
+    fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
+        self.references_any(values)
+    }
+
+    fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
+        Some(self.translate(values))
+    }
+}
+
 fn canonical_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
     if left <= right {
         (left, right)

@@ -235,13 +235,7 @@ pub enum RuntimeSpillError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for RuntimeSpillError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid runtime-value spill: {self:?}")
-    }
-}
-
-impl std::error::Error for RuntimeSpillError {}
+failed_display!(RuntimeSpillError, "invalid runtime-value spill");
 
 /// The identity a spilled register's reloads restate. A scalar victim keeps
 /// its source `ValueId`; a structural victim is identified by the declared
@@ -1299,7 +1293,8 @@ pub(super) fn derive_runtime_spill<'source>(
                                 {
                                     dedicated_tie_uses[current_block_index]
                                         .insert((instruction_index, operand.operand));
-                                    let dedicated = &mut use_positions[current_block_index].dedicated;
+                                    let dedicated =
+                                        &mut use_positions[current_block_index].dedicated;
                                     if dedicated.last() != Some(&instruction_index) {
                                         dedicated.push(instruction_index);
                                     }
@@ -1529,10 +1524,12 @@ pub(super) fn derive_runtime_spill<'source>(
     let mut can_use_unit_mask = false;
     if any_flexible {
         let model = environment.physical().model();
-        can_use_unit_mask = model
-            .views
-            .iter()
-            .all(|v| v.units.iter().chain(&v.write_units).all(|u| (u.0 as usize) < 128));
+        can_use_unit_mask = model.views.iter().all(|v| {
+            v.units
+                .iter()
+                .chain(&v.write_units)
+                .all(|u| (u.0 as usize) < 128)
+        });
         let mut units_mask = 0u128;
         let mut views_mask = 0u128;
         let mut seen_units = Vec::new();
@@ -1584,8 +1581,9 @@ pub(super) fn derive_runtime_spill<'source>(
             {
                 block_units_mask |= implicit_mask as u128;
                 block_views_mask |= fixed_mask as u128;
-            } else if let Some((units, views)) =
-                function.blocks.block_implicit_units_and_fixed_views(block_index)
+            } else if let Some((units, views)) = function
+                .blocks
+                .block_implicit_units_and_fixed_views(block_index)
             {
                 for &unit in units {
                     mark_unit(unit);
@@ -1764,14 +1762,16 @@ pub(super) fn derive_runtime_spill<'source>(
                 .iter()
                 .any(|pending| pending.block == block_index);
             let first_unpinned = use_positions[block_index].unpinned.first().copied();
-            let last_unpinned = use_positions[block_index].unpinned.iter().next_back().copied();
+            let last_unpinned = use_positions[block_index]
+                .unpinned
+                .iter()
+                .next_back()
+                .copied();
             let mut open = false;
             let mut written_mask = 0u128;
             let mut written = std::collections::BTreeSet::new();
             if let Some(start_idx) = first_unpinned {
-                for (offset, instruction) in
-                    block.instructions[start_idx..].iter().enumerate()
-                {
+                for (offset, instruction) in block.instructions[start_idx..].iter().enumerate() {
                     let index = start_idx + offset;
                     if !has_structural && last_unpinned.is_none_or(|last| index >= last) {
                         break;
@@ -1802,7 +1802,11 @@ pub(super) fn derive_runtime_spill<'source>(
                             .all(|u| (u.0 as usize) < 128)
                     {
                         let mut trial_mask = written_mask;
-                        for &u in instruction.clobbers.iter().chain(&instruction.implicit_defs) {
+                        for &u in instruction
+                            .clobbers
+                            .iter()
+                            .chain(&instruction.implicit_defs)
+                        {
                             trial_mask |= 1u128 << u.0;
                         }
                         if surviving_home_exists_mask(base_excluded_mask | trial_mask) {

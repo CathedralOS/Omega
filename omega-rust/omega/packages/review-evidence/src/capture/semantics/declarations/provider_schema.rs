@@ -1,6 +1,7 @@
 //! Exact declaring-schema joins for selected provider requirements.
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use diagnostics::Diagnostic;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
@@ -76,8 +77,4 @@ pub(crate) fn provider_requirement_schema(
     Ok(ProviderSchemaDeclaration::BoundaryTrait(*owner))
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "selected provider requirement rejects {reason}"
-    ))]
-}
+refusal!(reason, "selected provider requirement rejects {reason}");

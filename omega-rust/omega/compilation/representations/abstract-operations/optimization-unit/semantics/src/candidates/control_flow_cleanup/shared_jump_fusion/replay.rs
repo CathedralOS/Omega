@@ -1,5 +1,7 @@
 //! Independent shared terminal-jump fusion replay mechanics.
 use crate::candidates::accept_region_rewrite;
+use crate::candidates::candidate_block;
+use crate::candidates::candidate_function;
 use crate::candidates::control_flow_cleanup::{
     checked_scalar_substitutions, patched_jump_bindings, require_scalar_bindings,
 };
@@ -27,14 +29,10 @@ pub(super) fn validate(
     if candidate.node_decision_point() != Some(patch.predecessor) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .function(patch.predecessor.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.predecessor.machine)?;
     require_scalar_bindings(function)?;
 
-    let predecessor = function
-        .block(patch.predecessor.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let predecessor = candidate_block(function, patch.predecessor.block)?;
     let predecessor_index = usize::try_from(patch.predecessor.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     if predecessor_index + 1 != predecessor.nodes.len() {
@@ -42,9 +40,7 @@ pub(super) fn validate(
     }
     let predecessor_node = crate::candidates::candidate_node(predecessor, patch.predecessor.node)?;
     let bindings = patched_jump_bindings(predecessor_node, patch.incoming_edge, patch.target)?;
-    let target = function
-        .block(patch.target)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let target = candidate_block(function, patch.target)?;
     let [terminal] = target.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
@@ -90,11 +86,6 @@ pub(super) fn validate(
     let (expected_blocks, accepted_provenance) =
         reconstruct_shared_terminal_fusion_accounting(function, patch)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
-    if candidate.affected_blocks() != expected_blocks
-        || candidate.provenance() != accepted_provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
 
     let incoming_edge = predecessor_node
         .edge(patch.incoming_edge)

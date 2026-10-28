@@ -62,7 +62,10 @@ impl LocalWriteSource {
         let mut root = self.root;
         let (mut carrier, mut path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.clone()),
-            None => (root_type(program, state, root)?, self.segments.clone()),
+            None => (
+                crate::state_root_type(program, state, root)?,
+                self.segments.clone(),
+            ),
         };
         let view_primitive = scalar_primitive(program, carrier, &path)?;
         let mut preserves_scalar_value = true;
@@ -81,7 +84,7 @@ impl LocalWriteSource {
             let (previous_carrier, mut previous_path) = match &recast.representation {
                 Some((carrier, path)) => (*carrier, path.clone()),
                 None => (
-                    root_type(program, state, recast.root)?,
+                    crate::state_root_type(program, state, recast.root)?,
                     recast.segments.clone(),
                 ),
             };
@@ -129,19 +132,4 @@ fn scalar_primitive(
     program.primitive_type_reference(crate::value_custody::places::assignment_value_type(
         program, leaf,
     ))
-}
-
-fn root_type(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    root: SymbolHandle,
-) -> Option<TypeReferenceHandle> {
-    program
-        .state_parameter_by_symbol(state, root)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            program
-                .state_local_declaration(state, root)
-                .map(|(_, local)| local.type_reference)
-        })
 }

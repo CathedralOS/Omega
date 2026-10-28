@@ -215,11 +215,13 @@ pub(crate) fn selected_policy_machine<'program>(
     // is its portable contract, not an executable policy body. Resolve that
     // exact family on the selected deployment before build-time admission,
     // as external binding producers and provider rows already do.
-    crate::target_machines::realized_machine(typed, machine, target_profile).ok_or_else(|| {
-        format!(
-            "calling policy realization `{}` has no body for target `{}`",
-            machine.name,
-            target_profile.target_name()
-        )
-    })
+    typed
+        .machine_for_target(machine, target_profile.target_name())
+        .ok_or_else(|| {
+            format!(
+                "calling policy realization `{}` has no body for target `{}`",
+                machine.name,
+                target_profile.target_name()
+            )
+        })
 }

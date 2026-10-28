@@ -1,1 +1,1 @@
-domain constraint `ResidentValue` for the const leaf value is false
+construction of `Cell` field `value`: value 2147483648 is outside its declared range `0..=2147483647`

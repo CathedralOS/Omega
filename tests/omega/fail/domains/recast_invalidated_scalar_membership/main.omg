@@ -1,4 +1,4 @@
-domain u32::Small(value) requires value <= 100;
+domain u32::Small requires self <= 100;
 machine overwrite(value: &mut u32) { value = 200; }
 machine invalid() {
     let mut value: u32 in Small = 0;

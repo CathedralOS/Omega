@@ -16,6 +16,10 @@ pub type SymbolNameHandle = Handle<SymbolName>;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Symbol {
     pub parent: SymbolHandle,
+    /// Authored declaration scope when physical allocation uses another parent.
+    /// Inline implementation members retain their map here without changing
+    /// namespace paths, runtime arguments or source-selection authority.
+    pub declaration_owner: SymbolHandle,
     pub children: HandleSpan<Symbol>,
     pub kind: SymbolKind,
     pub name: SymbolNameHandle,

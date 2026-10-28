@@ -1280,6 +1280,25 @@ pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
     }
 }
 
+/// The selected public callable determines whether structural proof values
+/// are available. Citation intake and call-entry discharge must make the same
+/// judgment; an absent private machine is not evidence of runtime values.
+pub(super) fn owner_is_proof(
+    program: &dyn crate::CheckingInput,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    owner: &SelectedCallContract<'_>,
+) -> bool {
+    match owner {
+        SelectedCallContract::Concrete(machine, _) => {
+            classification.is_proof_machine(program, machine)
+        }
+        SelectedCallContract::Signature(signature) => {
+            classification.is_proof_signature(program, signature)
+        }
+        _ => false,
+    }
+}
+
 pub(super) fn owner_name(
     program: &dyn crate::CheckingInput,
     owner: &SelectedCallContract<'_>,

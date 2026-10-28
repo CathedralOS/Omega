@@ -42,6 +42,92 @@ impl PlacementExecutionDeclaration {
         self.template
     }
 
+    /// The exact symbolic application of this conditional source contract.
+    /// Actual operands belong to the caller; this grants neither a closed
+    /// placement plan nor backing/profile authority for execution.
+    pub fn source_invocation_bindings(
+        &self,
+        program: &crate::TypedTrees,
+        owner: symbols::SymbolHandle,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Result<[(symbols::SymbolHandle, crate::types::TypeReferenceHandle); 3], Diagnostic> {
+        self.invocation_application(program, owner, application)?;
+        let declaration = program.machine(self.template).ok_or_else(|| {
+            Diagnostic::error("placement source contract lost its exact template declaration")
+        })?;
+        self.invocation_bindings(
+            program,
+            application,
+            program.machine_type_parameters(declaration),
+        )
+    }
+
+    fn invocation_application<'program>(
+        &self,
+        program: &'program crate::TypedTrees,
+        owner: symbols::SymbolHandle,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Result<&'program crate::static_applications::StaticMachineApplication, Diagnostic> {
+        if !application.is_valid() {
+            return Err(Diagnostic::error(
+                "placement execution lost its retained invocation application",
+            ));
+        }
+        let source = program
+            .expression_table
+            .static_machine_application(application);
+        if source.lexical_owner != owner || source.binding_declaration != self.template {
+            return Err(Diagnostic::error(
+                "placement execution application does not belong to this caller and declaration",
+            ));
+        }
+        Ok(source)
+    }
+
+    fn invocation_bindings(
+        &self,
+        program: &crate::TypedTrees,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        parameters: &[crate::data::TypeParameter],
+    ) -> Result<[(symbols::SymbolHandle, crate::types::TypeReferenceHandle); 3], Diagnostic> {
+        let [policy, schema, role] = parameters else {
+            return Err(Diagnostic::error(
+                "placement execution lost its original policy/schema/supply-role binders",
+            ));
+        };
+        let bindings = program
+            .expression_table
+            .static_machine_application_bindings(application);
+        if bindings.len() != parameters.len() {
+            return Err(Diagnostic::error(
+                "placement execution lost its complete invocation-owned type operand roster",
+            ));
+        }
+        let operand = |parameter| {
+            let mut matching = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter);
+            match (matching.next(), matching.next()) {
+                (
+                    Some(crate::static_applications::StaticMachineBinding {
+                        value:
+                            crate::static_applications::StaticMachineBindingValue::Type(reference),
+                        ..
+                    }),
+                    None,
+                ) if reference.is_valid() => Ok((parameter, *reference)),
+                _ => Err(Diagnostic::error(
+                    "placement execution lost an exact invocation-owned type operand",
+                )),
+            }
+        };
+        Ok([
+            operand(policy.symbol)?,
+            operand(schema.symbol)?,
+            operand(role.symbol)?,
+        ])
+    }
+
     /// The P/T of this invocation, not the representative caller cached by a
     /// shared specialization. Declaration correspondence does not transfer the
     /// representative caller's policy-selection authority.
@@ -57,19 +143,7 @@ impl PlacementExecutionDeclaration {
         ),
         Diagnostic,
     > {
-        if !application.is_valid() {
-            return Err(Diagnostic::error(
-                "placement execution lost its retained invocation application",
-            ));
-        }
-        let source = program
-            .expression_table
-            .static_machine_application(application);
-        if source.lexical_owner != owner || source.binding_declaration != self.template {
-            return Err(Diagnostic::error(
-                "placement execution application does not belong to this caller and declaration",
-            ));
-        }
+        self.invocation_application(program, owner, application)?;
         let specialization = program
             .machine_specialization(self.machine)
             .ok_or_else(|| {
@@ -79,36 +153,14 @@ impl PlacementExecutionDeclaration {
                     program.symbols.name(owner),
                 ))
             })?;
-        let [policy, schema, _role] = program
-            .data_type_parameters
-            .span_or_empty(specialization.template_parameters)
-        else {
-            return Err(Diagnostic::error(
-                "placement execution lost its original policy/schema/supply-role binders",
-            ));
-        };
-        let bindings = program
-            .expression_table
-            .static_machine_application_bindings(application);
-        let operand = |parameter| {
-            let mut matching = bindings
-                .iter()
-                .filter(|binding| binding.parameter == parameter);
-            match (matching.next(), matching.next()) {
-                (
-                    Some(crate::static_applications::StaticMachineBinding {
-                        value:
-                            crate::static_applications::StaticMachineBindingValue::Type(reference),
-                        ..
-                    }),
-                    None,
-                ) => Ok(*reference),
-                _ => Err(Diagnostic::error(
-                    "placement execution lost an exact invocation-owned type operand",
-                )),
-            }
-        };
-        Ok((operand(policy.symbol)?, operand(schema.symbol)?))
+        let [policy, schema, _role] = self.invocation_bindings(
+            program,
+            application,
+            program
+                .data_type_parameters
+                .span_or_empty(specialization.template_parameters),
+        )?;
+        Ok((policy.1, schema.1))
     }
 
     /// The closed supply role belongs to the primitive's exact specialization.

@@ -9,45 +9,7 @@ use crate::TargetProfile;
 use crate::compatibility_fingerprint::Fnv1a;
 use std::fmt;
 
-/// Untrusted owned coordinates produced by future ordinary `Binding` value
-/// evaluation. Vector lengths retain the fixed-array widths of that value;
-/// unused coordinates are absent by construction rather than normalized from
-/// an independently supplied field.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ForeignLocatorCandidate {
-    PeByName {
-        library: Vec<u8>,
-        export: Vec<u8>,
-    },
-    PeByOrdinal {
-        library: Vec<u8>,
-        ordinal: u16,
-    },
-    ElfVersioned {
-        object: Vec<u8>,
-        symbol: Vec<u8>,
-        version: Vec<u8>,
-    },
-    /// One exact two-level-namespace Mach-O import. `install_name` is the raw
-    /// `LC_LOAD_DYLIB` identity; `symbol` is the raw dyld symbol spelling. The
-    /// image-local dylib ordinal is derived from load-command order and is not
-    /// locator identity.
-    MachODylibSymbol {
-        install_name: Vec<u8>,
-        symbol: Vec<u8>,
-    },
-}
-
-impl ForeignLocatorCandidate {
-    const fn case_name(&self) -> &'static str {
-        match self {
-            Self::PeByName { .. } => "PeByName",
-            Self::PeByOrdinal { .. } => "PeByOrdinal",
-            Self::ElfVersioned { .. } => "ElfVersioned",
-            Self::MachODylibSymbol { .. } => "MachODylibSymbol",
-        }
-    }
-}
+pub use semantic_vocabulary::ForeignLocatorCandidate;
 
 /// Read-only, structurally validated locator for one exact selected target.
 ///
@@ -69,6 +31,12 @@ pub struct NormalizedForeignLocator {
 pub struct ForeignLocatorIdentityDigest([u8; 32]);
 
 impl ForeignLocatorIdentityDigest {
+    /// Recover a digest claim; normalized locator and receipt admission still
+    /// establish which concrete bytes it names.
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
     pub const fn as_bytes(self) -> [u8; 32] {
         self.0
     }

@@ -65,18 +65,11 @@ pub fn type_reference_is_collection(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_is_collection(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_collection(program, *base_type)
-        }
-        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => true,
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Unit => false,
-    }
+    crate::value_custody::reference_shells::carrier_beneath_borrows(program, type_reference)
+        .is_some_and(|carrier| {
+            matches!(
+                program.type_reference_table.type_reference(carrier),
+                TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. }
+            )
+        })
 }

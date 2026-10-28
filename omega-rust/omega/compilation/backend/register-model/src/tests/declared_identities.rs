@@ -233,6 +233,20 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         target_register_environment_identity(target, &physical, &constraints, &reservations, &keys,)
     );
 
+    // One owner for "the environment identity with a named selection changed":
+    // each case below names only the fields it overrides.
+    let identity_with = |mutate: &dyn Fn(&mut TargetRegisterEnvironmentConstraintKeys)| {
+        let mut changed = keys.clone();
+        mutate(&mut changed);
+        target_register_environment_identity(
+            target,
+            &physical,
+            &constraints,
+            &reservations,
+            &changed,
+        )
+    };
+
     // Both optional positions and their exact key payloads contribute, not
     // merely the presence of some floating policy capability.
     let policy_identities: Vec<_> = [None, Some(instruction_key(65)), Some(instruction_key(66))]
@@ -243,36 +257,18 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
                 .map(move |saturating| (trapping, saturating))
         })
         .map(|(trapping, saturating)| {
-            target_register_environment_identity(
-                target,
-                &physical,
-                &constraints,
-                &reservations,
-                &TargetRegisterEnvironmentConstraintKeys {
-                    float_result_trapping: trapping,
-                    float_result_saturating: saturating,
-                    ..keys.clone()
-                },
-            )
+            identity_with(&|row| {
+                row.float_result_trapping = trapping;
+                row.float_result_saturating = saturating;
+            })
         })
         .collect();
     for (position, identity) in policy_identities.iter().enumerate() {
         assert!(!policy_identities[..position].contains(identity));
     }
 
-    let directed_identities =
-        [None, Some(instruction_key(785)), Some(instruction_key(792))].map(|directed| {
-            target_register_environment_identity(
-                target,
-                &physical,
-                &constraints,
-                &reservations,
-                &TargetRegisterEnvironmentConstraintKeys {
-                    ieee_float_directed_binary: directed,
-                    ..keys.clone()
-                },
-            )
-        });
+    let directed_identities = [None, Some(instruction_key(785)), Some(instruction_key(792))]
+        .map(|directed| identity_with(&|row| row.ieee_float_directed_binary = directed));
     for (position, identity) in directed_identities.iter().enumerate() {
         assert!(
             !directed_identities[..position].contains(identity),
@@ -310,273 +306,76 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         );
     }
 
-    for changed_keys in [
-        TargetRegisterEnvironmentConstraintKeys {
-            port_write: None,
-            system_register_read: None,
-            system_register_write: None,
-            control_register_read: None,
-            control_register_write: None,
-            port_register_read: None,
-            port_register_write: None,
-            model_specific_read: None,
-            model_specific_write: None,
-            processor_halt: None,
-            interrupt_control: None,
-            memory_fence: None,
-            atomic_fence: None,
-            placed_read: None,
-            placed_write: None,
-            atomic_load: Some(instruction_key(781)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            atomic_store: Some(instruction_key(782)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            atomic_update: Some(instruction_key(783)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            atomic_compare_exchange: Some(instruction_key(784)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            atomic_bitwise_update: Some(instruction_key(785)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            crash: instruction_key(781),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            load_packed: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            store_packed: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            load_packed: Some(instruction_key(38)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            store_packed: Some(instruction_key(38)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            load_packed: keys.store_packed,
-            store_packed: keys.load_packed,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            hosted_read_byte: Some(keys.materialize_i64),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            store: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            address_offset: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            call_unit: Vec::new(),
-            call_unit_mixed: Vec::new(),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            load64: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            store64: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            frame_address: None,
-            byte_literal_image_address: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            load64: keys.store64,
-            store64: keys.load64,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            call_scalar: Vec::new(),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            call_aggregate: vec![instruction_key(30)],
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            call_normalized_foreign: Vec::new(),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            call_normalized_foreign: vec![instruction_key(30)],
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            return_aggregate: vec![instruction_key(31)],
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            materialize_i64: instruction_key(11),
-            materialize_boolean: instruction_key(732),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            copy_i64: instruction_key(15),
-            float32_to_bits: None,
-            float64_to_bits: None,
-            bits_to_float32: None,
-            bits_to_float64: None,
-            ieee_float_arithmetic: None,
-            ieee_float_directed_binary: None,
-            ieee_float_directed_unary: None,
-            ieee_float_unary: None,
-            ieee_float_conversion_control: Some(instruction_key(788)),
-            ieee_float_ternary: None,
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            add_i64: instruction_key(16),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            add_i64_immediate: instruction_key(17),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            subtract_i64: instruction_key(18),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            multiply_i64: instruction_key(47),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_subtract_unsigned: instruction_key(18),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_add_u64: instruction_key(18),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            divide_u64: instruction_key(18),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            remainder_u64: instruction_key(50),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            remainder_i64: instruction_key(39),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            divide_i64: instruction_key(51),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            shift_i64: instruction_key(52),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_add_clamped: instruction_key(43),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_subtract_clamped: instruction_key(44),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_divide_signed: instruction_key(45),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_multiply_clamped: instruction_key(55),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            saturating_multiply_u64: instruction_key(56),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            trapping_binary: instruction_key(61),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            trapping_fixed_pair: instruction_key(62),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            trapping_shift: instruction_key(63),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            trapping_convert: instruction_key(64),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            float_result_trapping: Some(instruction_key(65)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            float_result_saturating: Some(instruction_key(65)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            float_result_trapping: Some(instruction_key(66)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            float_result_saturating: Some(instruction_key(66)),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            subtract_i64_immediate: instruction_key(19),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            compare_i64_zero: instruction_key(12),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            compare_i64: instruction_key(21),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            conditional_branch: instruction_key(13),
-            jump: instruction_key(23),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            return_float: Vec::new(),
-            return_i64: instruction_key(14),
-            ..keys.clone()
-        },
-        TargetRegisterEnvironmentConstraintKeys {
-            return_unit: instruction_key(15),
-            ..keys.clone()
-        },
+    for changed in [
+        identity_with(&|row| row.atomic_load = Some(instruction_key(781))),
+        identity_with(&|row| row.atomic_store = Some(instruction_key(782))),
+        identity_with(&|row| row.atomic_update = Some(instruction_key(783))),
+        identity_with(&|row| row.atomic_compare_exchange = Some(instruction_key(784))),
+        identity_with(&|row| row.atomic_bitwise_update = Some(instruction_key(785))),
+        identity_with(&|row| row.crash = instruction_key(781)),
+        identity_with(&|row| row.load_packed = None),
+        identity_with(&|row| row.store_packed = None),
+        identity_with(&|row| row.load_packed = Some(instruction_key(38))),
+        identity_with(&|row| row.store_packed = Some(instruction_key(38))),
+        identity_with(&|row| {
+            row.load_packed = keys.store_packed;
+            row.store_packed = keys.load_packed;
+        }),
+        identity_with(&|row| row.hosted_read_byte = Some(keys.materialize_i64)),
+        identity_with(&|row| row.store = None),
+        identity_with(&|row| row.address_offset = None),
+        identity_with(&|row| row.call_unit = Vec::new()),
+        identity_with(&|row| row.load64 = None),
+        identity_with(&|row| row.store64 = None),
+        identity_with(&|row| row.frame_address = None),
+        identity_with(&|row| {
+            row.load64 = keys.store64;
+            row.store64 = keys.load64;
+        }),
+        identity_with(&|row| row.call_scalar = Vec::new()),
+        identity_with(&|row| row.call_aggregate = vec![instruction_key(30)]),
+        identity_with(&|row| row.call_normalized_foreign = Vec::new()),
+        identity_with(&|row| row.call_normalized_foreign = vec![instruction_key(30)]),
+        identity_with(&|row| row.return_aggregate = vec![instruction_key(31)]),
+        identity_with(&|row| row.materialize_i64 = instruction_key(11)),
+        identity_with(&|row| {
+            row.copy_i64 = instruction_key(15);
+            row.ieee_float_conversion_control = Some(instruction_key(788));
+        }),
+        identity_with(&|row| row.add_i64 = instruction_key(16)),
+        identity_with(&|row| row.add_i64_immediate = instruction_key(17)),
+        identity_with(&|row| row.subtract_i64 = instruction_key(18)),
+        identity_with(&|row| row.multiply_i64 = instruction_key(47)),
+        identity_with(&|row| row.saturating_subtract_unsigned = instruction_key(18)),
+        identity_with(&|row| row.saturating_add_u64 = instruction_key(18)),
+        identity_with(&|row| row.divide_u64 = instruction_key(18)),
+        identity_with(&|row| row.remainder_u64 = instruction_key(50)),
+        identity_with(&|row| row.remainder_i64 = instruction_key(39)),
+        identity_with(&|row| row.divide_i64 = instruction_key(51)),
+        identity_with(&|row| row.shift_i64 = instruction_key(52)),
+        identity_with(&|row| row.saturating_add_clamped = instruction_key(43)),
+        identity_with(&|row| row.saturating_subtract_clamped = instruction_key(44)),
+        identity_with(&|row| row.saturating_divide_signed = instruction_key(45)),
+        identity_with(&|row| row.saturating_multiply_clamped = instruction_key(55)),
+        identity_with(&|row| row.saturating_multiply_u64 = instruction_key(56)),
+        identity_with(&|row| row.trapping_binary = instruction_key(61)),
+        identity_with(&|row| row.trapping_fixed_pair = instruction_key(62)),
+        identity_with(&|row| row.trapping_shift = instruction_key(63)),
+        identity_with(&|row| row.trapping_convert = instruction_key(64)),
+        identity_with(&|row| row.float_result_trapping = Some(instruction_key(65))),
+        identity_with(&|row| row.float_result_saturating = Some(instruction_key(65))),
+        identity_with(&|row| row.float_result_trapping = Some(instruction_key(66))),
+        identity_with(&|row| row.float_result_saturating = Some(instruction_key(66))),
+        identity_with(&|row| row.subtract_i64_immediate = instruction_key(19)),
+        identity_with(&|row| row.compare_i64_zero = instruction_key(12)),
+        identity_with(&|row| row.compare_i64 = instruction_key(21)),
+        identity_with(&|row| {
+            row.conditional_branch = instruction_key(13);
+            row.jump = instruction_key(23);
+        }),
+        identity_with(&|row| row.return_i64 = instruction_key(14)),
+        identity_with(&|row| row.return_unit = instruction_key(15)),
     ] {
-        assert_ne!(
-            identity,
-            target_register_environment_identity(
-                target,
-                &physical,
-                &constraints,
-                &reservations,
-                &changed_keys,
-            )
-        );
+        assert_ne!(identity, changed);
     }
 }

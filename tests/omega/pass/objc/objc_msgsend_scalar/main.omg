@@ -15,9 +15,9 @@ use omega::language::core::process_exit;
 // register gives something else -> exit 1. Uses only NSObject (defined in
 // libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
 
-public domain [u8]::CString(bytes)
+public domain [u8]::CString
 requires
-    no_nul(bytes);
+    no_nul(self);
 use omega_language_std::console;
 
 public boundary trait ObjectiveC {

@@ -198,9 +198,9 @@ pub(super) fn address_parameter<'a>(
 }
 
 /// An address-join edge lends one readable root, or a static projection
-/// beneath it, that is live in the predecessor: a plain owned home (an
-/// established local or an owned join's storage), a claim-free
-/// machine parameter, or an earlier address join. The root keeps its owner
+/// beneath it, that is live in the predecessor: an owned home (an
+/// established local or an owned join's storage), a machine parameter,
+/// or an earlier address join. The root keeps its owner
 /// and storage; the path must name exactly the join's referent type. A root
 /// suspended by an outstanding exclusive loan cannot lend a shared view.
 fn address_join_argument(
@@ -242,7 +242,8 @@ fn address_join_argument(
             // A loan leaves the owning home and its claims in place.
             // Current ownership and loan checks authenticate availability;
             // the address carrier does not transfer those claim identities.
-            && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
+        // Linear consumption belongs to the owner; this unrestricted loan
+        // carries only the selected address, never the owner or its debt.
             && accessible(home.structural_type(), home.multiplicity(), home.access()))
         .then(|| home.structural_type())
     } else if let Some(source) = function.structural_parameter(argument.place) {
@@ -252,8 +253,7 @@ fn address_join_argument(
             &argument.path,
             source.access,
             parameter.access,
-        ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-            && accessible(source.structural_type, source.multiplicity, source.access))
+        ) && accessible(source.structural_type, source.multiplicity, source.access))
         .then_some(source.structural_type)
     } else if live.address_joins.contains(&argument.place) {
         function

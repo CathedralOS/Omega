@@ -85,10 +85,13 @@ pub use result_type::{
 
 pub(crate) use delivered_types::report_delivered_type_mismatch;
 pub(crate) use reference_values::{
-    StorageWriteAccess, declared_reference_access, owned_rvalue_exclusive_reference_access,
+    StorageWriteAccess, owned_rvalue_exclusive_reference_access,
     place_forwarded_exclusive_reference_access, place_permits_reference_borrow,
     place_storage_write_access,
 };
+// The declared borrow a reference type spells is a place query; the expression
+// module's consumers read it through this re-export.
+pub(crate) use crate::value_custody::places::declared_reference_access;
 pub(crate) use result_type::declaration_expression_result_type_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;
 pub(crate) use result_type::{

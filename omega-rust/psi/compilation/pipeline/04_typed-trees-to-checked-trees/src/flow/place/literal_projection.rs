@@ -255,7 +255,7 @@ fn literal_projections(
                 // Lifetime arguments do not erase that declaration identity;
                 // a plain Named-only lookup lost its evaluated child captures.
                 let definition =
-                    program.closed_data_constructor_definition(reference, literal.type_symbol)?;
+                    program.data_constructor_definition(reference, literal.type_symbol)?;
                 let owner = definition.symbol;
                 let members = program.data_members(definition);
                 let variant = match literal.case_symbol {
@@ -305,7 +305,7 @@ fn literal_projections(
                 }
                 let mut mapped_actuals = Vec::with_capacity(actuals.len());
                 for actual in actuals {
-                    let field = program.closed_data_constructor_field(
+                    let field = program.data_constructor_field(
                         reference,
                         literal.type_symbol,
                         actual.field_symbol,

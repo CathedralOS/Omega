@@ -60,7 +60,7 @@ reaches FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> query(file)
+        true -> block query(file)
         false -> (MetadataResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine query(file: File) -> MetadataResult {
@@ -135,21 +135,21 @@ reaches FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> access_time(file, accessed, modified)
+        true -> block access_time(file, accessed, modified)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine access_time(file: File, accessed: i64, modified: i64) -> UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(accessed);
         transition encoded {
             WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind })
-            WindowsTimestampEncoding::Ticks { value } -> write_time(file, value, modified)
+            WindowsTimestampEncoding::Ticks { value } -> block write_time(file, value, modified)
         }
     }
     machine write_time(file: File, accessed: u64, modified: i64) -> UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(modified);
         transition encoded {
             WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind })
-            WindowsTimestampEncoding::Ticks { value } -> update(file, accessed, value)
+            WindowsTimestampEncoding::Ticks { value } -> block update(file, accessed, value)
         }
     }
     machine update(file: File, accessed: u64, modified: u64) -> UnitResult {
@@ -165,8 +165,8 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {
     transition permissions {
-        Permissions::Default -> update(path, false)
-        Permissions::Readonly { value } -> update(path, value)
+        Permissions::Default -> block update(path, false)
+        Permissions::Readonly { value } -> block update(path, value)
         Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
     }
     machine update(path: &[u8] in Path, readonly: bool) -> UnitResult {
@@ -180,13 +180,13 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
-        true -> select(file, permissions)
+        true -> block select(file, permissions)
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine select(file: File, permissions: Permissions) -> UnitResult {
         transition permissions {
-            Permissions::Default -> update(file, false)
-            Permissions::Readonly { value } -> update(file, value)
+            Permissions::Default -> block update(file, false)
+            Permissions::Readonly { value } -> block update(file, value)
             Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
         }
     }

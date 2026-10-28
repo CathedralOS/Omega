@@ -1,0 +1,12 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "private_native_probe");
+ Build::depend(builder, Source::Path { location: "library" });
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, windows_x86_64);
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, linux_x86_64);
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, macos_arm64);
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, linux_arm64);
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

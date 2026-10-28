@@ -1,5 +1,5 @@
 data Handle { changed: u64; value: u64; later: u64; }
-domain Handle::Open(handle) requires handle.value == 1 established by issue_handle;
+domain Handle::Open requires self.value == 1 established by issue_handle;
 machine initialize(value: &mut u64) -> u64 ensures value == 1 {
     value = 1;
     0

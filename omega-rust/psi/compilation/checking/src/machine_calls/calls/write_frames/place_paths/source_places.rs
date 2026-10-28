@@ -110,6 +110,19 @@ impl FrameSourcePlace {
         }
     }
 
+    /// A checked callee parameter's own storage root: body coordinates with no
+    /// segment and no invented address. The parameter's name is presentation,
+    /// never part of the place.
+    pub(in crate::machine_calls::calls::write_frames) fn parameter_root(
+        parameter: &typed_trees::signature::StateParameter,
+    ) -> Self {
+        Self {
+            root: parameter.symbol,
+            builtin_coordinates: true,
+            ..Self::default()
+        }
+    }
+
     /// Source namespaces remain exact even when opaque backing has no
     /// declaration root. Equal zero handles never identify two outputs.
     pub(in crate::machine_calls::calls::write_frames) fn same_namespace(

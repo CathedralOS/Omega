@@ -108,26 +108,15 @@ pub(super) fn completed_effects(
         }
         for route in routes {
             let relative = FrameSourcePlace {
-                root: parameter.symbol,
                 segments: route.clone(),
-                builtin_coordinates: true,
-                ..Default::default()
+                ..FrameSourcePlace::parameter_root(parameter)
             };
             let Some(sources) = aggregate_argument_sources(
                 program,
                 machine,
                 parameter,
                 capture,
-                &SlotSource {
-                    carrier_backing: None,
-                    origin: FramePlaceOrigin {
-                        path: super::path(program, &relative),
-                        precision: FramePathPrecision::Exact,
-                        source: relative.clone(),
-                    },
-                    carrier: relative,
-                    lifetime_access: None,
-                },
+                &SlotSource::from_place(program, relative, FramePathPrecision::Exact, None),
                 context,
                 symbols,
             ) else {
@@ -149,14 +138,7 @@ pub(super) fn completed_effects(
                 else {
                     continue;
                 };
-                let reference = program
-                    .state_parameter_by_symbol(caller_state, base.root)
-                    .map(|parameter| parameter.type_reference)
-                    .or_else(|| {
-                        program
-                            .state_local_declaration(caller_state, base.root)
-                            .map(|(_, local)| local.type_reference)
-                    });
+                let reference = crate::state_root_type(program, caller_state, base.root);
                 let Some(reference) = reference.and_then(|reference| {
                     super::super::reference_subjects::carrier_storage_declaration(
                         program, reference,

@@ -1,4 +1,4 @@
-domain i32::Positive(value) requires 0<value && value<=100;
+domain i32::Positive requires 0<self && self<=100;
 machine copy(items:&[i32 in Positive]) -> i32 in Positive requires items.len>2 {items[2]}
 machine main() crashes Trap {
  let mut items:[i32 in Positive;3]; items[0]=11; items[1]=39;

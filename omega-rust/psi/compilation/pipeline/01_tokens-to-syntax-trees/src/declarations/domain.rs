@@ -73,22 +73,11 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         .last()
         .expect("a domain chain always holds its first segment")
         .1;
-    let (mut subject, input) = if input.at_punctuation(PunctuationKind::LeftParen) {
-        let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        let (subject, input) = input.take_identifier()?;
-        if syntax_trees
-            .items
-            .type_parameters(generic_parameters.type_parameters)
-            .iter()
-            .any(|parameter| parameter.name.as_str(syntax_trees) == subject.as_str(syntax_trees))
-        {
-            return Err(input.error_here("domain subject duplicates a generic parameter"));
-        }
-        let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-        (Some(subject), input)
-    } else {
-        (None, input)
-    };
+    if input.at_punctuation(PunctuationKind::LeftParen) {
+        return Err(input.error_here(
+            "explicit domain subject binders are retired; use `self` in the domain's `requires` predicates",
+        ));
+    }
     let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
     let (cleanup_selection, input) = parse_cleanup_selection(syntax_trees, input)?;
     // A chained declaration is authored at the last segment and carries the
@@ -97,13 +86,10 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     // (`[u8]::A::B`) spells only the domain segments that identifiers can name.
     let refinement_parent = if name_segments.len() > 1 {
         let parent_span = name_segments[name_segments.len() - 2].0.source_span();
-        let subject_name = subject
-            .get_or_insert_with(|| Identifier::generated("$subject"))
-            .clone();
         let subject_path = HandleSpan::from_parts(
             syntax_trees
                 .expressions
-                .append_identifier_path_member(subject_name),
+                .append_identifier_path_member(Identifier::generated("self")),
             1,
         );
         let parent_path = syntax_trees.items.insert_identifier_path_members(
@@ -212,7 +198,6 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     Ok((
         DomainDefinition {
             name,
-            subject,
             type_parameters: generic_parameters.type_parameters,
             target_type,
             index_arguments,

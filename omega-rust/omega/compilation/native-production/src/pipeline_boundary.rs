@@ -1,6 +1,42 @@
 //! Guard shared native stage sequencing without running another compiler.
 
 #[test]
+fn terminal_application_preparation_owns_source_free_admission_order() {
+    let source = include_str!("application.rs");
+    let mut remaining = source;
+    for operation in [
+        "project_terminal_native_realization_proposal(&self.artifact",
+        "if self.physical_entry_adapter",
+        ".bind_physical_adapter(&self.artifact)",
+        "RetainedTerminalArtifact::new_with_native_realization_proposal(",
+        "proposal.with_target_provider_proposals(self.provider_proposals)",
+    ] {
+        let position = remaining
+            .find(operation)
+            .expect("application preparation order");
+        remaining = &remaining[position + operation.len()..];
+    }
+    let validation = source
+        .find("validate_package_terminal_authority_permission_custody(permissions.iter()")
+        .unwrap();
+    let construction = source
+        .find("terminal_authority_permission_policy_with_rows(permissions, identities)")
+        .unwrap();
+    assert!(validation < construction);
+    for forbidden in [
+        "checked_trees::",
+        "typed_trees::",
+        "provider_planning::",
+        "package_compilation::",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "application preparation imports {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn component_calls_are_request_data_not_an_alternate_compile_entrance() {
     let compiler = include_str!("compiler.rs");
     let request = include_str!("request.rs");

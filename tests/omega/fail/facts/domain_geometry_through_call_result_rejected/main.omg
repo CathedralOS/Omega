@@ -4,8 +4,8 @@
 data Region { base: addr; length: u64; }
 let no_wrap(base: addr, length: u64): core::Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
-domain Region::Bounded(region)
-requires embed(region.base) <= addr::Bound;
+domain Region::Bounded
+requires embed(self.base) <= addr::Bound;
 machine region(base: addr, length: u64, endpoint: addr) -> Region in Bounded
 requires embed(base) + embed(length) <= embed(endpoint)
 ensures result.base == base && result.length == length

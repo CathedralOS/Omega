@@ -185,6 +185,7 @@ pub fn evaluate_pre_resolution(
     )?;
     let placed_view_records =
         placed_views::desugar_placed_views(&mut syntax_trees, source_context.clone())?;
+    let roots_before_generic = syntax_trees.root_item_handles().len();
     let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
         syntax_trees,
         source_context.sources.clone(),
@@ -194,9 +195,11 @@ pub fn evaluate_pre_resolution(
     // Generic field extents become owned constant uses only after their exact
     // instance tuple has been copied. Close them through the same expression
     // and invocation admission used by ordinary static arguments.
-    syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
-    syntax_trees =
-        const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
+    if syntax_trees.root_item_handles().len() > roots_before_generic {
+        syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
+        syntax_trees =
+            const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
+    }
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
@@ -353,11 +356,16 @@ impl EvaluatedPreCheck {
         self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        const_initializers::settle_target_observations(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
+        let _g = phase_profile::guard("evaluate_or_defer.finish");
+        {
+            let _g = phase_profile::guard("evaluate_or_defer.finish.settle_target_observations");
+            const_initializers::settle_target_observations(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )?;
+        }
+        let _g = phase_profile::guard("evaluate_or_defer.finish.validate_retained_invocations");
         const_initializers::validate_retained_invocations(
             typed,
             self.selection_authority,
@@ -513,30 +521,43 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        if const_lengths::evaluate_independent_lengths(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || range_endpoints::pending_endpoint_calls_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_domain_facts::pending_memberships_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || const_applications::pending_const_applications_need_operator_selection(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )? || data_layout_queries::pending_layout_queries_need_operator_selection(
-            typed,
-            self.domain.work(),
-        ) || typed.const_declarations().iter().any(|declaration| {
-            self.domain.contains(declaration.symbol)
-                && declaration.pending_target_observation
-                && declaration.evaluated_value.is_none()
-        }) {
+        let defer = {
+            let _g = phase_profile::guard("evaluate_or_defer.check_defer");
+            phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
+                const_lengths::evaluate_independent_lengths(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.endpoint_calls", || {
+                range_endpoints::pending_endpoint_calls_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.memberships", || {
+                const_domain_facts::pending_memberships_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.const_applications", || {
+                const_applications::pending_const_applications_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || data_layout_queries::pending_layout_queries_need_operator_selection(
+                typed,
+                self.domain.work(),
+            ) || typed.const_declarations().iter().any(|declaration| {
+                self.domain.contains(declaration.symbol)
+                    && declaration.pending_target_observation
+                    && declaration.evaluated_value.is_none()
+            })
+        };
+        if defer {
+            let _g = phase_profile::guard("evaluate_or_defer.defer_path");
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             // A const-generic application of a recipe call becomes a symbolic
@@ -618,62 +639,79 @@ impl PreCheckEvaluation {
         mut self,
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
-        const_lengths::evaluate_const_array_lengths_in(
-            typed,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
-        range_endpoints::evaluate_selected_range_endpoints(
-            typed,
-            self.selection_authority.clone(),
-            SelectedBuildTimeOperators {
-                operators: &self.selected_operators,
-                provider_bodies: &self.provider_bodies,
-            },
-            &self.domain,
-        )?;
-        const_domain_facts::evaluate_selected_domain_facts(
-            typed,
-            self.selection_authority.clone(),
-            SelectedBuildTimeOperators {
-                operators: &self.selected_operators,
-                provider_bodies: &self.provider_bodies,
-            },
-            &self.domain,
-        )?;
-        const_applications::evaluate_selected_const_applications(
-            typed,
-            self.selection_authority.clone(),
-            SelectedBuildTimeOperators {
-                operators: &self.selected_operators,
-                provider_bodies: &self.provider_bodies,
-            },
-            &mut self.domain,
-        )?;
-        plan_laid::compute_plan_laid_layouts_in(
-            typed,
-            &self.plan_laid_records,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
-        placed_views::validate_placed_view_plans_in(
-            typed,
-            &self.placed_view_records,
-            self.selection_authority.clone(),
-            &self.domain,
-        )?;
-        wire_plans::compute_wire_plans_in(
-            typed,
-            self.selection_authority.clone(),
-            self.wire_schema_frontier,
-            &self.domain,
-        )?;
+        let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
+        phase_profile::scope("evaluate_or_defer.evaluate_work.const_array_lengths", || {
+            const_lengths::evaluate_const_array_lengths_in(
+                typed,
+                self.selection_authority.clone(),
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.range_endpoints", || {
+            range_endpoints::evaluate_selected_range_endpoints(
+                typed,
+                self.selection_authority.clone(),
+                SelectedBuildTimeOperators {
+                    operators: &self.selected_operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.domain_facts", || {
+            const_domain_facts::evaluate_selected_domain_facts(
+                typed,
+                self.selection_authority.clone(),
+                SelectedBuildTimeOperators {
+                    operators: &self.selected_operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.const_applications", || {
+            const_applications::evaluate_selected_const_applications(
+                typed,
+                self.selection_authority.clone(),
+                SelectedBuildTimeOperators {
+                    operators: &self.selected_operators,
+                    provider_bodies: &self.provider_bodies,
+                },
+                &mut self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.plan_laid_layouts", || {
+            plan_laid::compute_plan_laid_layouts_in(
+                typed,
+                &self.plan_laid_records,
+                self.selection_authority.clone(),
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.placed_view_plans", || {
+            placed_views::validate_placed_view_plans_in(
+                typed,
+                &self.placed_view_records,
+                self.selection_authority.clone(),
+                &self.domain,
+            )
+        })?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.wire_plans", || {
+            wire_plans::compute_wire_plans_in(
+                typed,
+                self.selection_authority.clone(),
+                self.wire_schema_frontier,
+                &self.domain,
+            )
+        })?;
         // Every position this evaluation folded leaves the recipe roster;
         // only still-symbolic positions remain for a later target closure.
         typed.retain_symbolic_constant_recipes();
         // Installed view plans bind their accessor targets before any later
         // continuation consumes them; initializer settlement waits for queries.
-        validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
+        phase_profile::scope("evaluate_or_defer.evaluate_work.dynamic_call_targets", || {
+            validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())
+        })?;
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,

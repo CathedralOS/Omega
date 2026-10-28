@@ -101,7 +101,8 @@ pub(crate) struct CurrentScalarValues<'program> {
     fields: Vec<ScalarField>,
     conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
-    scalar_observations: Vec<validation::CapturedScalarObservation>,
+    in_transition_target: bool,
+    scalar_observations: std::cell::OnceCell<Vec<validation::CapturedScalarObservation>>,
 }
 
 impl<'program> CurrentScalarValues<'program> {
@@ -201,19 +202,8 @@ impl<'program> CurrentScalarValues<'program> {
             fields: Vec::new(),
             conditions: Vec::new(),
             hypotheses: Vec::new(),
-            scalar_observations: validation::captured_numeric_observations(
-                program,
-                machine,
-                state,
-                statement_index,
-                target.is_valid(),
-                validation::NumericObservationDemand {
-                    scalar_values: true,
-                    integer_operations: false,
-                    scalar_associations: false,
-                },
-            )
-            .scalar_values,
+            in_transition_target: target.is_valid(),
+            scalar_observations: std::cell::OnceCell::new(),
         };
         values.seed_parameter_fields();
         let owned_frames = frames
@@ -677,8 +667,9 @@ impl<'program> CurrentScalarValues<'program> {
     /// Exact and Trapping addition/subtraction/multiplication have their
     /// mathematical result on this continuation; a trap or an unproved exact
     /// overflow never reaches the use. Selection and the result carrier are
-    /// checked independently. Wrapping and Saturating remain source terms
-    /// with the engine's policy checks.
+    /// checked independently. A completed unsigned remainder records its normal
+    /// denotation on the operation itself, irrespective of policy. Other
+    /// Wrapping and Saturating operations retain the engine's policy checks.
     fn capture_at_depth(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -739,11 +730,43 @@ impl<'program> CurrentScalarValues<'program> {
             }
             if let Some(observation) = self
                 .scalar_observations
+                .get_or_init(|| {
+                    validation::captured_numeric_observations(
+                        program,
+                        machine,
+                        state,
+                        self.statement_index,
+                        self.in_transition_target,
+                        validation::NumericObservationDemand {
+                            scalar_values: true,
+                            integer_operations: false,
+                            scalar_associations: false,
+                        },
+                    )
+                    .scalar_values
+                })
                 .iter()
                 .find(|observation| observation.expression == expression)
             {
                 return Some(observation.value.clone());
             }
+        }
+        if let ExpressionNode::Cast(_) = program.expression_table.expression(expression) {
+            // An admitted value-preserving cast transports the already
+            // captured operand, including its operation evidence. It does not
+            // replay a local initializer or infer meaning from a cast shape.
+            let operand = preserving_integer_cast_operand(
+                program,
+                machine,
+                state,
+                self.statement_index,
+                expression,
+                &self.current,
+                &self.lengths,
+                &self.fields,
+                &self.hypotheses,
+            )?;
+            return self.capture_at_depth(program, machine, state, operand, depth + 1);
         }
         if let Some(binary) = program.expression_table.binary_node(expression)
             && matches!(
@@ -837,7 +860,12 @@ impl<'program> CurrentScalarValues<'program> {
             )
         })
         .flatten()
-        .map(ScopedArithmeticValue::Term)
+        .map(|term| {
+            use crate::checks::contracts::prover::call_guarantees::{
+                arithmetic, callable::Callable,
+            };
+            arithmetic::completed_scalar_value(program, &Callable::Machine { machine, state }, term)
+        })
     }
 
     /// Exact value of a runtime index at this occurrence. Its declaration
@@ -1041,6 +1069,10 @@ fn substitute_symbol_in_value(
         ScopedArithmeticValue::Term(term) => {
             substitute_symbol_in_expression(term, symbol, expected, replacement)
                 .map(ScopedArithmeticValue::Term)
+        }
+        ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
+            substitute_symbol_in_expression(term, symbol, expected, replacement)
+                .map(ScopedArithmeticValue::AdmittedIntegerRemainder)
         }
         ScopedArithmeticValue::BoundedInteger {
             value: inner,

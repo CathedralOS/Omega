@@ -17,6 +17,9 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Callback placements identify exact portable applications;
 /// their bodies and formal ordering come from the artifact itself.
 pub struct TerminalNativeProposalRequest<'input> {
+    /// Complete namespace of evaluated via-binding receipt producer identities.
+    /// The original numeric coordinates cannot be recovered from a digest.
+    pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
     pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
     pub provider_declarations: &'input [backend_plan::TerminalTargetProviderPlan],
     pub target_profile: Option<target::TargetProfile>,
@@ -177,8 +180,22 @@ fn project_terminal_native_body(
         request.boundaries.selected_provider_plans,
         request.family_realizations,
     )?;
+    // This closes static activation obligations, not executor installation.
+    // The proposal is process-local: loaded code takes this same join once.
+    task_plans::realize_task_activations(
+        &terminal_module.task_activation_demands,
+        &terminal_module.identities,
+        &selected,
+        target_profile,
+    )?;
     let checked_adapters = crate::provider_admission::retain_selected_provider_adapters(
         &selected,
+        request.provider_declarations,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
+    crate::provider_admission::validate_external_provider_owners(
+        &terminal_module.external_providers,
+        &terminal_module.identities,
         request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -197,7 +214,13 @@ fn project_terminal_native_body(
                     "native proposal has mismatched intrinsic row custody",
                 )]);
             }
-            Ok(retained.row_executions.to_vec())
+            // Numeric meaning and external satisfaction travel in Terminal.
+            // Keep only the independent host/placement authority judgments.
+            Ok(retained
+                .row_executions
+                .iter()
+                .map(|execution| execution.filter(|execution| !execution.is_numeric()))
+                .collect())
         })
         .collect::<Result<Vec<_>, _>>()?;
     let callback_occurrences = project_callback_occurrences(

@@ -140,7 +140,7 @@ implements a consuming boundary-trait requirement may terminally dispose of a
 linear argument only when the assembly CFG proves the requirement's effect and
 every normal exit carries the corresponding ownership disposition. A `nop`, a
 write to the wrong modeled place, missing ordering or a path bypassing the
-effect leaves the value live and rejects. No `via` binding or assembly-specific
+effect leaves the value live and rejects. No native binding or assembly-specific
 trust assertion substitutes for this proof.
 
 An [assumed binding contract](../build/assumed_binding_contracts.md) can supply

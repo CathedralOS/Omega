@@ -450,7 +450,6 @@ pub struct SelectedCompilerProgramEntry {
     declaration: SelectedEntryDeclaration,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
     physical_adapter: Option<symbols::SymbolHandle>,
-    fused_service_establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
 }
 
 impl SelectedCompilerProgramEntry {
@@ -462,7 +461,6 @@ impl SelectedCompilerProgramEntry {
             declaration,
             calling_plans,
             physical_adapter: None,
-            fused_service_establishments: Vec::new(),
         }
     }
 
@@ -507,7 +505,7 @@ impl SelectedCompilerProgramEntry {
                 let machine = typed
                     .machines()
                     .iter()
-                    .find(|machine| machine.symbol == *implementation)
+                    .find(|machine| Some(machine.symbol) == implementation.authored())
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
                             "selected physical entry adapter is absent",
@@ -523,7 +521,7 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                if selected.replace(*implementation).is_some() {
+                if selected.replace(machine.symbol).is_some() {
                     return Err(vec![Diagnostic::error(
                         "physical arrival has more than one selected adapter",
                     )]);
@@ -538,12 +536,6 @@ impl SelectedCompilerProgramEntry {
         &self.declaration.signature
     }
 
-    /// Replaces the source signature's identity table after late minting —
-    /// bound fused service establishments intern their rows into it.
-    pub fn set_source_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
-        self.declaration.signature.set_identities(identities);
-    }
-
     pub const fn machine_symbol(&self) -> symbols::SymbolHandle {
         self.declaration.machine
     }
@@ -554,23 +546,6 @@ impl SelectedCompilerProgramEntry {
 
     pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
         self.calling_plans.as_ref()
-    }
-
-    pub fn fused_service_establishments(
-        &self,
-    ) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
-        &self.fused_service_establishments
-    }
-
-    pub fn bind_fused_service_establishments(
-        &mut self,
-        establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
-    ) -> Result<(), &'static str> {
-        if !establishments.is_empty() {
-            return Err("ProgramEntry cannot synthesize application record service fields");
-        }
-        self.fused_service_establishments.clear();
-        Ok(())
     }
 }
 
@@ -924,7 +899,8 @@ fn selected_entry_schema<'program>(
             }));
         }
     } else {
-        let expected_digest = exact_bundled_physical_contract_package_source_digest(package);
+        let expected_digest =
+            program_entry_plan::exact_physical_contract_package_source_digest(package);
         for source_file in typed.symbols.source_files().filter(|source_file| {
             source_file.dependency_scope == source::DependencyScope::Product
                 && source_file.package_identity.is_none()
@@ -1066,7 +1042,9 @@ fn target_owned_physical_contract_source(
                         expected_package.package_relative_source(),
                     ))
                 && package_source_digest
-                    == exact_bundled_physical_contract_package_source_digest(expected_package);
+                    == program_entry_plan::exact_physical_contract_package_source_digest(
+                        expected_package,
+                    );
             if !exact_bundled_source {
                 return Err(Diagnostic::error(format!(
                     "target physical entry requirement and schema `{}` require either the exact bundled {} contract or one accepted package-owned {} binding, not `{}`",
@@ -1090,32 +1068,6 @@ fn target_owned_physical_contract_source(
 }
 
 pub use package_compilation::program_entry_semantic_binding_role;
-
-/// Bundled-toolchain digest expected for one closed contract package.
-fn exact_bundled_physical_contract_package_source_digest(
-    package: target::ProgramEntryPhysicalContractPackage,
-) -> program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest {
-    match package {
-        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
-            program_entry_plan::exact_uefi_x64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
-            program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
-            program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
-            program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
-            program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest()
-        }
-        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
-            program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest()
-        }
-    }
-}
 
 fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();

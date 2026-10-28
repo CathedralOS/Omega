@@ -3,13 +3,13 @@ public data Socket [copy] {
     authenticated: bool;
 }
 
-public domain Socket::Connected(socket)
+public domain Socket::Connected
 requires
-    socket.connected;
+    self.connected;
 
-public domain Socket::Authenticated(socket)
+public domain Socket::Authenticated
 requires
-    socket.authenticated;
+    self.authenticated;
 
 public domain Socket::Usable =
     Socket::Connected & Socket::Authenticated;

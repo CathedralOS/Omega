@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_rankless_boundary_suffix_exit");
-    Build::select_provider<Output, ProviderOutputImplementation>(builder);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, linux_arm64);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, linux_x86_64);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, macos_arm64);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, macos_x86_64);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, windows_x86_64);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, local_unchecked);
+    Build::select_provider<Output, ProviderOutputImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

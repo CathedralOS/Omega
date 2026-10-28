@@ -160,15 +160,13 @@ fn validate_expression(
     }
     if let Some((view, field)) = placed_view_field_for_place(program, machine, state, expression) {
         validate_binding_private_use(program, machine, view, field, diagnostics);
-    }
-    if !atomic_place_allowed
-        && let Some(field) = placed_atomic_field_for_place(program, machine, state, expression)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "placed atomic field `{}` is an accessor, not an ordinary value; use one admitted atomic operation",
-            field.field_name
-        )));
-        return;
+        if !atomic_place_allowed && matches!(&field.access, FieldAccess::Atomic { .. }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "placed atomic field `{}` is an accessor, not an ordinary value; use one admitted atomic operation",
+                field.field_name
+            )));
+            return;
+        }
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
@@ -277,6 +275,9 @@ fn placed_view_field_for_place<'program>(
     &'program typed_trees::typed_trees::PlacedViewPlan,
     &'program typed_trees::typed_trees::PlacedFieldPlan,
 )> {
+    if program.placed_view_plans.is_empty() {
+        return None;
+    }
     let type_reference =
         crate::value_custody::places::declared_place_type(program, machine, Some(state), place)?;
     program.placed_view_field_plan_for_type_reference(type_reference)
@@ -289,7 +290,7 @@ fn placed_view_field_for_call_target(
     &typed_trees::typed_trees::PlacedViewPlan,
     &typed_trees::typed_trees::PlacedFieldPlan,
 )> {
-    if !target.is_valid() {
+    if !target.is_valid() || program.placed_view_plans.is_empty() {
         return None;
     }
     program.placed_view_plans.iter().find_map(|view| {

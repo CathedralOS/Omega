@@ -69,25 +69,10 @@ pub fn x86_64_register_constraint_catalog(
         units
     };
     let fixed = |operand: u16, access: RegisterOperandAccess, name: &str| {
-        let view = view(name);
-        RegisterOperandConstraint {
-            operand,
-            access,
-            class: view.class,
-            fixed_view: Some(view.id),
-            tied_to: None,
-            early_clobber: false,
-        }
+        super::fixed_operand(operand, access, view(name))
     };
     let allocatable = |operand: u16, access: RegisterOperandAccess, class: RegisterClassId| {
-        RegisterOperandConstraint {
-            operand,
-            access,
-            class,
-            fixed_view: None,
-            tied_to: None,
-            early_clobber: false,
-        }
+        super::allocatable_operand(operand, access, class)
     };
     let convention = |name: &str| {
         physical
@@ -489,8 +474,7 @@ pub fn x86_64_register_constraint_catalog(
         jump_row(RegisterConstraintId(0), X86_64_JUMP, Vec::new()),
     ];
 
-    let mut saturation_output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-    saturation_output.early_clobber = true;
+    let saturation_output = super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64));
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_SATURATING_SUBTRACT_UNSIGNED,
@@ -550,11 +534,7 @@ pub fn x86_64_register_constraint_catalog(
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
-            {
-                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
+            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
     constraints.push(RegisterInstructionConstraint {
@@ -579,11 +559,7 @@ pub fn x86_64_register_constraint_catalog(
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
-            {
-                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
+            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
     // The clamped saturating add and multiply (every carrier but u64) and
@@ -604,16 +580,8 @@ pub fn x86_64_register_constraint_catalog(
             operands: vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
-                {
-                    let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                    output.early_clobber = true;
-                    output
-                },
-                {
-                    let mut scratch = allocatable(3, RegisterOperandAccess::Def, GPR64);
-                    scratch.early_clobber = true;
-                    scratch
-                },
+                super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
+                super::early_clobber(allocatable(3, RegisterOperandAccess::Def, GPR64)),
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
@@ -655,16 +623,8 @@ pub fn x86_64_register_constraint_catalog(
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             fixed(1, RegisterOperandAccess::Use, "rcx"),
-            {
-                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
-            {
-                let mut scratch = allocatable(3, RegisterOperandAccess::Def, GPR64);
-                scratch.early_clobber = true;
-                scratch
-            },
+            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
+            super::early_clobber(allocatable(3, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
     // A trapping conversion checks its input through the scratch before the
@@ -674,16 +634,8 @@ pub fn x86_64_register_constraint_catalog(
         X86_64_TRAPPING_CONVERT,
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
-            {
-                let mut output = allocatable(1, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
-            {
-                let mut scratch = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                scratch.early_clobber = true;
-                scratch
-            },
+            super::early_clobber(allocatable(1, RegisterOperandAccess::Def, GPR64)),
+            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
     // Like unsigned division, the explicit RDX input keeps the divisor out of
@@ -851,10 +803,7 @@ pub fn x86_64_register_constraint_catalog(
             X86_64_STORE64,
             vec![
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
-                RegisterOperandConstraint {
-                    early_clobber: true,
-                    ..allocatable(1, RegisterOperandAccess::Def, GPR64)
-                },
+                super::early_clobber(allocatable(1, RegisterOperandAccess::Def, GPR64)),
             ],
             view("rsp").units.clone(),
         ),
@@ -1060,40 +1009,14 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_COPY_BYTES,
-        (0..5)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: if operand < 3 {
-                    RegisterOperandAccess::Use
-                } else {
-                    RegisterOperandAccess::Def
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 3,
-            })
-            .collect(),
+        super::operand_lane(5, 3),
     ));
     // The zero fill reads its preserved destination/count inputs on every
     // iteration; the cursor is written before the count guard reads them.
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_ZERO_BYTES,
-        (0..3)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: if operand < 2 {
-                    RegisterOperandAccess::Use
-                } else {
-                    RegisterOperandAccess::Def
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 2,
-            })
-            .collect(),
+        super::operand_lane(3, 2),
     ));
     // Scalar codecs carry the actual byte footprint. Every working home is
     // early-clobber, so neither input nor another scratch home can alias it.
@@ -1104,21 +1027,7 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
-            operands: (0..6)
-                .map(|operand| {
-                    let mut row = allocatable(
-                        operand,
-                        if operand < input_count {
-                            RegisterOperandAccess::Use
-                        } else {
-                            RegisterOperandAccess::Def
-                        },
-                        GPR64,
-                    );
-                    row.early_clobber = operand >= input_count;
-                    row
-                })
-                .collect(),
+            operands: super::operand_lane(6, input_count),
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
             clobbers: view("rflags").units.clone(),
@@ -1130,19 +1039,7 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_SCAN_BYTE_SEQUENCE,
-        (0..5)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: match operand {
-                    0 | 1 => RegisterOperandAccess::Use,
-                    _ => RegisterOperandAccess::Def,
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: matches!(operand, 2 | 3 | 4),
-            })
-            .collect(),
+        super::operand_lane(5, 2),
     ));
     // The compare reads its four preserved inputs while the cursors are
     // written before any input home is consumed; the verdict operand is the
@@ -1150,19 +1047,7 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_COMPARE_BYTE_SEQUENCES,
-        (0..8)
-            .map(|operand| RegisterOperandConstraint {
-                operand,
-                access: match operand {
-                    0..=3 => RegisterOperandAccess::Use,
-                    _ => RegisterOperandAccess::Def,
-                },
-                class: GPR64,
-                fixed_view: None,
-                tied_to: None,
-                early_clobber: operand >= 4,
-            })
-            .collect(),
+        super::operand_lane(8, 4),
     ));
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
     // Atomic rows carry the LOCK-capable vocabulary every x86-64 target has
@@ -1176,11 +1061,10 @@ pub fn x86_64_register_constraint_catalog(
     constraints.push(instruction_row(
         RegisterConstraintId(0),
         X86_64_ATOMIC_LOAD,
-        vec![allocatable(0, RegisterOperandAccess::Use, GPR64), {
-            let mut output = allocatable(1, RegisterOperandAccess::Def, GPR64);
-            output.early_clobber = true;
-            output
-        }],
+        vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            super::early_clobber(allocatable(1, RegisterOperandAccess::Def, GPR64)),
+        ],
     ));
     constraints.push(instruction_row(
         RegisterConstraintId(0),
@@ -1200,11 +1084,7 @@ pub fn x86_64_register_constraint_catalog(
         vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),
-            {
-                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
+            super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
     // CMPXCHG's hidden accumulator must not overwrite either input while a
@@ -1242,11 +1122,7 @@ pub fn x86_64_register_constraint_catalog(
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             fixed(1, RegisterOperandAccess::Use, "rax"),
             allocatable(2, RegisterOperandAccess::Use, GPR64),
-            {
-                let mut output = allocatable(3, RegisterOperandAccess::Def, GPR64);
-                output.early_clobber = true;
-                output
-            },
+            super::early_clobber(allocatable(3, RegisterOperandAccess::Def, GPR64)),
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),

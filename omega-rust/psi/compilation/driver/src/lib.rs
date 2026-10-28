@@ -26,8 +26,8 @@ mod source_compilation;
 mod source_parsing;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission, settle_closed_constant_execution,
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, ConstantProofApplication,
+    ConstantProofClosure, ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
@@ -43,10 +43,11 @@ pub use psi_terminal_production::{
     ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
     TerminalApplicationCustody, TerminalArtifactProductionError, TerminalBuildBindingCall,
     TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildFilesystem,
-    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
     TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
-    TerminalBuildSelectionRequest, TerminalCompositionAdmission, TerminalMachineSelection,
+    TerminalBuildSelectionRequest, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape, TerminalCompositionAdmission, TerminalMachineSelection,
     TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
-    UnmeasuredProduction,
+    UnmeasuredProduction, lower_task_activation_demands,
 };

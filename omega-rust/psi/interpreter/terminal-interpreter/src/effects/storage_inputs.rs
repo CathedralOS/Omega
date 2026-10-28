@@ -81,11 +81,12 @@ struct StructuralLoanBinding {
     identity: Arc<()>,
     argument_index: usize,
     source: semantic_vocabulary::PlaceId,
+    source_path: Vec<terminal_psi::StructuralPathSegment>,
     access: terminal_psi::StructuralAccess,
     referent: TerminalStructuralValue,
     /// Preservation promised for this exact formal, captured before dispatch.
     /// It can retain an existing membership, never introduce one from C bytes.
-    normal_qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    normal_qualifications: Vec<crate::effects::normal_qualifications::CapturedNormalQualification>,
     original: Vec<TerminalBoundaryStorageValue>,
     leaves: Vec<contents::StorageLeaf>,
     completed_leaves: Option<Vec<contents::StorageLeaf>>,
@@ -209,33 +210,27 @@ impl BoundaryStorageInputs {
         {
             return Err(malformed());
         }
-        let normal_qualifications = normal_guarantees
+        let promised = normal_guarantees
             .iter()
             .filter(|guarantee| guarantee.argument_index as usize == argument_index)
-            .map(|guarantee| guarantee.domain)
+            .map(|guarantee| terminal_psi::StructuralPathQualification {
+                path: guarantee.path.clone(),
+                domain: guarantee.domain,
+            })
             .collect::<Vec<_>>();
+        let normal_qualifications = execution.capture_normal_qualifications(referent, &promised)?;
         if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
-            let intrinsic = |path: &[terminal_psi::StructuralPathSegment], domain| {
-                terminal_semantics::scalar_projection_entails_membership(
-                    execution.program.structural_types().values(),
-                    execution.program.catalogs.structural_domains.iter(),
-                    referent.structural_type,
-                    path,
-                    domain,
-                )
-            };
-            if parameter
-                .projected_qualifications
-                .iter()
-                .any(|row| !intrinsic(&row.path, row.domain))
-                || referent
-                    .projected_qualifications
-                    .iter()
-                    .any(|row| !intrinsic(&row.path, row.domain))
-                || parameter.qualifications.iter().any(|domain| {
-                    !normal_qualifications.contains(domain) && !intrinsic(&[], *domain)
-                })
-            {
+            if !execution.normal_qualifications_cover(
+                referent,
+                &parameter.qualifications,
+                &parameter.projected_qualifications,
+                &normal_qualifications,
+            )? || !execution.normal_qualifications_cover(
+                referent,
+                &referent.qualifications,
+                &referent.projected_qualifications,
+                &normal_qualifications,
+            )? {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "mutable host storage lacks exact normal qualification preservation",
                 ));
@@ -272,6 +267,7 @@ impl BoundaryStorageInputs {
             identity,
             argument_index,
             source: argument.place,
+            source_path: argument.path.clone(),
             access: parameter.access,
             referent: referent.clone(),
             normal_qualifications,

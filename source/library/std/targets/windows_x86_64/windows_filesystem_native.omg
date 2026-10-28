@@ -6,7 +6,7 @@ use omega::language::core::filesystem_authority;
 // The exact fixed buffer is classified before foreign scanning can observe it.
 // Boundary contracts carry this structural identity, not an array read disguised
 // as a declaration-local scalar precondition. The last WCHAR bounds the scan.
-domain [u16; 4096]::WindowsNativePath(path) requires path[4095] == 0;
+domain [u16; 4096]::WindowsNativePath requires self[4095] == 0;
 
 data WindowsFilesystemImports { }
 data WindowsFilesystemIoStatus { status: i64; information: u64; }

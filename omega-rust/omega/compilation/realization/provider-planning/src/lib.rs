@@ -21,6 +21,7 @@
 
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
+pub mod native_bindings;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
@@ -41,8 +42,6 @@ pub mod service_schema;
 #[cfg(test)]
 mod source_guards;
 pub mod target_machines;
-pub mod task_plans;
-pub mod x86_fma_plan_association;
 
 pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
@@ -74,3 +73,5 @@ pub(crate) use provider_planning::{
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,
 };
+
+pub use provider_planning::ProviderRowRealization;

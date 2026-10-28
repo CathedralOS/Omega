@@ -19,15 +19,9 @@ pub(super) fn validate(
     let Some(transition) = statement.as_transition() else {
         unreachable!("dispatched transition_statements")
     };
-    let StatementScope {
-        program,
-        machine,
-        state_name,
-        current_state,
-        writable_roots,
-        transition_values,
-        ..
-    } = *scope;
+    let (program, machine, state_name, current_state, symbols, writable_roots) = scope.reads();
+    let machine_symbols = scope.machine_symbols;
+    let transition_values = scope.transition_values;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
@@ -83,19 +77,25 @@ pub(super) fn validate(
     // premises: the primary arm assumes the guard, the continuation
     // assumes its complement, and each crosses only its own effects.
     // Keep the ordinary guard environment for targets without values.
-    let narrowed = arithmetic_domains::guard_narrowed_environment(
-        program,
-        machine,
-        current_state,
-        &transition.guard,
-        value_environment,
+    let guard_is_always = matches!(
+        transition.guard,
+        typed_trees::statement::TransitionGuardNode::Always
     );
+    let narrowed_owned = (!guard_is_always).then(|| {
+        arithmetic_domains::guard_narrowed_environment(
+            program,
+            machine,
+            current_state,
+            &transition.guard,
+            value_environment,
+        )
+    });
 
     // Fall-through complement: an exit-if-true transition (valid
     // target, no `_` arm) leaves the guard REFUTED for every later
     // statement in this state -- the MR2 terminal-tail shape's
     // `n - 1` after `transition n == 0 { true -> exit }`.
-    if transition.target.is_valid() && !transition.continuation.is_valid() {
+    if transition.target.is_valid() && !transition.continuation.is_valid() && !guard_is_always {
         *value_environment = arithmetic_domains::fall_through_narrowed_environment(
             program,
             machine,
@@ -104,6 +104,7 @@ pub(super) fn validate(
             value_environment,
         );
     }
+    let narrowed = narrowed_owned.as_ref().unwrap_or(&*value_environment);
 
     // A terminal call forwards the same logical result as an ordinary call.
     // A Unit call can complete a Unit state; a scalar/structural value still
@@ -114,17 +115,41 @@ pub(super) fn validate(
         for target in transition.targets() {
             if let TransitionTargetNode::Value(expression) =
                 program.statement_table.transition_target(target)
-                && !crate::machine_calls::calls::unit_statement_call_is_admitted(
+            {
+                if !crate::machine_calls::calls::unit_statement_call_is_admitted(
                     program,
                     machine,
                     state,
                     *expression,
-                )
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
-                    machine.name
-                )));
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
+                        machine.name
+                    )));
+                    continue;
+                }
+                // Forwarding Unit still evaluates every call operand. Retain
+                // their formation decisions under this exact arm's facts, as
+                // for an ordinary Unit expression call or a typed return.
+                let environment = transition_values
+                    .for_target(target)
+                    .first()
+                    .unwrap_or(&narrowed);
+                arithmetic_domains::validate_value_range_retaining_decisions(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    environment,
+                    None,
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    &format!(
+                        "machine `{}` state `{state_name}` terminal call operands",
+                        machine.name
+                    ),
+                    diagnostics,
+                    arithmetic_decisions,
+                );
             }
         }
     }

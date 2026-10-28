@@ -2,6 +2,7 @@
 //! tuple before invocation writes, then publish them on the one immutable
 //! storage timeline. The checked relation supplies correspondence; retained
 //! captures supply geometry and formation, never source replay or new authority.
+mod lifetime_sources;
 mod suppliers;
 
 use super::{Execution, InvocationSite};

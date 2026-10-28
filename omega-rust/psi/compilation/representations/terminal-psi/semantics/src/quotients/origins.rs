@@ -1,43 +1,25 @@
 //! Exact whole-value origins through ordinary copies and unanimous CFG joins.
 use super::*;
 use semantic_vocabulary::{BlockId, ValueId};
-use terminal_psi::{StructuralArgument, Terminator};
+use terminal_psi::StructuralArgument;
 
+/// Every edge into `target`, with the operands it binds there. A structural-case
+/// edge binds payload fields where the target expects forwarded parameters, so
+/// its presence abandons the query rather than projecting a payload as a
+/// parameter. The terminator classification itself belongs to the control graph.
 fn incoming(
     machine: &TerminalMachine,
     target: BlockId,
 ) -> Option<Vec<(&[ValueId], &[StructuralArgument])>> {
     let mut rows = Vec::new();
     for block in &machine.blocks {
-        match &block.terminator {
-            Terminator::Jump {
-                target: selected,
-                arguments,
-                structural_arguments,
-                ..
-            } if *selected == target => {
-                rows.push((arguments.as_slice(), structural_arguments.as_slice()));
+        if crate::control_graph::reaches_by_case(block, target) {
+            return None;
+        }
+        for binding in crate::control_graph::forwarded_bindings(block) {
+            if binding.target == target {
+                rows.push((binding.arguments, binding.structural_arguments));
             }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    if edge.target == target {
-                        rows.push((
-                            edge.arguments.as_slice(),
-                            edge.structural_arguments.as_slice(),
-                        ));
-                    }
-                }
-            }
-            Terminator::StructuralCase { cases, .. }
-                if cases.iter().any(|edge| edge.target == target) =>
-            {
-                return None;
-            }
-            _ => {}
         }
     }
     (!rows.is_empty()).then_some(rows)

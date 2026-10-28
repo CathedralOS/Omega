@@ -3,8 +3,8 @@
 //! This stage owns the ordering of canonical input preparation, executable
 //! scope selection, provider settlement, installation and mechanism review.
 //! The native proposal derives each body's boundary coverage and selected
-//! provider joins once. Application-entry and fused-service custody belong to
-//! receiver/image production, not admission of a private callback body. The
+//! provider joins once. Application-entry custody belongs to
+//! image production, not admission of a private callback body. The
 //! compiler supplies policy and consumes the result; it does not rebuild this
 //! admission between stages.
 
@@ -22,9 +22,6 @@ pub struct NativeAdmissionRequest<'request, 'execution> {
     /// Exact retained callable selected by the application's checked custody.
     pub entry: terminal_psi::TargetMachineCallable,
     pub private_entry_ram: &'request [terminal_installation::CheckedPrivateEntryRamRecipe],
-    /// Canonical boundary obligations required by this deployment's receiver.
-    /// They retain selected bodies but grant no installation or runtime custody.
-    pub receiving_provider_roots: &'request [semantic_vocabulary::BoundaryMachineId],
     /// Exact provider custody plus the receiving authority policies.
     /// An absent permission policy makes no receiver-admission claim; it is
     /// neither an empty policy nor permission inferred from accepted packages.
@@ -66,7 +63,6 @@ pub fn admit_native_realization<'execution>(
             request.providers.profile,
             request.providers.checked_adapters,
             request.providers.selected_provider_plans,
-            request.receiving_provider_roots,
             &[],
         )
         .map_err(|error| realization_error("execution scope", error))?

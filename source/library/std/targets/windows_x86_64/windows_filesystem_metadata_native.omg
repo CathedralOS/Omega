@@ -16,8 +16,8 @@ use targets::windows_x86_64::windows_filesystem_metadata;
 
 // A pinned disk-file classification, not ownership of arbitrary integers.
 // Zero is the failed classifier result; queries also require nonzero.
-domain i64::WindowsDiskFileOrAbsent(handle)
-requires handle != -1
+domain i64::WindowsDiskFileOrAbsent
+requires self != -1
 established by windows_classify_metadata_disk_file;
 
 data WindowsNativeFileBasicInfo {

@@ -1,0 +1,10 @@
+public data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+boundary trait Issuer { machine issue(bytes: &[u8]) -> &[u8] in Issued reaches; }
+public domain [u8]::Issued requires valid_utf8(self) established by Issuer::issue;
+public machine forged(buffer: &Buffer) -> &[u8] in Issued crashes Trap {
+    let bytes: &[u8] = &buffer.storage[..buffer.used];
+    transition valid_utf8(bytes) { true -> finish(bytes) false -> invalid() }
+    machine finish(bytes: &[u8] in Issued) -> &[u8] in Issued { bytes }
+    machine invalid() -> &[u8] in Issued crashes Trap { crash Trap; }
+}
+machine main() {}

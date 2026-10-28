@@ -1,8 +1,24 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "boundary_scalar_field_store");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder);
-    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, linux_arm64);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, linux_x86_64);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, macos_arm64);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, macos_x86_64);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, windows_x86_64);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, local_unchecked);
+    Build::select_provider<Echo, EchoProviderEchoImplementation>(builder, alpha_bootstrap);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, linux_arm64);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, linux_x86_64);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, macos_arm64);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, macos_x86_64);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, windows_x86_64);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, uefi_x86_64);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, cross_platform_cli);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, local_unchecked);
+    Build::select_provider<RecordSource, RecordProviderRecordSourceImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

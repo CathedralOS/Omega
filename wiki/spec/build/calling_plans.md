@@ -120,9 +120,12 @@ nominal parameter mapping, callback materializations, and any opaque
 representation applications. Swapping equally shaped parameters cannot preserve
 application identity merely because the register recipe is unchanged.
 
-[Provider selection](provider_selection.md) chooses declared `satisfies` edges.
-An external `via` contributes only payload that the exact declaration, signature,
-and target do not determine. A locator, syscall number, or target label cannot
+[Provider selection](provider_selection.md) chooses checked implementations or
+derives native backing from exact package-local Build binding intent. A
+`Build::bind<Requirement>(builder, target, locator)` row retains the requirement's
+complete signature and calling-policy application; it needs no source `via`
+clause or synthetic forwarding machine. Literal byte lengths are inferred.
+A locator, syscall number, or target label cannot
 select calling policy. A descendant boundary trait may own a selected inherited
 requirement's schema while the row retains the declaring requirement's identity.
 

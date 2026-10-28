@@ -27,11 +27,9 @@ use package_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-// Schemas retain exact applied receiver rosters. Older records cannot license
-// an inherited view by omitting its application and complete requirements.
-// Portable contract hashes resolve owned type/binding content under new domains.
-// Cached old local-handle commitments cannot satisfy the new review projection.
-const RECORD_VERSION: u16 = 10;
+// Entry-field tolerance is retired. Older records may describe provisional
+// reviews and must miss, never acquire complete admission by dropping their flag.
+const RECORD_VERSION: u16 = 11;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -775,7 +773,6 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
     }
     encode_generated_source_bundle(&review.generated_source_bundle, out);
     push_framed(out, &review.policy_bytes);
-    out.push(u8::from(review.facts.tolerated_unsettled_service_fields));
     crate::codec_bytes::push_encoded(
         out,
         (review.facts.consumed_units.len() as u64).to_le_bytes(),
@@ -843,7 +840,6 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;
     let generated_source_bundle = recover_generated_source_bundle(&mut cursor)?;
     let policy_bytes = cursor.framed()?.to_vec();
-    let tolerated_unsettled_service_fields = cursor_bool(&mut cursor)?;
     let consumed_units = cursor_vec(&mut cursor, recover_consumed_unit)?;
     let source_consumption_commitment =
         PackageSourceConsumptionCommitment::from_retained_digest(cursor_digest(&mut cursor)?);
@@ -870,7 +866,6 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         generated_source_bundle,
         policy_bytes,
         facts: CachedOccurrenceFacts {
-            tolerated_unsettled_service_fields,
             consumed_units,
             source_consumption_commitment,
             component_description,
@@ -887,6 +882,76 @@ mod tests {
     //! recovered record is semantically equal and re-encodes byte-identical.
 
     use super::*;
+
+    #[test]
+    fn review_record_roundtrip_refuses_retired_versions_and_corruption() {
+        let package = PackageKeyIdentity::from_digest([1; 32]).expect("package identity");
+        let commitment = PackageSourceConsumptionCommitment::from_retained_digest([2; 32]);
+        let profile = target::TargetProfile::ALL[0];
+        let closure = PackageDependencyClosure::from_canonical_parts(
+            package,
+            package_compilation::BuildDeclarationKind::Package,
+            vec![package],
+            Vec::new(),
+        )
+        .expect("single-package closure");
+        let review = CachedCompiledReview {
+            package_identity: package,
+            name: "review_codec".to_owned(),
+            lineage: [3; 32],
+            resolution: [4; 32],
+            purpose: crate::declarations::DependencyPurpose::Product,
+            target: profile,
+            build_execution_profile: Some(profile),
+            selected_build_machine_identity: "review_codec::build".to_owned(),
+            build_evaluation_usage: None,
+            build_observation_summary: None,
+            restricted_build_requests: Vec::new(),
+            semantic_bindings: Vec::new(),
+            semantic_binding_candidates: Vec::new(),
+            generated_source_bundle: PackageGeneratedSourceBundle::from_checked(
+                package,
+                crate::declarations::DependencyPurpose::Product,
+                profile,
+                Some(profile),
+                closure,
+                commitment,
+                Vec::new(),
+            ),
+            // The codec frames policy bytes; policy admission is a separate consumer.
+            policy_bytes: vec![17, 29, 43],
+            facts: CachedOccurrenceFacts {
+                consumed_units: Vec::new(),
+                source_consumption_commitment: commitment,
+                component_description: None,
+                target_entry_candidate: None,
+            },
+            policy_canonical_bytes: 3,
+        };
+        fn signed(mut payload: Vec<u8>) -> Vec<u8> {
+            let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
+            payload.extend_from_slice(&digest);
+            payload
+        }
+        let mut payload = Vec::new();
+        encode_record(&review, &mut payload);
+        let encoded = signed(payload.clone());
+        let recovered = decode_record(&encoded).expect("current record decodes");
+        let mut reencoded = Vec::new();
+        encode_record(&recovered, &mut reencoded);
+        assert_eq!(reencoded, payload);
+        for retired_version in 1u16..RECORD_VERSION {
+            let mut retired = payload.clone();
+            retired[8..10].copy_from_slice(&retired_version.to_le_bytes());
+            assert!(decode_record(&signed(retired)).is_none());
+        }
+        let mut corrupt = encoded.clone();
+        corrupt[10] ^= 1;
+        assert!(decode_record(&corrupt).is_none());
+        assert!(decode_record(&encoded[..encoded.len() - 1]).is_none());
+        payload.push(1);
+        assert!(decode_record(&signed(payload)).is_none());
+    }
 
     #[test]
     fn service_schema_codec_roundtrips_interned_identities() {

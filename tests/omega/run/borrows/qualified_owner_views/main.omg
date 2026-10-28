@@ -2,7 +2,7 @@
 // Local, projected, parameter and state-arrival owners lend their original
 // storage without erasing the owner's qualification or creating another owner.
 data Handle { value: u64; }
-domain Handle::Open(handle) requires handle.value != 0 established by issue;
+domain Handle::Open requires self.value != 0 established by issue;
 machine issue(value: u64) -> Handle in Open requires value != 0 {
     Handle { value: value }
 }

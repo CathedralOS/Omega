@@ -2,7 +2,15 @@ machine build(builder: &mut Build) {
  Build::application(builder, "independent_opaque_field");
  Build::depend_as(builder, "renamed", Source::Path { location: "producer" });
  Build::select_representation<renamed::InternetAddress, renamed::AddressRepresentation>(builder);
- Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, linux_arm64, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, linux_x86_64, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, macos_arm64, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, macos_x86_64, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, windows_x86_64, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, uefi_x86_64, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, cross_platform_cli, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, local_unchecked, CompositionMode::Independent);
+ Build::select_provider<renamed::AddressBridge, renamed::AddressBridgeProvider>(builder, alpha_bootstrap, CompositionMode::Independent);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, macos_arm64::ProgramEntry, main);

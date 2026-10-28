@@ -42,7 +42,7 @@ pub(in crate::flow) fn matching_mutation_for_fact_place<'a, 'b>(
     let is_case_value = matches!(fact.payload, facts::FactPayload::CaseValue { .. });
     let mut case_canonical: Option<CanonicalPlace> = None;
     let dependency = match fact.payload {
-        facts::domain_membership_symbol_pattern!(domain_symbol) => {
+        facts::domain_membership_pattern!(domain_symbol) => {
             domain_dependencies.dependency_fact(domain_symbol)
         }
         _ => None,

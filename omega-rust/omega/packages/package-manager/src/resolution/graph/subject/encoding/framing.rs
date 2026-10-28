@@ -17,27 +17,17 @@ pub(crate) fn encode_hex(bytes: &[u8]) -> String {
 
 pub(super) struct Encoder<'budget> {
     bytes: Vec<u8>,
-    budget: Option<&'budget mut Budget>,
+    budget: &'budget mut Budget,
     maximum: usize,
     reserved: usize,
     failed: bool,
 }
 
 impl<'budget> Encoder<'budget> {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(budget: &'budget mut Budget, maximum: usize) -> Self {
         Self {
             bytes: Vec::new(),
-            budget: None,
-            maximum: usize::MAX,
-            reserved: 0,
-            failed: false,
-        }
-    }
-
-    pub(super) fn budgeted(budget: &'budget mut Budget, maximum: usize) -> Self {
-        Self {
-            bytes: Vec::new(),
-            budget: Some(budget),
+            budget,
             maximum,
             reserved: 0,
             failed: false,
@@ -48,10 +38,7 @@ impl<'budget> Encoder<'budget> {
         &mut self,
         bytes: usize,
     ) -> Result<(), CanonicalSourceClosureSubjectError> {
-        if let Some(budget) = &mut self.budget {
-            budget.charge(bytes)?;
-        }
-        Ok(())
+        self.budget.charge(bytes)
     }
 
     pub(super) fn check(&self) -> Result<(), CanonicalSourceClosureSubjectError> {

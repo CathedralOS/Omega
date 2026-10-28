@@ -105,13 +105,17 @@ use crate::selected_form_encoding::request_validation::{
     validate_alias_partition, validate_request,
 };
 
-/// Shared single-alternative hosted declaration shell: the semantic/memory/
-/// trap/family identity plus caller-supplied size knowledge and encoding.
-pub(super) fn hosted_alternative_declaration(
+/// Shared single-alternative declaration shell: every form that declares one
+/// always-applicable catalog alternative states only its semantic/memory/trap/
+/// barrier/family identity plus the size knowledge and encoding it owns. The
+/// call and cleanup columns stay at their no-effect identity here; a form that
+/// declares an actual call owns that row itself.
+pub(super) fn alternative_declaration(
     constraint: RegisterConstraintKey,
     semantic: MachineSemanticKind,
     memory: MachineMemoryEffect,
     trap: MachineTrapBehavior,
+    barrier: MachineBarrier,
     family: MachineAlternativeFamily,
     size: MachineSizeKnowledge,
     encoded: MachineEncodedEffects,
@@ -121,7 +125,7 @@ pub(super) fn hosted_alternative_declaration(
         constraint,
         memory,
         trap,
-        barrier: MachineBarrier::ExternalEffect,
+        barrier,
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {

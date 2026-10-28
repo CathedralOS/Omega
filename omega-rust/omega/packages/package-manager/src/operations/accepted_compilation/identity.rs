@@ -6,14 +6,7 @@ use crate::resolution::graph::{
     ExactTargetPackageSourceClosure,
 };
 
-pub fn compiler_input_identity() -> Result<[u8; 32], String> {
-    let library = package_compilation::toolchain_library::identity()?;
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-accepted-compiler-inputs-v1\0");
-    digest.raw(&compiler::compiler_identity());
-    digest.raw(library.as_bytes());
-    Ok(digest.finish())
-}
+pub use compiler::compiler_input_identity;
 
 /// Refuse stale acceptance before a Build activation or compiler pass executes.
 /// Request-path spellings are navigation, not compiler input: the same canonical

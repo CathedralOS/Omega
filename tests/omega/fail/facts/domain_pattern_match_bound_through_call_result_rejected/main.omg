@@ -2,8 +2,8 @@
 // Expected exit: 0
 
 data Cell [copy] { value: u64; }
-domain Cell::Ready(cell)
-requires cell.value >= 72u64;
+domain Cell::Ready
+requires self.value >= 72u64;
 
 machine select(cell: &Cell) -> u64
 ensures result >= 73u64

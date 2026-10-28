@@ -12,9 +12,12 @@ its owned `Cell` through [a local](local/main.omg), [a field](field/main.omg),
 [a match join](match_join/main.omg), [a constant name](const_name/main.omg),
 [a nested machine](other_state/main.omg), [another machine](other_machine/main.omg)
 and [target bodies](target_body/main.omg), then forms the loan at the consumer.
-Both match alternatives execute, so that place writes twice. Named constants
+Both match alternatives execute with distinct checked branch markers, so that place
+writes twice and a wrongly selected route traps. Named constants
 supply values to ordinary owned storage; they do not provide constant reference
-storage. Each sibling `invalid/main.omg` adds only a write to the field while
+storage. Windows explicitly selects CRT binary stdout before forming the loan; `_write`
+must emit the stored LF without text-mode translation. Each sibling
+`invalid/main.omg` adds only a write to the field while
 `selected` is still live, and must reject for that loan.
 
 This is an original-storage boundary, not a logical scalar-width rule. A shared
@@ -67,18 +70,40 @@ Acceptance is `omega run --both <place>/main.omg`, both exits zero and exact
 The same bytes are pinned under
 `tests/omega/{pass,fail}/facts/foreign_scalar_backing_through_*`.
 
-Actual optimized producer `5985d0f756fb` on macOS ARM64 completed the public
-root, nine places, original direct-array customer and reference-sibling control:
-12 native and 12 Terminal executions matched their exact streams and zero exits.
-All nine public twins rejected for the intended live loan.
+Current qualification is recorded in [hosted_qualification.json](hosted_qualification.json).
+The actual optimized producer is `6fe58fe64b3825ed91fed6a8fc4e146ae3a9d779`.
+The root and all nine places run on each matching host with exact `ABC\n`
+bytes (eight bytes for `match_join`), native/Terminal exit zero, nine pinned
+corpus agreements and nine intended active-loan rejections. Each host also
+reloads all ten canonical Terminal products and the two-input root product;
+both input cases preserve the same authored output.
 
-The bindings describe four targets. These matching-host observations qualify only
-macOS ARM64; declarations or cross-compilation do not qualify another host.
-This row does not close the parent's remaining descriptor carriers, all-host
-ABI acceptance or indirect-result qualification. `host/runtime_returned_scalar_field_reference_sibling_exit` additionally checks
-that a returned inline field remains usable beside a borrowed reference field.
-`host/scalar_reference_mixed_index_backing_foreign_export` joins narrow and wide
-references through an indexed descriptor array and must reject for the exact
-foreign-footprint reason. The older mixed state-arrival
-width control has an independent preexisting incomplete-lowering refusal;
-it is retained as historical debt, not recorded as a successful width proof.
+The recorded base `56b550d41ae` wrongly refused `const_name` before execution:
+`constant initializer lost its selected construction field`. The initializer
+root retained the nested `WORD` dependency, and constructor selection mistook
+its `u32` carrier for the enclosing `Cell`. The repair uses only the selection
+belonging to the exact constructor occurrence; it retains the complete dependency
+inventory and the existing field, case and range obligations. A `const` still
+has no stable address: `INITIAL` initializes ordinary owned `backing` storage.
+
+Exact streams and sentinel checks are runtime falsifiers, not address-identity
+certificates. Independent inspection of the retained four root native images
+also tracks the actual `Cell` home plus four bytes through the pointer descriptor
+into the target's imported `write`/`_write`, followed by reads of that same home's
+three fields.
+That bounded native corroboration is retained separately from engine observations.
+
+The three thin-footprint controls are build-only publication-refusal fixtures
+under `tests/omega/pass/host/scalar_reference_{narrow,mixed,mixed_index}_backing_foreign_export`.
+Their logical references are Source-valid; Linux x86_64 native compilation must
+reject for `thin scalar foreign pointer requires the same byte footprint in every backing`.
+The matching native-refusal oracles pin that reason without promising execution;
+compiling them on macOS does not execute a foreign ELF image. The unchanged
+invalid `Token` constant control additionally preserves the constructor's
+specific default-domain refusal.
+
+Historical producer `5985d0f756fb` qualified only macOS. The original direct-array
+customer and returned reference-sibling control retain their separately recorded
+macOS evidence; this row does not promote those controls to unmeasured hosts.
+Remaining descriptor carriers, retained pointers, opaque/view codecs and unrelated
+C record-result ABI lanes stay on the parent task.

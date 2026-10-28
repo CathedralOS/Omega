@@ -11,6 +11,7 @@ use crate::record::{
     PackageReviewResultCaseIdentity,
 };
 use diagnostics::Diagnostic;
+use semantic_vocabulary::PackageKeyIdentity;
 use symbols::{JoinedPath, SymbolHandle};
 
 pub(crate) struct ContractProjectionContext<'a> {
@@ -92,6 +93,24 @@ pub(crate) fn project_trait_requirement_contracts(
     )
 }
 
+/// The reviewed package identity every contract projection states: a custody
+/// source set without one cannot name the package its facts belong to, so the
+/// refusal is one owner instead of a copy at each projection site.
+pub(crate) fn reviewed_package(
+    compilation: &PackageReviewInput<'_>,
+    subject: &str,
+) -> Result<PackageKeyIdentity, Vec<Diagnostic>> {
+    compilation
+        .custody
+        .sources()
+        .package_identity()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "{subject} review requires package-aware checked compilation"
+            ))]
+        })
+}
+
 pub(crate) fn project_contracts(
     compilation: &PackageReviewInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
@@ -100,15 +119,7 @@ pub(crate) fn project_contracts(
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     use typed_trees::{domain::ProofFact, signature::SignatureContractKind};
 
-    let reviewed_package = compilation
-        .custody
-        .sources()
-        .package_identity()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "contract review requires package-aware checked compilation",
-            )]
-        })?;
+    let reviewed_package = reviewed_package(compilation, "contract")?;
     let mut projected = Vec::new();
     for contract in contracts {
         let (kind, guarded_symbols, result_case) = match contract.kind {

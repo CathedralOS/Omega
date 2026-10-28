@@ -92,6 +92,15 @@ creates handoff loss, duplicate ramp-up, and competing partial fixes.
 
 ## Keep the actual remaining assignment
 
+- **Preserve `## Priority (human-set only)` order and membership.** Only a human
+  adds, reorders, or moves items into or out of the top `## Priority (human-set only)`
+  section in `TASKS.md`. Board cleanup may delete completed sub-bullets or
+  delete an item in that section once its full `Acceptance:` is proven on `main`,
+  and may fold duplicate shards into an item already there, but must never
+  demote, reorder, or move items into or out of `## Priority (human-set only)`.
+  Keep ratified language-design and surface-syntax migrations that affect wide
+  swaths of `.omg` files ordered above ordinary feature/library tasks so agents
+  finish them before authoring more `.omg` source in retired syntax.
 - Delete completed or superseded work when its acceptance is accounted for.
   Remove revoked or out-of-scope assignments using the governing decision.
   Missing implementation is unfinished work, and stays.

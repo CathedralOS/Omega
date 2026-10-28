@@ -1,9 +1,10 @@
 //! Realize one admitted byte-output occurrence in operation-owned frame storage.
 use super::{
     Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
-    SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedInstructionKind,
 };
 use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
@@ -66,12 +67,7 @@ pub(super) fn emit(
             .hosted_write_byte_i32
             .ok_or_else(|| SelectedInstructionError::custody())?,
         &[input],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![source],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
+        operation_provenance(row, vec![source]),
     )?;
     Ok(true)
 }

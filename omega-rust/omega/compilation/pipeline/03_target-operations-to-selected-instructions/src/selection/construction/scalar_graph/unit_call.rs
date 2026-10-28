@@ -149,16 +149,13 @@ pub(super) fn retain_result(
     if let Some((result, placement, _)) =
         crate::selection::aggregate_result_input::call_completion(source, operation)
     {
-        // The call and complete structural result remain retained, but an
-        // empty payload owns no physical result home or address operation.
-        if crate::selection::scalar_call_abi::empty_aggregate_placement(placement) {
-            return Ok(());
-        }
+        // Empty ABI results carry no registers, but the completed owned value
+        // still needs a private address anchor if a later operation borrows it.
         use selected_instructions::SelectedMemoryAccessRole;
         let slot = builder.transport.push_structural_local_slot(
             operation.operation,
             result.place,
-            placement.shape.byte_size,
+            placement.shape.byte_size.max(1),
             placement.shape.alignment,
         );
         let block = super::block_containing_operation(source, operation.operation)?;
@@ -168,7 +165,7 @@ pub(super) fn retain_result(
             block,
             result.place,
             0,
-            placement.shape.byte_size,
+            placement.shape.byte_size.max(1),
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         builder.emit_local_frame_address(slot, pointer, Default::default())?;

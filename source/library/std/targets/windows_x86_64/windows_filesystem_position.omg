@@ -15,20 +15,20 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::read_at(handle: u64, buf
 satisfies WindowsFilesystemHost::read_at
 reaches FilesystemContentRead {
     transition offset >= 0 && count <= buffer.len && count <= 4294967295 {
-        true -> pin(handle, buffer, count, offset)
+        true -> block pin(handle, buffer, count, offset)
         false -> (-87)
     }
     machine pin(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         let pinned: WindowsPinnedAccessResult = block windows_positioned_pin(handle);
         transition pinned {
             WindowsPinnedAccessResult::Error { code } -> (windows_positioned_error(code))
-            WindowsPinnedAccessResult::Value { handle, access } -> access(handle, access, buffer, count, offset)
+            WindowsPinnedAccessResult::Value { handle, access } -> block access(handle, access, buffer, count, offset)
         }
     }
     machine access(handle: u64, granted: u32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         transition (granted & 1048577) == 1048577 {
-            true -> reopen(handle, buffer, count, offset)
-            false -> denied(handle)
+            true -> block reopen(handle, buffer, count, offset)
+            false -> block denied(handle)
         }
     }
     machine denied(handle: u64) -> i64 {
@@ -40,13 +40,13 @@ reaches FilesystemContentRead {
         let opened: WindowsPositionedFile = block windows_positioned_reopened(handle, raw);
         transition opened {
             WindowsPositionedFile::Error { code } -> (windows_positioned_error(code))
-            WindowsPositionedFile::Handle { value } -> position(value, buffer, count, offset)
+            WindowsPositionedFile::Handle { value } -> block position(value, buffer, count, offset)
         }
     }
     machine position(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
         let positioned: i64 = block WindowsFilesystemNativeProvider::set_file_pointer(handle, offset, 0);
         transition positioned == offset {
-            true -> transfer(handle, buffer, count)
+            true -> block transfer(handle, buffer, count)
             false -> (block windows_positioned_seek_failed(handle, positioned))
         }
     }
@@ -61,20 +61,20 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::write_at(handle: u64, by
 satisfies WindowsFilesystemHost::write_at
 reaches FilesystemContentWrite {
     transition offset >= 0 && bytes.len <= 4294967295 {
-        true -> pin(handle, bytes, offset)
+        true -> block pin(handle, bytes, offset)
         false -> (-87)
     }
     machine pin(handle: u64, bytes: &[u8], offset: i64) -> i64 {
         let pinned: WindowsPinnedAccessResult = block windows_positioned_pin(handle);
         transition pinned {
             WindowsPinnedAccessResult::Error { code } -> (windows_positioned_error(code))
-            WindowsPinnedAccessResult::Value { handle, access } -> access(handle, access, bytes, offset)
+            WindowsPinnedAccessResult::Value { handle, access } -> block access(handle, access, bytes, offset)
         }
     }
     machine access(handle: u64, granted: u32, bytes: &[u8], offset: i64) -> i64 {
         transition (granted & 1048578) == 1048578 {
-            true -> reopen(handle, bytes, offset)
-            false -> denied(handle)
+            true -> block reopen(handle, bytes, offset)
+            false -> block denied(handle)
         }
     }
     machine denied(handle: u64) -> i64 {
@@ -86,13 +86,13 @@ reaches FilesystemContentWrite {
         let opened: WindowsPositionedFile = block windows_positioned_reopened(handle, raw);
         transition opened {
             WindowsPositionedFile::Error { code } -> (windows_positioned_error(code))
-            WindowsPositionedFile::Handle { value } -> position(value, bytes, offset)
+            WindowsPositionedFile::Handle { value } -> block position(value, bytes, offset)
         }
     }
     machine position(handle: u64, bytes: &[u8], offset: i64) -> i64 {
         let positioned: i64 = block WindowsFilesystemNativeProvider::set_file_pointer(handle, offset, 0);
         transition positioned == offset {
-            true -> transfer(handle, bytes)
+            true -> block transfer(handle, bytes)
             false -> (block windows_positioned_seek_failed(handle, positioned))
         }
     }

@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::order::strictly_increasing;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     StructuralAffineDiscard, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
@@ -16,7 +17,7 @@ pub(crate) fn exact_partial_cleanup_partition(
 ) -> bool {
     if declarations.is_empty()
         || moved.is_empty()
-        || declarations.windows(2).any(|pair| pair[0].id >= pair[1].id)
+        || !strictly_increasing(declarations, |row| row.id)
         || moved.iter().enumerate().any(|(index, (path, _))| {
             path.is_empty()
                 || moved[..index]
@@ -83,7 +84,7 @@ fn finite_cleanup_type(
     match &declarations.get(&structural_type)?.shape {
         StructuralTypeShape::Record { fields, .. } => {
             let mut identities = BTreeSet::new();
-            if fields.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+            if !strictly_increasing(fields, |row| row.id) {
                 return None;
             }
             for field in fields {

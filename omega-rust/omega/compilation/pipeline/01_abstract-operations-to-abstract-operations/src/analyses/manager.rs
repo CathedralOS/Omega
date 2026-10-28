@@ -3,16 +3,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationUnitIdentity,
 };
-use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
+use optimization_unit::PsiOptimizationUnit;
 
+use super::control_flow::{AnalysisRootError, validate_unit_identity};
 use super::{AnalysisProduct, analysis_dependencies, compute_analysis};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AnalysisManagerError {
-    StaleUnitIdentity {
-        stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
+    Root(AnalysisRootError),
     RevisionMismatch {
         expected: OptimizationUnitIdentity,
         actual: OptimizationUnitIdentity,
@@ -22,11 +20,7 @@ pub enum AnalysisManagerError {
     WorkerPanicked(AnalysisKind),
 }
 
-impl std::fmt::Display for AnalysisManagerError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Psi optimizer analysis failure: {self:?}")
-    }
-}
+failed_display!(AnalysisManagerError, "Psi optimizer analysis failure");
 
 impl std::error::Error for AnalysisManagerError {}
 
@@ -154,14 +148,7 @@ impl AnalysisManager {
 }
 
 fn validate_content_identity(unit: &PsiOptimizationUnit) -> Result<(), AnalysisManagerError> {
-    let recomputed = recompute_psi_optimization_unit_identity(unit);
-    if unit.identity != recomputed {
-        return Err(AnalysisManagerError::StaleUnitIdentity {
-            stored: unit.identity,
-            recomputed,
-        });
-    }
-    Ok(())
+    validate_unit_identity(unit).map_err(AnalysisManagerError::Root)
 }
 
 fn invalidation_closure(declared: AnalysisInvalidationSet) -> BTreeSet<AnalysisKind> {

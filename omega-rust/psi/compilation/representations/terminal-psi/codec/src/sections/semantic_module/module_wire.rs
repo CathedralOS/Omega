@@ -34,6 +34,7 @@ mod scalar_block_invariant_wire;
 mod target_family_wire;
 mod target_layout_wire;
 mod task_activation_wire;
+use super::external_provider_wire;
 
 use terminal_psi::{
     TerminalIdentityIndex, TerminalIdentityTable, TerminalModule, TerminalRootServiceReach,
@@ -47,7 +48,7 @@ use super::proof_declaration_wire::{
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
 use super::structural_signature_wire::{decode_boundary_machine, encode_boundary_machine};
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
-use super::wire::{Reader, Writer};
+use super::wire::{Reader, Writer, strictly_increasing};
 use super::{CodecError, FORMAT_MARKER, MAGIC};
 use crate::sections::semantic_module::module_wire::borrow_wire::{
     decode_reborrow_restored_call_use, encode_reborrow_restored_call_use,
@@ -99,184 +100,166 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     quotient_wire::encode(&mut writer, &module.quotients)?;
     folded_constant_wire::encode(&mut writer, &module.folded_constants)?;
-    writer.len("structural types", module.structural_types.len())?;
-    for declaration in &module.structural_types {
-        encode_structural_type(&mut writer, declaration)?;
-    }
+    writer.counted(
+        "structural types",
+        &module.structural_types,
+        encode_structural_type,
+    )?;
     writer.len("structural referents", module.structural_referents.len())?;
     for referent in &module.structural_referents {
         writer.id(referent.id);
         writer.u32(referent.identity.0);
     }
-    writer.len("structural domains", module.structural_domains.len())?;
-    for declaration in &module.structural_domains {
-        declaration_wire::encode_structural_domain(&mut writer, declaration)?;
-    }
-    writer.len("services", module.services.len())?;
-    for declaration in &module.services {
-        declaration_wire::encode_service(&mut writer, declaration)?;
-    }
-    writer.len(
+    writer.counted(
+        "structural domains",
+        &module.structural_domains,
+        declaration_wire::encode_structural_domain,
+    )?;
+    writer.counted(
+        "services",
+        &module.services,
+        declaration_wire::encode_service,
+    )?;
+    writer.ids(
         "concrete root service reach",
-        module.root_service_reach.concrete.len(),
+        &module.root_service_reach.concrete,
     )?;
-    for service in &module.root_service_reach.concrete {
-        writer.id(*service);
-    }
-    writer.len(
+    writer.counted(
         "installation reach dependencies",
-        module.root_service_reach.installation_dependencies.len(),
+        &module.root_service_reach.installation_dependencies,
+        declaration_wire::encode_installation_reach_dependency,
     )?;
-    for dependency in &module.root_service_reach.installation_dependencies {
-        declaration_wire::encode_installation_reach_dependency(&mut writer, dependency)?;
-    }
-    writer.len("placed-view plans", module.placed_view_plans.len())?;
-    for plan in &module.placed_view_plans {
-        placed_plan_wire::encode(&mut writer, plan)?;
-    }
-    writer.len(
+    writer.counted(
+        "placed-view plans",
+        &module.placed_view_plans,
+        placed_plan_wire::encode,
+    )?;
+    writer.counted(
         "placement lifecycle plans",
-        module.placement_lifecycle_plans.len(),
+        &module.placement_lifecycle_plans,
+        placement_lifecycle_wire::encode,
     )?;
-    for plan in &module.placement_lifecycle_plans {
-        placement_lifecycle_wire::encode(&mut writer, plan)?;
-    }
-    writer.len("placed-view inputs", module.placed_view_inputs.len())?;
-    for input in &module.placed_view_inputs {
-        placed_view_wire::encode_placed_view_input(&mut writer, input)?;
-    }
-    writer.len(
+    writer.counted(
+        "placed-view inputs",
+        &module.placed_view_inputs,
+        placed_view_wire::encode_placed_view_input,
+    )?;
+    writer.counted(
         "reborrow restored call uses",
-        module.reborrow_restored_call_uses.len(),
+        &module.reborrow_restored_call_uses,
+        encode_reborrow_restored_call_use,
     )?;
-    for use_row in &module.reborrow_restored_call_uses {
-        encode_reborrow_restored_call_use(&mut writer, use_row)?;
-    }
-    writer.len("boundary machines", module.boundary_machines.len())?;
-    for declaration in &module.boundary_machines {
-        encode_boundary_machine(&mut writer, declaration)?;
-    }
-    writer.len("provider candidates", module.provider_candidates.len())?;
-    for candidate in &module.provider_candidates {
-        encode_provider_candidate(&mut writer, candidate)?;
-    }
+    writer.counted(
+        "boundary machines",
+        &module.boundary_machines,
+        encode_boundary_machine,
+    )?;
+    writer.counted(
+        "external provider conformances",
+        &module.external_providers,
+        external_provider_wire::encode,
+    )?;
+    writer.counted(
+        "provider candidates",
+        &module.provider_candidates,
+        encode_provider_candidate,
+    )?;
     dynamic_dispatch_wire::encode_dynamic_dispatch(&mut writer, &module.dynamic_dispatch)?;
-    writer.len(
+    writer.counted(
         "float-meaning projections",
-        module.float_meaning_projections.len(),
+        &module.float_meaning_projections,
+        float_meaning_wire::encode_float_meaning_projection,
     )?;
-    for projection in &module.float_meaning_projections {
-        float_meaning_wire::encode_float_meaning_projection(&mut writer, projection)?;
-    }
-    writer.len(
+    writer.counted(
         "float-meaning equalities",
-        module.float_meaning_equalities.len(),
+        &module.float_meaning_equalities,
+        float_meaning_wire::encode_float_meaning_equality,
     )?;
-    for proposition in &module.float_meaning_equalities {
-        float_meaning_wire::encode_float_meaning_equality(&mut writer, proposition)?;
-    }
-    writer.len(
+    writer.counted(
         "proposition declarations",
-        module.proposition_declarations.len(),
+        &module.proposition_declarations,
+        encode_proposition_declaration,
     )?;
-    for declaration in &module.proposition_declarations {
-        encode_proposition_declaration(&mut writer, declaration)?;
-    }
-    writer.len(
+    writer.counted(
         "proposition applications",
-        module.proposition_applications.len(),
+        &module.proposition_applications,
+        encode_proposition_application,
     )?;
-    for application in &module.proposition_applications {
-        encode_proposition_application(&mut writer, application)?;
-    }
-    writer.len("evidence terms", module.evidence_terms.len())?;
-    for term in &module.evidence_terms {
-        evidence_wire::encode_evidence_term(&mut writer, term)?;
-    }
-    writer.len(
+    writer.counted(
+        "evidence terms",
+        &module.evidence_terms,
+        evidence_wire::encode_evidence_term,
+    )?;
+    writer.counted(
         "evidence contract lanes",
-        module.evidence_contract_lanes.len(),
+        &module.evidence_contract_lanes,
+        evidence_wire::encode_evidence_contract_lane,
     )?;
-    for lane in &module.evidence_contract_lanes {
-        evidence_wire::encode_evidence_contract_lane(&mut writer, lane)?;
-    }
-    writer.len("proof-output invocations", module.proof_output_calls.len())?;
-    for invocation in &module.proof_output_calls {
-        proof_output_wire::encode_proof_output_call(&mut writer, invocation)?;
-    }
-    writer.len(
+    writer.counted(
+        "proof-output invocations",
+        &module.proof_output_calls,
+        proof_output_wire::encode_proof_output_call,
+    )?;
+    writer.counted(
         "proof recursive components",
-        module.proof_recursive_components.len(),
+        &module.proof_recursive_components,
+        encode_proof_recursive_component,
     )?;
-    for component in &module.proof_recursive_components {
-        encode_proof_recursive_component(&mut writer, component)?;
-    }
-    writer.len(
+    writer.counted(
         "closed conformance applications",
-        module.closed_conformance_applications.len(),
+        &module.closed_conformance_applications,
+        closed_conformance_wire::encode_closed_conformance_application,
     )?;
-    for application in &module.closed_conformance_applications {
-        closed_conformance_wire::encode_closed_conformance_application(&mut writer, application)?;
-    }
     writer.u32(module.suspension_call_plan_count);
     writer.len("suspension call sites", module.suspension_call_sites.len())?;
     for site in &module.suspension_call_sites {
         encode_suspension_call_site(&mut writer, site);
     }
-    writer.len("suspension call plans", module.suspension_call_plans.len())?;
-    for plan in &module.suspension_call_plans {
-        encode_suspension_call_plan(&mut writer, plan)?;
-    }
-    writer.len(
+    writer.counted(
+        "suspension call plans",
+        &module.suspension_call_plans,
+        encode_suspension_call_plan,
+    )?;
+    writer.counted(
         "scalar block invariants",
-        module.scalar_block_invariants.len(),
+        &module.scalar_block_invariants,
+        scalar_block_invariant_wire::encode_scalar_block_invariant,
     )?;
-    for invariant in &module.scalar_block_invariants {
-        scalar_block_invariant_wire::encode_scalar_block_invariant(&mut writer, invariant)?;
-    }
-    writer.len(
+    writer.counted(
         "operation crash contracts",
-        module.operation_crash_contracts.len(),
+        &module.operation_crash_contracts,
+        operation_crash_contract_wire::encode_operation_crash_contract,
     )?;
-    for contract in &module.operation_crash_contracts {
-        operation_crash_contract_wire::encode_operation_crash_contract(&mut writer, contract)?;
-    }
-    writer.len("machines", module.machines.len())?;
-    for machine in &module.machines {
-        super::machine_wire::encode_machine(&mut writer, machine)?;
-    }
-    writer.len(
+    writer.counted(
+        "machines",
+        &module.machines,
+        super::machine_wire::encode_machine,
+    )?;
+    writer.counted(
         "target-machine families",
-        module.target_machine_families.len(),
+        &module.target_machine_families,
+        target_family_wire::encode_family,
     )?;
-    for family in &module.target_machine_families {
-        target_family_wire::encode_family(&mut writer, family)?;
-    }
-    writer.len(
+    writer.counted(
         "target layout applications",
-        module.target_layout_applications.len(),
+        &module.target_layout_applications,
+        target_layout_wire::encode,
     )?;
-    for application in &module.target_layout_applications {
-        target_layout_wire::encode(&mut writer, application)?;
-    }
-    writer.len(
+    writer.counted(
         "boundary application demands",
-        module.boundary_application_demands.len(),
+        &module.boundary_application_demands,
+        boundary_application_wire::encode_demand,
     )?;
-    for demand in &module.boundary_application_demands {
-        boundary_application_wire::encode_demand(&mut writer, demand)?;
-    }
-    writer.len("callback applications", module.callback_applications.len())?;
-    for application in &module.callback_applications {
-        callback_application_wire::encode(&mut writer, application)?;
-    }
-    writer.len(
+    writer.counted(
+        "callback applications",
+        &module.callback_applications,
+        callback_application_wire::encode,
+    )?;
+    writer.counted(
         "boundary application candidates",
-        module.boundary_application_candidates.len(),
+        &module.boundary_application_candidates,
+        boundary_application_wire::encode_candidate,
     )?;
-    for candidate in &module.boundary_application_candidates {
-        boundary_application_wire::encode_candidate(&mut writer, candidate)?;
-    }
     encode_demands(&mut writer, &module.task_activation_demands)?;
     Ok(writer.finish())
 }
@@ -313,8 +296,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         let certificate = decode_bytes(reader)?;
         super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
         let assumption_closure = decode_counted(reader, |reader| reader.u32())?;
-        if assumption_closure.windows(2).any(|pair| pair[0] >= pair[1]) || type_identity.is_absent()
-        {
+        if !strictly_increasing(assumption_closure.iter().copied()) || type_identity.is_absent() {
             return Err(CodecError::MalformedMathematicalCertificate(
                 "invalid indexed theorem root",
             ));
@@ -371,6 +353,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
+    let external_providers = decode_counted(reader, external_provider_wire::decode)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let dynamic_dispatch = dynamic_dispatch_wire::decode_dynamic_dispatch(reader)?;
     let float_meaning_projections =
@@ -434,6 +417,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         placement_lifecycle_plans,
         reborrow_restored_call_uses,
         boundary_machines,
+        external_providers,
         provider_candidates,
         dynamic_dispatch,
         float_meaning_projections,

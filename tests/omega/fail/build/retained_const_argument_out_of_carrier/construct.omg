@@ -1,0 +1,7 @@
+module construct;
+use shapes::counts::Counted;
+machine make() -> Counted<257> {
+ let mut value: Counted<257>;
+ value.items[11] = 42u8;
+ value
+}

@@ -1,7 +1,7 @@
 // Expected exit: 0
 data Cell { value: u32; }
 data View<'a> { cell: &'a Cell in Controlled; }
-domain Cell::Controlled(cell) requires cell.value >= 10;
+domain Cell::Controlled requires self.value >= 10;
 machine inspect(cell: &Cell) -> u32 { cell.value }
 machine authorized_read(cell: &Cell in Controlled) -> u32 { cell.value }
 machine observed_exit() -> u32 {

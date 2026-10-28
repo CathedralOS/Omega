@@ -105,8 +105,13 @@ these are alternative routes in a division contract:
 ```omega
 crashes Trap
     denominator == 0
-    numerator == i32::Minimum && denominator == -1
+    numerator == integer::min<i32>() && denominator == -1
 ```
+
+The endpoint is the ratified ordinary core
+[integer query](../spec/language/numeric_values.md#core-integer-and-float-apis),
+not a primitive-member `Minimum` alias; `CORE-INTEGER-FLOAT-APIS` tracks its
+remaining implementation.
 
 Any one route permits that cause. An empty route list is unconditional;
 omitting the cause forbids it. The executable operation must still have the

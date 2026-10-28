@@ -12,6 +12,7 @@ use image_emission::{ObjectBoundarySettlement, ObjectForeignCall};
 use installation_evidence::ProviderExecutionEvidence;
 
 use super::{NativeProviderExecution, NativeSelectedProviderPlan};
+use crate::physical::sole_terminal_operation;
 
 pub(super) fn replay_provider_executions(
     module: &terminal_psi::TerminalModule,
@@ -56,15 +57,8 @@ pub(super) fn replay_provider_executions(
     for foreign in foreign_calls {
         let (boundary_id, completion) = match foreign.owner {
             target_operations::CallSiteOwner::Operation(owner) => {
-                let mut operations = module
-                    .machines
-                    .iter()
-                    .filter(|machine| machine.id == foreign.machine)
-                    .flat_map(|machine| machine.operations())
-                    .filter(|operation| operation.id == owner);
-                let (Some(operation), None) = (operations.next(), operations.next()) else {
-                    return Err(ProviderExecutionReplayError::NonUniqueForeignOperation);
-                };
+                let operation = sole_terminal_operation(module, foreign.machine, owner)
+                    .ok_or(ProviderExecutionReplayError::NonUniqueForeignOperation)?;
                 let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind
                 else {
                     return Err(ProviderExecutionReplayError::ForeignOperationIsNotBoundaryCall);

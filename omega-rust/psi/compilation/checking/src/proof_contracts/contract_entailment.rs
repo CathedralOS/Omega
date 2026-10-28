@@ -113,7 +113,7 @@ pub(crate) use stored_predicates::stored_data_predicate_holds;
 pub(crate) mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
-mod structural_prefix;
+pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
     anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
     exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
@@ -123,6 +123,7 @@ mod structural_terms;
 pub(crate) mod transparent_applications;
 
 pub(crate) use completed_observations::completed_value_fits_integer_interval;
+pub(crate) use completed_values::expression_statement_index;
 pub(crate) use const_ranges::{
     const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
     validate_const_range_call, validate_const_range_call_in_environment,
@@ -1091,6 +1092,7 @@ fn fact_call_targets(
     }
 }
 
+pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 
 pub use structural_terms::{

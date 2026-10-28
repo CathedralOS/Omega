@@ -42,6 +42,17 @@ fn invalid(target: target::NativeTarget) -> Diagnostic {
     ))
 }
 
+/// The checked recipe a runtime entry argument `ordinal` selects: the roster is
+/// keyed by runtime position, not by allocation row.
+pub(super) fn recipe_index_for_runtime_position(
+    recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    ordinal: usize,
+) -> Option<usize> {
+    recipes
+        .iter()
+        .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+}
+
 fn align(value: u64, alignment: u64, invalid: &dyn Fn() -> Diagnostic) -> Result<u64, Diagnostic> {
     if !alignment.is_power_of_two() {
         return Err(invalid());
@@ -317,10 +328,7 @@ fn prepare_linux_x86_64(
     }
     let (function, _) = crate::function_fragments::replay::entry_source(artifact)?;
     for (ordinal, _) in function.structural_parameters.iter().enumerate() {
-        let index = binding
-            .private_entry_ram
-            .iter()
-            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+        let index = recipe_index_for_runtime_position(&binding.private_entry_ram, ordinal)
             .ok_or_else(invalid)?;
         let symbol = *storage.private_ram.get(index).ok_or_else(invalid)?;
         let (rex, modrm) = [
@@ -444,18 +452,16 @@ pub(crate) fn validate_binding(
 }
 
 /// One hosted target's exact toolchain-owned physical contract: the profile
-/// whose entry slot owns the closed contract package, the package source
-/// digest, the visible parameter identity order, the result identity, and the
-/// validated boundary entry plan. `physical_contract_matches` reads this row
-/// once, so a hosted target is one row rather than a named matcher family
-/// plus a dispatch ladder re-deriving the same per-target association.
+/// whose entry slot owns the closed contract package, the visible parameter
+/// identity order, and the result identity. The package's own source digest and
+/// validated boundary entry plan come from `program_entry_plan`'s closed
+/// package tables. `physical_contract_matches` reads this row once, so a hosted
+/// target is one row rather than a named matcher family plus a dispatch ladder
+/// re-deriving the same per-target association.
 struct PhysicalContractRow {
     profile: target::TargetProfile,
-    package_source_digest:
-        fn() -> program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
     parameter_type_identities: &'static [&'static str],
     result_type_identity: &'static str,
-    boundary_entry_plan: fn() -> calling_conventions::ValidatedBoundaryEntryPlan,
 }
 
 /// The row for a hosted-receiver target. `None` names a target this bridge
@@ -471,8 +477,6 @@ fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContrac
     Some(if target == target::NativeTarget::macos_arm64() {
         PhysicalContractRow {
             profile: target::TargetProfile::MacosArm64,
-            package_source_digest:
-                program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest,
             parameter_type_identities: &[
                 MACOS_ARM64_I32_TYPE_IDENTITY,
                 MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
@@ -480,13 +484,10 @@ fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContrac
                 MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
             ],
             result_type_identity: MACOS_ARM64_I32_TYPE_IDENTITY,
-            boundary_entry_plan: program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan,
         }
     } else if target == target::NativeTarget::macos_x64() {
         PhysicalContractRow {
             profile: target::TargetProfile::MacosX64,
-            package_source_digest:
-                program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest,
             parameter_type_identities: &[
                 MACOS_X86_64_I32_TYPE_IDENTITY,
                 MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
@@ -494,37 +495,24 @@ fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContrac
                 MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
             ],
             result_type_identity: MACOS_X86_64_I32_TYPE_IDENTITY,
-            boundary_entry_plan:
-                program_entry_plan::exact_macos_x86_64_physical_boundary_entry_plan,
         }
     } else if target == target::NativeTarget::linux_x64() {
         PhysicalContractRow {
             profile: target::TargetProfile::LinuxX64,
-            package_source_digest:
-                program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest,
             parameter_type_identities: &[LINUX_X86_64_ADDRESS_TYPE_IDENTITY],
             result_type_identity: LINUX_X86_64_I32_TYPE_IDENTITY,
-            boundary_entry_plan:
-                program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan,
         }
     } else if target == target::NativeTarget::linux_arm64() {
         PhysicalContractRow {
             profile: target::TargetProfile::LinuxArm64,
-            package_source_digest:
-                program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest,
             parameter_type_identities: &[LINUX_ARM64_U64_TYPE_IDENTITY],
             result_type_identity: LINUX_ARM64_I32_TYPE_IDENTITY,
-            boundary_entry_plan: program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan,
         }
     } else if target == target::NativeTarget::windows_x64() {
         PhysicalContractRow {
             profile: target::TargetProfile::WindowsX64,
-            package_source_digest:
-                program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest,
             parameter_type_identities: &[],
             result_type_identity: WINDOWS_X86_64_U32_TYPE_IDENTITY,
-            boundary_entry_plan:
-                program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan,
         }
     } else {
         return None;
@@ -548,11 +536,15 @@ fn physical_contract_matches(
     let Some(package) = slot.physical_contract_package else {
         return false;
     };
-    let expected = (row.boundary_entry_plan)();
+    let Some(expected) = program_entry_plan::exact_hosted_physical_boundary_entry_plan(package)
+    else {
+        return false;
+    };
     let identities = physical.identities();
     physical.target_slot() == slot
         && physical.target_package() == package
-        && physical.target_package_source_digest() == (row.package_source_digest)()
+        && physical.target_package_source_digest()
+            == program_entry_plan::exact_physical_contract_package_source_digest(package)
         && !physical.requirement_identity().is_absent()
         && physical.parameter_type_identities().len() == row.parameter_type_identities.len()
         && physical
@@ -647,10 +639,9 @@ fn validate_entry_arguments(
         return Err(invalid());
     }
     for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
-        let recipe = private_entry_ram
-            .iter()
-            .find(|recipe| recipe.input().runtime_position as usize == ordinal)
-            .ok_or_else(invalid)?;
+        let index =
+            recipe_index_for_runtime_position(private_entry_ram, ordinal).ok_or_else(invalid)?;
+        let recipe = private_entry_ram.get(index).ok_or_else(invalid)?;
         let actual = target
             .graph
             .parameters

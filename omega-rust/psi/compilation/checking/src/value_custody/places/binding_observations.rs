@@ -20,14 +20,7 @@ pub fn stable_slice_descriptor_place(
     symbol: SymbolHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let root_reference = program
-        .state_parameter_by_symbol(state, symbol)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            program
-                .state_local_declaration(state, symbol)
-                .map(|(_, local)| local.type_reference)
-        })?;
+    let root_reference = crate::state_root_type(program, state, symbol)?;
     let mut reference = root_reference;
     for (position, segment) in segments.iter().enumerate() {
         let facts::PlaceSegment::Field { symbol } = segment else {

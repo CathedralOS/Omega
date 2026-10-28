@@ -7,6 +7,7 @@
 //! a loop invariant nor permission to replay mutable storage observations.
 
 mod array_elements;
+mod body_completion;
 mod collection_extents;
 mod match_captures;
 mod operand_types;
@@ -143,6 +144,91 @@ impl<'program> StructuralJudge<'program> {
         self.normal_results.as_slice()
     }
 
+    /// Authenticate a whole scalar before descriptive equations replace it.
+    /// Captured values are minted only by normal completion; raw arithmetic
+    /// descriptions qualify only when retained in this occurrence's completed
+    /// result roster. Reference descriptors never authenticate stored contents.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_scalar_observation(
+        &self,
+        value: &StructuralTerm,
+        primitive: typed_trees::types::PrimitiveType,
+    ) -> Option<(StructuralTerm, numerics::arithmetic::ArithmeticDomain)> {
+        if !self.runtime_body_values || self.case_facts_only {
+            return None;
+        }
+        let mut identity = value.clone();
+        for _ in 0..32 {
+            match &identity {
+                StructuralTerm::ObservedValue {
+                    observed_type,
+                    value,
+                    descriptor,
+                } => {
+                    if descriptor.is_some()
+                        || crate::reference_shell(self.program, *observed_type).is_some()
+                        || self.program.primitive_type_reference(*observed_type) != Some(primitive)
+                    {
+                        return None;
+                    }
+                    identity = value.as_ref().clone();
+                }
+                StructuralTerm::Variable(name) => {
+                    identity = self
+                        .substitutions
+                        .iter()
+                        .find(|(variable, _)| variable == name)?
+                        .1
+                        .clone();
+                }
+                StructuralTerm::CapturedValue { result_type, .. } => {
+                    let policy = self
+                        .program
+                        .arithmetic_domain_for_type_reference(*result_type);
+                    return (crate::reference_shell(self.program, *result_type).is_none()
+                        && self.program.primitive_type_reference(*result_type) == Some(primitive))
+                    .then_some((identity, policy));
+                }
+                StructuralTerm::ScalarBinary {
+                    operator, meaning, ..
+                } if typed_trees::operator::builtin_integer_result_carrier(
+                    *operator,
+                    meaning.map(|(primitive, _)| primitive),
+                ) == Some(primitive) =>
+                {
+                    let policy =
+                        super::super::arithmetic_judgment::Engine::integer_operation_policy(
+                            *operator, *meaning,
+                        )?;
+                    return self
+                        .normal_results
+                        .iter()
+                        .any(|(_, observed)| {
+                            let observed = match observed {
+                                StructuralTerm::ObservedValue {
+                                    observed_type,
+                                    value,
+                                    descriptor,
+                                } if descriptor.is_none()
+                                    && crate::reference_shell(self.program, *observed_type)
+                                        .is_none()
+                                    && self.program.primitive_type_reference(*observed_type)
+                                        == Some(primitive) =>
+                                {
+                                    value.as_ref()
+                                }
+                                StructuralTerm::ScalarBinary { .. } => observed,
+                                _ => return false,
+                            };
+                            observed == &identity
+                        })
+                        .then_some((identity, policy));
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     /// Projection demands carried by this exact completed result's public
     /// equations. The consumer authenticates each field against its declared
     /// type; unrelated captures, hypotheses and private bodies contribute none.
@@ -204,6 +290,9 @@ impl<'program> StructuralJudge<'program> {
         &self,
         value: StructuralTerm,
     ) -> StructuralTerm {
+        if self.captured_result_equations.is_empty() {
+            return value;
+        }
         self.completed_value_identity_at(value, 0)
     }
 
@@ -212,63 +301,6 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         let value = match value {
-            StructuralTerm::IntegerEmbedding { reference, value } => {
-                StructuralTerm::IntegerEmbedding {
-                    reference,
-                    value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
-                }
-            }
-            StructuralTerm::MathematicalBinary {
-                operator,
-                left,
-                right,
-            } => StructuralTerm::MathematicalBinary {
-                operator,
-                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
-                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
-            },
-            StructuralTerm::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            } => StructuralTerm::ObservedValue {
-                observed_type,
-                value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
-                descriptor: descriptor.map(|descriptor| {
-                    Box::new(self.completed_value_identity_at(*descriptor, depth + 1))
-                }),
-            },
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-                data,
-                case,
-                fields: fields
-                    .into_iter()
-                    .map(|(name, value)| (name, self.completed_value_identity_at(value, depth + 1)))
-                    .collect(),
-            },
-            StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left,
-                right,
-            } => StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
-                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
-            },
-            StructuralTerm::CollectionMeasure {
-                measure,
-                collection,
-            } => StructuralTerm::CollectionMeasure {
-                measure,
-                collection: Box::new(
-                    self.completed_value_identity_at(*collection, depth + 1)
-                        .into_collection_descriptor(),
-                ),
-            },
             StructuralTerm::Projection { subject, path } => {
                 let subject = self.completed_value_identity_at(*subject, depth + 1);
                 path.split('.')
@@ -284,7 +316,7 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            value => value,
+            other => other.map_children(|child| self.completed_value_identity_at(child, depth + 1)),
         };
         if !matches!(
             value.semantic_value(),
@@ -1539,7 +1571,7 @@ impl<'program> StructuralJudge<'program> {
                     // Nothing after this operation is part of its incoming
                     // proof context. A stopped path is not an executed result.
                     if requested_operations.stop == ObservationStop::BeforeOperation(expression) {
-                        return Some(None);
+                        return Some(Vec::new());
                     }
                 }
                 if matches!(
@@ -1549,7 +1581,7 @@ impl<'program> StructuralJudge<'program> {
                     // Entry capture above needs operand snapshots only. Stop
                     // before the operation can publish its own invariant, and
                     // do not reconstruct an unrelated enclosing aggregate.
-                    return Some(Some(NormalReturnPath::unobserved(judge)));
+                    return Some(vec![NormalReturnPath::unobserved(judge)]);
                 }
                 // Entry observers above may keep positional placeholders.
                 // Executing the call's result/guarantees needs every actual value.
@@ -1559,6 +1591,16 @@ impl<'program> StructuralJudge<'program> {
                         .collect::<Option<Vec<_>>>()?),
                     None => None,
                 };
+                if let Some(paths) = judge.completed_body_paths(
+                    expression, call_values.as_deref(), environment, scope, &writes,
+                ) {
+                    return Some(paths.into_iter().map(|mut path| {
+                        if matches!(demand, NormalValueDemand::Completion) {
+                            path.observation = NormalValueObservation::NotObserved;
+                        }
+                        path.at_expression(expression, demand)
+                    }).collect());
+                }
                 judge.complete_normal_call(
                     expression,
                     call_values.as_deref(),
@@ -1567,9 +1609,9 @@ impl<'program> StructuralJudge<'program> {
                     &writes,
                 )?;
                 if matches!(demand, NormalValueDemand::Completion) {
-                    return Some(Some(
+                    return Some(vec![
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
-                    ));
+                    ]);
                 }
                 let receiver_changed =
                     scalar_storage_read && judge.storage_write_sequence != receiver_write_sequence;
@@ -1864,9 +1906,9 @@ impl<'program> StructuralJudge<'program> {
                         );
                     }
                 }
-                Some(Some(
+                Some(vec![
                     NormalReturnPath::observed(value, judge).at_expression(expression, demand),
-                ))
+                ])
             })
             .collect::<Option<Vec<_>>>()?
             .into_iter()
@@ -2171,14 +2213,7 @@ impl<'program> StructuralJudge<'program> {
         if !(is_parameter || is_local) || !subject.type_reference.is_valid() {
             return None;
         }
-        let mut current_type = program
-            .state_local_declaration(scope.1, source.root)
-            .map(|(_, local)| local.type_reference)
-            .or_else(|| {
-                program
-                    .state_parameter_by_symbol(scope.1, source.root)
-                    .map(|param| param.type_reference)
-            })?;
+        let mut current_type = crate::state_root_type(program, scope.1, source.root)?;
         let name = program.symbols.name(source.root);
         let mut roots = environment.iter().filter(|(binding, _)| binding == name);
         let mut value = roots.next()?.1.clone();
@@ -2713,6 +2748,30 @@ impl<'program> StructuralJudge<'program> {
             ));
         }
         for (left, right) in equations {
+            let max_premise_occ = self.rewrites.max_premise_occurrence();
+            let pattern_occ = match (
+                Self::term_max_captured_occurrence(&left),
+                Self::term_max_captured_occurrence(&right),
+            ) {
+                (Some(l), Some(r)) => {
+                    if l > r {
+                        Some(l)
+                    } else if r > l {
+                        Some(r)
+                    } else {
+                        None
+                    }
+                }
+                (Some(l), None) => Some(l),
+                (None, Some(r)) => Some(r),
+                (None, None) => None,
+            };
+            if let Some(occ) = pattern_occ
+                && occ <= max_premise_occ
+            {
+                std::sync::Arc::make_mut(&mut self.rewrites)
+                    .bump_integer_premise_revision_for_occurrences(occ);
+            }
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));
             std::sync::Arc::make_mut(&mut self.normal_guarantees)
@@ -2873,7 +2932,7 @@ impl<'program> NormalReturnPath<'program> {
 /// Authored mathematical definitions have no runtime invocation, including
 /// definitions with ordinary scalar results. Other calls need the shared
 /// proof-only classification; runtime calls still require complete write frames.
-pub(super) fn call_has_mathematical_denotation(
+pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,

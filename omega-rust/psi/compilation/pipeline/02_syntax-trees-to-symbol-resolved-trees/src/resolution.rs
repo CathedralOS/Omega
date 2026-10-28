@@ -361,6 +361,82 @@ pub fn prepare_const_initializer_selection(
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    finish_const_initializer_selection(syntax, lowerer, sources, bindings)
+}
+
+/// Discover destination judgments before demanding their declaration graph.
+/// These are the original destinations, before the private forest deferred their
+/// qualifications. Selection and leaf classification only schedule work: every
+/// selected destination still returns through ordinary typed checking.
+pub fn prepare_const_qualification_selection<'authored>(
+    request: ResolutionRequest,
+    authored: &'authored SyntaxTrees,
+    destinations: impl IntoIterator<Item = &'authored syntax_trees::item::ConstDefinition>,
+) -> Result<Option<ConstInitializerSelection>, Vec<Diagnostic>> {
+    let destinations = destinations.into_iter().collect::<Vec<_>>();
+    if destinations.is_empty() {
+        return Ok(None);
+    }
+    let ResolutionRequest {
+        mut syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    } = request;
+    preparation::target_families::normalize(&mut syntax, sources.as_deref())?;
+    let constant_selection = preparation::declaration_selection::ConstantSelection::with_shared_base(
+        &syntax,
+        sources.clone(),
+        top_level_bindings.clone(),
+        retained_base.clone(),
+    )?;
+    preparation::generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
+    let mut demanded = false;
+    for definition in destinations {
+        if (definition.pending_qualification.is_some()
+            || preparation::generic_data::const_destination_requires_proof(
+                authored,
+                definition,
+                Some(&constant_selection),
+            ))
+            && constant::pending_const_initializer_leaves(authored, definition, &constant_selection)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+                })?
+                .is_empty()
+        {
+            demanded = true;
+            break;
+        }
+    }
+    if !demanded {
+        return Ok(None);
+    }
+    preparation::module_normalization::validate_with_const_resolution_mode(
+        &syntax,
+        &constant_selection,
+        ConstResolutionMode::InitializerSelection,
+    )?;
+    preparation::trait_defaults::synthesize_trait_defaults_after_module_validation(
+        &mut syntax,
+        &constant_selection,
+    )?;
+    preparation::machine_equations::validate_declarations(&syntax)?;
+    let mut lowerer = Lowerer::new(sources.clone(), top_level_bindings.clone());
+    lowerer.constant_selection = Some(constant_selection);
+    lowerer.const_resolution_mode = ConstResolutionMode::InitializerSelection;
+    if let Some(base) = retained_base {
+        lowerer.seed_resolved_base(base)?;
+    }
+    finish_const_initializer_selection(syntax, lowerer, sources, top_level_bindings).map(Some)
+}
+
+fn finish_const_initializer_selection(
+    syntax: SyntaxTrees,
+    lowerer: Lowerer,
+    sources: Option<Arc<SourceMap>>,
+    bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
     let mut frontier = index_deferred(syntax, lowerer, sources, bindings)?;
     let initializers = frontier
         .trees()
@@ -384,21 +460,12 @@ pub fn prepare_const_initializer_selection(
             .complete_machine_bodies(&demand.deferred_machines)?
             .into_resolved_frontier();
     }
-    let DeferredResolvedFrontier {
-        syntax,
-        trees,
-        selection,
-        ..
-    } = frontier;
-    let preparation = ConstInitializerSelection {
-        trees: Arc::unwrap_or_clone(trees),
-        selection,
-    };
+    let preparation = ConstInitializerSelection { frontier };
     // The prepared forest, not an unprepared sibling: preparation rewrites
     // domain heads and adds trait default machines, and neither touches a
     // constant's initializer expression or its declaration's source span,
     // which are the only things leaf validation reads.
-    preparation.validate_initializer_leaves(&syntax)?;
+    preparation.validate_initializer_leaves(&preparation.frontier.syntax)?;
     Ok(preparation)
 }
 

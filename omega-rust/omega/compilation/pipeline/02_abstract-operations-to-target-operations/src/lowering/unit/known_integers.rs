@@ -87,3 +87,25 @@ pub(in crate::lowering) fn insert_known_unit_integer(
     }
     Ok(())
 }
+
+/// Route one scalar result home into the roster its own scalar type owns: an
+/// integer home joins the known integers so integer operands observe it, and
+/// every other scalar home joins the general roster. A value any roster
+/// already defines is refused.
+pub(in crate::lowering) fn insert_scalar_home(
+    integers: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    scalar_homes: &mut BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
+    home: TargetUnitScalarHomeRequirement,
+) -> Result<(), LoweringError> {
+    match home.scalar_type {
+        ScalarType::Integer(_) => {
+            insert_known_unit_integer(integers, home.source_value, KnownUnitInteger::Home(home))
+        }
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+            if scalar_homes.insert(home.source_value, home).is_some() {
+                return Err(LoweringError::DuplicateValue(home.source_value));
+            }
+            Ok(())
+        }
+    }
+}

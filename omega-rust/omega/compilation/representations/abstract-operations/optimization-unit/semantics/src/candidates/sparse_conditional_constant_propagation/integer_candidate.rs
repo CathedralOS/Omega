@@ -1,31 +1,29 @@
 //! Integer constant-evaluation candidate acceptance.
-use crate::candidates::provenance_realized_at;
+use crate::candidates::realized_at_own_site;
 use crate::candidates::sparse_conditional_constant_propagation::observation_at;
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
-    validate_psi_optimization_unit,
 };
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
     OptimizationValidatorIdentity,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, OptimizationFact, ProvenanceDisposition,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    IntegerConstantRewrite, IntegerEvaluationWitness, OptimizationFact, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
 };
 use semantic_vocabulary::ScalarType;
 
 use super::integer_evaluation::evaluate_integer_operation;
-use crate::candidates::{candidate_block, candidate_function};
+use crate::candidates::{
+    candidate_block, candidate_function, candidate_node, require_realized_rows,
+};
 
 pub(crate) fn validate_integer_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
+    crate::candidates::contract::admit_origin(input, candidate)?;
     if candidate.required_analyses() != AnalysisSet::new([AnalysisKind::ScalarConstants])
         || candidate.invalidated_analyses()
             != AnalysisInvalidationSet::new([AnalysisKind::UseDefinition])
@@ -41,33 +39,14 @@ pub(crate) fn validate_integer_evaluation_candidate(
     }
     let function = candidate_function(input, patch.location.machine)?;
     let block = candidate_block(function, patch.location.block)?;
-    let node = block
-        .nodes
-        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = candidate_node(block, patch.location.node)?;
     let input_observation = observation_at(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let [provenance] = candidate.provenance() else {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    };
     let site = PsiRealizationSite::Node(patch.location);
-    if provenance.input != site
-        || provenance.disposition != ProvenanceDisposition::RealizedAt(site)
-        || provenance.sources != node.provenance
-    {
-        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
-    }
-    if provenance.fuel != node.fuel {
-        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
-    }
-    let accepted_provenance = vec![provenance_realized_at(
-        site,
-        site,
-        &node.provenance,
-        &node.fuel,
-    )];
+    let accepted_provenance = vec![realized_at_own_site(site, &node.provenance, &node.fuel)];
+    require_realized_rows(candidate, &accepted_provenance)?;
 
     let (source_operation, result, scalar_type, evaluated, safety_class) =
         evaluate_integer_operation(function, node, candidate)?;

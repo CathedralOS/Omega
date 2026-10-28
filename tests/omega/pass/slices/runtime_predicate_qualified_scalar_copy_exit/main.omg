@@ -1,4 +1,4 @@
-domain i32::Selected(value) requires value == 0 || value == 38;
+domain i32::Selected requires self == 0 || self == 38;
 machine copy(items: &[i32 in Selected]) -> i32 in Selected requires items.len > 1 { items[1] }
 machine main() crashes Trap {
  let mut items: [i32 in Selected; 3]; items[0]=0; items[1]=38; items[2]=0;

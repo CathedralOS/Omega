@@ -1,4 +1,4 @@
-domain i32::Small(value) requires 0 <= value && value <= 100;
+domain i32::Small requires 0 <= self && self <= 100;
 machine write(items: &mut [i32 in Small; 3], index: u64, value: i32 in Small)
 requires index < 3 { items[index] = value; }
 machine main() crashes Trap {

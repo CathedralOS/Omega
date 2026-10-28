@@ -2,8 +2,8 @@
 // A checked provider forwards privately issued resources without becoming
 // another authorized issuer. The caller retains custody through a state edge.
 public data Resource { identity: u64; }
-public domain Resource::Open(resource)
-requires resource.identity != 0
+public domain Resource::Open
+requires self.identity != 0
 established by acquire;
 public data Acquisition {
     case Error;

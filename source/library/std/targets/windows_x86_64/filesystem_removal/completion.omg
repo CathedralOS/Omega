@@ -46,7 +46,7 @@ reaches FilesystemNamespaceMutation {
     let succeeded: i32 = block WindowsFilesystemRemovalIo::dispose(handle, 4, &disposition, 1);
     transition succeeded != 0 {
         true -> block windows_removal_close(handle, 0)
-        false -> failed(handle)
+        false -> block failed(handle)
     }
     machine failed(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32 requires handle != 0 {
         let code: u32 = windows_removal_error(WindowsFilesystemIo::c_get_last_error());

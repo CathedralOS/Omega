@@ -23,9 +23,9 @@ use omega::language::core::float_operations;
 // is the end-goal behavior; the only remaining piece is the source-transparent
 // wiring so the UNCHANGED samples' boundary Gui/Clock/Input calls reach it.
 
-public domain [u8]::CString(bytes)
+public domain [u8]::CString
 requires
-    no_nul(bytes);
+    no_nul(self);
 use omega_language_std::console;
 
 public boundary trait ObjectiveC {

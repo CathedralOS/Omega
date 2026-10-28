@@ -14,10 +14,13 @@ pub(crate) mod component_eras;
 pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod executable_scopes;
 mod external_requirements;
+mod retention;
+pub use retention::SelectedProviderPlanCandidate;
 pub(crate) mod providers;
 pub use external_requirements::SelectedExternalRequirementApplication;
 
 use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
+use crate::provider_evidence::providers::provider_plan::DigestFeed;
 use crate::provider_plan::ProviderPlan;
 use std::collections::BTreeSet;
 
@@ -89,8 +92,6 @@ pub struct SelectedProviderPlanFacts {
     /// Compact report coordinate. Authority retains `plans` and is exposed by
     /// `identity_digest()`.
     report_fingerprint: u64,
-    execution_scope: crate::ExecutionScope,
-    opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
     /// Template-keyed selected rows rebound to their exact closed requirement
     /// instances once specialization evidence exists.
@@ -114,8 +115,6 @@ impl Default for SelectedProviderPlanFacts {
             plans: Vec::new(),
             assumed_bindings: Vec::new(),
             report_fingerprint: selected_plans_report_fingerprint(&[]),
-            execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
             external_requirement_applications: Vec::new(),
@@ -248,8 +247,6 @@ impl SelectedProviderPlanFacts {
             plans,
             assumed_bindings: Vec::new(),
             report_fingerprint,
-            execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
             specialized_requirement_rows: Vec::new(),
             external_requirement_applications: Vec::new(),
@@ -328,7 +325,7 @@ impl SelectedProviderPlanFacts {
         self.plans.push(plan);
         self.plans.sort_by(ProviderPlan::selection_order);
         self.toolchain_settled_identities.insert(identity);
-        self.report_fingerprint = selected_plans_report_fingerprint(&self.plans);
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -374,14 +371,7 @@ impl SelectedProviderPlanFacts {
         self.identities = identities.build();
         self.plans.extend(checked.plans);
         self.plans.sort_by(ProviderPlan::selection_order);
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -419,6 +409,24 @@ impl SelectedProviderPlanFacts {
         self.report_fingerprint
     }
 
+    /// Re-derive the compact report coordinate from every roster this closure
+    /// retains. The roster is named here once: `plans`, installation reach,
+    /// specialized requirement rows, family realization rows and closed
+    /// external applications each join the fingerprint at this owner rather
+    /// than at the attachment method that happened to mutate them. Empty
+    /// rosters contribute nothing, so a closure with no attached evidence
+    /// keeps the plans-only coordinate.
+    fn refresh_report_fingerprint(&mut self) {
+        self.report_fingerprint = selected_closure_report_fingerprint(
+            &self.plans,
+            &self.installation_reach_resolutions,
+            &self.specialized_requirement_rows,
+            &self.family_realization_rows,
+            &self.external_requirement_applications,
+            &self.identities,
+        );
+    }
+
     /// Non-authoritative compatibility/report identity retained for existing
     /// artifact formats and diagnostics.
     pub const fn compatibility_report_identity(&self) -> u64 {
@@ -439,20 +447,14 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        encoder.execution_scope(self.execution_scope);
-
-        encoder.len(self.opaque_executable_admissions.len());
-        for admission in &self.opaque_executable_admissions {
-            encoder.opaque_executable_admission(admission.candidate());
-        }
+        // This owner has no isolated-scope/opaque-executable admission route.
+        // Preserve the existing digest vocabulary for the actual closure.
+        encoder.byte(0); // CallerAddressSpace
+        encoder.len(0); // no opaque executable admissions
 
         encoder.len(self.installation_reach_resolutions.len());
         for resolution in &self.installation_reach_resolutions {
-            encoder.string(
-                self.identities
-                    .text(resolution.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(resolution.requirement_identity));
             encoder.u64(resolution.provider_plan_report_identity);
             encoder.strings(&resolution.upper_bound);
             encoder.strings(&resolution.resolved_row);
@@ -460,41 +462,17 @@ impl SelectedProviderPlanFacts {
         encoder.len(self.specialized_requirement_rows.len());
         for row in &self.specialized_requirement_rows {
             encoder.u64(row.provider_plan_report_identity);
-            encoder.string(
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.selected_machine_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.machine_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(row.selected_requirement_identity));
+            encoder.string(self.identity_text(row.selected_machine_identity));
+            encoder.string(self.identity_text(row.requirement_identity));
+            encoder.string(self.identity_text(row.machine_identity));
         }
         encoder.len(self.external_requirement_applications.len());
         for row in &self.external_requirement_applications {
             encoder.u64(row.provider_plan_report_identity);
             encoder.bytes(row.provider_plan_digest.as_bytes());
-            encoder.string(
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(row.selected_requirement_identity));
+            encoder.string(self.identity_text(row.requirement_identity));
         }
         encoder.len(self.family_realization_rows.len());
         for row in &self.family_realization_rows {
@@ -503,17 +481,9 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.target);
             encoder.u64(row.head.get());
             encoder.u64(row.member.get());
-            encoder.string(self.identities.text(row.head_identity).unwrap_or_default());
-            encoder.string(
-                self.identities
-                    .text(row.member_identity)
-                    .unwrap_or_default(),
-            );
-            encoder.string(
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
+            encoder.string(self.identity_text(row.head_identity));
+            encoder.string(self.identity_text(row.member_identity));
+            encoder.string(self.identity_text(row.selected_requirement_identity));
             encoder.u64(row.provider_plan_report_identity);
             encoder.bytes(row.provider_plan_digest.as_bytes());
         }
@@ -521,13 +491,20 @@ impl SelectedProviderPlanFacts {
     }
 
     pub const fn execution_scope(&self) -> crate::ExecutionScope {
-        self.execution_scope
+        crate::ExecutionScope::CallerAddressSpace
     }
 
     /// The closure-local terminal identity table every retained `*identity`
     /// field resolves against.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
+    }
+
+    /// The rendered text one of this closure's retained interned coordinates
+    /// names; the zero coordinate renders as the empty field the encoders
+    /// wrote before interning.
+    pub fn identity_text(&self, identity: terminal_psi::TerminalIdentityIndex) -> &str {
+        identity_text(&self.identities, identity)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -548,18 +525,15 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for resolution in &mut resolutions {
-            resolution.requirement_identity = identities.intern(
-                resolution_identities
-                    .text(resolution.requirement_identity)
-                    .unwrap_or_default(),
-            );
+            resolution.requirement_identity = identities.intern(identity_text(
+                resolution_identities,
+                resolution.requirement_identity,
+            ));
         }
         self.identities = identities.build();
         resolutions.sort_by_cached_key(|resolution| {
             (
-                self.identities
-                    .text(resolution.requirement_identity)
-                    .unwrap_or_default()
+                self.identity_text(resolution.requirement_identity)
                     .to_owned(),
                 resolution.provider_plan_report_identity,
             )
@@ -570,9 +544,7 @@ impl SelectedProviderPlanFacts {
             {
                 return Err(format!(
                     "installation reach requirement `{}` has more than one selected resolution under provider plan {:#018x}",
-                    self.identities
-                        .text(pair[0].requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(pair[0].requirement_identity),
                     pair[0].provider_plan_report_identity
                 ));
             }
@@ -594,9 +566,7 @@ impl SelectedProviderPlanFacts {
             {
                 return Err(format!(
                     "installation reach resolution for `{}` exceeds its published upper bound",
-                    self.identities
-                        .text(resolution.requirement_identity)
-                        .unwrap_or_default()
+                    self.identity_text(resolution.requirement_identity)
                 ));
             }
             let Some(plan) =
@@ -604,9 +574,7 @@ impl SelectedProviderPlanFacts {
             else {
                 return Err(format!(
                     "installation reach resolution for `{}` names unselected provider plan {:#018x}",
-                    self.identities
-                        .text(resolution.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(resolution.requirement_identity),
                     resolution.provider_plan_report_identity
                 ));
             };
@@ -616,22 +584,13 @@ impl SelectedProviderPlanFacts {
             }) {
                 return Err(format!(
                     "installation reach resolution for `{}` is absent from selected provider plan `{}`",
-                    self.identities
-                        .text(resolution.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(resolution.requirement_identity),
                     plan.name
                 ));
             }
         }
         self.installation_reach_resolutions = resolutions;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -656,58 +615,36 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for row in &mut rows {
-            row.selected_requirement_identity = identities.intern(
-                row_identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
-            row.selected_machine_identity = identities.intern(
-                row_identities
-                    .text(row.selected_machine_identity)
-                    .unwrap_or_default(),
-            );
-            row.requirement_identity = identities.intern(
-                row_identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default(),
-            );
-            row.machine_identity = identities.intern(
-                row_identities
-                    .text(row.machine_identity)
-                    .unwrap_or_default(),
-            );
+            row.selected_requirement_identity = identities.intern(identity_text(
+                row_identities,
+                row.selected_requirement_identity,
+            ));
+            row.selected_machine_identity =
+                identities.intern(identity_text(row_identities, row.selected_machine_identity));
+            row.requirement_identity =
+                identities.intern(identity_text(row_identities, row.requirement_identity));
+            row.machine_identity =
+                identities.intern(identity_text(row_identities, row.machine_identity));
         }
         self.identities = identities.build();
         rows.sort_by_cached_key(|row| {
             (
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default()
-                    .to_owned(),
+                self.identity_text(row.requirement_identity).to_owned(),
                 row.provider_plan_report_identity,
-                self.identities
-                    .text(row.machine_identity)
-                    .unwrap_or_default()
-                    .to_owned(),
+                self.identity_text(row.machine_identity).to_owned(),
             )
         });
         for pair in rows.windows(2) {
             if pair[0].requirement_identity == pair[1].requirement_identity {
                 return Err(format!(
                     "closed requirement `{}` has more than one selected specialization row",
-                    self.identities
-                        .text(pair[0].requirement_identity)
-                        .unwrap_or_default()
+                    self.identity_text(pair[0].requirement_identity)
                 ));
             }
         }
         for row in &rows {
             if self
-                .external_requirement_application(
-                    self.identities
-                        .text(row.requirement_identity)
-                        .unwrap_or_default(),
-                )
+                .external_requirement_application(self.identity_text(row.requirement_identity))
                 .is_some()
             {
                 return Err("checked specialization shadows a closed external requirement".into());
@@ -723,9 +660,7 @@ impl SelectedProviderPlanFacts {
             else {
                 return Err(format!(
                     "selected requirement specialization for `{}` names unselected provider plan {:#018x}",
-                    self.identities
-                        .text(row.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(row.requirement_identity),
                     row.provider_plan_report_identity
                 ));
             };
@@ -754,23 +689,14 @@ impl SelectedProviderPlanFacts {
             if !bound {
                 return Err(format!(
                     "selected requirement specialization for `{}` is absent from selected provider plan `{}`",
-                    self.identities
-                        .text(row.requirement_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(row.requirement_identity),
                     plan.name
                 ));
             }
         }
         self.specialized_requirement_rows = rows;
         self.validate_family_realization_rows(&self.family_realization_rows)?;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -823,11 +749,7 @@ impl SelectedProviderPlanFacts {
                 provider_plan_report_identity,
                 row_requirement_identity,
             )
-            .map(|row| {
-                self.identities
-                    .text(row.requirement_identity)
-                    .unwrap_or_default()
-            })
+            .map(|row| self.identity_text(row.requirement_identity))
             .collect::<Vec<_>>();
         identities.extend(
             self.external_requirement_applications
@@ -846,10 +768,8 @@ impl SelectedProviderPlanFacts {
                 && Some(row.selected_requirement_identity) == row_index
             {
                 identities.extend([
-                    self.identities.text(row.head_identity).unwrap_or_default(),
-                    self.identities
-                        .text(row.member_identity)
-                        .unwrap_or_default(),
+                    self.identity_text(row.head_identity),
+                    self.identity_text(row.member_identity),
                 ]);
             }
         }
@@ -862,22 +782,14 @@ impl SelectedProviderPlanFacts {
     /// original call's contract. Family and specialization custody stay distinct.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
         if let Some(row) = self.family_realization_row(requirement) {
-            return self
-                .identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default();
+            return self.identity_text(row.selected_requirement_identity);
         }
         if let Some(row) = self.external_requirement_application(requirement) {
-            return self
-                .identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default();
+            return self.identity_text(row.selected_requirement_identity);
         }
         self.specialized_requirement_row(requirement)
             .map_or(requirement, |row| {
-                self.identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default()
+                self.identity_text(row.selected_requirement_identity)
             })
     }
 
@@ -961,33 +873,19 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Self, String> {
         let mut identities = self.identities.clone().into_builder();
         for row in &mut rows {
-            row.head_identity =
-                identities.intern(row_identities.text(row.head_identity).unwrap_or_default());
+            row.head_identity = identities.intern(identity_text(row_identities, row.head_identity));
             row.member_identity =
-                identities.intern(row_identities.text(row.member_identity).unwrap_or_default());
-            row.selected_requirement_identity = identities.intern(
-                row_identities
-                    .text(row.selected_requirement_identity)
-                    .unwrap_or_default(),
-            );
+                identities.intern(identity_text(row_identities, row.member_identity));
+            row.selected_requirement_identity = identities.intern(identity_text(
+                row_identities,
+                row.selected_requirement_identity,
+            ));
         }
         self.identities = identities.build();
-        rows.sort_by_cached_key(|row| {
-            self.identities
-                .text(row.head_identity)
-                .unwrap_or_default()
-                .to_owned()
-        });
+        rows.sort_by_cached_key(|row| self.identity_text(row.head_identity).to_owned());
         self.validate_family_realization_rows(&rows)?;
         self.family_realization_rows = rows;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.installation_reach_resolutions,
-            &self.specialized_requirement_rows,
-            &self.family_realization_rows,
-            &self.external_requirement_applications,
-            &self.identities,
-        );
+        self.refresh_report_fingerprint();
         Ok(self)
     }
 
@@ -1016,18 +914,8 @@ impl SelectedProviderPlanFacts {
                 || row.head_identity.is_absent()
                 || row.member_identity.is_absent()
                 || row.selected_requirement_identity.is_absent()
-                || !identities.insert(
-                    self.identities
-                        .text(row.head_identity)
-                        .unwrap_or_default()
-                        .to_owned(),
-                )
-                || !identities.insert(
-                    self.identities
-                        .text(row.member_identity)
-                        .unwrap_or_default()
-                        .to_owned(),
-                )
+                || !identities.insert(self.identity_text(row.head_identity).to_owned())
+                || !identities.insert(self.identity_text(row.member_identity).to_owned())
                 || !boundaries.insert(row.head)
                 || !boundaries.insert(row.member)
             {
@@ -1273,6 +1161,17 @@ pub struct SelectedTargetFamilyRealization {
     pub provider_plan_digest: crate::provider_plan::ProviderPlanDigest,
 }
 
+/// The rendered text `index` names in `identities`; the zero coordinate
+/// renders as the empty field the encoders wrote before interning. Every
+/// identity fold, sort key and diagnostic in this module resolves text here,
+/// so the projection is stated once rather than re-derived per site.
+pub(crate) fn identity_text(
+    identities: &terminal_psi::TerminalIdentityTable,
+    index: terminal_psi::TerminalIdentityIndex,
+) -> &str {
+    identities.text(index).unwrap_or_default()
+}
+
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::new();
     hash.u64(plans.len() as u64);
@@ -1292,12 +1191,7 @@ fn selected_closure_report_fingerprint(
 ) -> u64 {
     let mut hash = crate::fnv1a::Fnv1a::resume(selected_plans_report_fingerprint(plans));
     for resolution in resolutions {
-        hash.bytes(
-            identities
-                .text(resolution.requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
-        );
+        hash.bytes(identity_text(identities, resolution.requirement_identity).as_bytes());
         hash.u64(resolution.provider_plan_report_identity);
         hash.u64(resolution.upper_bound.len() as u64);
         for service in &resolution.upper_bound {
@@ -1311,31 +1205,19 @@ fn selected_closure_report_fingerprint(
     for row in specialization_rows {
         hash.u64(row.provider_plan_report_identity);
         hash.bytes_terminated(
-            identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_requirement_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.selected_machine_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_machine_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.requirement_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.machine_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.machine_identity).as_bytes(),
             0,
         );
     }
@@ -1343,17 +1225,11 @@ fn selected_closure_report_fingerprint(
         hash.u64(row.provider_plan_report_identity);
         hash.bytes(row.provider_plan_digest.as_bytes());
         hash.bytes_terminated(
-            identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_requirement_identity).as_bytes(),
             0,
         );
         hash.bytes_terminated(
-            identities
-                .text(row.requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.requirement_identity).as_bytes(),
             0,
         );
     }
@@ -1363,25 +1239,10 @@ fn selected_closure_report_fingerprint(
         hash.bytes_terminated(row.target.as_bytes(), 0);
         hash.u64(row.head.get());
         hash.u64(row.member.get());
+        hash.bytes_terminated(identity_text(identities, row.head_identity).as_bytes(), 0);
+        hash.bytes_terminated(identity_text(identities, row.member_identity).as_bytes(), 0);
         hash.bytes_terminated(
-            identities
-                .text(row.head_identity)
-                .unwrap_or_default()
-                .as_bytes(),
-            0,
-        );
-        hash.bytes_terminated(
-            identities
-                .text(row.member_identity)
-                .unwrap_or_default()
-                .as_bytes(),
-            0,
-        );
-        hash.bytes_terminated(
-            identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or_default()
-                .as_bytes(),
+            identity_text(identities, row.selected_requirement_identity).as_bytes(),
             0,
         );
         hash.u64(row.provider_plan_report_identity);
@@ -1392,9 +1253,11 @@ fn selected_closure_report_fingerprint(
 
 struct SelectedProviderClosureDigestEncoder(DomainDigestEncoder);
 
-impl crate::provider_evidence::providers::provider_plan::DigestFeed
-    for SelectedProviderClosureDigestEncoder
-{
+/// Only the byte sink is closure-specific; the framed-feed vocabulary
+/// (`byte`, `bool`, `len`, `u64`, `i64`, `bytes`, `string`, `strings`) comes
+/// from [`DigestFeed`]'s single definition, as it does for every other
+/// domain-tagged encoder in this crate.
+impl DigestFeed for SelectedProviderClosureDigestEncoder {
     fn raw(&mut self, bytes: &[u8]) {
         self.0.raw(bytes);
     }
@@ -1412,135 +1275,12 @@ impl SelectedProviderClosureDigestEncoder {
         SelectedProviderClosureDigest::from_digest(self.0.finish())
     }
 
-    fn byte(&mut self, value: u8) {
-        self.0.byte(value);
-    }
-
-    fn len(&mut self, value: usize) {
-        self.0.len(value);
-    }
-
-    fn u64(&mut self, value: u64) {
-        self.0.u64(value);
-    }
-
-    fn i64(&mut self, value: i64) {
-        self.0.i64(value);
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        self.0.bytes(bytes);
-    }
-
-    fn string(&mut self, value: &str) {
-        self.bytes(value.as_bytes());
-    }
-
-    fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
-        }
-    }
-
-    fn optional_string(&mut self, value: Option<&str>) {
-        match value {
-            Some(value) => {
-                self.byte(1);
-                self.string(value);
-            }
-            None => self.byte(0),
-        }
-    }
-
     fn execution_scope(&mut self, scope: crate::ExecutionScope) {
         match scope {
             crate::ExecutionScope::CallerAddressSpace => self.byte(0),
             crate::ExecutionScope::IsolatedProvider(identity) => {
                 self.byte(1);
                 self.u64(identity);
-            }
-        }
-    }
-
-    fn opaque_executable_admission(
-        &mut self,
-        admission: &crate::OpaqueExecutableAdmissionCandidate,
-    ) {
-        self.u64(admission.provider_plan_report_identity);
-        self.bytes(admission.provider_plan_digest.as_bytes());
-        self.string(&admission.method);
-        self.string(&admission.requirement);
-        self.opaque_binding(&admission.binding);
-        self.string(&admission.executable);
-        self.string(&admission.implementation_evidence);
-        self.execution_scope(admission.execution_scope);
-        self.len(admission.containment.len());
-        for evidence in &admission.containment {
-            self.byte(match evidence.guarantee {
-                crate::ContainmentGuarantee::MemoryIsolation => 0,
-                crate::ContainmentGuarantee::ForcibleTermination => 1,
-                crate::ContainmentGuarantee::FaultContainment => 2,
-                crate::ContainmentGuarantee::BoundedResources => 3,
-            });
-            self.string(&evidence.evidence);
-        }
-        self.optional_string(admission.executable_closure_evidence.as_deref());
-    }
-
-    fn opaque_binding(&mut self, binding: &crate::OpaqueInProcessBinding) {
-        match binding {
-            crate::OpaqueInProcessBinding::Import { evaluated } => {
-                let locator = evaluated.locator();
-                self.byte(0);
-                self.string(locator.target().target_name());
-                match locator.locator() {
-                    crate::ForeignLocatorCandidate::PeByName { library, export } => {
-                        self.byte(0);
-                        self.bytes(&library);
-                        self.bytes(&export);
-                    }
-                    crate::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-                        self.byte(1);
-                        self.bytes(&library);
-                        self.0.u16(*ordinal);
-                    }
-                    crate::ForeignLocatorCandidate::ElfVersioned {
-                        object,
-                        symbol,
-                        version,
-                    } => {
-                        self.byte(2);
-                        self.bytes(&object);
-                        self.bytes(&symbol);
-                        self.bytes(&version);
-                    }
-                    crate::ForeignLocatorCandidate::MachODylibSymbol {
-                        install_name,
-                        symbol,
-                    } => {
-                        self.byte(3);
-                        self.bytes(install_name);
-                        self.bytes(&symbol);
-                    }
-                }
-                self.bytes(&evaluated.receipt().identity_digest());
-            }
-            // Tag byte 1 belonged to the retired string-backed import
-            // bootstrap and stays unassigned.
-            crate::OpaqueInProcessBinding::VtableSlot { index } => {
-                self.byte(2);
-                self.i64(*index);
-            }
-            crate::OpaqueInProcessBinding::VtableField { table, field } => {
-                self.byte(3);
-                self.string(table);
-                self.string(field);
-            }
-            crate::OpaqueInProcessBinding::TableFunction { table, field } => {
-                self.byte(4);
-                self.string(table);
-                self.string(field);
             }
         }
     }

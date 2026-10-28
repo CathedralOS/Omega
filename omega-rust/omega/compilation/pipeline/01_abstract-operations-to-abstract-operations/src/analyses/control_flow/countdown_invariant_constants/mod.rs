@@ -1,10 +1,9 @@
 //! Optimizer module role: executable entrance. Exact countdown invariant-constant coordination.
 
 use abstract_operations::AbstractOperation as O;
-use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{
     EffectLink, FuelSettlement, NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ValueDefinition, ValueDefinitionSite, recompute_psi_optimization_unit_identity,
+    PsiProvenance, ValueDefinition, ValueDefinitionSite,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
@@ -13,7 +12,10 @@ use semantic_vocabulary::{
     BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
 };
 
-use super::{CountedLoopAnalysisError, UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis};
+use super::{
+    AnalysisRoot, AnalysisRootError, CountedLoopAnalysisError, UnsignedCountdownLoopSummary,
+    ValidatedCountedLoopAnalysis, validate_analysis_root,
+};
 
 mod compute;
 mod replay;
@@ -65,8 +67,7 @@ pub(crate) struct UnsignedCountdownInvariantConstants {
 /// Replayable analysis facts without cyclic-rewrite or execution authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CountdownInvariantConstantAnalysisSnapshot {
-    pub revision: OptimizationUnitIdentity,
-    pub terminal_psi: terminal_psi::TerminalPsiIdentity,
+    pub root: AnalysisRoot,
     pub loops: Vec<UnsignedCountdownInvariantConstants>,
 }
 
@@ -92,12 +93,7 @@ impl ValidatedCountdownInvariantConstantAnalysis {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CountdownInvariantConstantAnalysisError {
     CountedLoop(CountedLoopAnalysisError),
-    StaleUnitIdentity {
-        stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
-    TerminalIdentityMismatch,
-    CountedLoopRevisionMismatch,
+    Root(AnalysisRootError),
     ComponentRosterMismatch,
     UnsupportedInvariantConstant {
         machine: MachineId,
@@ -106,14 +102,10 @@ pub enum CountdownInvariantConstantAnalysisError {
     SnapshotMismatch,
 }
 
-impl std::fmt::Display for CountdownInvariantConstantAnalysisError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "countdown invariant-constant analysis failure: {self:?}"
-        )
-    }
-}
+failed_display!(
+    CountdownInvariantConstantAnalysisError,
+    "countdown invariant-constant analysis failure"
+);
 
 impl std::error::Error for CountdownInvariantConstantAnalysisError {}
 fn validate_locations(

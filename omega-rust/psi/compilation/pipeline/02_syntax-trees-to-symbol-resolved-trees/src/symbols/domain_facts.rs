@@ -83,10 +83,6 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                     domain.subject_name.as_str().to_owned(),
                     domain.subject_symbol,
                 )))
-                .chain(
-                    std::iter::once(("self".to_owned(), domain.subject_symbol))
-                        .filter(|_| domain.subject_name.as_str() != "self"),
-                )
                 .collect();
             (
                 domain.facts,

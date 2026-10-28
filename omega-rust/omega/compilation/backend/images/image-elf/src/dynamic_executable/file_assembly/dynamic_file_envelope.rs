@@ -11,8 +11,6 @@
 //! copy any dynamic payload into a file image, mutate the retained `FinalImage`,
 //! grant loader, publication, or runnable-image authority.
 
-use target::compatibility_fingerprint::Fnv1a;
-
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::constants::ELF64_SECTION_HEADER_SIZE;
@@ -230,28 +228,14 @@ fn write_program_header(bytes: &mut Vec<u8>, header: &ElfLoadProgramHeader) {
     write_u64(bytes, header.alignment());
 }
 
-fn validate_candidate(
-    candidate: Candidate,
-) -> Result<ValidatedElfDynamicFileEnvelope, CandidateValidationError<Candidate>> {
-    checked::validate_candidate(
-        candidate,
-        |candidate| validate_contents(&candidate.resolved_dynamic_table, &candidate.contents),
-        |candidate| {
-            candidate.non_authoritative_envelope_compatibility_fingerprint != 0
-                && candidate.non_authoritative_envelope_compatibility_fingerprint
-                    == non_authoritative_envelope_compatibility_fingerprint(
-                        &candidate.resolved_dynamic_table,
-                        &candidate.contents,
-                    )
-        },
-        "dynamic ELF envelope compatibility fingerprint does not replay",
-        |candidate| ValidatedElfDynamicFileEnvelope {
-            resolved_dynamic_table: candidate.resolved_dynamic_table,
-            contents: candidate.contents,
-            non_authoritative_envelope_compatibility_fingerprint: candidate
-                .non_authoritative_envelope_compatibility_fingerprint,
-        },
-    )
+checked::seal_stage! {
+    field: resolved_dynamic_table,
+    contents: contents,
+    validated: ValidatedElfDynamicFileEnvelope,
+    validate: validate_contents,
+    fingerprint: non_authoritative_envelope_compatibility_fingerprint,
+    nonzero,
+    message: "dynamic ELF envelope compatibility fingerprint does not replay",
 }
 
 fn validate_contents(
@@ -523,12 +507,9 @@ fn non_authoritative_envelope_compatibility_fingerprint(
     resolved: &ValidatedElfResolvedDynamicTable,
     contents: &ElfDynamicFileEnvelopeContents,
 ) -> u64 {
-    let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf.dynamic-file-envelope.v1");
-    hash.bytes(
-        &resolved
-            .non_authoritative_resolved_compatibility_fingerprint()
-            .to_le_bytes(),
+    let mut hash = checked::stage_fingerprint(
+        b"omega.elf.dynamic-file-envelope.v1",
+        resolved.non_authoritative_resolved_compatibility_fingerprint(),
     );
     hash.bytes(&contents.header_prefix_bytes);
     hash.bytes(&contents.entry_address.to_le_bytes());

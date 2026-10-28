@@ -1,5 +1,6 @@
 //! Review publishes source-free evidence under the caller's exact byte budget.
 
+mod external_provider_reload;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -73,7 +74,6 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
             .as_ref()
             .is_some_and(|units| !units.is_empty())
     );
-    assert!(!first.source.facts().tolerated_unsettled_service_fields);
     assert!(bytes > 0);
     assert!(matches!(
         review(bytes - 1),

@@ -9,12 +9,16 @@ use semantic_vocabulary::{
     StructuralDomainId, StructuralTypeId, ValueId,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// One qualification-only boundary call-admission check. The corresponding
 /// structural argument must already carry `domain`; this row does not create a
 /// proposition or mint an obligation identity.
 pub struct StructuralDomainRequirement {
     pub argument_index: u32,
+    /// Exact subject below the formal; empty retains its whole root. The
+    /// domain carrier must match the complete selected path, including every
+    /// stored-reference crossing. A row does not establish membership.
+    pub path: Vec<crate::StructuralPathSegment>,
     pub domain: StructuralDomainId,
 }
 
@@ -207,6 +211,8 @@ pub struct BoundaryMachineDeclaration {
     /// contract capsule without a body. Synthetic evidence has no declaration.
     /// This is the head's provenance, never a provider donation.
     pub declaration: Option<CheckedBoundaryCallable>,
+    /// Psi-owned numeric meaning, independent of any provider selection.
+    pub numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
     pub role: BoundaryDeclarationRole,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     /// Exact opaque completion contract; installation must authenticate it.

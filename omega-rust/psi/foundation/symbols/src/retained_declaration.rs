@@ -123,6 +123,21 @@ mod tests {
 }
 
 impl RetainedDeclaration {
+    /// The immutable source custody captured when this declaration was selected.
+    pub fn source(&self) -> &SourceFile {
+        &self.source
+    }
+
+    /// The original declaration anchor, independent of any later source number.
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// The declaration role retained beside its source anchor.
+    pub const fn kind(&self) -> SymbolKind {
+        self.kind
+    }
+
     pub fn capture(symbols: &SymbolTable, selected: SymbolHandle) -> Result<Self, &'static str> {
         if !selected.is_valid() {
             return Err("selected declaration has no symbol");

@@ -6,7 +6,7 @@
 //! borrowing a value defined only in one of those successors.
 
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::operation_id;
+use crate::terminal_identities::{mint, operation_id};
 use lowered_psi::{
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
     LoweredSourceScalarBinding,
@@ -650,12 +650,7 @@ impl OperationBuffer {
     }
 
     pub(crate) fn allocate(&mut self) -> OperationId {
-        let id = operation_id(self.next_identity);
-        self.next_identity = self
-            .next_identity
-            .checked_add(1)
-            .expect("terminal operation identities advance");
-        id
+        mint(&mut self.next_identity, operation_id)
     }
 
     /// Allocate and push an operation carrying no reach binding or
@@ -666,13 +661,7 @@ impl OperationBuffer {
         kind: OperationKind,
     ) -> OperationId {
         let id = self.allocate();
-        self.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result,
-            kind,
-        });
+        self.push(Operation::unsuspended(id, result, kind));
         id
     }
 

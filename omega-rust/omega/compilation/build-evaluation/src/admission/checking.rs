@@ -96,7 +96,7 @@ pub(crate) fn prepare_checked_build(
             })?;
             let selected = provider_planning::select_derived_provider_plans(
                 &candidates,
-                profile.native_target(),
+                profile,
                 &declarations.provider_defaults,
                 &[],
             )?;
@@ -130,6 +130,7 @@ pub(crate) fn prepare_checked_build(
             };
             let result = psi_compiler::CheckRequest {
                 program,
+                pending_constants: Vec::new(),
                 admission: psi_compiler::SourceAdmission {
                     declarations: packages
                         .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),

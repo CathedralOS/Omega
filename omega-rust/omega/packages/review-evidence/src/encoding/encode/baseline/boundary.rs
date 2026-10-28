@@ -64,9 +64,7 @@ pub(in crate::encoding::encode) fn realization(
         &realization.operator_coordinate,
         encode_operator_coordinate,
     )?;
-    encoder.field("requirement_identity", |encoder| {
-        encoder.string(&realization.requirement_identity)
-    })?;
+    encoder.string_field("requirement_identity", &realization.requirement_identity)?;
     encoder.field_by(
         "application",
         &realization.application,

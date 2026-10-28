@@ -65,6 +65,13 @@ impl ExitScalars<'_, '_> {
         {
             return false;
         }
+        // This route replays a prefix assignment, not an outgoing capture.
+        // A returning operation is later than that prefix too: its writes
+        // cannot leave the old assignment as proof of current storage.
+        let returned = super::exit_return_expression(self.program, self.exit);
+        if returned.is_valid() && !self.return_expression_is_stable(returned) {
+            return false;
+        }
         let statements = self
             .program
             .statement_table

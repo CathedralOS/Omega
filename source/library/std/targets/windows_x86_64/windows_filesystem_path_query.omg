@@ -18,11 +18,11 @@ reaches FilesystemMetadataQuery {
     let mut wide: [u16; 4096];
     let count: i64 = windows_wide_path(path, &mut wide);
     wide[4095] = 0;
-    transition count > 0 { true -> open(wide, output) false -> (-87) }
+    transition count > 0 { true -> block open(wide, output) false -> (-87) }
     machine open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8]) -> i32 {
         let handle: i64 = block WindowsFilesystemMetadataIo::open_attributes(&path, 128, 7, 0, 3, 34603008, 0);
         transition handle != 0 && handle != -1 {
-            true -> query(handle, output)
+            true -> block query(handle, output)
             false -> (WindowsFilesystemNativeProvider::failure_i32())
         }
     }

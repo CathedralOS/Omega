@@ -7,13 +7,15 @@ derives and checks every authored generic operator candidate and finite boundary
 family without provider selection.
 
 [execution_settlement.rs](src/execution_settlement.rs) is the post-checking
-entrance. It settles dispatch, rejoins accepted host bindings, and constructs
-component-progress and task-activation plans. The compiler supplies inputs and
+entrance. It rejoins accepted host bindings. Task activation instead consumes
+portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
-Dispatch rows and selected float executions live in `SelectedExecution`, beside
-the shared checked program. They never trigger copy-on-write of checked arenas.
-Checked interpretation borrows these explicit bindings; Terminal lowering needs
-only the source requirements, not the chosen adapters.
+The optional checked-tree interpreter calls
+[checked_interpreter_dispatch.rs](src/checked_interpreter_dispatch.rs) immediately
+before reference execution. That owner prepares exact adapter and float-comparison
+bindings; ordinary compilation neither builds nor retains this oracle-only table.
+It never rewrites checked arenas. Terminal/native installation consumes the
+portable requirements and its own selected provider inputs.
 
 Neither entrance imports a Psi transform. The source coordinator constructs
 preparation/checking requests and supplies its operator selections. Boundary
@@ -28,10 +30,10 @@ The narrower operations are:
   for admitted Build evaluation. Product constants depending on runtime provider
   selection reject until portable recipes can cross the Psi boundary; they do
   not fold a target's choice back into shared checked source.
-- [Dispatch](src/selected_dispatch.rs): selected operator associations and
-  float comparison facts. It retains Psi's checked execution plans.
-- [Boundary dispatch](src/boundary_dispatch.rs): exact requirement-to-adapter
-  associations, without rewriting source meaning.
+- [Operator selection](src/selected_dispatch.rs): exact operator realizations
+  and Build comparison facts. It retains Psi's checked execution plans.
+- [Reference boundary dispatch](src/checked_interpreter_dispatch/boundary_dispatch.rs):
+  the checked interpreter's exact requirement-to-adapter associations.
 - [Intrinsic review](src/intrinsic_review.rs): accepted semantic bindings and
   selected-row provenance.
 - [Service custody](src/service_custody.rs): Fused service relationships and

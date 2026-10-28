@@ -1,6 +1,8 @@
 //! Structural associations for inert provider policy, never compiler replay.
 use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
+use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::validation::{ordered, ordered_by};
 use std::cmp::Ordering;
 
 impl PackagePolicyProviderPlan {
@@ -19,13 +21,7 @@ impl PackagePolicyProviderPlan {
 
 impl PackagePolicySelectedProviders {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
-        if self
-            .plans
-            .windows(2)
-            .any(|pair| pair[0].compare_canonical(&pair[1]) != Ordering::Less)
-        {
-            return Err("provider plans repeat or reorder their canonical coordinates");
-        }
+        ordered_by(&self.plans, PackagePolicyProviderPlan::compare_canonical)?;
         for plan in &self.plans {
             plan.schema_declaration.validate_resolved()?;
             // A toolchain-owned plan (realizing package `None`, no provider
@@ -35,7 +31,9 @@ impl PackagePolicySelectedProviders {
             if plan.plan_name.is_empty()
                 || (plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
                     && !(plan.provider_type_declaration.is_none()
-                        && plan.realizing_package.is_none()))
+                        && (plan.realizing_package.is_none()
+                            || !plan.rows.is_empty()
+                                && plan.rows.iter().all(|row| row.native_build.is_some()))))
                 || (!plan.target.is_empty() && plan.target != self.target.target_name())
                 || plan.methods.is_empty()
                 || plan.methods.len() != plan.rows.len()
@@ -45,9 +43,7 @@ impl PackagePolicySelectedProviders {
             if let Some(provider) = &plan.provider_type_declaration {
                 provider.validate_resolved()?;
             }
-            if plan.grants.windows(2).any(|pair| pair[0] >= pair[1]) {
-                return Err("provider grants repeat or reorder selector kinds");
-            }
+            ordered(&plan.grants)?;
             super::validate_service_methods(&plan.methods, &plan.schema_declaration, self.target)?;
             for method in &plan.methods {
                 let mut rows = plan
@@ -61,13 +57,7 @@ impl PackagePolicySelectedProviders {
                     return Err("provider row changes its method spelling");
                 }
             }
-            if plan
-                .rows
-                .windows(2)
-                .any(|pair| pair[0].requirement >= pair[1].requirement)
-            {
-                return Err("provider rows repeat or reorder exact requirement identities");
-            }
+            ordered_by(&plan.rows, |a, b| a.requirement.cmp(&b.requirement))?;
             for row in &plan.rows {
                 row.requirement.validate_resolved()?;
                 match &row.realization {
@@ -82,29 +72,58 @@ impl PackagePolicySelectedProviders {
                             );
                         }
                     }
+                    // Build-owned supply names its actual Build producer,
+                    // independently of a runtime realization declaration.
+                    None if row.native_build.as_ref().is_some_and(|producer| {
+                        producer.package == plan.realizing_package
+                            && producer.package.is_some()
+                            && super::binding_validation::matches_owner(
+                                producer.declaration.owner,
+                                producer.package,
+                            )
+                    }) => {}
                     // A toolchain-settled row names no authored machine.
-                    None if plan.realizing_package.is_none() => {}
+                    None if plan.realizing_package.is_none() && row.native_build.is_none() => {}
                     None => {
                         return Err("provider row omits its realization under a realizing package");
                     }
                 }
-                let mut next = 0;
-                for ordinal in &row.requirement_lifetime_partition {
-                    if *ordinal > next {
-                        return Err("provider lifetime partition is not canonical");
+                if let Some(producer) = &row.native_build {
+                    producer.declaration.validate_resolved()?;
+                    if row.realization.is_some()
+                        || row.compiler_intrinsic_execution.is_some()
+                        || !row.requirement_lifetime_partition.is_empty()
+                    {
+                        return Err(
+                            "native Build row mixes authored realization or binder origins",
+                        );
                     }
-                    if *ordinal == next {
-                        next += 1;
+                    match &row.binding {
+                        crate::record::PackagePolicyProviderBinding::Import {
+                            producer: bound,
+                            ..
+                        } if bound == producer => {}
+                        crate::record::PackagePolicyProviderBinding::Syscall {
+                            evaluated: Some(bound),
+                            ..
+                        } if &bound.producer == producer => {}
+                        _ => {
+                            return Err(
+                                "native Build row has a different binding producer or mechanism",
+                            );
+                        }
                     }
+                }
+                if row.requirement_lifetime_partition
+                    != language_semantics::type_identity::normalize_requirement_lifetime_partition(
+                        &row.requirement_lifetime_partition,
+                    )
+                {
+                    return Err("provider lifetime partition is not canonical");
                 }
                 if let Some(reach) = &row.installation_reach {
                     for declarations in [&reach.upper_bound, &reach.resolved] {
-                        if declarations.windows(2).any(|pair| pair[0] >= pair[1]) {
-                            return Err("provider installation reach is unordered or repeated");
-                        }
-                        for declaration in declarations {
-                            declaration.validate_resolved()?;
-                        }
+                        nominal_set(declarations)?;
                     }
                     if reach
                         .resolved
@@ -121,35 +140,32 @@ impl PackagePolicySelectedProviders {
     }
 
     fn validate_families(&self) -> Result<(), &'static str> {
-        if self.families.windows(2).any(|pair| {
+        ordered_by(&self.families, |a, b| {
             (
-                &pair[0].family_identity,
-                &pair[0].provider_type_declaration,
-                pair[0].target.target_name(),
-                pair[0].authority,
-                pair[0].coverage,
-            ) >= (
-                &pair[1].family_identity,
-                &pair[1].provider_type_declaration,
-                pair[1].target.target_name(),
-                pair[1].authority,
-                pair[1].coverage,
+                &a.family_identity,
+                &a.provider_type_declaration,
+                a.target.target_name(),
+                a.authority,
+                a.coverage,
             )
-        }) {
-            return Err("provider families repeat or reorder canonical coordinates");
-        }
+                .cmp(&(
+                    &b.family_identity,
+                    &b.provider_type_declaration,
+                    b.target.target_name(),
+                    b.authority,
+                    b.coverage,
+                ))
+        })?;
         for family in &self.families {
             family.family_identity.validate_resolved()?;
             family.provider_type_declaration.validate_resolved()?;
-            if family.target != self.target
-                || family.coordinates.is_empty()
-                || family.coordinates.windows(2).any(|pair| {
-                    (&pair[0].requirement_identity, &pair[0].operator_declaration)
-                        >= (&pair[1].requirement_identity, &pair[1].operator_declaration)
-                })
-            {
+            if family.target != self.target || family.coordinates.is_empty() {
                 return Err("provider family has an invalid target or coordinate order");
             }
+            ordered_by(&family.coordinates, |a, b| {
+                (&a.requirement_identity, &a.operator_declaration)
+                    .cmp(&(&b.requirement_identity, &b.operator_declaration))
+            })?;
             for coordinate in &family.coordinates {
                 coordinate.operator_declaration.validate_resolved()?;
                 let Some(plan) = self.plans.get(coordinate.plan_index as usize) else {

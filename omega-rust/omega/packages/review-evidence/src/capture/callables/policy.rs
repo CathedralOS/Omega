@@ -3,8 +3,9 @@
 use super::surface;
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::policy as behavior;
+use crate::capture::refusal;
 use crate::capture::semantics::conformances::policy_callable_identity;
-use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::declarations::{is_checked_source_instance, nominal_identity};
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCallables,
     PackageReviewCallableRole, PackageReviewNominalOwner,
@@ -47,6 +48,11 @@ pub(crate) fn project_checked_callable_policy<'a>(
         &compilation.facts,
     );
     for machine in compilation.machines() {
+        if Some(machine.symbol) != build
+            && !is_checked_source_instance(compilation, machine.symbol)?
+        {
+            continue;
+        }
         let role = if Some(machine.symbol) == build {
             PackagePolicyCallableRole::Build
         } else if !machine.is_public && machine.supply_mode == MachineSupplyMode::AdmissionClaim {
@@ -187,8 +193,4 @@ pub(crate) fn project_checked_callable_policy<'a>(
     Ok(policy)
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "callable policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "callable policy rejects {reason}");

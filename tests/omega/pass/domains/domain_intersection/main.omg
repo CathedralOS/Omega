@@ -7,12 +7,12 @@ data Password [copy] {
     score: i32;
     salt: i32 in Wrapping;
 }
-domain Password::Valid(password)
+domain Password::Valid
 requires
-    password.length > 0;
-domain Password::Secure(password)
+    self.length > 0;
+domain Password::Secure
 requires
-    password.score >= 8;
+    self.score >= 8;
 machine mark_valid(password: &mut Password)
 ensures
     password in Password::Valid

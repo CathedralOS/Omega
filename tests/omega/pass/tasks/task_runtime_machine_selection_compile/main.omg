@@ -1,3 +1,5 @@
+// Expected exit: 0. Native publication admits the retained task plans; this
+// witness does not execute the separately unfinished task executor runtime.
 use omega::language::core::task;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
@@ -36,7 +38,8 @@ windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetP
 }
 
 public boundary data Sleeper;
-boundary machine Sleeper::park(token: i32) suspends;
+boundary machine Sleeper::park(token: u64) suspends;
+boundary machine Sleeper::park_pair(first: u64, second: u64) suspends;
 
 public data Token {
     id: u64;
@@ -53,7 +56,12 @@ data Worker { }
 machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends; {
     let carried: Token = token;
     suspend Sleeper::park(7);
-    carried
+    suspend Sleeper::park_pair(9, 11);
+    transition carried.id == 7 {
+        true -> finish(carried)
+        false -> finish(carried)
+    }
+    machine finish(value: Token) -> Token { value }
 }
 
 // Runtime-instance dispatch is deliberately outside this selected-provider
@@ -78,7 +86,7 @@ machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
     // `try_start` may decline. Only the selected `Started` case carries a
     // task claim; a rejection returns the unconsumed arguments instead.
     transition outcome {
-        StartOutcome::Started { task } -> settle_retry(task)
+        StartOutcome::Started { task } -> suspend block settle_retry(task)
         StartOutcome::Rejected { arguments, reason } -> rejected(arguments, reason)
     }
 

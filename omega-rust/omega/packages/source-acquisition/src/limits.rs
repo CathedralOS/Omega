@@ -29,10 +29,13 @@ pub(crate) const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
 pub(crate) const SOURCE_ENTRY_ABSOLUTE_LIMIT: usize = 65_536;
 // Repository discovery retains metadata for unselected workspace members, not
 // their source payloads. Give that graph its own bounded capacity: a repository
-// may exceed one selected package's entry budget. The 16 MiB Git output and
+// may exceed one selected package's entry budget. The 64 MiB Git output and
 // depth ceilings still bound discovery; selected source and cache custody keep
 // their independent, smaller limits.
-pub(crate) const GIT_TREE_GRAPH_ENTRY_LIMIT: usize = 131_072;
+// Omega's own workspace already needs 163,219 graph entries / 23 MiB of listing
+// to select its 122-file standard library. These discovery bounds leave room
+// for that graph without broadening the selected package's payload budget.
+pub(crate) const GIT_TREE_GRAPH_ENTRY_LIMIT: usize = 262_144;
 pub(crate) const SOURCE_BYTE_ABSOLUTE_LIMIT: u64 = 512 * 1024 * 1024;
 pub(crate) const SOURCE_DEPTH_ABSOLUTE_LIMIT: usize = 256;
 pub(crate) const CACHE_CUSTODY_DEPTH_LIMIT: usize = SOURCE_DEPTH_ABSOLUTE_LIMIT + 4;
@@ -42,7 +45,7 @@ pub(crate) const CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE: u64 = 64 * 1024 * 1024;
 pub(crate) const GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 1024 * 1024 * 1024;
 pub(crate) const LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 pub(crate) const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
-pub(crate) const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
+pub(crate) const GIT_STDOUT_LIMIT: usize = 64 * 1024 * 1024;
 pub(crate) const GIT_STDERR_LIMIT: usize = 1024 * 1024;
 pub(crate) const GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
 pub(crate) const GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;

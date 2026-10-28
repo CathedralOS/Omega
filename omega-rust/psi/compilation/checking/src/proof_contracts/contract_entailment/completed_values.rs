@@ -370,7 +370,7 @@ fn parameter_projection_paths(
     paths
 }
 
-pub(super) fn expression_statement_index(
+pub(crate) fn expression_statement_index(
     program: &dyn crate::CheckingInput,
     state: &State,
     expression: ExpressionHandle,

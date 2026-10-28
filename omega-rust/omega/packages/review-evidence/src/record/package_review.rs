@@ -27,6 +27,5 @@ pub struct PackageReviewEvidence {
 /// exist only for a package subject; absence cannot authorize cache publication.
 #[derive(Debug)]
 pub struct PackageReviewSourceFacts {
-    pub tolerated_unsettled_service_fields: bool,
     pub consumed_units: Option<Vec<ConsumedSourceUnit>>,
 }

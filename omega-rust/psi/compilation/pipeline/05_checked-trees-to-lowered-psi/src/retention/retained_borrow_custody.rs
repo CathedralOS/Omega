@@ -45,7 +45,7 @@ fn lower_custody(
         .traits()
         .iter()
         .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| checked.trait_machine_instances(definition))
+        .flat_map(|definition| checked.executable_trait_machine_instances(definition))
         .filter(|signature| signature.symbol == fact.callable)
         .collect::<Vec<_>>();
     let [signature] = requirements.as_slice() else {
@@ -209,7 +209,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 .iter()
                 .find(|definition| {
                     checked
-                        .trait_machine_instances(definition)
+                        .executable_trait_machine_instances(definition)
                         .any(|signature| signature.symbol == fact.callable)
                 })
                 .ok_or(LoweringError::Unsupported(
@@ -266,6 +266,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            numeric_intrinsic: None,
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             declaration: None,

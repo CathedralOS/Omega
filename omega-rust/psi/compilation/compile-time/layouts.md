@@ -3,6 +3,29 @@
 The [layout specification](../../../../wiki/spec/layouts/plans.md) owns language
 meaning. These are implementation boundaries, not limits on the language.
 
+## Ratified representation migration
+
+The 2026-10-27 [representation-family contract](../../../../wiki/spec/layouts/plans.md#representation-applications)
+replaces empty policy data, attached `Policy::plan` discovery and synthetic
+generic-looking record shells with named `FixedLayout<T>` implementations and
+the general `LayoutStorage<T, Policy>` application. Library families such as
+CLayout use ordinary transparent generic aliases; aliases and named evidence
+must be resolved by their actual declaration identities, not source spelling.
+The compiler supplies authorized schema/target facts, checks compile-time
+admission, evaluates and validates a plan, and retains the representation for
+all storage and ABI consumers. Build grants no per-layout blessing.
+
+The current `plan_laid/desugaring.rs` still recognizes a non-generic data name
+with an attached plan machine and clones plain record fields under a synthetic
+name. That is legacy implementation, not genuine generic alias support or the
+accepted policy authoring surface. Existing supported paths below remain
+behavioral evidence for their exact inputs, not evidence that the new aliases,
+family contract, standard conversions or programmable case layout are complete.
+`LIBRARY-REPRESENTATION-FAMILIES` and `PREFIX-CASE-IDENTITIES` in
+[TASKS.md](../../../../TASKS.md) retain implementation and source migration;
+`WIRE-CODEC-LIBRARY` retains authored reflection/codec execution. Retire the
+superseded recognizer rather than preserving it as another source dialect.
+
 ## Ownership
 
 `layout_plans/` reflects checked schemas, evaluates authored plans, and

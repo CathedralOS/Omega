@@ -1,6 +1,6 @@
 // Expected exit: 0. Whole-value erasure retains its input's storage and custody.
 data Payload { count: u64; }
-domain Payload::Ready(value) requires value.count == 7;
+domain Payload::Ready requires self.count == 7;
 data Holder { payload: Payload in Ready; }
 machine produce() -> Payload in Ready { Payload { count: 7 } }
 

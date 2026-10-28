@@ -6,8 +6,8 @@ machine ready(value: u64) -> bool
 ensures result == (value >= 73u64)
 { value >= 73u64 }
 
-domain Cell::Ready(cell)
-requires ready(cell.value);
+domain Cell::Ready
+requires ready(self.value);
 
 machine consume(cell: &Cell) -> u64 {
     let selected: u64 = match cell {

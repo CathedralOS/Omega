@@ -1,23 +1,23 @@
-// Each domain subject shadows the module constant of the same name.
+// Logical self denotes the exact qualified constant, independently of outer names.
 use omega_language_std::console;
 
 const value: u64 = 99;
 const bytes: u64 = 99;
 const packet: u64 = 99;
 
-domain u64::Small(value) requires value < 5;
+domain u64::Small requires self < 5;
 domain u64::Small::Inherited;
-domain u64::Small::Explicit(value) requires value < 4;
-domain u64::Nested(value) requires value in Small;
-domain<const Bound: u64> u64::Below<Bound>(value) requires value < Bound;
-domain<const Index: u64> [u64; 2]::SmallAt<Index>(bytes)
-requires bytes[Index] in Small;
+domain u64::Small::Explicit requires self < 4;
+domain u64::Nested requires self in Small;
+domain<const Bound: u64> u64::Below<Bound> requires self < Bound;
+domain<const Index: u64> [u64; 2]::SmallAt<Index>
+requires self[Index] in Small;
 
 data Packet [copy] {
     count: u64;
 }
 
-domain Packet::SmallCount(packet) requires packet.count in Nested;
+domain Packet::SmallCount requires self.count in Nested;
 
 const SCALAR: u64 in Nested = 3;
 const INHERITED: u64 in Small::Inherited = 3;

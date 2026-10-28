@@ -1,6 +1,6 @@
 // Expected exit: 0. Reading a field in a later conjunct preserves the earlier
 // conjunct's predicate-only domain fact through capture and the state jump.
-domain u64::Small(v) requires v <= 3;
+domain u64::Small requires self <= 3;
 data Value { number: u64; }
 machine observe(value: &Value) -> u64 { value.number }
 machine producer(source: u64) -> u64 in Small crashes Trap {

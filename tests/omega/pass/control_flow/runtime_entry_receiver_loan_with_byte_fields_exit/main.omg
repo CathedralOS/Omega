@@ -10,9 +10,9 @@
 
 use omega_language_std::console;
 
-domain [u8; 4]::Utf8(bytes)
+domain [u8; 4]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 data Main {
     count: u64 in Wrapping;

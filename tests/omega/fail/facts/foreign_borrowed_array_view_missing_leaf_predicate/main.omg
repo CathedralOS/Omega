@@ -1,0 +1,12 @@
+// Expected rejection: a plain Cell field cannot supply ResidentValue to observed_gap.
+public domain u64::ResidentValue
+requires self >= 0 && self <= 2147483647 && self != 42;
+public data Cell { value: u64; }
+
+machine observed_gap(value: u64 in ResidentValue) -> u64 {
+    2147483647 - value
+}
+public machine use_unqualified(cells: &[Cell; 3]) -> u64 {
+    observed_gap(cells[1].value)
+}
+machine entry_start() {}

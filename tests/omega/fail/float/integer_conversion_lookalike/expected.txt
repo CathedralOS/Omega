@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from lookalike at statement 1: result >= 3 && result <= 3
+cannot prove ensures contract for exit from lookalike at statement 0: result >= 3 && result <= 3

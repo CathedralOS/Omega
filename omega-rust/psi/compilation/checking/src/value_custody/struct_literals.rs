@@ -43,15 +43,14 @@ pub use window_elements::{ArrayWindowShape, array_window_shape};
 pub use construction_bounds::case_predicates_admit_zero;
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
-pub use field_obligations::selected_construction_field_type;
 pub(crate) use field_obligations::{
-    construction_application, selected_construction_case, selected_construction_definition,
-    selected_construction_field,
+    construction_application, selected_construction_case, selected_construction_field,
 };
 pub(crate) use field_obligations::{
     construction_field_type, each_selected_literal_field, validate_array_literal_elements,
     validate_array_literal_elements_for_shape,
 };
+pub use field_obligations::{selected_construction_definition, selected_construction_field_type};
 
 /// Establish a compiler-supplied literal with the ordinary construction rules.
 /// The caller supplies an exact-carrier expression in its own statement
@@ -85,140 +84,166 @@ pub(crate) fn validate_struct_literal_fields(
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Vec<checked_trees::CheckedStoredIntegerWrite> {
+    use rayon::prelude::*;
+    let per_machine: Vec<(
+        Vec<Diagnostic>,
+        Vec<checked_trees::IntegerRangeObligation>,
+        Vec<checked_trees::CheckedStoredIntegerWrite>,
+    )> = crate::program_validation::checking_thread_pool().install(|| {
+        program
+            .machines()
+            .par_iter()
+            .map(|machine| {
+                let mut machine_diagnostics = Vec::new();
+                let mut machine_obligations = Vec::new();
+                let mut machine_writes = Vec::new();
+                for state in program.machine_states(machine) {
+                    let observations = &ConstructionObservations::new(
+                        program,
+                        machine,
+                        state,
+                        ExpressionHandle::invalid(),
+                    )
+                    .retaining_range_obligations();
+                    for (statement_index, statement) in program
+                        .statement_table
+                        .indexed_statements(state.statement_nodes)
+                    {
+                        // Arm markers duplicate the dispatch subject for independent
+                        // destructure/exhaustiveness validation. They do not evaluate
+                        // a value; construction is checked at its real guard or root.
+                        if crate::proof_contracts::contract_entailment::is_arm_pattern_marker(
+                            statement,
+                        ) {
+                            continue;
+                        }
+                        match statement {
+                            StatementNode::Assembly(_) => {}
+                            StatementNode::AssemblyFact(fact) => {
+                                for expression in
+                                    program.tables.proof_fact_expression_roots(fact.fact)
+                                {
+                                    scan_expression(
+                                        program,
+                                        machine,
+                                        state,
+                                        observations,
+                                        expression,
+                                        &mut machine_diagnostics,
+                                        &mut machine_writes,
+                                        statement_index,
+                                        &mut machine_obligations,
+                                    );
+                                }
+                            }
+                            StatementNode::Assignment(assignment) => {
+                                scan_expression(
+                                    program,
+                                    machine,
+                                    state,
+                                    observations,
+                                    assignment.target,
+                                    &mut machine_diagnostics,
+                                    &mut machine_writes,
+                                    statement_index,
+                                    &mut machine_obligations,
+                                );
+                                scan_expression(
+                                    program,
+                                    machine,
+                                    state,
+                                    observations,
+                                    assignment.value,
+                                    &mut machine_diagnostics,
+                                    &mut machine_writes,
+                                    statement_index,
+                                    &mut machine_obligations,
+                                );
+                            }
+                            StatementNode::Call(call) => {
+                                for argument in
+                                    program.statement_table.expression_handles(call.arguments)
+                                {
+                                    scan_expression(
+                                        program,
+                                        machine,
+                                        state,
+                                        observations,
+                                        *argument,
+                                        &mut machine_diagnostics,
+                                        &mut machine_writes,
+                                        statement_index,
+                                        &mut machine_obligations,
+                                    );
+                                }
+                            }
+                            StatementNode::Expression(expression) => {
+                                scan_expression(
+                                    program,
+                                    machine,
+                                    state,
+                                    observations,
+                                    *expression,
+                                    &mut machine_diagnostics,
+                                    &mut machine_writes,
+                                    statement_index,
+                                    &mut machine_obligations,
+                                );
+                            }
+                            StatementNode::LocalData(local_data) => {
+                                scan_expression(
+                                    program,
+                                    machine,
+                                    state,
+                                    observations,
+                                    local_data.initial_value,
+                                    &mut machine_diagnostics,
+                                    &mut machine_writes,
+                                    statement_index,
+                                    &mut machine_obligations,
+                                );
+                            }
+                            StatementNode::Transition(transition) => {
+                                if let TransitionGuardNode::When(guard) = &transition.guard {
+                                    scan_expression(
+                                        program,
+                                        machine,
+                                        state,
+                                        observations,
+                                        *guard,
+                                        &mut machine_diagnostics,
+                                        &mut machine_writes,
+                                        statement_index,
+                                        &mut machine_obligations,
+                                    );
+                                }
+                                for target in transition.targets() {
+                                    scan_transition_target(
+                                        program,
+                                        machine,
+                                        state,
+                                        observations,
+                                        program.statement_table.transition_target(target),
+                                        &mut machine_diagnostics,
+                                        &mut machine_writes,
+                                        statement_index,
+                                        &mut machine_obligations,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    machine_obligations.extend(observations.take_range_obligations());
+                }
+                (machine_diagnostics, machine_obligations, machine_writes)
+            })
+            .collect()
+    });
     let mut stored_integer_writes = Vec::new();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            let observations = &ConstructionObservations::new(
-                program,
-                machine,
-                state,
-                ExpressionHandle::invalid(),
-            )
-            .retaining_range_obligations();
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                // Arm markers duplicate the dispatch subject for independent
-                // destructure/exhaustiveness validation. They do not evaluate
-                // a value; construction is checked at its real guard or root.
-                if crate::proof_contracts::contract_entailment::is_arm_pattern_marker(statement) {
-                    continue;
-                }
-                match statement {
-                    StatementNode::Assembly(_) => {}
-                    StatementNode::AssemblyFact(fact) => {
-                        for expression in program.tables.proof_fact_expression_roots(fact.fact) {
-                            scan_expression(
-                                program,
-                                machine,
-                                state,
-                                observations,
-                                expression,
-                                diagnostics,
-                                &mut stored_integer_writes,
-                                statement_index,
-                                formation_obligations,
-                            );
-                        }
-                    }
-                    StatementNode::Assignment(assignment) => {
-                        scan_expression(
-                            program,
-                            machine,
-                            state,
-                            observations,
-                            assignment.target,
-                            diagnostics,
-                            &mut stored_integer_writes,
-                            statement_index,
-                            formation_obligations,
-                        );
-                        scan_expression(
-                            program,
-                            machine,
-                            state,
-                            observations,
-                            assignment.value,
-                            diagnostics,
-                            &mut stored_integer_writes,
-                            statement_index,
-                            formation_obligations,
-                        );
-                    }
-                    StatementNode::Call(call) => {
-                        for argument in program.statement_table.expression_handles(call.arguments) {
-                            scan_expression(
-                                program,
-                                machine,
-                                state,
-                                observations,
-                                *argument,
-                                diagnostics,
-                                &mut stored_integer_writes,
-                                statement_index,
-                                formation_obligations,
-                            );
-                        }
-                    }
-                    StatementNode::Expression(expression) => {
-                        scan_expression(
-                            program,
-                            machine,
-                            state,
-                            observations,
-                            *expression,
-                            diagnostics,
-                            &mut stored_integer_writes,
-                            statement_index,
-                            formation_obligations,
-                        );
-                    }
-                    StatementNode::LocalData(local_data) => {
-                        scan_expression(
-                            program,
-                            machine,
-                            state,
-                            observations,
-                            local_data.initial_value,
-                            diagnostics,
-                            &mut stored_integer_writes,
-                            statement_index,
-                            formation_obligations,
-                        );
-                    }
-                    StatementNode::Transition(transition) => {
-                        if let TransitionGuardNode::When(guard) = &transition.guard {
-                            scan_expression(
-                                program,
-                                machine,
-                                state,
-                                observations,
-                                *guard,
-                                diagnostics,
-                                &mut stored_integer_writes,
-                                statement_index,
-                                formation_obligations,
-                            );
-                        }
-                        for target in transition.targets() {
-                            scan_transition_target(
-                                program,
-                                machine,
-                                state,
-                                observations,
-                                program.statement_table.transition_target(target),
-                                diagnostics,
-                                &mut stored_integer_writes,
-                                statement_index,
-                                formation_obligations,
-                            );
-                        }
-                    }
-                }
-            }
-            formation_obligations.extend(observations.take_range_obligations());
-        }
+    for (machine_diagnostics, machine_obligations, machine_writes) in per_machine {
+        diagnostics.extend(machine_diagnostics);
+        formation_obligations.extend(machine_obligations);
+        stored_integer_writes.extend(machine_writes);
     }
     stored_integer_writes
 }

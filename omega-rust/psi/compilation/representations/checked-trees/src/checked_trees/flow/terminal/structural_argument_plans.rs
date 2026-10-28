@@ -438,60 +438,33 @@ impl CheckedUnitStructuralArgumentPlan {
         }
     }
 
+    /// The authored structural parameter a plan names, if it reads one.
     pub fn source_parameter_index(&self) -> Option<u32> {
         match self.source {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 Some(parameter_index)
             }
-            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
+            _ => None,
         }
     }
 
+    /// The local declaration ordinal a plan names, if it is a trivial local.
     pub fn source_local_declaration_ordinal(&self) -> Option<u32> {
         match self.source {
             CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
-            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
+            _ => None,
         }
     }
 
+    /// The result binding ordinal a plan names, if it is a structural result.
     pub fn source_structural_result_binding_ordinal(&self) -> Option<u32> {
         match self.source {
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 Some(binding_ordinal)
             }
-            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
+            _ => None,
         }
     }
 
@@ -554,20 +527,11 @@ impl CheckedUnitStructuralArgumentPlan {
         }
     }
 
+    /// The authored literal octets a plan carries, if it is a literal source.
     pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
-            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => None,
+            _ => None,
         }
     }
 }
