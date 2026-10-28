@@ -141,7 +141,7 @@ impl Polynomial {
 
     /// `(difference-of-two-unit-atoms, constant)`: `a - b + c` as
     /// `Some((a, b, c))`. The shape the difference-bound matrix consumes.
-    fn as_atom_difference(&self) -> Option<(String, String, BigInt)> {
+    pub(super) fn as_atom_difference(&self) -> Option<(String, String, BigInt)> {
         let mut positive = None;
         let mut negative = None;
         let mut constant = BigInt::zero();
@@ -167,7 +167,7 @@ impl Polynomial {
 
     /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
     /// `a + c >= 0` / `-a + c >= 0`.
-    fn as_single_atom(&self) -> Option<(String, i64, BigInt)> {
+    pub(super) fn as_single_atom(&self) -> Option<(String, i64, BigInt)> {
         let mut atom = None;
         let mut coefficient_value = BigInt::zero();
         let mut constant = BigInt::zero();
@@ -994,6 +994,16 @@ impl<'program> Engine<'program> {
             if let Some(value) = polynomial.constant_value() {
                 if value < bound {
                     self.requires_unsatisfiable = true;
+                }
+                continue;
+            }
+            if let Some((_, existing_bound)) = self
+                .bounds
+                .iter_mut()
+                .find(|(existing_poly, _)| *existing_poly == polynomial)
+            {
+                if bound > *existing_bound {
+                    *existing_bound = bound;
                 }
                 continue;
             }

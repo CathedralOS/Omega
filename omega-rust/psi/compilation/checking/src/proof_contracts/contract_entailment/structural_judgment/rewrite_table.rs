@@ -45,23 +45,85 @@ impl RewriteTable {
                     }
                     _ => None,
                 },
+                (
+                    StructuralTerm::ScalarBinary {
+                        operator:
+                            typed_trees::expression::BinaryOperator::GreaterOrEqual
+                            | typed_trees::expression::BinaryOperator::LessOrEqual,
+                        meaning,
+                        left,
+                        right,
+                        ..
+                    },
+                    StructuralTerm::Constructor {
+                        data, case, fields, ..
+                    },
+                ) if data == "bool"
+                    && case == "true"
+                    && fields.is_empty()
+                    && meaning[0] == meaning[1]
+                    && meaning[0].0.is_fixed_integer() =>
+                {
+                    match (left.semantic_value(), right.semantic_value()) {
+                        (
+                            StructuralTerm::CapturedValue { occurrence, .. },
+                            StructuralTerm::Integer(bound),
+                        ) if self.find(left.semantic_value()).is_none()
+                            && !self.potential_integer_premise_indices.iter().any(|&idx| {
+                                let (p, t) = &self.entries[idx as usize];
+                                term_mentions_occurrence(p, *occurrence)
+                                    || term_mentions_occurrence(t, *occurrence)
+                            }) =>
+                        {
+                            meaning[0].0.integer_bounds().and_then(|(min, max)| {
+                                (*bound == numerics::bignum::BigInt::from_i128(min)
+                                    || *bound == numerics::bignum::BigInt::from_i128(max))
+                                .then_some(*occurrence as u32)
+                            })
+                        }
+                        _ => None,
+                    }
+                }
                 _ => None,
             };
         if let Some(occurrence) = deferred_measure_occurrence {
             self.deferred_collection_measures.push((occurrence, index));
         } else {
-            if let StructuralTerm::CapturedValue { occurrence, .. } = entry.0.semantic_value() {
-                let target_occ = *occurrence as u32;
+            let is_potential = is_potential_integer_premise(&entry.0, &entry.1);
+            let max_occ = max_captured_occurrence(&entry.0).max(max_captured_occurrence(&entry.1));
+            let can_promote = if is_potential {
+                max_occ > 0
+            } else {
+                matches!(entry.0.semantic_value(), StructuralTerm::CapturedValue { .. })
+            };
+            if can_promote && !self.deferred_collection_measures.is_empty() {
                 let mut promoted = false;
+                let mut promoted_max_occ = 0usize;
+                let entries = &self.entries;
                 self.deferred_collection_measures
                     .retain(|&(occ, deferred_idx)| {
-                        if occ == target_occ {
+                        let target_occ = occ as usize;
+                        let matched = if is_potential {
+                            term_mentions_occurrence(&entry.0, target_occ)
+                                || term_mentions_occurrence(&entry.1, target_occ)
+                        } else {
+                            matches!(
+                                entry.0.semantic_value(),
+                                StructuralTerm::CapturedValue { occurrence, .. }
+                                    if *occurrence == target_occ
+                            )
+                        };
+                        if matched {
                             let insert_pos = self
                                 .potential_integer_premise_indices
                                 .binary_search(&deferred_idx)
                                 .unwrap_or_else(|pos| pos);
                             self.potential_integer_premise_indices
                                 .insert(insert_pos, deferred_idx);
+                            let (dp, dt) = &entries[deferred_idx as usize];
+                            promoted_max_occ = promoted_max_occ
+                                .max(max_captured_occurrence(dp))
+                                .max(max_captured_occurrence(dt));
                             promoted = true;
                             false
                         } else {
@@ -69,11 +131,12 @@ impl RewriteTable {
                         }
                     });
                 if promoted {
-                    self.max_premise_occurrence = self.max_premise_occurrence.max(*occurrence);
+                    self.max_premise_occurrence =
+                        self.max_premise_occurrence.max(promoted_max_occ);
                     self.integer_premise_revision += 1;
                 }
             }
-            if is_potential_integer_premise(&entry.0, &entry.1) {
+            if is_potential {
                 self.potential_integer_premise_indices.push(index);
                 self.max_premise_occurrence = self
                     .max_premise_occurrence
@@ -86,8 +149,14 @@ impl RewriteTable {
                     StructuralTerm::CapturedValue { occurrence, .. } => {
                         *occurrence > self.max_premise_occurrence
                     }
-                    StructuralTerm::Projection { .. }
-                    | StructuralTerm::IndexedValue { .. }
+                    StructuralTerm::Projection { path, .. } if left_occ > 0 => {
+                        left_occ > self.max_premise_occurrence
+                            || !self.entries.iter().any(|(p, t)| {
+                                term_mentions_occurrence_projection(p, left_occ, path)
+                                    || term_mentions_occurrence_projection(t, left_occ, path)
+                            })
+                    }
+                    StructuralTerm::IndexedValue { .. }
                     | StructuralTerm::CollectionMeasure { .. }
                     | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::Application { .. }
@@ -284,6 +353,107 @@ fn term_has_mathematical_or_integer_embedding(term: &StructuralTerm) -> bool {
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_has_mathematical_or_integer_embedding(left)
                 || term_has_mathematical_or_integer_embedding(right)
+        }
+        StructuralTerm::Variable(_)
+        | StructuralTerm::BoundValue(_)
+        | StructuralTerm::CapturedValue { .. }
+        | StructuralTerm::BoundProjection { .. }
+        | StructuralTerm::Integer(_)
+        | StructuralTerm::Float(_)
+        | StructuralTerm::Opaque(_) => false,
+    }
+}
+
+fn term_mentions_occurrence(term: &StructuralTerm, target_occurrence: usize) -> bool {
+    match term {
+        StructuralTerm::CapturedValue { occurrence, .. } => *occurrence == target_occurrence,
+        StructuralTerm::ObservedValue {
+            value, descriptor, ..
+        } => {
+            term_mentions_occurrence(value, target_occurrence)
+                || descriptor
+                    .as_deref()
+                    .is_some_and(|desc| term_mentions_occurrence(desc, target_occurrence))
+        }
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| term_mentions_occurrence(value, target_occurrence)),
+        StructuralTerm::Application { arguments, .. }
+        | StructuralTerm::CallProjection { arguments, .. } => arguments
+            .iter()
+            .any(|arg| term_mentions_occurrence(arg, target_occurrence)),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => {
+            term_mentions_occurrence(collection, target_occurrence)
+                || term_mentions_occurrence(index, target_occurrence)
+        }
+        StructuralTerm::CollectionMeasure { collection, .. } => {
+            term_mentions_occurrence(collection, target_occurrence)
+        }
+        StructuralTerm::Projection { subject, .. } => {
+            term_mentions_occurrence(subject, target_occurrence)
+        }
+        StructuralTerm::ScalarBinary { left, right, .. }
+        | StructuralTerm::MathematicalBinary { left, right, .. } => {
+            term_mentions_occurrence(left, target_occurrence)
+                || term_mentions_occurrence(right, target_occurrence)
+        }
+        StructuralTerm::IntegerEmbedding { value, .. } => {
+            term_mentions_occurrence(value, target_occurrence)
+        }
+        StructuralTerm::Variable(_)
+        | StructuralTerm::BoundValue(_)
+        | StructuralTerm::BoundProjection { .. }
+        | StructuralTerm::Integer(_)
+        | StructuralTerm::Float(_)
+        | StructuralTerm::Opaque(_) => false,
+    }
+}
+
+fn term_mentions_occurrence_projection(
+    term: &StructuralTerm,
+    target_occurrence: usize,
+    target_path: &str,
+) -> bool {
+    match term {
+        StructuralTerm::Projection { subject, path } => {
+            if path == target_path && max_captured_occurrence(subject) == target_occurrence {
+                return true;
+            }
+            term_mentions_occurrence_projection(subject, target_occurrence, target_path)
+        }
+        StructuralTerm::ObservedValue {
+            value, descriptor, ..
+        } => {
+            term_mentions_occurrence_projection(value, target_occurrence, target_path)
+                || descriptor.as_deref().is_some_and(|desc| {
+                    term_mentions_occurrence_projection(desc, target_occurrence, target_path)
+                })
+        }
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| term_mentions_occurrence_projection(value, target_occurrence, target_path)),
+        StructuralTerm::Application { arguments, .. }
+        | StructuralTerm::CallProjection { arguments, .. } => arguments
+            .iter()
+            .any(|arg| term_mentions_occurrence_projection(arg, target_occurrence, target_path)),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => {
+            term_mentions_occurrence_projection(collection, target_occurrence, target_path)
+                || term_mentions_occurrence_projection(index, target_occurrence, target_path)
+        }
+        StructuralTerm::CollectionMeasure { collection, .. } => {
+            term_mentions_occurrence_projection(collection, target_occurrence, target_path)
+        }
+        StructuralTerm::ScalarBinary { left, right, .. }
+        | StructuralTerm::MathematicalBinary { left, right, .. } => {
+            term_mentions_occurrence_projection(left, target_occurrence, target_path)
+                || term_mentions_occurrence_projection(right, target_occurrence, target_path)
+        }
+        StructuralTerm::IntegerEmbedding { value, .. } => {
+            term_mentions_occurrence_projection(value, target_occurrence, target_path)
         }
         StructuralTerm::Variable(_)
         | StructuralTerm::BoundValue(_)

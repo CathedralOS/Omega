@@ -97,7 +97,9 @@ pub(in crate::proof_contracts::contract_entailment) struct LowerBoundQueries<'en
 }
 
 impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
-    pub(super) fn direct(engine: &'engine Engine<'program>) -> Self {
+    pub(in crate::proof_contracts::contract_entailment) fn direct(
+        engine: &'engine Engine<'program>,
+    ) -> Self {
         Self {
             engine,
             prepared: None,
