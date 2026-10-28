@@ -100,6 +100,9 @@ impl<'a> PreparedExpressionContext<'a> {
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         match expression {
+            CheckedScalarExpression::ConstantApplication { .. } => Err(LoweringError::Unsupported(
+                "pending contract constant cannot be emitted as an executable value",
+            )),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => self
                 .sequence_observation(
                     identities,

@@ -250,6 +250,17 @@ fn condition_belongs_to_state(
     expression: ExpressionHandle,
     frames: Option<&CallFrameResolver>,
 ) -> bool {
+    // A retained closed application has no state-local inputs. Its selected
+    // value is still unknown, but rejecting its lexical scope would discard
+    // the parameter relation that the entry contract establishes. Recipe
+    // discovery owns closure; comparison selection and formation stay with
+    // narrowing and target discharge, not this scope test.
+    if program
+        .constant_recipe_for_contract_expression(expression)
+        .is_valid()
+    {
+        return true;
+    }
     if literal_i64(program, expression).is_some() {
         return true;
     }

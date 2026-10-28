@@ -156,7 +156,8 @@ fn integer(
             position,
             primitive_type,
         } => (*primitive_type, source.binding(*position, *primitive_type)?),
-        Expression::ErasedParameter { .. } => return None,
+        // A pending constant has no interval until its exact application closes.
+        Expression::ConstantApplication { .. } | Expression::ErasedParameter { .. } => return None,
         Expression::StorageRead {
             symbol,
             primitive_type,

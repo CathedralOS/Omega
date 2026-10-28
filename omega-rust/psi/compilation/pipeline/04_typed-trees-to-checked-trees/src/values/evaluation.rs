@@ -193,7 +193,8 @@ fn integer(
             }
             Some((target, source.exact_cast_value_to(target, value)?))
         }
-        CheckedScalarExpression::IeeeFloatLiteral { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::ImplementationSelection { .. }
         | CheckedScalarExpression::Boolean(_) => None,
     }

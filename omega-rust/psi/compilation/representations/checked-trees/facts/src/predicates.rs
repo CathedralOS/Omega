@@ -91,6 +91,14 @@ impl CheckedScalarReadProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedScalarExpression {
+    /// An admitted constant application whose value belongs to target closure.
+    /// This is not an unknown runtime value or permission to evaluate source.
+    /// Contract composition preserves the exact recipe and carrier until the
+    /// value owner supplies a closed atom; publication cannot erase this leaf.
+    ConstantApplication {
+        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
     /// Exact u64 live count at one storage projection, never its capacity.
     /// The root counts authored structural positions; selectors keep their
     /// consuming scalar namespace and indexing proof occurrence. Element views
@@ -347,7 +355,8 @@ impl CheckedScalarExpression {
                     .expression
                     .contains_trapping_operation_with_certificates(use_certificates),
             }),
-            Self::StorageRead { .. }
+            Self::ConstantApplication { .. }
+            | Self::StorageRead { .. }
             | Self::Parameter { .. }
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
@@ -364,7 +373,8 @@ impl CheckedScalarExpression {
         use typed_trees::types::PrimitiveType;
         match self {
             Self::StructuralSequenceLength { .. } => Some(PrimitiveType::U64),
-            Self::Parameter { primitive_type, .. }
+            Self::ConstantApplication { primitive_type, .. }
+            | Self::Parameter { primitive_type, .. }
             | Self::ErasedParameter { primitive_type, .. }
             | Self::StorageRead { primitive_type, .. }
             | Self::Local { primitive_type, .. }

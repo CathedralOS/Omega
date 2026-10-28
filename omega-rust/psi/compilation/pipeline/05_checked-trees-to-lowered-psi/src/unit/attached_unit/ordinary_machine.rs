@@ -1141,6 +1141,7 @@ pub(super) fn emit(
         &declared_result,
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &evaluation.structural_parameters,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,

@@ -218,17 +218,17 @@ pub(crate) struct PendingEndpoint {
     pub(crate) contract_expression: bool,
 }
 
-struct IntegerRoot {
-    constrained_type: Option<TypeReferenceHandle>,
-    expression: ExpressionHandle,
+pub(crate) struct IntegerRoot {
+    pub(crate) constrained_type: Option<TypeReferenceHandle>,
+    pub(crate) expression: ExpressionHandle,
 }
 
 /// Every nonliteral bound is a candidate for the shared evaluator. Calls
 /// separately name required constant invocations and provider dependencies;
 /// an unclosed call-free bound remains owned by ordinary range validation.
-struct IntegerRootPlan {
-    roots: Vec<IntegerRoot>,
-    calls: Vec<PendingEndpoint>,
+pub(crate) struct IntegerRootPlan {
+    pub(crate) roots: Vec<IntegerRoot>,
+    pub(crate) calls: Vec<PendingEndpoint>,
 }
 
 pub fn evaluate_const_range_endpoints(
@@ -592,7 +592,7 @@ pub(crate) fn pending_endpoints(
     Ok(integer_root_plan(typed, domain)?.calls)
 }
 
-fn integer_root_plan(
+pub(crate) fn integer_root_plan(
     typed: &TypedTrees,
     domain: &EvaluationDomain,
 ) -> Result<IntegerRootPlan, Vec<Diagnostic>> {

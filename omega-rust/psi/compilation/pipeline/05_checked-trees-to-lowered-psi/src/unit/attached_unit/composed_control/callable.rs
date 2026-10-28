@@ -40,8 +40,7 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// result republishes the callee's qualified result through it.
     pub prepared_scalar_qualifications:
         &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
-    pub dynamic_dispatch:
-        &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
+    pub dynamic_dispatch: &'a std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
 }
 
 pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
@@ -163,6 +162,7 @@ pub(in crate::unit::attached_unit) fn emit(
         &machine.result,
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types: &catalogs.structural_types,
