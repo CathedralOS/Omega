@@ -529,6 +529,7 @@ impl ExpressionTable {
                 lexical_owner: SymbolHandle::invalid(),
                 target,
                 arguments,
+                input_selections: HandleSpan::empty(),
                 selected_machine_arguments: HandleSpan::empty(),
                 bindings: HandleSpan::empty(),
                 lifetime_bindings: HandleSpan::empty(),

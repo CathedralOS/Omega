@@ -194,6 +194,7 @@ impl Capture<'_> {
             .then(|| program.symbols.symbol_provenance_source_span(symbol))
             .flatten();
         self.environment.graph.names.insert(ProductOperandName {
+            authored_selection: Handle::invalid(),
             text: text.to_owned(),
             source_span: declaration.unwrap_or(self.owner),
             declaration,
@@ -309,6 +310,7 @@ impl Capture<'_> {
             .graph
             .operands
             .insert(ProductStaticOperand {
+                authored_selection: Handle::invalid(),
                 path,
                 structural_type,
                 application,

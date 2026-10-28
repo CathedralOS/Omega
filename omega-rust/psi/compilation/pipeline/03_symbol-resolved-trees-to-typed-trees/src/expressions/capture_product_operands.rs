@@ -9,20 +9,30 @@ use symbols::SymbolHandle;
 
 pub(super) fn capture(
     source: &SymbolResolvedTrees,
+    typed: &mut typed_trees::TypedTrees,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+    occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
     argument: &source_expression::StaticMachineArgument,
 ) -> Result<ProductStaticOperandGraph, Diagnostic> {
     let mut capture = Capture {
         source,
+        typed,
+        exposure,
         graph: ProductStaticOperandGraph::default(),
         expressions: Vec::new(),
         captures: Vec::new(),
         active: Vec::new(),
     };
-    capture.graph.root = capture.operand(argument)?;
+    capture.graph.root = capture.operand(argument, occurrences, true)?;
     Ok(capture.graph)
 }
 struct Capture<'a> {
     source: &'a SymbolResolvedTrees,
+    typed: &'a mut typed_trees::TypedTrees,
+    exposure:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
     graph: ProductStaticOperandGraph,
     expressions: Vec<(
         source_expression::ExpressionHandle,
@@ -35,6 +45,124 @@ struct Capture<'a> {
     active: Vec<source_expression::ExpressionHandle>,
 }
 impl Capture<'_> {
+    fn retain_coordinate(
+        &mut self,
+        occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        from_type_producer: bool,
+    ) -> Result<Handle<ProductOperandSelection>, Diagnostic> {
+        let ledger = if from_type_producer {
+            self.typed.authored_declaration_selections()
+        } else {
+            self.source.authored_declaration_selections()
+        };
+        let selection = ledger.get(occurrence).ok_or_else(|| {
+            Diagnostic::error("original static input retains an unknown selection")
+        })?;
+        let rejoined = ledger
+            .source_coordinate_occurrence(
+                selection.source_span(),
+                selection.exposure(),
+                selection.kind(),
+            )
+            .map_err(|reason| {
+                Diagnostic::error(reason.to_string()).with_source_span(selection.source_span())
+            })?;
+        if rejoined != occurrence {
+            return Err(Diagnostic::error(
+                "original static input changed its exact selection attachment",
+            ));
+        }
+        Ok(self.graph.selections.insert(ProductOperandSelection {
+            source_span: selection.source_span(),
+            exposure: selection.exposure(),
+            kind: Some(selection.kind()),
+        }))
+    }
+    fn type_name(
+        &mut self,
+        name: &symbol_resolved_trees::name::DiagnosticName,
+        symbol: SymbolHandle,
+        kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    ) -> Result<Handle<ProductOperandName>, Diagnostic> {
+        let occurrence = crate::type_reference::retain_type_reference_recipe_selection(
+            self.source,
+            self.typed,
+            name,
+            symbol,
+            self.exposure,
+            kind,
+        )?;
+        let mut retained = self.named(name, symbol);
+        if let Some(occurrence) = occurrence {
+            retained.authored_selection = self.retain_coordinate(occurrence, true)?;
+        }
+        Ok(self.graph.names.insert(retained))
+    }
+    fn operand_selection(
+        &mut self,
+        argument: &source_expression::StaticMachineArgument,
+        occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
+    ) -> Result<Handle<ProductOperandSelection>, Diagnostic> {
+        use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+        if argument.path.is_empty() || !argument.path.iter().any(|name| name.is_source_backed()) {
+            return Ok(Handle::invalid());
+        }
+        if argument.symbol.is_valid()
+            && matches!(
+                self.source.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::Local
+                    | symbols::SymbolKind::Parameter
+                    | symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::ConformanceParameter
+                    | symbols::SymbolKind::MachineParameter
+                    | symbols::SymbolKind::PropositionParameter
+                    | symbols::SymbolKind::PropositionMachineParameter
+            )
+        {
+            return Ok(Handle::invalid());
+        }
+        if !argument.symbol.is_valid()
+            && argument.application.is_none()
+            && argument.evidence_projection.is_none()
+            && let [name] = argument.path.as_ref()
+            && language_semantics::const_value::boolean_literal_spelling(name.as_str()).is_some()
+        {
+            return Ok(Handle::invalid());
+        }
+        let first = argument.path.first().expect("nonempty path").source_span();
+        let last = argument.path.last().expect("nonempty path").source_span();
+        if first.source_id != last.source_id {
+            return Err(Diagnostic::error(
+                "original static input path crosses source owners",
+            ));
+        }
+        let span = source::SourceSpan::new(
+            first.source_id,
+            source::Span::new(first.span.start, last.span.end),
+        );
+        let mut matching = occurrences.iter().copied().filter(|occurrence| {
+            self.source
+                .authored_declaration_selections()
+                .get(*occurrence)
+                .is_some_and(|selection| {
+                    selection.source_span() == span
+                        && matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
+                })
+        });
+        let occurrence = matching.next().ok_or_else(|| {
+            Diagnostic::error(
+                "original static input has no exact original-call selection attachment",
+            )
+            .with_source_span(span)
+        })?;
+        if matching.next().is_some() {
+            return Err(Diagnostic::error(
+                "original static input has ambiguous original-call selection attachments",
+            )
+            .with_source_span(span));
+        }
+        self.retain_coordinate(occurrence, false)
+    }
     fn declaration(&self, symbol: SymbolHandle) -> Option<source::SourceSpan> {
         symbol
             .is_valid()
@@ -47,6 +175,7 @@ impl Capture<'_> {
         symbol: SymbolHandle,
     ) -> ProductOperandName {
         ProductOperandName {
+            authored_selection: Handle::invalid(),
             text: name.as_str().to_owned(),
             source_span: name.source_span(),
             declaration: self.declaration(symbol),
@@ -92,6 +221,8 @@ impl Capture<'_> {
     fn operand(
         &mut self,
         argument: &source_expression::StaticMachineArgument,
+        occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
+        descriptor: bool,
     ) -> Result<Handle<ProductStaticOperand>, Diagnostic> {
         let path = self.names(&argument.path, argument.symbol);
         let structural_type = if argument.type_reference.is_valid() {
@@ -105,7 +236,7 @@ impl Capture<'_> {
             let arguments = application
                 .arguments
                 .iter()
-                .map(|argument| self.operand(argument))
+                .map(|argument| self.operand(argument, occurrences, false))
                 .collect::<Result<Vec<_>, _>>()?;
             let arguments = self.graph.static_arguments.insert_many(arguments);
             let member = if application.member.is_valid() {
@@ -117,7 +248,7 @@ impl Capture<'_> {
                     .ok_or_else(|| {
                         Diagnostic::error("designated operand has a foreign member handle")
                     })?;
-                self.operand(member)?
+                self.operand(member, occurrences, false)?
             } else {
                 Handle::invalid()
             };
@@ -135,7 +266,13 @@ impl Capture<'_> {
                 self.name(&projection.member, SymbolHandle::invalid()),
             )
         });
+        let authored_selection = if descriptor {
+            Handle::invalid()
+        } else {
+            self.operand_selection(argument, occurrences)?
+        };
         Ok(self.graph.operands.insert(ProductStaticOperand {
+            authored_selection,
             path,
             application,
             structural_type,
@@ -172,10 +309,10 @@ impl Capture<'_> {
         let value = match reference {
             Source::Unit => ProductOperandType::Unit,
             Source::Named { name, symbol, .. } => {
-                ProductOperandType::Named(self.name(name, *symbol))
+                ProductOperandType::Named(self.type_name(name, *symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference)?)
             }
             Source::Generic(value) => ProductOperandType::Generic {
-                name: self.name(&value.base_name, value.base_symbol),
+                name: self.type_name(&value.base_name, value.base_symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference)?,
                 lifetimes: self.names(&value.lifetime_arguments, SymbolHandle::invalid()),
                 arguments: self.types(value.arguments)?,
             },
@@ -198,10 +335,10 @@ impl Capture<'_> {
                         ProductArrayLength::Expression(self.ty_handle(*value)?)
                     }
                     source_types::FixedArrayLength::ConstParameter { symbol, name } => {
-                        ProductArrayLength::Parameter(self.name(name, *symbol))
+                        ProductArrayLength::Parameter(self.type_name(name, *symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment)?)
                     }
                     source_types::FixedArrayLength::ConstCall { machine, name } => {
-                        ProductArrayLength::Call(self.name(name, *machine))
+                        ProductArrayLength::Call(self.type_name(name, *machine, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment)?)
                     }
                 },
             },
@@ -226,7 +363,7 @@ impl Capture<'_> {
                 arguments,
                 ..
             } => ProductOperandType::Dynamic {
-                name: self.name(name, *symbol),
+                name: self.type_name(name, *symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference)?,
                 arguments: self.types(*arguments)?,
             },
             Source::ConstExpression(value) => {
@@ -453,7 +590,18 @@ impl Capture<'_> {
                 let static_arguments = value
                     .machine_arguments
                     .iter()
-                    .map(|value| self.operand(value))
+                    .map(|value| {
+                        self.operand(
+                            value,
+                            &source
+                                .tables
+                                .bodies
+                                .expressions
+                                .authored_selection_occurrences(expression)
+                                .collect::<Vec<_>>(),
+                            false,
+                        )
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 let static_arguments = self.graph.static_arguments.insert_many(static_arguments);
                 let arguments = self.expression_span(value.arguments)?;

@@ -15,6 +15,7 @@ pub(crate) fn request(
     exposure: Option<
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     >,
+    occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
     namespace: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
     name: &str,
@@ -138,7 +139,7 @@ pub(crate) fn request(
             return Err(Diagnostic::error("Product operand has no single authored source coordinate")
                 .with_source_span(span));
         }
-        let application = nominal_application.then(|| super::capture_product_operands::capture(source, operand).map(std::sync::Arc::new)).transpose()?;
+        let application = nominal_application.then(|| super::capture_product_operands::capture(source, typed, exposure, occurrences, operand).map(std::sync::Arc::new)).transpose()?;
         let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
         let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
         Ok(ProductDeclarationOperand {

@@ -20,6 +20,7 @@ pub use nominal::prepare_product_operand_application;
 
 mod environment;
 mod expressions;
+mod input_selections;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PreparedProductRequirement {
@@ -281,6 +282,8 @@ struct Lower<'a> {
     author: SymbolHandle,
     static_environment: Option<&'a ProductStaticEnvironment>,
     active_bindings: Vec<source::SourceSpan>,
+    input_path: Vec<typed_trees::product_operand::ProductArgumentStep>,
+    input_selections: Vec<typed_trees::product_operand::ProductInputSelection>,
     types: Vec<(Handle<ProductOperandType>, TypeReferenceHandle)>,
     expressions: Vec<(Handle<ProductOperandExpression>, expr::ExpressionHandle)>,
     subjects: Vec<(
@@ -304,6 +307,8 @@ impl<'a> Lower<'a> {
             author,
             static_environment,
             active_bindings: Vec::new(),
+            input_path: Vec::new(),
+            input_selections: Vec::new(),
             types: Vec::new(),
             expressions: Vec::new(),
             subjects: Vec::new(),
@@ -486,7 +491,8 @@ impl Lower<'_> {
             .span_or_empty(value.arguments)
             .iter()
             .copied()
-            .map(|value| self.operand(value))
+            .enumerate()
+            .map(|(ordinal, value)| self.argument(ordinal, value))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(expr::StaticSymbolApplication {
             arguments: arguments.into_boxed_slice(),
@@ -507,10 +513,15 @@ impl Lower<'_> {
             .span_or_empty(value.arguments)
             .iter()
             .copied()
-            .map(|value| self.operand(value))
+            .enumerate()
+            .map(|(ordinal, value)| self.argument(ordinal, value))
             .collect::<Result<Vec<_>, _>>()?;
         let member = if value.member.is_valid() {
-            let argument = self.operand(value.member)?;
+            self.input_path
+                .push(typed_trees::product_operand::ProductArgumentStep::Member);
+            let argument = self.operand(value.member);
+            self.input_path.pop();
+            let argument = argument?;
             self.program.expression_table.insert_static_member(argument)
         } else {
             Handle::invalid()
@@ -562,6 +573,7 @@ impl Lower<'_> {
                 member: self.identifier(member),
             });
         self.active_operands.pop();
+        self.retain_operand_input(value.authored_selection)?;
         Ok(expr::StaticMachineArgument {
             type_reference,
             application,
@@ -603,7 +615,9 @@ impl Lower<'_> {
         handle: Handle<ProductOperandType>,
     ) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
         if let Some((_, target)) = self.types.iter().find(|(source, _)| *source == handle) {
-            return Ok(*target);
+            let target = *target;
+            self.retain_type_input(handle, target)?;
+            return Ok(target);
         }
         if self.active_types.contains(&handle) {
             return Err(self.error("designated type graph contains a cycle"));
@@ -712,6 +726,7 @@ impl Lower<'_> {
             .map_err(|reason| self.error(reason))?;
         self.active_types.pop();
         self.types.push((handle, target));
+        self.retain_type_input(handle, target)?;
         Ok(target)
     }
     fn constraint(

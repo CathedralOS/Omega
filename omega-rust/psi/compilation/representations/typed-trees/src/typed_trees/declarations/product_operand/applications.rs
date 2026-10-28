@@ -29,6 +29,8 @@ pub struct ProductOperandApplication {
     pub demand: ProductApplicationDemand,
     /// Original carrier and application recipe, before executable substitution.
     pub argument: StaticMachineArgument,
+    /// Every receiving-world occurrence is tied to one real unfurled input.
+    pub input_selections: arena::HandleSpan<super::ProductInputSelection>,
     pub scope: crate::trait_definition::RetainedTraitScope,
     pub supplying_application: crate::static_applications::StaticMachineApplicationHandle,
     pub implementation: Option<crate::typed_trees::ClosedConformanceApplication>,

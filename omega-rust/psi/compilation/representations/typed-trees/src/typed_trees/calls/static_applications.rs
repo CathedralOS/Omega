@@ -34,6 +34,8 @@ pub struct StaticMachineApplication {
     /// Diagnostic text only; the symbol above owns declaration identity.
     pub target: Identifier,
     pub arguments: HandleSpan<StaticMachineArgument>,
+    /// Original named input coordinates produced while materializing source recipes.
+    pub input_selections: HandleSpan<crate::product_operand::ProductInputSelection>,
     /// Occurrence-local machine operands after contextual specialization, in
     /// machine-binder order. Authored operands remain above; closed entries
     /// retain complete tuples through the ordinary specialization roster.
