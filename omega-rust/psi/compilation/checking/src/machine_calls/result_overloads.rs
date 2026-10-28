@@ -97,7 +97,13 @@ struct CallOperands<'call> {
 fn expression_owners(program: &dyn crate::CheckingInput) -> HashMap<u32, CallOwner> {
     let mut owners = HashMap::default();
     for machine in program.machines() {
-        let Some(source_span) = program.symbols.symbol_source_span(machine.symbol) else {
+        // Generated checking/replay owners retain their authored origin through
+        // symbol provenance. Their synthetic names have no source span, but
+        // their state still owns the typed operands needed for overload choice.
+        let Some(source_span) = program
+            .symbols
+            .symbol_provenance_source_span(machine.symbol)
+        else {
             continue;
         };
         for (ordinal, state) in program.machine_states(machine).iter().enumerate() {

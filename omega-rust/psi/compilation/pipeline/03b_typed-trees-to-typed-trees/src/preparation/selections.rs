@@ -197,7 +197,7 @@ pub fn bind_pre_specialization_authored_selections(
     // One exact-owner index answers every late-bound member and call's
     // query in a single pass instead of a whole-program rescan each.
     let owner_index =
-        validation::expression_owners::OwnerEnvironmentIndex::new(program, &contract_facts);
+        validation::expression_owners::OwnerEnvironmentIndex::for_preparation(program);
     validation::validate_executable_domain_test_carriers(program, &contract_facts, &owner_index)?;
     for (expression, node) in program.expression_table.iter_expressions() {
         for occurrence in program

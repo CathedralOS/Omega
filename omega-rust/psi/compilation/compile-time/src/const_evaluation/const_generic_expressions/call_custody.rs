@@ -717,7 +717,19 @@ impl<'program> Collector<'program> {
             || selection.source_span() != reference
             || !self.call_selection_matches(&site, context, authored)?
         {
-            return Err("constant call differs from its exact authored selection".into());
+            let target = call_selections::retained_target(self.program, &site)?;
+            return Err(format!(
+                "constant call differs from its exact authored selection: owner {}, state {:?}, occurrence {:?}, kind {:?}, retained source {:?}, call source {:?}, authored {:?}, target {:?}, source target {:?}",
+                context.machine.name.as_str(),
+                context.state.symbol,
+                occurrence,
+                selection.kind(),
+                selection.source_span(),
+                reference,
+                authored,
+                target,
+                self.authored_target(target, context.initializer)?,
+            ));
         }
         self.selected_call(&site, context, authored, reference)
     }
