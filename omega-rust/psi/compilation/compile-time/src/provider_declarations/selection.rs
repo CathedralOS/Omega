@@ -274,10 +274,19 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
+    pub fn selects_schema(
+        &self,
+        schema_symbol: SymbolHandle,
+        requirement_identity: &str,
+        application: Option<&str>,
+    ) -> bool {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
                 identity.symbol == schema_symbol
+                    && identity
+                        .application_identity
+                        .as_deref()
+                        .map_or(true, |selected| Some(selected) == application)
             }
             Self::BoundaryOperatorFamily(family) => family.coordinates.iter().any(|coordinate| {
                 coordinate.symbol == schema_symbol

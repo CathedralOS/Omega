@@ -115,12 +115,51 @@ fn identities(
     ))
 }
 
-pub fn form_product_provider_request(
+/// Build checks inert declaration roles against its complete Product
+/// descriptions. Actual recipes remain obligations of the joined Product;
+/// a successful discovery/description grants no closed application or provider.
+pub fn validate_product_provider_description(
     context: ProviderPlanningContext<'_>,
     request: &ProductDeclarationRequest,
 ) -> Result<(), Diagnostic> {
-    let (subject, provider) = identities(context, request, None)?;
-    admission::form(context, subject, provider).map(|_| ())
+    let context = ProviderPlanningContext::new(context.typed.product_declarations(), context.scope);
+    if context.scope != source::DependencyScope::Product
+        || request.operation != BuildOperation::ProviderSelection
+    {
+        return Err(Diagnostic::error(
+            "provider descriptions require the exact Product declaration frontier",
+        ));
+    }
+    let [subject, provider] = request.operands.as_ref() else {
+        return Err(Diagnostic::error(
+            "provider description lost its exact two operands",
+        ));
+    };
+    let describe =
+        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand, role| {
+            let symbol =
+                resolve_product_path(context.typed, &operand.path, operand.source_span, role)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "provider description does not name one exact visible declaration",
+                        )
+                        .with_source_span(operand.source_span)
+                    })?;
+            Ok(ProviderSelectionIdentity {
+                symbol,
+                application: Default::default(),
+                application_identity: None,
+                package: context.typed.symbols.symbol_package_identity(symbol),
+                canonical_path: context.typed.symbols.display_path(symbol, "::"),
+                authored_path: operand.path.clone(),
+            })
+        };
+    admission::form(
+        context,
+        describe(subject, ProductOperandKind::BoundarySubject)?,
+        describe(provider, ProductOperandKind::Provider)?,
+    )
+    .map(|_| ())
 }
 
 pub fn collect_product_provider_selections(
@@ -133,7 +172,9 @@ pub fn collect_product_provider_selections(
         .iter()
         .filter(|request| request.operation == BuildOperation::ProviderSelection)
     {
-        form_product_provider_request(context, request)
+        let (subject, provider) = identities(context, request, None)
+            .map_err(|error| vec![error.with_source_span(request.source_span)])?;
+        admission::form(context, subject, provider)
             .map_err(|error| vec![error.with_source_span(request.source_span)])?;
     }
     let has_requests = declared

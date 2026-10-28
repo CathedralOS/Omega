@@ -7,25 +7,58 @@ use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 use symbols::SymbolHandle;
 
-type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, String);
+type ProviderSelectionKey = (
+    Option<semantic_vocabulary::PackageKeyIdentity>,
+    String,
+    Option<String>,
+);
 
-fn provider_slot_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+fn provider_slot_key(plan: &ProviderPlan) -> ProviderSelectionKey {
     (
         plan.schema.trait_package_identity,
         plan.schema.identity_text(plan.schema.trait_name).to_owned(),
+        plan.schema.root_application_identity().map(str::to_owned),
     )
 }
 
-fn selected_subject_keys(selection: &crate::ProviderSelection) -> Vec<ProviderSelectionKey> {
+fn selected_subject_keys(
+    selection: &crate::ProviderSelection,
+    slots: &[ProviderSelectionKey],
+) -> Vec<ProviderSelectionKey> {
     match &selection.subject {
         crate::ProviderSelectionSubject::BoundaryTrait(identity)
         | crate::ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![(identity.package, identity.canonical_path.clone())]
+            if let Some(application) = &identity.application_identity {
+                return vec![(
+                    identity.package,
+                    identity.canonical_path.clone(),
+                    Some(application.clone()),
+                )];
+            }
+            // A bare declaration has no Type/Const telescope. Its public
+            // regions remain universal; the checked provider's complete schema
+            // owns each receiving view. Closed applications never use this lane.
+            let matched = slots
+                .iter()
+                .filter(|slot| slot.0 == identity.package && slot.1 == identity.canonical_path)
+                .cloned()
+                .collect::<Vec<_>>();
+            if matched.is_empty() {
+                vec![(identity.package, identity.canonical_path.clone(), None)]
+            } else {
+                matched
+            }
         }
         crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
             .coordinates()
             .iter()
-            .map(|coordinate| (family.package, coordinate.requirement_identity.clone()))
+            .map(|coordinate| {
+                (
+                    family.package,
+                    coordinate.requirement_identity.clone(),
+                    None,
+                )
+            })
             .collect(),
     }
 }
@@ -34,13 +67,15 @@ fn selected_provider_key(selection: &crate::ProviderSelection) -> ProviderSelect
     (
         selection.provider_type.package,
         selection.provider_type.canonical_path.clone(),
+        selection.provider_type.application_identity.clone(),
     )
 }
 
-fn provider_plan_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+fn provider_plan_key(plan: &ProviderPlan) -> ProviderSelectionKey {
     (
         plan.provider_type_package_identity,
         plan.provider_type.clone(),
+        plan.application_identity().map(str::to_owned),
     )
 }
 
@@ -251,6 +286,7 @@ impl PreparedSelectionDeclarations {
                 if !declaration.subject.selects_schema(
                     schema_symbol,
                     plan.schema.identity_text(plan.schema.trait_name),
+                    plan.schema.root_application_identity(),
                 ) || Some(declaration.provider_type.symbol) != provenance.provider_type
                 {
                     diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -313,6 +349,7 @@ fn same_family_declaration(
 ) -> bool {
     left.subject.same_declaration_as(&right.subject)
         && left.provider_type.symbol == right.provider_type.symbol
+        && left.provider_type.application_identity == right.provider_type.application_identity
 }
 
 /// Atomic family replay. Selection resolved each coordinate as its own slot
@@ -407,7 +444,7 @@ fn resolve_provider_selection_slots<'selection>(
     let mut resolved = Vec::new();
     let mut diagnostics = Vec::new();
     for declaration in declarations {
-        for slot_key in selected_subject_keys(declaration) {
+        for slot_key in selected_subject_keys(declaration, slot_keys) {
             if slot_keys.contains(&slot_key) {
                 resolved.push((slot_key, declaration.clone()));
             } else {
@@ -576,7 +613,7 @@ pub(crate) fn select_provider_plan_indices(
                     "slot `{slot_name}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
                     distinct_provider_types
                         .iter()
-                        .map(|(_, provider)| format!("`{provider}`"))
+                        .map(|(_, provider, application)| format!("`{provider}`{}", application.as_deref().map(|application| format!("<{application}>")).unwrap_or_default()))
                         .collect::<Vec<_>>()
                         .join(", "),
                 )));

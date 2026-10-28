@@ -206,14 +206,42 @@ impl TypedTrees {
         let Some(application) = self.closed_requirement_application(requirement) else {
             return false;
         };
+        let Some(path) = self.machine_instantiation_path(provider, realization) else {
+            return false;
+        };
+        for receipt in &path {
+            if let super::MachineInstantiation::Capture(capture) = receipt {
+                let Some(scope) = capture.conformance_application.trait_scope.scope(self) else {
+                    return false;
+                };
+                if !self.requirement_application_matches_scope(requirement, &scope) {
+                    return false;
+                }
+            }
+        }
         if application.local_arguments.is_empty() {
-            return realization == provider
+            return !path
+                .iter()
+                .any(|receipt| matches!(receipt, super::MachineInstantiation::Specialization(_)))
                 && self
                     .machine(provider)
                     .is_some_and(|machine| self.machine_type_parameters(machine).is_empty());
         }
-        self.requirement_realization_specialization(requirement, realization, provider)
-            .is_some()
+        let mut substitutions = path.iter().filter_map(|receipt| match receipt {
+            super::MachineInstantiation::Specialization(receipt) => Some(*receipt),
+            _ => None,
+        });
+        let Some(substitution) = substitutions.next() else {
+            return false;
+        };
+        substitutions.next().is_none()
+            && self
+                .requirement_realization_specialization(
+                    requirement,
+                    substitution.template,
+                    substitution.instance,
+                )
+                .is_some()
     }
 
     /// Close an exact declaring trait application and complete local telescope.

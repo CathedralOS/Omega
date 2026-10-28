@@ -110,6 +110,63 @@ pub(super) fn admit(
     origin: language_semantics::declaration_selection::BuildSelectionOrigin,
     previous: &[ProviderSelection],
 ) -> Result<ProviderSelection, Diagnostic> {
+    for (identity, role) in [
+        (
+            &boundary_identity,
+            language_semantics::declaration_selection::ProductOperandRole::BoundarySubject,
+        ),
+        (
+            &provider_type,
+            language_semantics::declaration_selection::ProductOperandRole::Provider,
+        ),
+    ] {
+        let has_static_telescope = context
+            .typed
+            .trait_definition_by_symbol(identity.symbol)
+            .is_some_and(|definition| !context.typed.trait_type_parameters(definition).is_empty())
+            || context
+                .typed
+                .conformance_by_symbol(identity.symbol)
+                .is_some_and(|definition| {
+                    !context
+                        .typed
+                        .conformance_type_parameters(definition)
+                        .is_empty()
+                });
+        if has_static_telescope && identity.application_identity.is_none() {
+            return Err(Diagnostic::error(
+                "executed provider choice lost its complete static application",
+            ));
+        }
+        if identity.application_identity.is_some() || identity.application.is_valid() {
+            if !context
+                .typed
+                .product_operand_applications
+                .is_valid(identity.application)
+            {
+                return Err(Diagnostic::error(
+                    "executed provider application has no current prepared source input",
+                ));
+            }
+            let application = context
+                .typed
+                .product_operand_applications
+                .get(identity.application);
+            let actual = context
+                .typed
+                .product_operand_application_identity(identity.application)
+                .map_err(Diagnostic::error)?
+                .and_then(|identity| context.typed.type_identity_text(identity));
+            if application.declaration != identity.symbol
+                || application.role != Some(role)
+                || actual != identity.application_identity
+            {
+                return Err(Diagnostic::error(
+                    "executed provider choice differs from its exact prepared application",
+                ));
+            }
+        }
+    }
     let ProviderDeclarations {
         subject,
         provider_type,

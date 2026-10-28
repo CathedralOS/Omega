@@ -19,9 +19,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Entry records no longer contain synthetic application-record service fields.
+// Provider plans retain complete implementation and receiver applications.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI03";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI04";
 
 #[cfg(test)]
 mod tests {
