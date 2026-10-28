@@ -197,17 +197,10 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
             )));
         }
         for declaration in declarations {
-            let selecting_source = typed
-                .symbols
-                .symbol_provenance_source_span(declaration.selecting_machine);
             if !declaration.subject.selects_schema(
                 schema_symbol,
                 plan.schema.identity_text(plan.schema.trait_name),
             ) || Some(declaration.provider_type.symbol) != provenance.provider_type
-                || selecting_source.is_none_or(|source| {
-                    source.source_id != declaration.source_span.source_id
-                        || declaration.source_span.span.start >= declaration.source_span.span.end
-                })
             {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance",

@@ -321,7 +321,7 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
         "PreparedPackageBuild",
         ".prepare_build(",
         ".check_build(",
-        "with_complete_dependency_generated_sources(",
+        "with_complete_dependency_build_handoffs(",
         "join_dependency_builds(",
         "with_independent_component_descriptions(",
         "publish_checked_component(",

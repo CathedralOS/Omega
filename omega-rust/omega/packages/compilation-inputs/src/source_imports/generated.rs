@@ -183,7 +183,7 @@ impl<'source> DependencyGeneratedSource<'source> {
 
 /// Admit the dependency bundle's ordered, scope-qualified paths before loading
 /// any generated unit. Physical collisions and same-scope duplicates reject.
-pub(crate) fn admit_dependency_generated_sources(
+pub(crate) fn admit_dependency_build_handoffs(
     package_inputs: &crate::PackageCompilationInputs,
     source_scope: source::DependencyScope,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
@@ -192,7 +192,7 @@ pub(crate) fn admit_dependency_generated_sources(
     // Route from the source graph to its exact activation bundle, not from a
     // package-wide 'build-only' classification. The acquisition remains shared.
     let mut entries = Vec::new();
-    for (purpose, bundle) in package_inputs.dependency_generated_source_instances() {
+    for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
         let scope = match purpose {
             build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
             build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,

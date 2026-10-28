@@ -44,6 +44,10 @@ pub(super) fn admit(
     computed.config.grants = grants;
     computed.config.opaque_representation_selections = representations;
     computed.config.provider_selections = providers;
+    computed.config.package_provider_selections = package_inputs
+        .map(|inputs| inputs.rejoin_package_provider_selections(typed))
+        .transpose()?
+        .unwrap_or_default();
     computed.config.native_bindings = native
         .into_iter()
         .map(|selection| {
@@ -64,15 +68,15 @@ pub(super) fn admit(
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     for bundle in package_inputs
         .into_iter()
-        .flat_map(|inputs| inputs.product_dependency_native_bindings())
+        .flat_map(|inputs| inputs.product_dependency_native_handoffs())
     {
         let selections = build_time_evaluation::native_bindings::collect_captured(
             typed,
-            bundle.declarations(),
-            bundle.intents(),
+            bundle.native_declarations(),
+            bundle.native_intents(),
         )?;
         for selection in selections {
-            let evaluation = bundle.evaluation().cloned().ok_or_else(|| {
+            let evaluation = bundle.native_evaluation().cloned().ok_or_else(|| {
                 vec![Diagnostic::error(
                     "native dependency effect lost its completed evaluation",
                 )]

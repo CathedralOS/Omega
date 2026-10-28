@@ -28,14 +28,16 @@ impl<Requirement> Default for BuildSelectionRequest<Requirement> {
 
 impl<Requirement> BuildSelectionRequest<Requirement> {
     /// Exclusions and authority-bearing declarations retain their selecting
-    /// machine for final admission. Provider and representation operands carry
-    /// their own lexical scopes and require no additional machine subject.
+    /// machine for final admission. Declaration operands carry their lexical
+    /// scopes; evaluated provider choices also retain their actual author so
+    /// dependency handoffs do not substitute the receiving Build activation.
     pub fn requires_lexical_subject(&self) -> bool {
         match self {
             Self::Exclusion(_) => true,
             Self::Declaration(request) => matches!(
                 request.operation,
-                super::BuildOperation::NativeBinding
+                super::BuildOperation::ProviderSelection
+                    | super::BuildOperation::NativeBinding
                     | super::BuildOperation::ServiceExclusion
                     | super::BuildOperation::BoundaryAcceptance
                     | super::BuildOperation::ServiceAudit

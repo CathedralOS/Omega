@@ -37,6 +37,9 @@ pub struct BuildConfig {
     /// authoritative build machine. Provider settlement validates them against
     /// derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
+    /// Dependency-owned executed choices retain default precedence. They do
+    /// not acquire the consuming application's override authority.
+    pub package_provider_selections: Vec<ProviderSelection>,
     pub native_bindings: Vec<provider_planning::native_bindings::NativeBuildSupply>,
     pub native_binding_evaluation:
         Option<std::sync::Arc<provider_planning::native_bindings::NativeBuildEvaluation>>,
@@ -80,6 +83,7 @@ impl BuildConfig {
             settings,
             grants,
             provider_selections,
+            package_provider_selections,
             native_bindings,
             native_binding_evaluation,
             assumed_bindings,
@@ -93,6 +97,7 @@ impl BuildConfig {
         settings == &other.settings
             && grants == &other.grants
             && provider_selections == &other.provider_selections
+            && package_provider_selections == &other.package_provider_selections
             && native_binding_evaluation
                 .as_ref()
                 .map(|evaluation| evaluation.terminal_code)
