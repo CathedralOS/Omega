@@ -9,7 +9,6 @@ name = "language_semantics"
 path = "src/lib.rs"
 
 [dependencies]
-build-time-values = { path = "../build-time-values" }
 arena = { path = "../arena" }
 optimization = { path = "../optimization-selections" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }
