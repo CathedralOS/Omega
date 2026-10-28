@@ -6,10 +6,10 @@ use super::{
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, NodeLocation, O,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ScalarType, UnsignedCountdownInvariantConstantPlacements,
-    UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, ValueDefinitionSite,
-    validate_analysis_root, validate_moved_constant_locations,
+    ScalarType, UnsignedCountdownInvariantConstantPlacements, UnsignedCountdownLoopSummary,
+    ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
+    ValidatedOptimizerCycleComponents, expected_constant, invariant_constant_row,
+    sole_provenance_node, validate_analysis_root, validate_moved_constant_locations,
 };
 use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 use std::collections::BTreeMap;
@@ -218,65 +218,12 @@ fn reconstruct_constant(
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     role: CountdownInvariantConstantRole,
 ) -> Result<CountdownInvariantIntegerConstant, CountdownInvariantConstantPlacementAnalysisError> {
-    let (operation, result, value) = match role {
-        CountdownInvariantConstantRole::PositiveGuardZero => (
-            certificate.guard.zero_operation,
-            certificate.guard.zero,
-            semantic_vocabulary::IntegerValue::Unsigned(0),
-        ),
-        CountdownInvariantConstantRole::BackedgeDecrementOne => (
-            certificate.descent.one_operation,
-            certificate.descent.one,
-            semantic_vocabulary::IntegerValue::Unsigned(1),
-        ),
-    };
+    let expected = expected_constant(certificate, role);
     let (block, node_index, node) =
-        sole_provenance_node(function.blocks.iter(), function.machine, operation)?;
-    let O::IntegerConstant {
-        psi_operation,
-        result: actual_result,
-        scalar_type,
-        value: actual_value,
-    } = node.operation
-    else {
-        return Err(unsupported(function.machine, operation));
-    };
-    let [definition] = node.definitions.as_slice() else {
-        return Err(unsupported(function.machine, operation));
-    };
-    if psi_operation != operation
-        || actual_result != result
-        || scalar_type != ScalarType::Integer(certificate.rank_type)
-        || actual_value != value
-        || definition.value != result
-        || definition.scalar_type != ScalarType::Integer(certificate.rank_type)
-        || definition.site
-            != (ValueDefinitionSite::Node {
-                block,
-                node: node_index,
-            })
-        || !node.uses.is_empty()
-        || !node.successors.is_empty()
-        || !node.ownership.is_empty()
-    {
-        return Err(unsupported(function.machine, operation));
-    }
-    Ok(CountdownInvariantIntegerConstant {
-        role,
-        location: NodeLocation {
-            machine: function.machine,
-            block,
-            node: node_index,
-        },
-        psi_operation,
-        result,
-        scalar_type: certificate.rank_type,
-        value,
-        definition: *definition,
-        provenance: node.provenance.clone(),
-        fuel: node.fuel.clone(),
-        effect: node.effect,
-    })
+        sole_provenance_node(function.blocks.iter(), expected.operation)
+            .ok_or_else(|| unsupported(function.machine, expected.operation))?;
+    invariant_constant_row(function, block, node_index, node, role, expected)
+        .ok_or_else(|| unsupported(function.machine, expected.operation))
 }
 
 fn validate_constant_locations(
@@ -305,9 +252,9 @@ fn reconstruct_consumer(
             .blocks
             .iter()
             .filter(|block| component.members.contains(&block.id)),
-        function.machine,
         operation,
-    )?;
+    )
+    .ok_or_else(|| unsupported(function.machine, operation))?;
     let value_uses = function
         .node_uses()
         .filter(|value_use| value_use.value == constant.result)
@@ -432,40 +379,3 @@ fn validate_roots(
 }
 
 use super::compute::unsupported;
-
-/// The unique node carrying `operation`'s provenance, or `unsupported` when
-/// none or several carry it.
-fn sole_provenance_node<'function>(
-    blocks: impl Iterator<Item = &'function optimization_unit::OptimizationBlock>,
-    machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
-) -> Result<
-    (
-        semantic_vocabulary::BlockId,
-        u32,
-        &'function optimization_unit::OptimizationNode,
-    ),
-    CountdownInvariantConstantPlacementAnalysisError,
-> {
-    let mut matches = blocks
-        .flat_map(|block| {
-            block
-                .nodes
-                .iter()
-                .enumerate()
-                .map(move |(node, value)| (block.id, node, value))
-        })
-        .filter(|(_, _, node)| {
-            node.provenance
-                .first()
-                .is_some_and(|source| *source == PsiProvenance::Operation(operation))
-        });
-    let Some((block, node_index, node)) = matches.next() else {
-        return Err(unsupported(machine, operation));
-    };
-    if matches.next().is_some() {
-        return Err(unsupported(machine, operation));
-    }
-    let node_index = u32::try_from(node_index).map_err(|_| unsupported(machine, operation))?;
-    Ok((block, node_index, node))
-}

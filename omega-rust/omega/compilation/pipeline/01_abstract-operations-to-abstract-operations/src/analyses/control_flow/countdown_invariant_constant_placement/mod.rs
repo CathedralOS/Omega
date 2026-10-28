@@ -2,8 +2,7 @@
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
-    NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    ValueDefinitionSite, ValueUse,
+    NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, ValueUse,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
@@ -16,7 +15,8 @@ use super::{
     AnalysisRoot, AnalysisRootError, CountdownInvariantConstantAnalysisError,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, CountedLoopAnalysisError,
     UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
-    ValidatedCountedLoopAnalysis, validate_analysis_root, validate_moved_constant_locations,
+    ValidatedCountedLoopAnalysis, expected_constant, invariant_constant_row, sole_provenance_node,
+    validate_analysis_root, validate_moved_constant_locations,
 };
 
 mod compute;
