@@ -319,6 +319,24 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     )
 }
 
+fn expression_mentions_symbol(
+    program: &dyn crate::CheckingInput,
+    root: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    if !root.is_valid() {
+        return false;
+    }
+    let mut expressions = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
+    expressions.into_iter().any(|expression| {
+        matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(path) if path.symbol == symbol
+        )
+    })
+}
+
 /// True when `local_symbol` is never referenced by any statement at or after
 /// `next_execution_position` in `execution` (excluding transition targets when
 /// `in_state_prefix_only` is true, since state-local prefix observers stop
@@ -334,19 +352,8 @@ fn local_symbol_is_dead_in_remaining_prefix(
     if !local_symbol.is_valid() {
         return false;
     }
-    let mentions_local = |root: ExpressionHandle| {
-        if !root.is_valid() {
-            return false;
-        }
-        let mut expressions = Vec::new();
-        crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
-        expressions.into_iter().any(|expression| {
-            matches!(
-                program.expression_table.expression(expression),
-                ExpressionNode::Name(path) if path.symbol == local_symbol
-            )
-        })
-    };
+    let mentions_local =
+        |root: ExpressionHandle| expression_mentions_symbol(program, root, local_symbol);
     for &stmt_idx in execution.iter().skip(next_execution_position) {
         let stmt = &statements[stmt_idx];
         if in_state_prefix_only {
@@ -381,19 +388,8 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
     if !local_symbol.is_valid() {
         return false;
     }
-    let mentions_local = |root: ExpressionHandle| {
-        if !root.is_valid() {
-            return false;
-        }
-        let mut expressions = Vec::new();
-        crate::expression_traversal::collect_expression_tree(program, root, &mut expressions);
-        expressions.into_iter().any(|expression| {
-            matches!(
-                program.expression_table.expression(expression),
-                ExpressionNode::Name(path) if path.symbol == local_symbol
-            )
-        })
-    };
+    let mentions_local =
+        |root: ExpressionHandle| expression_mentions_symbol(program, root, local_symbol);
     let mentions_local_in_match = |root: ExpressionHandle| {
         if !root.is_valid() {
             return false;
