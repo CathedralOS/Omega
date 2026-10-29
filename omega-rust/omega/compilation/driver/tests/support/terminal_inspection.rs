@@ -20,6 +20,8 @@ mod host_provisions;
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "synchronous_provider_controls.rs"]
+mod synchronous_provider_controls;
 #[path = "task_activation_controls.rs"]
 mod task_activation_controls;
 
@@ -35,6 +37,7 @@ enum InspectionControls {
     ClosedReach,
     ClosedReachCaptures,
     TaskActivations,
+    SynchronousProviders,
 }
 
 #[derive(Clone, Copy)]
@@ -111,12 +114,17 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "task-activation-controls"] => {
                 (*machine, false, Some(InspectionControls::TaskActivations))
             }
+            [machine, "synchronous-provider-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::SynchronousProviders),
+            ),
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `boundary-conformance-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -129,7 +137,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     | InspectionControls::TaskActivations
             )
         );
-        let product = if source_controls {
+        let provider_controls = matches!(
+            conformance_controls,
+            Some(InspectionControls::SynchronousProviders)
+        );
+        let product = if provider_controls {
+            compiler::CompilationProduct::Terminal(Default::default())
+        } else if source_controls {
             compiler::CompilationProduct::Check
         } else {
             compiler::CompilationProduct::Inspection(machine.to_owned())
@@ -173,6 +187,17 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         let output =
             fixture_package_inputs::produce_fixture(&mut prepared, Some(profile.target_name()))
                 .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        if provider_controls {
+            let retained = output
+                .into_report()
+                .map_err(|error| format!("provider report: {error:?}"))?
+                .into_retained_terminal_artifact()
+                .ok_or("provider controls need a retained Terminal product")?;
+            drop(prepared);
+            synchronous_provider_controls::inspect(&retained, profile.target_name())?;
+            observations.push("synchronous-provider-controls:match".into());
+            continue;
+        }
         let produced = output
             .into_inspection()
             .map_err(|error| format!("inspection {machine} output: {error:?}"))?;
@@ -257,6 +282,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::TaskActivations
+                | InspectionControls::SynchronousProviders
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

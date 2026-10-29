@@ -6,49 +6,7 @@
 use crate::ProviderPlanningContext;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
-pub(crate) fn exact_row_for_schema_method<'plan>(
-    plan: &'plan ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
-) -> Result<&'plan ProviderPlanRow, diagnostics::Diagnostic> {
-    if plan
-        .schema
-        .identity_text(method.requirement_identity)
-        .is_empty()
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` schema method `{}` has no exact synchronous-invocation overload identity",
-            plan.name, method.name,
-        )));
-    }
-    let method_count = plan
-        .schema
-        .methods
-        .iter()
-        .filter(|candidate| candidate.requirement_identity == method.requirement_identity)
-        .count();
-    if method_count != 1 {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` contains {method_count} schema methods for exact synchronous-invocation overload `{}`",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    let rows = plan
-        .rows
-        .iter()
-        .filter(|row| plan.schema.row_binds_method(row, method, &plan.identities))
-        .collect::<Vec<_>>();
-    let [row] = rows.as_slice() else {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` schema method `{}` / `{}` binds {} exact synchronous-invocation rows",
-            plan.name,
-            method.name,
-            plan.schema.identity_text(method.requirement_identity),
-            rows.len(),
-        )));
-    };
-    Ok(*row)
-}
+pub(crate) use backend_plan::synchronous_invocations::exact_row_for_schema_method;
 
 /// Join one selected requirement to its exact
 /// checked adapter. Absence means the declaration has no boundary schema or
@@ -451,7 +409,7 @@ fn exact_invocation_target(
         )));
     };
     Ok(
-        super::super::synchronous_cycles::SynchronousBoundaryTarget {
+        super::super::synchronous_cycles::SynchronousBoundaryTarget::Application {
             declaration: typed.trait_declaration_path(definition),
             package: typed.symbols.symbol_package_identity(symbol),
             application,
@@ -494,33 +452,4 @@ pub(crate) fn exact_checked_adapter_invocations(
         .iter()
         .map(|target| exact_invocation_target(context, adapter, *target))
         .collect()
-}
-
-pub(crate) fn exact_authored_invocations(
-    plan: &ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
-) -> Result<Vec<String>, diagnostics::Diagnostic> {
-    if method
-        .synchronous_invocations
-        .iter()
-        .any(|target| target.is_empty())
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact overload `{}` has an empty synchronous-invocation identity",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    if method
-        .synchronous_invocations
-        .windows(2)
-        .any(|pair| pair[0] >= pair[1])
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact overload `{}` synchronous-invocation identities are not strictly increasing",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    Ok(method.synchronous_invocations.clone())
 }
