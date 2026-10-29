@@ -3,8 +3,8 @@ use crate::test_support::reject_every_bit_flip;
 
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind,
-    encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind, check_memory,
+    encode_aarch64_selected_memory_form,
 };
 #[test]
 fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
@@ -56,7 +56,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                 );
                 assert!(!encoded.footprint().writes_nzcv);
                 assert_eq!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         kind,
                         alternative,
@@ -71,7 +71,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     encoded.bytes(),
                     &format!("{kind:?}, {base_name}"),
                     |changed| {
-                        validate_aarch64_selected_memory_form(
+                        check_memory(
                             &physical,
                             kind,
                             alternative,
@@ -88,7 +88,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     [base, base],
                 ] {
                     assert!(
-                        validate_aarch64_selected_memory_form(
+                        check_memory(
                             &physical,
                             kind,
                             alternative,
@@ -100,7 +100,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     );
                 }
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         kind,
                         alternative,
@@ -116,7 +116,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     SelectedInstructionKind::Load8 { byte_offset }
                 };
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         changed_kind,
                         alternative,
@@ -127,7 +127,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     .is_err()
                 );
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         kind,
                         MachineAlternativeKey { family, variant: 1 },
@@ -138,7 +138,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     .is_err()
                 );
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         kind,
                         alternative,
@@ -150,7 +150,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                 );
                 for end in 0..encoded.bytes().len() {
                     assert!(
-                        validate_aarch64_selected_memory_form(
+                        check_memory(
                             &physical,
                             kind,
                             alternative,
@@ -164,7 +164,7 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                 let mut trailing = encoded.bytes().to_vec();
                 trailing.push(0);
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         kind,
                         alternative,
@@ -215,17 +215,7 @@ fn narrow_loads_have_zero_extending_opcodes_and_reject_invalid_addresses() {
         assert_eq!(encoded.bytes(), expected);
         let mut signed = expected.clone();
         signed[2] = 0x80;
-        assert!(
-            validate_aarch64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                0,
-                &signed
-            )
-            .is_err()
-        );
+        assert!(check_memory(&physical, kind, alternative, &operands, 0, &signed).is_err());
         for name in ["sp", "w1", "d0"] {
             let invalid = physical.model().view_named(name).unwrap().id;
             for changed in [[invalid, operands[1]], [operands[0], invalid]] {

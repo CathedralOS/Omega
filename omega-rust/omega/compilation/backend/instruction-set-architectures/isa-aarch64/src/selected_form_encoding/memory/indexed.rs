@@ -91,8 +91,7 @@ fn request(
 #[cfg(test)]
 mod tests {
     use super::super::{
-        SelectedInstructionKind, encode_aarch64_selected_memory_form,
-        validate_aarch64_selected_memory_form,
+        SelectedInstructionKind, check_memory, encode_aarch64_selected_memory_form,
     };
     use super::{MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect};
     use crate::test_support::reject_every_bit_flip;
@@ -124,44 +123,20 @@ mod tests {
             }
         );
         reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
-            validate_aarch64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                0,
-                &corrupt,
-            )
-            .is_err()
+            check_memory(&physical, kind, alternative, &operands, 0, &corrupt).is_err()
         });
         for role in 0..3 {
             let mut corrupt = operands;
             corrupt[role] = operands[(role + 1) % 3];
             assert!(
-                validate_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &corrupt,
-                    0,
-                    encoded.bytes(),
-                )
-                .is_err()
+                check_memory(&physical, kind, alternative, &corrupt, 0, encoded.bytes(),).is_err()
             );
         }
         assert!(
-            validate_aarch64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                1,
-                encoded.bytes(),
-            )
-            .is_err()
+            check_memory(&physical, kind, alternative, &operands, 1, encoded.bytes(),).is_err()
         );
         assert!(
-            validate_aarch64_selected_memory_form(
+            check_memory(
                 &physical,
                 kind,
                 alternative,
@@ -172,7 +147,7 @@ mod tests {
             .is_err()
         );
         assert!(
-            validate_aarch64_selected_memory_form(
+            check_memory(
                 &physical,
                 kind,
                 MachineAlternativeKey {
@@ -187,7 +162,7 @@ mod tests {
         );
         for length in 0..encoded.bytes().len() {
             assert!(
-                validate_aarch64_selected_memory_form(
+                check_memory(
                     &physical,
                     kind,
                     alternative,
@@ -200,17 +175,7 @@ mod tests {
         }
         let mut trailing = encoded.bytes().to_vec();
         trailing.push(0);
-        assert!(
-            validate_aarch64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                0,
-                &trailing,
-            )
-            .is_err()
-        );
+        assert!(check_memory(&physical, kind, alternative, &operands, 0, &trailing,).is_err());
         let stack = physical.model().view_named("sp").unwrap().id;
         for role in 0..3 {
             let mut invalid = operands;
