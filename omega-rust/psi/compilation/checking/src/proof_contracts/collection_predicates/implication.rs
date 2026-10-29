@@ -791,6 +791,15 @@ impl Implication<'_> {
             else {
                 return None;
             };
+            // Record projections are immutable captured values. Updating a
+            // collection binding cannot reseat the enclosing record's cached
+            // field observation, including when a callee receives that field
+            // through an ordinary slice argument. Until this fragment carries
+            // functional record versions, an overlapping store proves nothing;
+            // the old record snapshot must not become a current postcondition.
+            if self.record_observes_collection(previous) {
+                return None;
+            }
             for (path, selector) in self.expression(frame, path, indexed.index, 0)? {
                 let Value::Integer {
                     value: selector, ..
