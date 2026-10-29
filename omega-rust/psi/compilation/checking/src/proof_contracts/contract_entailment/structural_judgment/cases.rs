@@ -121,14 +121,9 @@ impl StructuralJudge<'_> {
             _ => owner_symbol(owner),
         };
         let parameters = owner_parameters(self.program, owner);
-        if binary.operator == BinaryOperator::And
-            && crate::has_builtin_parameter_bound_expression_meaning(
-                self.program,
-                scope,
-                parameters,
-                fact,
-            )
-        {
+        // Logical conjunction has fixed compiler meaning. Its children retain
+        // their own selected meanings: a case classifier is not scalar equality.
+        if binary.operator == BinaryOperator::And {
             self.instantiated_contract_case_guarantees(owner, binary.left, map, guarantees);
             self.instantiated_contract_case_guarantees(owner, binary.right, map, guarantees);
             return;

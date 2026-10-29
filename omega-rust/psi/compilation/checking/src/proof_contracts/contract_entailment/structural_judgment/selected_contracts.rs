@@ -1220,9 +1220,6 @@ pub(super) fn capture_guarantees(
     let binary = program.expression_table.binary_node(expression);
     if let Some(binary) = binary
         && binary.operator == BinaryOperator::And
-        && crate::has_builtin_parameter_bound_expression_meaning(
-            program, scope, parameters, expression,
-        )
     {
         // Decompose the compiler-owned conjunction. Each leaf retains its
         // selected meaning; a tag guarantee grants no scalar identity and
