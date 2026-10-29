@@ -19,7 +19,6 @@ pub(crate) fn check_product_source(
     let PreparedProductSource {
         source_completion_accounting,
         typed,
-        pending_pre_checks,
         computed_build_config,
         admission,
         build_sources,
@@ -89,7 +88,6 @@ pub(crate) fn check_product_source(
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
                 program: typed,
-                pending_constants: pending_pre_checks,
                 admission: source_admission,
                 previous: &previous,
                 retain: reuse.retain,
@@ -112,7 +110,6 @@ pub(crate) fn check_product_source(
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,
-        constants,
         provider_defaults,
         retained,
         selection: product_selection,
@@ -151,6 +148,5 @@ pub(crate) fn check_product_source(
             ..Default::default()
         },
         product_selection,
-        constants,
     })
 }
