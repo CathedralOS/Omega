@@ -13,14 +13,19 @@ pub(super) fn lower_type_reference_handle_with_context(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     >,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    let result: Result<_, Diagnostic> = match type_reference {
-        resolved::types::TypeReference::Reference(reference) => {
-            let referee = lower_type_reference_handle_with_context(
+    macro_rules! lower {
+        ($reference:expr) => {
+            lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
-                source_trees.child_type_reference(reference.referee),
+                $reference,
                 exposure,
-            )?;
+            )
+        };
+    }
+    let result: Result<_, Diagnostic> = match type_reference {
+        resolved::types::TypeReference::Reference(reference) => {
+            let referee = lower!(source_trees.child_type_reference(reference.referee))?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
@@ -33,12 +38,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             ))
         }
         resolved::types::TypeReference::Constrained(constrained) => {
-            let base_type = lower_type_reference_handle_with_context(
-                source_trees,
-                typed_trees,
-                source_trees.child_type_reference(constrained.base_type),
-                exposure,
-            )?;
+            let base_type = lower!(source_trees.child_type_reference(constrained.base_type))?;
             let constraints = lower_type_constraint_node_span_with_context(
                 source_trees,
                 typed_trees,
@@ -53,12 +53,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             ))
         }
         resolved::types::TypeReference::FixedArray(fixed_array) => {
-            let element_type = lower_type_reference_handle_with_context(
-                source_trees,
-                typed_trees,
-                source_trees.child_type_reference(fixed_array.element_type),
-                exposure,
-            )?;
+            let element_type = lower!(source_trees.child_type_reference(fixed_array.element_type))?;
             lower_fixed_array_type(
                 source_trees,
                 typed_trees,
@@ -68,12 +63,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             )
         }
         resolved::types::TypeReference::Slice(slice) => {
-            let element_type = lower_type_reference_handle_with_context(
-                source_trees,
-                typed_trees,
-                source_trees.child_type_reference(slice.element_type),
-                exposure,
-            )?;
+            let element_type = lower!(source_trees.child_type_reference(slice.element_type))?;
             Ok(typed_trees
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::Slice { element_type }))
@@ -84,12 +74,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             let source_arguments = source_trees.child_type_references(generic.arguments);
             let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
             for argument in source_arguments {
-                let argument = lower_type_reference_handle_with_context(
-                    source_trees,
-                    typed_trees,
-                    argument,
-                    exposure,
-                )?;
+                let argument = lower!(argument)?;
                 lowered_arguments.push(argument);
             }
             let arguments = typed_trees
@@ -140,12 +125,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             let source_arguments = source_trees.child_type_references(*arguments);
             let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
             for argument in source_arguments {
-                lowered_arguments.push(lower_type_reference_handle_with_context(
-                    source_trees,
-                    typed_trees,
-                    argument,
-                    exposure,
-                )?);
+                lowered_arguments.push(lower!(argument)?);
             }
             let arguments = typed_trees
                 .type_reference_table
