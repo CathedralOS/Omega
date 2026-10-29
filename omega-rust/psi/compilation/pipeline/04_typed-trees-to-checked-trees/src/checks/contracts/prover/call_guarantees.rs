@@ -219,7 +219,7 @@ pub(crate) fn current_predicates(
                 {
                     for value in &values {
                         if std::env::var_os("OMEGA_STORAGE_CAPTURE_TRACE").is_some() {
-                            eprintln!("CAPTURE value observation={:?} source={:?} epoch={:?} observation_projection={:?} projection={:?}", value.observation.row(), value.operand.row(), value.producer_epoch.map(|epoch| epoch.row()), value.observation_projection, value.projection);
+                            eprintln!("CAPTURE value observation={:?} source={:?} epoch={:?} observation_projection={:?} projection={:?}", value.observation.row(), value.operand.row(), value.producer_epoch.map(|epoch| epoch.row()), (&value.observation_projection.expression, &value.observation_projection.remaining), (&value.projection.expression, &value.projection.remaining));
                         }
                         super::super::captured_predicates::retain_bindings(
                             program,
