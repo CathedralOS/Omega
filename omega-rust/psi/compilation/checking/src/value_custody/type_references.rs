@@ -607,6 +607,20 @@ fn validate_type_reference_node(
         // value telescope: no declaration, loan or access is created here.
         type_parameter_scope.operand_lifetime_owner = supplying_owner;
     }
+    macro_rules! validate_node {
+        ($type_reference:expr, $allow_bare_str:expr $(,)?) => {
+            validate_type_reference_node(
+                program,
+                $type_reference,
+                symbols,
+                diagnostics,
+                owner,
+                $allow_bare_str,
+                type_parameter_scope,
+                formation_obligations,
+            )
+        };
+    }
     // Generic-argument sites below validate every spelled argument under the
     // application owner's custody.
     let validate_generic_argument =
@@ -636,31 +650,13 @@ fn validate_type_reference_node(
                     lifetime.as_str()
                 )));
             }
-            validate_type_reference_node(
-                program,
-                *referee,
-                symbols,
-                diagnostics,
-                owner,
-                type_reference_is_named_str(program, *referee),
-                type_parameter_scope,
-                formation_obligations,
-            );
+            validate_node!(*referee, type_reference_is_named_str(program, *referee));
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_type_reference_node(
-                program,
-                *base_type,
-                symbols,
-                diagnostics,
-                owner,
-                allow_bare_str,
-                type_parameter_scope,
-                formation_obligations,
-            );
+            validate_node!(*base_type, allow_bare_str);
             validate_type_constraints_node(
                 program,
                 *base_type,
@@ -690,28 +686,10 @@ fn validate_type_reference_node(
                 owner,
                 diagnostics,
             );
-            validate_type_reference_node(
-                program,
-                *element_type,
-                symbols,
-                diagnostics,
-                owner,
-                false,
-                type_parameter_scope,
-                formation_obligations,
-            );
+            validate_node!(*element_type, false);
         }
         TypeReferenceNode::Slice { element_type } => {
-            validate_type_reference_node(
-                program,
-                *element_type,
-                symbols,
-                diagnostics,
-                owner,
-                false,
-                type_parameter_scope,
-                formation_obligations,
-            );
+            validate_node!(*element_type, false);
         }
         TypeReferenceNode::Generic {
             base_symbol,
