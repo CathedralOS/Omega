@@ -346,12 +346,19 @@ impl Implication<'_> {
             // Functional contents do not represent descriptor rebinding,
             // interior mutation or cleanup execution. Classify the exact
             // destination carrier without peeling it into a readable referent.
-            if ![
-                crate::ContentsRequirement::BorrowFree,
-                crate::ContentsRequirement::StableObservation,
-            ]
-            .into_iter()
-            .all(|requirement| crate::has_contents(self.program, place.reference, &[], requirement))
+            if !crate::has_plain_contents_without_nominal_cleanup(self.program, place.reference)
+                || !crate::has_contents(
+                    self.program,
+                    place.reference,
+                    &[],
+                    crate::ContentsRequirement::StableObservation,
+                )
+                || crate::type_graph_requires_nominal_drop(
+                    self.program,
+                    place.reference,
+                    &[],
+                    &mut std::collections::BTreeSet::new(),
+                )
             {
                 return None;
             }

@@ -923,6 +923,13 @@ fn proves_bound_predicate_mode<'program>(
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
     let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut captures = Vec::new();
+    let trace = std::env::var_os("OMEGA_OWNED_FIELD_TRACE").is_some()
+        && program
+            .machine_by_symbol(state.machine_symbol)
+            .is_some_and(|machine| machine.name.as_str() == "main");
+    if trace {
+        eprintln!("OWNED required={:?}", predicate);
+    }
     let mut current = predicate.clone();
     current.bindings.clear();
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
@@ -968,6 +975,9 @@ fn proves_bound_predicate_mode<'program>(
         }
         let values = captured_values(program, facts, state, call, &actual)?;
         let captured = values.first()?;
+        if trace { for value in &values {
+            eprintln!("OWNED input={:?} observation={:?} producer={:?} epoch={:?} observed_path={:?} source_path={:?}", observation, value.observation.row(), value.operand.row(), value.producer_epoch.map(|epoch| epoch.row()), (&value.observation_projection.expression, &value.observation_projection.remaining), (&value.projection.expression, &value.projection.remaining));
+        } }
         let observation = captured.observation.recorded_in(&facts.flow.control)?;
         if !values.iter().all(|value| {
             value.observation.recorded_in(&facts.flow.control) == Some(observation)
@@ -1086,6 +1096,20 @@ fn proves_bound_predicate_mode<'program>(
     );
     if fold_observed_values && transported.proves_required {
         return true;
+    }
+    if trace {
+        eprintln!(
+            "OWNED current={:?} retained={:?} transported={:?} proven={}",
+            current, retained, transported.predicates, transported.proves_required
+        );
+        for capture in &captures {
+            for alias in &capture.aliases {
+                eprintln!(
+                    "OWNED alias position={} place={:?} epoch={:?}",
+                    capture.position, alias.place, alias.epoch
+                );
+            }
+        }
     }
     retained.extend(transported.predicates);
     // A normal guarantee may establish an exact scalar, then justify the
