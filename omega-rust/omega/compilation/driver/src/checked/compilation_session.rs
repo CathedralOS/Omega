@@ -24,7 +24,7 @@ use compilation_products::{
     PreparedCheckedSource, PreparedPackageBuild, RetainedCompilationChecks, SettledCheckReuse,
 };
 use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 mod source_graph;
 use source_graph::SourceGraphCache;
@@ -68,14 +68,15 @@ impl CompilationSession {
         self
     }
 
-    fn restore_source_graph(&mut self) {
+    fn restore_source_graph(&mut self, root: &Path) {
         if self.source_graph_loaded {
             return;
         }
         self.source_graph_loaded = true;
-        let Some(cache) = &self.source_graph else {
+        let Some(cache) = &mut self.source_graph else {
             return;
         };
+        cache.scope_to_root(root);
         match cache.load() {
             Ok(Some(graph)) => {
                 // Decode one coupled owner before any new IDs are allocated.
@@ -293,7 +294,7 @@ impl CompilationSession {
         });
         let root_path = canonical_entry.as_deref().unwrap_or(root_path);
         let capture = capture.or(acquired.as_ref());
-        self.restore_source_graph();
+        self.restore_source_graph(root_path);
         if let Some(prepared) = self.sources.iter_mut().find(|prepared| {
             prepared.root == root_path
                 && prepared.inputs == inputs
