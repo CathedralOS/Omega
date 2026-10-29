@@ -10,6 +10,8 @@ fail/arithmetic/affine_difference_unpaired_term rejected 2122ms expected @a92f16
 	cannot prove ensures contract for exit from incomplete at statement 0: embed(first) + embed(third) >= embed(second) + embed(fourth)
 fail/arithmetic/affine_difference_wrong_coefficients rejected 2056ms expected @a92f16431042
 	cannot prove ensures contract for exit from weighted at statement 0: 2 * embed(first) + 3 * embed(third) >= 3 * embed(second) + 2 * embed(fourth)
+fail/arithmetic/anonymous_comparison_imported_zero_divisor rejected 795ms expected @b628a1e8d3ec
+	anonymous division by zero has no exact numeric value
 fail/borrows/nested_array_call_unrestored_field rejected 700ms expected @90c334a2c095
 	cannot prove default-domain field requirement for return from Builder::clear at statement 5: cell.parts[0].storage requires [u8; N]::Ascii
 fail/borrows/nested_parent_forwarding_overlapping_child rejected 798ms expected @90c334a2c095
@@ -100,6 +102,7 @@ pass/facts/nested_machine_joint_rank_structural_view_other_machine_exit checked 
 pass/facts/nested_machine_joint_rank_structural_view_other_state_exit checked 985ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_parameter_exit checked 993ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_target_body_exit checked 977ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+run/arithmetic/anonymous_comparison_with_typed_operators checked 4340ms check-target:macos_arm64 @b628a1e8d3ec
 run/calls/indexed_case_successor_exit checked 949ms check-target:macos_arm64 @90c334a2c095
 run/calls/nested_case_terminal_process_exit checked 4351ms check-target:macos_arm64 @90c334a2c095
 run/calls/projected_call_domain_exit checked 943ms check-target:macos_arm64 @90c334a2c095
