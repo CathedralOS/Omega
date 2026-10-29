@@ -52,8 +52,9 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 - **Native history chart:** the last recorded golden per UTC day across the
   30 days before the inspected HEAD, at its real commit timestamp. The blue area counts valid programs
-  with recorded exits; the dashed line counts valid golden rows. Cohorts may
-  grow or shrink, so this is not a fixed-cohort success rate. Point selection
+  with recorded exits. All available hosts share count and date axes by default;
+  the target selector can isolate a host. Cohorts may grow or shrink, so this
+  is not a fixed-cohort success rate. Point selection
   exposes the exact count, timestamp and golden revision. No daily points are
   invented between records.
 - **Fact observation chart:** categorical bars aggregate the grid's selected
@@ -84,9 +85,15 @@ dashboard does not close a fact or a capability.
 
 ```text
 python -m unittest discover -s tools/tests -p test_compiler_dashboard.py
+node tools/tests/test_dashboard_charts.cjs
 ```
 
-Visual direction: [Mebius Charts](https://www.mebius.design/freebies/charts),
-inspected 2026-10-29. Metric-first white cards on a quiet gray workspace, compact
-controls and selection accents. The implementation uses original HTML/CSS/JS;
-no Mebius assets or gated source were copied.
+The renderer checks use a Node-compatible JavaScript runtime without packages;
+the dashboard itself still needs only Python and Git.
+
+Visual direction: the user's Claude dashboard screenshot and pasted artifact,
+supplied 2026-10-29, plus [Mebius Charts](https://www.mebius.design/freebies/charts),
+inspected the same day. A charcoal workspace centers a shared host comparison,
+with direct line labels, compact controls and quiet secondary evidence views.
+The implementation uses original HTML/CSS/JS; no Mebius assets or gated source
+were copied. Native exit-oracle results are under **Native result receipts**.

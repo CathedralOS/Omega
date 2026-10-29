@@ -24,3 +24,6 @@ Read `samples/cli/facts`, ignored sample-gate run records, native corpus goldens
 and the existing claims command. Preserve revisions, dirty state, target and
 measurement age. Missing evidence and unavailable coordination remain unknown.
 The user selected Mebius Charts as the visual reference.
+The user subsequently supplied a Claude dashboard screenshot and artifact text
+as the preferred comparison: shared host axes, direct series labels and clear
+separation of counts, cohort sizes and evidence dates.
