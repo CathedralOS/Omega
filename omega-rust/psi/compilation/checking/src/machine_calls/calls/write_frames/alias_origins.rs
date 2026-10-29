@@ -431,18 +431,24 @@ fn stable_alias_expression_origins(
     symbols: &TopLevelSymbols<'_>,
     allow_isolated_local: bool,
 ) -> Option<Vec<FramePlaceOrigin>> {
-    let origins = match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => {
-            let mut origins = stable_alias_expression_origins(
+    macro_rules! expression_origins {
+        ($expression:expr $(,)?) => {
+            stable_alias_expression_origins(
                 program,
-                inner.target,
+                $expression,
                 parameters,
                 isolated_local_roots,
                 aliases,
                 divergent_aliases,
                 symbols,
                 allow_isolated_local,
-            )?;
+            )
+        };
+    }
+
+    let origins = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            let mut origins = expression_origins!(inner.target)?;
             for origin in &mut origins {
                 if let Some(recast) = origin.source.recasts.last_mut()
                     && recast.formation.expression() == inner.target
@@ -457,33 +463,13 @@ fn stable_alias_expression_origins(
             call,
             symbols,
             &mut FrameInference::default(),
-            |_, _, _, actual, _| {
-                stable_alias_expression_origins(
-                    program,
-                    actual,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                )
-            },
+            |_, _, _, actual, _| expression_origins!(actual),
         )?,
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            let mut origins = stable_alias_expression_origins(
-                program,
-                cast.value,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                divergent_aliases,
-                symbols,
-                allow_isolated_local,
-            )?;
+            let mut origins = expression_origins!(cast.value)?;
             for origin in &mut origins {
                 let formation = crate::reference_formation_source(program, expression)?;
                 origin.source.recast(formation.view_type, expression);
@@ -496,48 +482,21 @@ fn stable_alias_expression_origins(
             }
             projected_indexed_origins(
                 program,
-                stable_alias_expression_origins(
-                    program,
-                    indexed.collection,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                )?,
+                expression_origins!(indexed.collection)?,
                 expression,
                 indexed.collection,
             )
         }
         ExpressionNode::Member(member) => projected_member_origins(
             program,
-            stable_alias_expression_origins(
-                program,
-                member.receiver,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                divergent_aliases,
-                symbols,
-                allow_isolated_local,
-            )?,
+            expression_origins!(member.receiver)?,
             expression,
             member,
         ),
         ExpressionNode::Match(dispatch) => {
             let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                for origin in stable_alias_expression_origins(
-                    program,
-                    arm.value,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                )? {
+                for origin in expression_origins!(arm.value)? {
                     push_unique_origin(&mut selected, origin);
                 }
             }
