@@ -133,3 +133,7 @@ native exit, and repeatable per-variant output. Both scripts also pass
 changes were reverted. No full corpus, other-host execution, Terminal/native
 differential suite or independent semantic review was run for this discarded
 experiment. No compiler implementation is being promoted by this commit.
+
+Follow-up: [contiguous candidate summaries](../spill_summary_2026_10_28/README.md)
+preserved native output in 42 observations but did not establish an overall
+compile-time benefit. The candidate was parked with its patch and measurements.
