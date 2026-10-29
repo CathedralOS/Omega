@@ -79,13 +79,29 @@ intended reason. Five independent representability controls also rejected.
 The value-only call closure omitted ordinary value-preserving conversions,
 leaving the completed `extend_u16` result opaque during private arrival proof.
 
-The repair reuses the same conversion-meaning judgment already used by structural
-terms. Validation must still observe the root and all nine places through
-`omega run --both`, retain intended rejections and representability controls,
-and exercise the ordinary target providers on both macOS architectures. Exact
-commands, producer identities, raw observations and remaining limitations belong
-to the qualification record and landing commit; this baseline paragraph alone
-claims no repaired runtime result.
+The repaired optimized producer is `cd55079f79d67a2855f2bd4d6f51616e65325d4c`;
+subsequent source-only provider signature separators and fixture metadata do not
+change its Rust/library inputs. The original root and all nine positive places
+now produce actual native and Terminal exits 0, and all nine invalid twins still
+reject for their intended obligations. The signed/narrow policy-conversion
+canary also produces 0 in both engines. Five representability controls and six
+normal-return/termination controls continue to reject.
+
+A separate public-input composition witness,
+[`converted_call_value_private_arrival_exit`](../../../../tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg),
+checks the same nested transfer under an arbitrary `narrow` parameter with the
+300-through-500 entry requirement. Its body cannot specialize from `main`'s
+constant caller. The fresh baseline wrongly refuses it; the repaired compiler
+checks it and both engines observe 0. Its
+[reject twin](../../../../tests/omega/fail/calls/converted_call_value_private_arrival_rejected/main.omg)
+widens its own input contract to 501 and still rejects.
+
+The target place executes with exit 0 on macOS ARM and x86/Rosetta. Its unchanged
+Terminal artifact installs with exit 0 under all five declared target profiles;
+wrong-probe and wrong-whole selection controls produce typed Terminal Traps.
+Actual emitted products and exact raw commands are retained in the qualification
+record. Windows/Linux native execution, native Trap behavior, a new numeric-width
+mechanism and the full parent migration remain unverified by this row.
 
 Specifications: [numeric values](../../../../wiki/spec/language/numeric_values.md),
 [invocation contracts](../../../../wiki/spec/language/state_contracts.md),
