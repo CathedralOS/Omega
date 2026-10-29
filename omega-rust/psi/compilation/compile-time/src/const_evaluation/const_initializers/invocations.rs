@@ -279,7 +279,25 @@ impl Invocation<'_> {
             body.reference,
             self.program.authority.as_deref(),
         )?;
-        self.evaluate_scalar(body.value, destination)
+        if body.roots.len() == 1 {
+            return self.evaluate_scalar(body.value, destination);
+        }
+        if scalar_probe_destination(typed, self.state.return_type) != Some(destination) {
+            return Err("constant probe lost its exact scalar carrier".into());
+        }
+        let mut warnings = Vec::new();
+        for call in crate::const_evaluation::const_generic_expressions::call_expressions(
+            typed,
+            &body.roots,
+        )? {
+            for warning in self.check_call(call)? {
+                if !warnings.contains(&warning) {
+                    warnings.push(warning);
+                }
+            }
+        }
+        let value = scalar_result(self.interpret(body.reference)?, destination)?;
+        Ok((value, warnings))
     }
 
     /// Resolve the exact closed callee for a call and admit it against the
@@ -532,51 +550,60 @@ impl ConstantCalls for Invocation<'_> {
         };
         let destination = scalar_probe_destination(typed, target.return_type())
             .ok_or("constant result lost its exact carrier")?;
-        let value = match result {
-            BuildTimeValue::UndeterminedNaN(format)
-                if matches!(
-                    (format, destination),
-                    (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
-                        | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
-                ) =>
-            {
-                ScalarValue::UndeterminedNaN(format)
-            }
-            BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
-                ScalarValue::Index(CanonicalConstValue::boolean(value))
-            }
-            BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
-                let value = if destination.is_signed_integer() {
-                    i128::from(value)
-                } else {
-                    i128::from(value as u64)
-                };
-                let identity = CanonicalConstIdentity::integer(destination.name(), value);
-                ScalarValue::Index(CanonicalConstValue::new(
-                    identity.type_name,
-                    identity.encoding,
-                    value.to_string(),
-                ))
-            }
-            BuildTimeValue::Float(value)
-                if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
-            {
-                // Semantic arithmetic publishes UndeterminedNaN above. This
-                // branch carries presented bits, including exact raw NaNs.
-                let format = if destination == PrimitiveType::F32 {
-                    numerics::literals::FloatFormat::F32
-                } else {
-                    numerics::literals::FloatFormat::F64
-                };
-                let bits = format
-                    .capture_wide_representation(value)
-                    .ok_or("constant result does not retain its exact floating carrier")?;
-                ScalarValue::Float { format, bits }
-            }
-            _ => return Err("constant result does not match its declared scalar carrier".into()),
-        };
+        let value = scalar_result(result, destination)?;
         Ok((value, warnings))
     }
+}
+
+/// Convert an admitted result without losing its exact scalar representation.
+fn scalar_result(
+    result: BuildTimeValue,
+    destination: PrimitiveType,
+) -> Result<ScalarValue, String> {
+    let value = match result {
+        BuildTimeValue::UndeterminedNaN(format)
+            if matches!(
+                (format, destination),
+                (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
+                    | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+            ) =>
+        {
+            ScalarValue::UndeterminedNaN(format)
+        }
+        BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
+            ScalarValue::Index(CanonicalConstValue::boolean(value))
+        }
+        BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
+            let value = if destination.is_signed_integer() {
+                i128::from(value)
+            } else {
+                i128::from(value as u64)
+            };
+            let identity = CanonicalConstIdentity::integer(destination.name(), value);
+            ScalarValue::Index(CanonicalConstValue::new(
+                identity.type_name,
+                identity.encoding,
+                value.to_string(),
+            ))
+        }
+        BuildTimeValue::Float(value)
+            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            // Semantic arithmetic publishes UndeterminedNaN above. This
+            // branch carries presented bits, including exact raw NaNs.
+            let format = if destination == PrimitiveType::F32 {
+                numerics::literals::FloatFormat::F32
+            } else {
+                numerics::literals::FloatFormat::F64
+            };
+            let bits = format
+                .capture_wide_representation(value)
+                .ok_or("constant result does not retain its exact floating carrier")?;
+            ScalarValue::Float { format, bits }
+        }
+        _ => return Err("constant result does not match its declared scalar carrier".into()),
+    };
+    Ok(value)
 }
 
 /// One admitted authored call: exact selected target, evaluated snapshot
