@@ -34,6 +34,7 @@ mod contents_queries;
 mod dispatch;
 mod provider;
 mod replay;
+mod summary_interface;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use replay::Replay;
 use terminal_psi::find_structural_type;

@@ -1300,8 +1300,15 @@ impl<'a> Replay<'a> {
         if let Some(cached) = self.summaries.get(&identity) {
             return cached.clone();
         }
-        self.summaries.insert(identity, None);
         let machine = self.machine(identity)?;
+        // A closed empty interface has no origins to discover. Establish its
+        // transitive invalidation effect without recursively replaying bodies;
+        // a scalar I/O cycle must not become an unknown descriptor result.
+        if let Some(summary) = self.empty_interface_summary(machine) {
+            self.summaries.insert(identity, Some(summary.clone()));
+            return Some(summary);
+        }
+        self.summaries.insert(identity, None);
         let states = self.states(identity, depth)?;
         // A result's carrier stays local storage. Only its exact descriptor
         // slots export backing, under the same case/field paths as construction
