@@ -46,6 +46,15 @@ fn row_mut(
     register_model::find_register_constraint_mut(&mut catalog.constraints, key).unwrap()
 }
 
+macro_rules! mismatch {
+    ($catalog:expr, $model:expr, $key:expr) => {
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog($catalog, $model),
+            Err(X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch($key))
+        );
+    };
+}
+
 #[test]
 fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
     let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -448,28 +457,14 @@ fn signed_remainder_row_keeps_the_divisor_out_of_rdx() {
     let mut changed = x86_64_register_constraint_catalog(&model);
     let operand = &mut row_mut(&mut changed, X86_64_REMAINDER_I64).operands[3];
     operand.early_clobber = true;
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(changed, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_REMAINDER_I64,
-            )
-        )
-    );
+    mismatch!(changed, &model, X86_64_REMAINDER_I64);
 
     // The divisor pin is load-bearing: an allocatable divisor could be homed
     // in RDX, whose zeroing precedes the divisor read in the realized form.
     let mut changed = x86_64_register_constraint_catalog(&model);
     let operand = &mut row_mut(&mut changed, X86_64_REMAINDER_I64).operands[1];
     operand.fixed_view = None;
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(changed, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_REMAINDER_I64,
-            )
-        )
-    );
+    mismatch!(changed, &model, X86_64_REMAINDER_I64);
 }
 
 #[test]
@@ -522,14 +517,7 @@ fn target_inventory_cannot_erase_a_required_key_and_its_row_together() {
     for (id, constraint) in catalog.constraints.iter_mut().enumerate() {
         constraint.id = RegisterConstraintId(u16::try_from(id).unwrap());
     }
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(catalog, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_MICROSOFT_RETURN,
-            )
-        )
-    );
+    mismatch!(catalog, &model, X86_64_MICROSOFT_RETURN);
 }
 
 #[test]
@@ -573,14 +561,7 @@ fn x86_64_target_semantics_reject_compatible_substitution_and_missing_clobbers()
     let mut wrong_syscall_register = x86_64_register_constraint_catalog(&model);
     row_mut(&mut wrong_syscall_register, X86_64_LINUX_SYSTEM_CALL).operands[4].fixed_view =
         Some(model.model().view_named("r11").unwrap().id);
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(wrong_syscall_register, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_LINUX_SYSTEM_CALL,
-            )
-        )
-    );
+    mismatch!(wrong_syscall_register, &model, X86_64_LINUX_SYSTEM_CALL);
 
     for clobber in ["rcx", "r11", "rflags"] {
         let mut missing_clobber = x86_64_register_constraint_catalog(&model);
@@ -601,49 +582,23 @@ fn x86_64_target_semantics_reject_compatible_substitution_and_missing_clobbers()
 
     let mut wrong_add_role = x86_64_register_constraint_catalog(&model);
     row_mut(&mut wrong_add_role, X86_64_ADD_I64).operands[1].access = RegisterOperandAccess::Def;
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(wrong_add_role, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(X86_64_ADD_I64,)
-        )
-    );
+    mismatch!(wrong_add_role, &model, X86_64_ADD_I64);
 
     let mut wrong_immediate_role = x86_64_register_constraint_catalog(&model);
     row_mut(&mut wrong_immediate_role, X86_64_ADD_I64_IMMEDIATE).operands[0].access =
         RegisterOperandAccess::Def;
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(wrong_immediate_role, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_ADD_I64_IMMEDIATE,
-            )
-        )
-    );
+    mismatch!(wrong_immediate_role, &model, X86_64_ADD_I64_IMMEDIATE);
 
     let mut wrong_subtract_role = x86_64_register_constraint_catalog(&model);
     row_mut(&mut wrong_subtract_role, X86_64_SUBTRACT_I64).operands[1].access =
         RegisterOperandAccess::Def;
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(wrong_subtract_role, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_SUBTRACT_I64,
-            )
-        )
-    );
+    mismatch!(wrong_subtract_role, &model, X86_64_SUBTRACT_I64);
 
     let mut missing_subtract_flags = x86_64_register_constraint_catalog(&model);
     row_mut(&mut missing_subtract_flags, X86_64_SUBTRACT_I64)
         .clobbers
         .clear();
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(missing_subtract_flags, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_SUBTRACT_I64,
-            )
-        )
-    );
+    mismatch!(missing_subtract_flags, &model, X86_64_SUBTRACT_I64);
 }
 
 #[test]
@@ -654,14 +609,7 @@ fn x86_64_branch_rejects_one_field_missing_flags_use() {
     row_mut(&mut catalog, X86_64_CONDITIONAL_BRANCH)
         .implicit_uses
         .retain(|unit| *unit != flags);
-    assert_eq!(
-        validate_x86_64_register_constraint_catalog(catalog, &model),
-        Err(
-            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
-                X86_64_CONDITIONAL_BRANCH,
-            )
-        )
-    );
+    mismatch!(catalog, &model, X86_64_CONDITIONAL_BRANCH);
 }
 
 #[test]
