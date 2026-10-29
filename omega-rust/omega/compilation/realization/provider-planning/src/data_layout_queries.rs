@@ -28,6 +28,22 @@ pub struct TargetLayoutMeasurements<'selection> {
 impl<'selection> LayoutQueryProvider for TargetLayoutQueries<'selection> {
     type Measurements = TargetLayoutMeasurements<'selection>;
 
+    fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
+        target::TargetProfile::ALL
+            .into_iter()
+            .filter_map(|profile| {
+                profile.address_model()?;
+                let target = profile.native_realization()?;
+                Some(layout_plans::LayoutTargetFacts {
+                    profile: profile.target_name().to_owned(),
+                    pointer_size: target.pointer_size as u64,
+                    pointer_alignment: target.pointer_alignment as u64,
+                    little_endian: true,
+                })
+            })
+            .collect()
+    }
+
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements {
         let target = self.target;
         // The physical backend consumes invariant geometry. A family needs one
@@ -39,7 +55,7 @@ impl<'selection> LayoutQueryProvider for TargetLayoutQueries<'selection> {
             .any(|plan| {
                 matches!(
                     plan.realizations,
-                    checked_trees::typed_trees::PlanLaidRealizations::TargetFamily(_)
+                    checked_trees::typed_trees::PlanLaidRealizations::TargetInputs(_)
                 )
             })
             .then(|| {

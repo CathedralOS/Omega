@@ -49,6 +49,14 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         .trait_implementation_applications
         .iter()
         .map(|(_, selected)| (selected.supplying_application, selected.application.clone()))
+        .chain(
+            program
+                .data_implementation_applications
+                .iter()
+                .map(|(_, selected)| {
+                    (selected.supplying_application, selected.application.clone())
+                }),
+        )
         .collect::<Vec<_>>();
     for (supplying, application) in selected_roots {
         let conformance = program

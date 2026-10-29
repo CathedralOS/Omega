@@ -139,9 +139,9 @@ mod wire_schema_queries;
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
-    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
-    TraitImplementationApplication, closed_conformance_applications_of,
+    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
+    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
+    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
@@ -270,6 +270,7 @@ pub struct TypedTrees {
     pub captured_machine_states: Arena<CapturedMachineState>,
     /// Source trait implementation slots demand map captures before checking.
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
+    pub data_implementation_applications: Arena<DataImplementationApplication>,
     /// Requirements instantiated under the `dyn Trait<Args>` applications
     /// that select or call them. Checking appends one record per
     /// (selector application, requirement) after specialization converges.
@@ -521,7 +522,7 @@ impl TypedTrees {
     pub fn plan_laid_layout(&self, data_symbol: symbols::SymbolHandle) -> Option<&PlanLaidLayout> {
         self.plan_laid_layouts
             .iter()
-            .find(|layout| layout.data_symbol == data_symbol)
+            .find(|layout| !layout.application.is_valid() && layout.data_symbol == data_symbol)
     }
 
     pub fn machine_specialization(
@@ -607,6 +608,7 @@ impl TypedTrees {
             captured_machine_applications: Arena::new(),
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),
+            data_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),

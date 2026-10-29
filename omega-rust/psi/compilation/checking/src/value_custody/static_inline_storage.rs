@@ -41,6 +41,9 @@ impl Search<'_> {
         }
         self.visited.push((reference, bindings.to_vec()));
         let program = self.program;
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            return self.ty(storage.semantic_type, bindings);
+        }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => None,
             TypeReferenceNode::Constrained { base_type, .. } => self.ty(*base_type, bindings),
@@ -113,12 +116,10 @@ impl Search<'_> {
     }
 
     fn independent_storage(&self, data: SymbolHandle) -> bool {
-        self.program.plan_laid_layout(data).is_some()
-            || self
-                .program
-                .placed_view_plans
-                .iter()
-                .any(|view| view.data_symbol == data)
+        self.program
+            .placed_view_plans
+            .iter()
+            .any(|view| view.data_symbol == data)
     }
 
     fn fields(

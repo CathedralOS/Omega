@@ -197,6 +197,16 @@ impl TypedTrees {
                 &selected.application,
             ));
         }
+        for (handle, selected) in self.data_implementation_applications.iter() {
+            if includes_owner(selected.lexical_owner) {
+                sites.push((
+                    super::ClosedConformanceApplicationSite::DataArgument(handle),
+                    selected.lexical_owner,
+                    selected.supplying_application,
+                    &selected.application,
+                ));
+            }
+        }
         sites
     }
 
@@ -205,6 +215,12 @@ impl TypedTrees {
         site: super::ClosedConformanceApplicationSite,
     ) -> Option<&mut super::ClosedConformanceApplication> {
         match site {
+            super::ClosedConformanceApplicationSite::DataArgument(handle) => Some(
+                &mut self
+                    .data_implementation_applications
+                    .get_mut(handle)
+                    .application,
+            ),
             super::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
                 &mut self
                     .trait_implementation_applications
@@ -245,6 +261,15 @@ impl TypedTrees {
             }
             false
         };
+        let selected = self
+            .data_implementation_applications
+            .iter()
+            .filter(|(_, selected)| !owner_removed(selected.lexical_owner))
+            .map(|(_, selected)| selected.clone())
+            .collect::<Vec<_>>();
+        let mut applications = arena::Arena::new();
+        applications.insert_many(selected);
+        self.data_implementation_applications = applications;
         // An unavailable scope can mean either malformed evidence or a source
         // declaration deliberately removed by this private projection. Only
         // the exact removed roster distinguishes them. Both source records

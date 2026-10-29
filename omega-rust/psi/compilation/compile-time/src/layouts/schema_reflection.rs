@@ -200,7 +200,7 @@ fn require_schema_layouts(
         if typed.plan_laid_layout(symbol).is_some_and(|layout| {
             matches!(
                 layout.realizations,
-                typed_trees::PlanLaidRealizations::TargetFamily(_)
+                typed_trees::PlanLaidRealizations::TargetInputs(_)
             )
         }) {
             return Err(format!(
@@ -358,7 +358,7 @@ fn reflected_record_layout(
                 geometry.validated_layout.size?,
                 geometry.validated_layout.align,
             )),
-            typed_trees::PlanLaidRealizations::TargetFamily(_) => None,
+            typed_trees::PlanLaidRealizations::TargetInputs(_) => None,
         };
     }
     if data.quotient.is_some()

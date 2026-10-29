@@ -5,16 +5,15 @@
 //! geometry; neither native target selection nor name-based reconstruction is
 //! part of this join.
 
-use super::{BoundaryParameters, CheckedTrees, LoweringError, UnitPlans, unsupported};
+use super::{CheckedTrees, LoweringError, UnitPlans, unsupported};
 use checked_trees::{CheckedUnitRecordStorage, CheckedUnitStructuralTypeShape};
 use semantic_vocabulary::{AuthoredRecordStorage, MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
-    StructuralTypeDeclaration, StructuralTypeShape, TargetLayoutApplication,
-    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
-    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind, TargetMachineCallable,
-    TargetMachineFamily, TargetMachineSupply,
+    StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
+    StructuralTypeShape, TargetLayoutApplication, TargetLayoutFieldStorage,
+    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
+    TargetLayoutSchemaFieldKind,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
@@ -23,10 +22,7 @@ pub(super) fn lower(
     plans: UnitPlans<'_>,
     types: &[StructuralTypeDeclaration],
     type_ids: &[(TypeIdentityId, StructuralTypeId)],
-    machines: &[(SymbolHandle, MachineId)],
-    boundary_parameters: &[BoundaryParameters],
-    boundaries: &[BoundaryMachineDeclaration],
-    families: &[TargetMachineFamily],
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<Vec<TargetLayoutApplication>, LoweringError> {
     let mut applications = Vec::new();
     for record in types {
@@ -55,14 +51,13 @@ pub(super) fn lower(
         else {
             return unsupported("target layout record lost its exact checked application marker");
         };
-        let plan =
-            checked
-                .typed
-                .plan_laid_layout(*application)
-                .ok_or(LoweringError::Unsupported(
-                    "target layout application lost its typed policy result",
-                ))?;
-        let typed_trees::PlanLaidRealizations::TargetFamily(span) = plan.realizations else {
+        let plan = checked
+            .typed
+            .plan_laid_layout_for_type(*application)
+            .ok_or(LoweringError::Unsupported(
+                "target layout application lost its typed policy result",
+            ))?;
+        let typed_trees::PlanLaidRealizations::TargetInputs(span) = plan.realizations else {
             return unsupported("target layout marker names an invariant application");
         };
         let alternatives =
@@ -146,67 +141,37 @@ pub(super) fn lower(
                 },
             });
         }
-        let typed_family = checked
+        let policy_identity = identities.intern(
+            &checked
+                .typed
+                .package_qualified_type_identity_text(plan.application),
+        );
+        let policy_machine = checked
             .typed
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == plan.policy_plan_machine_symbol)
+            .machine_by_symbol(plan.policy_plan_machine_symbol)
             .ok_or(LoweringError::Unsupported(
-                "target layout application lost its policy family",
+                "fixed representation lost its exact checked plan",
             ))?;
-        let canonical = super::target_families::callable(
-            typed_family.canonical,
-            machines,
-            boundary_parameters,
-        )?;
-        let family = families
-            .iter()
-            .find(|family| family.canonical == canonical)
+        let plan_identity = identities.intern(
+            &validation::contract_identities::normalized_machine_identity(
+                &checked.typed,
+                policy_machine,
+            )
             .ok_or(LoweringError::Unsupported(
-                "target layout policy family was not emitted",
-            ))?;
-        let TargetMachineCallable::Boundary(head) = canonical else {
-            return unsupported("target layout family has no independent emitted contract head");
-        };
-        let policy_identity = boundaries
-            .iter()
-            .find(|boundary| boundary.id == head)
-            .map(|boundary| boundary.identity.clone())
-            .ok_or(LoweringError::Unsupported(
-                "target layout policy head lost its emitted identity",
-            ))?;
-        if alternatives.is_empty()
-            || alternatives.len() != typed_family.members.len()
-            || alternatives.len() != family.members.len()
-        {
-            return unsupported(
-                "target layout application does not cover its complete policy family",
-            );
+                "fixed representation policy has no checked callable identity",
+            ))?,
+        );
+        if alternatives.is_empty() {
+            return unsupported("fixed representation omitted its target inputs");
         }
         let mut realizations = Vec::with_capacity(alternatives.len());
-        for ((alternative, typed_member), member) in alternatives
-            .iter()
-            .zip(&typed_family.members)
-            .zip(&family.members)
-        {
-            let callable = super::target_families::callable(
-                alternative.machine,
-                machines,
-                boundary_parameters,
-            )?;
-            if alternative.target != typed_member.target
-                || alternative.machine != typed_member.machine
-                || alternative.target.as_str() != member.target
-                || callable != member.callable
-                || member.supply != TargetMachineSupply::CheckedBody
+        for alternative in alternatives {
+            if alternative.machine != plan.policy_plan_machine_symbol
+                || alternative.target.as_str() != alternative.target_facts.profile
+                || alternative.target_facts.validate().is_err()
             {
-                return unsupported(
-                    "target layout alternative changed exact family member custody",
-                );
+                return unsupported("fixed representation changed its exact target input custody");
             }
-            let TargetMachineCallable::Machine(machine) = callable else {
-                return unsupported("target layout policy alternative has no emitted checked body");
-            };
             let geometry = &alternative.geometry;
             if !geometry.private_callback_demands.is_empty() {
                 return unsupported(
@@ -244,7 +209,9 @@ pub(super) fn lower(
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             realizations.push(TargetLayoutRealization {
                 target: alternative.target.as_str().to_owned(),
-                member: machine,
+                pointer_size: alternative.target_facts.pointer_size,
+                pointer_alignment: alternative.target_facts.pointer_alignment,
+                little_endian: alternative.target_facts.little_endian,
                 storage: AuthoredRecordStorage {
                     byte_size,
                     byte_alignment: geometry.validated_layout.align,
@@ -252,12 +219,13 @@ pub(super) fn lower(
                 fields,
             });
         }
+        realizations.sort_by(|a, b| a.target.cmp(&b.target));
         applications.push(TargetLayoutApplication {
             id: *id,
             record: record.id,
             schema: schema.id,
             policy_identity,
-            family: canonical,
+            plan_identity,
             schema_argument: TargetLayoutSchemaArgument {
                 abi_version: argument.abi_version,
                 fields: captured_fields,

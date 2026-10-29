@@ -589,16 +589,8 @@ pub(crate) fn lower_unit_closure(
     // Publication: one module in canonical roster order.
     let target_machine_families =
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
-    let target_layout_applications = target_layouts::lower(
-        checked,
-        plans,
-        &structural_types,
-        &type_ids,
-        &machine_ids,
-        &lowered_boundary_parameters,
-        &boundary_machines,
-        &target_machine_families,
-    )?;
+    let target_layout_applications =
+        target_layouts::lower(checked, plans, &structural_types, &type_ids, identities)?;
     let mut scalar_qualifications = qualifications.catalog().clone();
     crate::expression_preparation::qualifications::retain_returns(
         identities,

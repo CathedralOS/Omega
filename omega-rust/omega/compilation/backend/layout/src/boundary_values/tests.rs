@@ -166,6 +166,10 @@ fn plan_laid_fields_use_selected_offsets_and_stored_width_with_exact_member_cust
     };
     let field_symbol = field.symbol;
     typed.plan_laid_layouts.push(PlanLaidLayout {
+        application: Default::default(),
+        semantic_type: Default::default(),
+        policy_application: Default::default(),
+        target_inputs: Vec::new(),
         data_name: "Packed".into(),
         data_symbol: definition.symbol,
         field_symbols: vec![field_symbol],

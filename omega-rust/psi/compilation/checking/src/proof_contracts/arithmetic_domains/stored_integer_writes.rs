@@ -307,6 +307,7 @@ fn typed_projection(
 struct StorageProjection {
     reference: TypeReferenceHandle,
     stored: Option<(SymbolHandle, IntegerType)>,
+    storage_carrier: Option<TypeReferenceHandle>,
 }
 
 fn typed_storage_projection(
@@ -355,6 +356,7 @@ fn typed_storage_projection(
                 .ok_or(())?;
                 if position + 1 == path.len() {
                     return Ok(StorageProjection {
+                        storage_carrier: Some(carrier),
                         reference: field.type_reference,
                         stored: stored_integer_field_type(program, carrier, field.symbol)?
                             .map(|stored| (field.symbol, stored)),
@@ -413,6 +415,7 @@ fn typed_storage_projection(
         return Err(());
     }
     Ok(StorageProjection {
+        storage_carrier: None,
         reference: carrier,
         stored: None,
     })
@@ -427,7 +430,7 @@ pub(crate) fn stored_integer_field_type(
 ) -> Result<Option<IntegerType>, ()> {
     let carrier = places::unwrapped_type_reference(program, carrier).ok_or(())?;
     let data = places::data_definition_for_type(program, carrier).ok_or(())?;
-    let Some(plan) = program.plan_laid_layout(data.symbol) else {
+    let Some(plan) = program.plan_laid_layout_for_data(data) else {
         return Ok(None);
     };
     let index = plan

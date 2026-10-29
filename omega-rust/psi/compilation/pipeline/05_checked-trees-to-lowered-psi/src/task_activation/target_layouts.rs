@@ -39,9 +39,9 @@ pub(super) fn project(
         };
         let plan = checked
             .typed
-            .plan_laid_layout(*application)
+            .plan_laid_layout_for_type(*application)
             .ok_or_else(|| failure("task layout lost its evaluated policy"))?;
-        let typed_trees::PlanLaidRealizations::TargetFamily(span) = plan.realizations else {
+        let typed_trees::PlanLaidRealizations::TargetInputs(span) = plan.realizations else {
             return Err(failure("task target layout names an invariant policy"));
         };
         let alternatives = checked
@@ -49,22 +49,16 @@ pub(super) fn project(
             .plan_laid_target_layouts
             .span(span)
             .ok_or_else(|| failure("task layout lost its target alternatives"))?;
-        let family = checked
-            .typed
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == plan.policy_plan_machine_symbol)
-            .ok_or_else(|| failure("task layout lost its policy family"))?;
-        if alternatives.is_empty() || alternatives.len() != family.members.len() {
-            return Err(failure(
-                "task layout does not cover its complete policy family",
-            ));
+        if alternatives.is_empty() {
+            return Err(failure("task layout has no complete target input roster"));
         }
         let mut realizations = Vec::new();
-        for (alternative, member) in alternatives.iter().zip(&family.members) {
-            if alternative.target != member.target || alternative.machine != member.machine {
+        for alternative in alternatives {
+            if alternative.machine != plan.policy_plan_machine_symbol
+                || alternative.target_facts.profile != alternative.target.as_str()
+            {
                 return Err(failure(
-                    "task layout alternative changed exact policy member custody",
+                    "task layout changed its exact target input custody",
                 ));
             }
             let geometry = &alternative.geometry;

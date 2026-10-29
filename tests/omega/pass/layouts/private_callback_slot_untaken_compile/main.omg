@@ -8,7 +8,7 @@ boundary trait Callback {
 
 data Spread {}
 
-CallbackSlot satisfies PrivateCallbackSlot<Spread, Callback::call> { }
+CallbackSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, Callback::call> { }
 
 machine Spread::plan(schema: Schema) -> Plan {
     transition {

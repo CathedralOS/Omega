@@ -94,6 +94,7 @@ pub(super) fn compute_native_layout_plan_with_schema(
         machine,
         evaluation.private_layout_placements(),
         policy_machine,
+        None,
     )?;
     Ok(NativeLayoutPlanReport {
         layout,
@@ -101,11 +102,15 @@ pub(super) fn compute_native_layout_plan_with_schema(
     })
 }
 
-fn normalize_private_callback_demands(
+pub(crate) fn normalize_private_callback_demands(
     typed: &TypedTrees,
     policy_machine: &typed_trees::machine::Machine,
     receipts: &[checked_interpreter::PrivateLayoutPlacementReceipt],
     policy_name: &str,
+    selected_implementation: Option<(
+        &typed_trees::expression::StaticMachineArgument,
+        symbols::SymbolHandle,
+    )>,
 ) -> Result<Vec<PrivateCallbackLayoutDemandReport>, String> {
     let mut normalized = Vec::with_capacity(receipts.len());
     for receipt in receipts {
@@ -144,27 +149,42 @@ fn normalize_private_callback_demands(
                 selected.display_name()
             ));
         }
-        // `PrivateCallbackSlot<Layout, machine Requirement>`: the layout policy
-        // type is an ordinary trait argument, and only that policy's own plan
-        // may place the slot.
         let arguments = typed
             .type_reference_table
             .type_reference_handles(conformance.arguments);
-        let [layout_argument, requirement_argument] = arguments else {
+        let [_semantic_argument, layout_argument, requirement_argument] = arguments else {
             return Err(format!(
-                "private layout conformance `{}` must carry exactly one layout argument and one callback-requirement argument",
+                "private layout conformance `{}` must retain semantic type, fixed-layout implementation and callback requirement",
                 selected.display_name()
             ));
         };
-        let layout = typed.type_reference_table.type_symbol(*layout_argument);
-        if !layout.is_valid() || layout != policy_machine.attached_data_symbol {
+        let closed_application =
+            validation::conformance_applications::close_conformance_application(typed, selected)
+                .map_err(|diagnostic| diagnostic.to_string())?;
+        let (active, active_owner) = selected_implementation.ok_or_else(||
+            "private callback placement requires the exact selected fixed-layout implementation application".to_owned())?;
+        let expected = closed_trait_argument_identity(
+            typed,
+            &closed_application,
+            *layout_argument,
+            policy_machine.symbol,
+        )?;
+        let actual = typed_trees::type_identity::portable_applied_index_identity(
+            typed,
+            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(active),
+            active_owner,
+            &[],
+        )
+        .ok_or("active layout policy has no complete portable implementation identity")?;
+        if expected != actual {
             return Err(format!(
-                "policy `{policy_name}` selected private slot `{}` for layout `{}`, but the active layout producer is attached to `{}`",
-                selected.display_name(),
-                typed.display_type_reference(*layout_argument),
-                typed.symbols.name(policy_machine.attached_data_symbol),
+                "policy `{policy_name}` selected private slot `{}` for a different exact fixed-layout implementation application",
+                selected.display_name()
             ));
         }
+        let layout_subject_identity = typed
+            .type_identity_text(actual)
+            .ok_or("active layout application lost its portable identity")?;
         let typed_trees::types::TypeReferenceNode::Named {
             symbol: requirement,
             ..
@@ -210,9 +230,6 @@ fn normalize_private_callback_demands(
                 )
             })?;
 
-        let closed_application =
-            validation::conformance_applications::close_conformance_application(typed, selected)
-                .map_err(|diagnostic| diagnostic.to_string())?;
         let slot_identity = format!(
             "{}#{:016x}",
             typed.normalized_hermetic_symbol_identity(selected.symbol)?,
@@ -232,7 +249,7 @@ fn normalize_private_callback_demands(
         normalized.push(PrivateCallbackLayoutDemandReport {
             slot_application: closed_application,
             slot_identity,
-            layout_subject_identity: typed.normalized_hermetic_symbol_identity(layout)?,
+            layout_subject_identity,
             callback_requirement_identity: typed
                 .trait_requirement_callable_identity_text(requirement_trait, requirement_row),
             offset: receipt.offset,
@@ -240,4 +257,46 @@ fn normalize_private_callback_demands(
     }
     normalized.sort_unstable_by(|left, right| left.slot_identity.cmp(&right.slot_identity));
     Ok(normalized)
+}
+
+/// Interpret the relationship's actual argument under its own complete selected
+/// telescope. Equal report strings cannot substitute a different map capture.
+fn closed_trait_argument_identity(
+    typed: &TypedTrees,
+    application: &typed_trees::typed_trees::ClosedConformanceApplication,
+    argument: typed_trees::types::TypeReferenceHandle,
+    owner: symbols::SymbolHandle,
+) -> Result<typed_trees::type_identity::TypeIdentityId, String> {
+    use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
+    let declaration = typed
+        .conformance_by_symbol(application.declaration)
+        .ok_or("private layout slot lost its exact map declaration")?;
+    let substitutions = typed
+        .conformance_type_parameters(declaration)
+        .iter()
+        .zip(&application.arguments)
+        .map(|(parameter, argument)| {
+            (
+                parameter.symbol,
+                IndexIdentityArgument::StaticArgument(argument),
+            )
+        })
+        .collect::<Vec<_>>();
+    let lifetimes = declaration
+        .lifetime_parameters
+        .iter()
+        .zip(&application.lifetime_arguments)
+        .map(|(parameter, actual)| (parameter.as_str().to_owned(), actual.clone()))
+        .collect::<Vec<_>>();
+    typed_trees::type_identity::portable_applied_index_identity(
+        typed,
+        IndexIdentityArgument::TypeReference(argument),
+        owner,
+        &[AppliedTypeIdentityScope {
+            declaration: declaration.symbol,
+            arguments: &substitutions,
+            lifetimes: &lifetimes,
+        }],
+    )
+    .ok_or("private layout slot has no complete implementation argument identity".into())
 }

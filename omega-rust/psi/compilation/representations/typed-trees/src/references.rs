@@ -1242,6 +1242,30 @@ fn visit_owned_static_application_inputs(
     owner: SymbolHandle,
 ) {
     visit_product_operand_inputs(program, retained, owner);
+    for (_, selected) in program
+        .data_implementation_applications
+        .iter()
+        .filter(|(_, selected)| selected.lexical_owner == owner)
+    {
+        visit_type_reference(program, retained, selected.source_application);
+        visit_type_reference(program, retained, selected.argument);
+        visit_static_machine_bindings(program, retained, selected.supplying_application);
+        visit_closed_conformance(program, retained, &selected.application);
+        for (_, capture) in program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| {
+                capture.conformance_application == selected.application
+                    && program
+                        .expression_table
+                        .static_machine_application(capture.supplying_application)
+                        .lexical_owner
+                        == owner
+            })
+        {
+            visit_symbol(retained, capture.instance);
+        }
+    }
     if program.trait_implementation_applications.is_empty() {
         return;
     }
@@ -1325,6 +1349,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             }
         }
         visit_type_parameters(program, retained, data.type_parameters);
+        for bound in &data.conformance_bounds {
+            visit_symbol(retained, bound.trait_symbol);
+            for argument in &bound.arguments {
+                visit_type_reference(program, retained, *argument);
+            }
+        }
         if data.predicate_subject_symbol.is_valid() {
             visit_symbol(retained, data.predicate_subject_symbol);
             visit_type_reference(program, retained, data.predicate_subject_type);

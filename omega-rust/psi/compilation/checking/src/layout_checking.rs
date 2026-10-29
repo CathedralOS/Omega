@@ -67,28 +67,27 @@ pub(crate) fn layout_family_is_complete(
     program: &dyn CheckingInput,
     layout: &PlanLaidLayout,
 ) -> bool {
-    let PlanLaidRealizations::TargetFamily(span) = layout.realizations else {
+    let PlanLaidRealizations::TargetInputs(span) = layout.realizations else {
         return true;
     };
     let Some(rows) = program.plan_laid_target_layouts.span(span) else {
         return false;
     };
-    let Some(machine) = program.machine(layout.policy_plan_machine_symbol) else {
-        return false;
-    };
-    let Some(members) = crate::machine_calls::calls::target_family_members(program, machine) else {
-        return false;
-    };
     !rows.is_empty()
-        && rows.len() == members.len()
-        && rows.iter().enumerate().all(|(index, row)| {
-            !rows[..index]
-                .iter()
-                .any(|previous| previous.target == row.target || previous.machine == row.machine)
-                && members
-                    .iter()
-                    .any(|member| member.target == row.target && member.machine == row.machine)
-        })
+        && rows.len() == layout.target_inputs.len()
+        && rows
+            .iter()
+            .zip(&layout.target_inputs)
+            .enumerate()
+            .all(|(index, (row, input))| {
+                row.target_facts == *input
+                    && row.machine == layout.policy_plan_machine_symbol
+                    && row.target.as_str() == row.target_facts.profile
+                    && row.target_facts.validate().is_ok()
+                    && !rows[..index]
+                        .iter()
+                        .any(|previous| previous.target == row.target)
+            })
 }
 
 /// Guards needed by the exact participating types, including nested records.
@@ -180,7 +179,7 @@ fn discover_layout_checking_targets(
                 else {
                     continue;
                 };
-                if let Some(layout) = program.plan_laid_layout(data.symbol) {
+                if let Some(layout) = program.plan_laid_layout_for_type(reference) {
                     if !layout_family_is_complete(program, layout) {
                         return Err(());
                     }

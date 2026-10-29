@@ -437,6 +437,7 @@ pub fn specialize_static_machine_calls(
 pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
+    data_applications::elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;

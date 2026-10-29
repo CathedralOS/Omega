@@ -133,7 +133,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Task frames retain alternative state and crossing storage, not a flat sum.
 // Normal structural guarantees also retain their exact formal-relative path;
 // this combined layout is distinct from either independent wire format.
-pub(crate) const FORMAT_MARKER: u16 = 205;
+pub(crate) const FORMAT_MARKER: u16 = 207;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

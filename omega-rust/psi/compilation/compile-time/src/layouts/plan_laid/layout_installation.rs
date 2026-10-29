@@ -6,391 +6,267 @@ use typed_trees::{
     PlanLaidSchemaFieldKind, PlanLaidTargetLayout, TypedTrees,
 };
 
-use super::PlanLaidRecord;
+struct FixedRepresentationRequest {
+    application_name: String,
+    policy_machine: String,
+}
 
 pub(crate) fn compute_plan_laid_layouts_in(
     typed: &mut TypedTrees,
-    records: &[PlanLaidRecord],
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    if records.is_empty() {
+    let fail = |reason: String| vec![Diagnostic::error(reason)];
+    let mut requests = Vec::new();
+    for (reference, _) in typed.type_reference_table.type_reference_rows() {
+        let Some(storage) = typed.layout_storage_arguments(reference) else {
+            continue;
+        };
+        if requests.iter().any(
+            |known: &typed_trees::layout_storage::LayoutStorageArguments| {
+                typed.normalized_type_identity(known.application)
+                    == typed.normalized_type_identity(storage.application)
+            },
+        ) {
+            continue;
+        }
+        // Open constructor recipes remain source-checked templates; actual
+        // storage demands retain their closed semantic field views.
+        if typed
+            .closed_data_definition(storage.semantic_type)
+            .is_some()
+        {
+            requests.push(storage);
+        }
+    }
+    if requests.is_empty() {
         return Ok(());
     }
-
+    if domain.layout_targets.is_empty() {
+        return Err(fail(
+            "fixed representation evaluation requires explicit target representation facts".into(),
+        ));
+    }
+    for (position, target) in domain.layout_targets.iter().enumerate() {
+        target.validate().map_err(|reason| fail(reason.into()))?;
+        if domain.layout_targets[..position]
+            .iter()
+            .any(|known| known.profile == target.profile)
+        {
+            return Err(fail(
+                "fixed representation evaluation repeats a target input".into(),
+            ));
+        }
+    }
+    typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
     let execution = domain.execution_program(typed);
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-    let invariant_pending = records
-        .iter()
-        .filter_map(|record| {
-            let policy = typed.realized_machine_named(&record.policy_machine)?;
-            if !policy.target_family_interface {
-                return None;
-            }
-            typed
-                .data_definition_by_name_str(&record.synthetic_name)
-                .map(|data| data.symbol)
-        })
-        .collect::<Vec<_>>();
-    let mut materialized_pending = None;
-    let mut layouts = Vec::with_capacity(records.len());
+    let mut layouts = Vec::new();
     let mut target_layouts = arena::Arena::new();
     let mut captured_schema_fields = arena::Arena::new();
-    for record in records {
-        let policy_name = record
-            .policy_machine
-            .strip_suffix("::plan")
-            .unwrap_or(&record.policy_machine);
-        let policy_symbol = typed
-            .data_definition_by_name_str(policy_name)
-            .map(|data| data.symbol)
+    for storage in requests {
+        let semantic = execution
+            .closed_data_definition(storage.semantic_type)
             .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact nominal policy identity",
-                    record.synthetic_name
-                ))]
+                fail("fixed representation lost its exact closed semantic application".into())
             })?;
-        let policy_plan_machine_symbol = typed
-            .realized_machine_named(&record.policy_machine)
-            .map(|machine| machine.symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact policy plan machine",
-                    record.synthetic_name
-                ))]
-            })?;
-
-        let synthesized_data = typed
-            .data_definition_by_name_str(&record.synthetic_name)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact synthesized data identity",
-                    record.synthetic_name
-                ))]
-            })?;
-        let data_symbol = synthesized_data.symbol;
-        let field_symbols = typed
-            .live_data_fields(typed.data_members(synthesized_data))
-            .map(|field| field.symbol)
+        if semantic.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+            return Err(fail(
+                "fixed representation cannot reflect opaque semantic storage".into(),
+            ));
+        }
+        if execution
+            .data_members(semantic)
+            .iter()
+            .any(|member| member.as_field().is_none())
+        {
+            return Err(fail("fixed representation requires a record: programmable case/tag placement is not supported by this placement vocabulary".into()));
+        }
+        let selected = execution
+            .static_operand_from_type_reference(storage.policy)
+            .map_err(|reason| fail(reason.into()))?;
+        let application = validation::conformance_applications::close_conformance_application(
+            &execution, &selected,
+        )
+        .map_err(|error| vec![error])?;
+        if application.trait_definition != storage.contract {
+            return Err(fail(
+                "fixed representation policy does not satisfy the exact core FixedLayout contract"
+                    .into(),
+            ));
+        }
+        let [row] = application.rows.as_slice() else {
+            return Err(fail(
+                "fixed representation policy must retain its one exact plan row".into(),
+            ));
+        };
+        let realized = execution
+            .captured_machine_applications
+            .iter()
+            .find_map(|(_, captured)| {
+                (captured.template == row.realization_machine
+                    && captured.conformance_application == application)
+                    .then_some(captured.instance)
+            })
+            .unwrap_or(row.realization_machine);
+        let machine = execution
+            .machine_by_symbol(realized)
+            .ok_or_else(|| fail("fixed representation lost its checked policy body".into()))?;
+        let sources = execution
+            .authored_declaration_selections()
+            .iter()
+            .filter_map(|selection| {
+                use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+                matches!(selection.target(), AuthoredDeclarationSelectionTarget::Resolved(target)
+                if target.selected_symbol() == application.declaration)
+                .then_some(selection.source_span())
+            })
             .collect::<Vec<_>>();
-
-        let schema = typed
-            .data_definition_by_name_str(&record.schema_data)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}` lost its exact source schema identity",
-                    record.synthetic_name
-                ))]
-            })?;
-        let schema_symbol = schema.symbol;
-        let schema_fields = typed
-            .live_data_fields(typed.data_members(schema))
+        if sources.is_empty() {
+            return Err(fail(
+                "fixed representation policy lost its authored selection custody".into(),
+            ));
+        }
+        for source in &sources {
+            admission
+                .require_common_floor_for_invocation(
+                    &execution,
+                    machine,
+                    crate::BuildTimeInvocationCustody::Source(*source),
+                )
+                .map_err(|reason| fail(reason.to_string()))?;
+        }
+        let (fields, fingerprint) =
+            super::super::schema_reflection::schema_fields_for(&execution, semantic)
+                .map_err(fail)?;
+        let schema_value = super::super::schema_reflection::build_selected_schema_value(
+            &execution, semantic, &fields,
+        )
+        .map_err(fail)?;
+        let retained = fields.iter().map(|field| Ok(PlanLaidSchemaField {
+            schema_field: field.schema_field, key: field.key, identity: field.identity,
+            byte_size: field.size, byte_alignment: field.align,
+            kind: match field.kind { "Scalar" => PlanLaidSchemaFieldKind::Scalar,
+                "Nested" => PlanLaidSchemaFieldKind::Nested,
+                _ => return Err(fail("fixed representation retained Schema ABI does not support this field kind".into())), },
+        })).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let schema_argument = Some(PlanLaidSchemaArgument {
+            abi_version: 1,
+            fields: captured_schema_fields.insert_many(retained),
+        });
+        let schema_fields = execution
+            .live_data_fields(execution.data_members(semantic))
             .map(|field| (field.name.as_str().to_owned(), field.type_reference))
             .collect::<Vec<_>>();
-        let schema_field_symbols = typed
-            .live_data_fields(typed.data_members(schema))
-            .map(|field| field.symbol)
-            .collect::<Vec<_>>();
-        super::super::schema_reflection::require_invariant_schema(
-            typed,
-            schema_symbol,
-            &invariant_pending,
-        )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "plan-laid value type `{}`: {reason}",
-                record.synthetic_name
-            ))]
-        })?;
-        let family = typed
-            .target_machine_families
+        let field_symbols = fields
             .iter()
-            .find(|family| family.canonical == policy_plan_machine_symbol);
-        if family.is_none()
-            && typed
-                .machine_by_symbol(policy_plan_machine_symbol)
-                .is_some_and(|machine| machine.target_family_interface)
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "plan-laid value type `{}`: policy family lost its structural roster",
-                record.synthetic_name
-            ))]);
-        }
-        let family_schema = family
-            .map(|_| {
-                let pending = materialized_pending.get_or_insert_with(|| {
-                    records
-                        .iter()
-                        .filter_map(|record| {
-                            let data =
-                                execution.data_definition_by_name_str(&record.synthetic_name)?;
-                            execution
-                                .plan_laid_layout(data.symbol)
-                                .is_none()
-                                .then_some(data.symbol)
-                        })
-                        .collect::<Vec<_>>()
-                });
-                super::super::schema_reflection::require_materialized_schema(
+            .map(|field| field.schema_field)
+            .collect::<Vec<_>>();
+        let record = FixedRepresentationRequest {
+            application_name: execution.display_type_reference(storage.application),
+            policy_machine: machine.name.as_str().to_owned(),
+        };
+        let mut alternatives = Vec::new();
+        for target in &domain.layout_targets {
+            let mut arguments = vec![
+                schema_value.clone(),
+                build_time_values::BuildTimeValue::LayoutTarget(target.clone()),
+            ];
+            crate::machine_execution::admission::require_established_arguments(
+                &execution,
+                machine,
+                &mut arguments,
+            )
+            .map_err(fail)?;
+            let evaluation = domain
+                .accounting
+                .evaluate(
+                    checked_interpreter::BuildMachineProgram::Typed(&execution),
+                    checked_interpreter::BuildMachineEvaluationRequest::symbol(
+                        machine.symbol,
+                        arguments,
+                    ),
+                )
+                .map_err(|reason| {
+                    fail(format!(
+                        "layout policy `{}` under `{}`: {reason}",
+                        machine.name, target.profile
+                    ))
+                })?;
+            let layout = super::super::layout_plans::validate_plan(
+                evaluation.value(),
+                &fields,
+                fingerprint,
+                machine.name.as_str(),
+            )
+            .map_err(fail)?;
+            let private_callback_demands =
+                super::super::layout_plans::normalize_private_callback_demands(
                     &execution,
-                    schema_symbol,
-                    pending,
-                )?;
-                prepare_family_schema(&execution, schema_symbol, &record.schema_data)
-            })
-            .transpose()
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}`: {reason}",
-                    record.synthetic_name
-                ))]
-            })?;
-        let schema_argument = family_schema.as_ref().map(|(fields, _, retained)| {
-            debug_assert_eq!(fields.len(), retained.len());
-            PlanLaidSchemaArgument {
-                abi_version: 1,
-                fields: captured_schema_fields.insert_many(retained.iter().cloned()),
-            }
-        });
-        let evaluate = |machine_symbol| {
-            let machine = execution.machine_by_symbol(machine_symbol).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "layout policy lost its exact machine declaration",
-                )]
-            })?;
-            for source in &record.invocation_sources {
-                admission
-                    .require_common_floor_for_invocation(
-                        &execution,
-                        machine,
-                        crate::BuildTimeInvocationCustody::Source(*source),
-                    )
-                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-            }
-            let selection = selection_authority
-                .clone()
-                .zip(record.invocation_sources.first())
-                .map(|(authority, source)| crate::AuthorizedSelection {
-                    authority,
-                    custody: crate::BuildTimeInvocationCustody::Source(*source),
-                });
-            let report = match &family_schema {
-                Some((fields, fingerprint, _)) => {
-                    super::super::layout_plans::compute_native_layout_plan_with_schema(
-                        &execution,
-                        machine_symbol,
-                        &record.schema_data,
-                        fields,
-                        *fingerprint,
-                        selection,
-                        Some(&admission),
-                        &domain.accounting,
-                    )
-                }
-                None => {
-                    let (fields, fingerprint) = super::super::schema_reflection::schema_fields(
-                        &execution,
-                        &record.schema_data,
-                    )
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                    super::super::layout_plans::compute_native_layout_plan_with_schema(
-                        &execution,
-                        machine_symbol,
-                        &record.schema_data,
-                        &fields,
-                        fingerprint,
-                        selection,
-                        Some(&admission),
-                        &domain.accounting,
-                    )
-                }
-            }
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            install_geometry(&execution, record, &schema_fields, report)
-        };
-        let realizations = if let Some(family) = family {
-            validate_family_roster(&execution, family).map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "plan-laid value type `{}`: {reason}",
-                    record.synthetic_name
-                ))]
-            })?;
-            let mut alternatives = Vec::with_capacity(family.members.len());
-            for member in &family.members {
-                let geometry =
-                    evaluate(member.machine).map_err(|diagnostics| {
-                        diagnostics.into_iter().map(|diagnostic| {
-                        Diagnostic::error(format!(
-                            "plan-laid value type `{}` target `{}` member `{}`: {diagnostic}",
-                            record.synthetic_name,
-                            member.target,
-                            execution.symbols.name(member.machine),
-                        ))
-                    }).collect::<Vec<_>>()
-                    })?;
-                alternatives.push(PlanLaidTargetLayout {
-                    target: member.target.clone(),
-                    machine: member.machine,
-                    geometry,
-                });
-            }
-            PlanLaidRealizations::TargetFamily(target_layouts.insert_many(alternatives))
-        } else {
-            PlanLaidRealizations::Invariant(evaluate(policy_plan_machine_symbol).map_err(
-                |diagnostics| {
-                    diagnostics
-                        .into_iter()
-                        .map(|diagnostic| {
-                            Diagnostic::error(format!(
-                                "plan-laid value type `{}`: {diagnostic}",
-                                record.synthetic_name
-                            ))
-                        })
-                        .collect::<Vec<_>>()
+                    machine,
+                    evaluation.private_layout_placements(),
+                    machine.name.as_str(),
+                    Some((
+                        &selected,
+                        execution
+                            .data_implementation_applications
+                            .iter()
+                            .find_map(|(_, demand)| {
+                                (execution.normalized_type_identity(demand.source_application)
+                                    == execution.normalized_type_identity(storage.application))
+                                .then_some(demand.lexical_owner)
+                            })
+                            .unwrap_or_else(|| {
+                                execution
+                                    .type_reference_table
+                                    .operand_lifetime_owner(storage.policy)
+                            }),
+                    )),
+                )
+                .map_err(fail)?;
+            let geometry = install_geometry(
+                &execution,
+                &record,
+                &schema_fields,
+                crate::layouts::layout_plans::NativeLayoutPlanReport {
+                    layout,
+                    private_callback_demands,
                 },
-            )?)
-        };
+            )?;
+            alternatives.push(PlanLaidTargetLayout {
+                target: target.profile.as_str().into(),
+                machine: machine.symbol,
+                target_facts: target.clone(),
+                geometry,
+            });
+        }
         layouts.push(PlanLaidLayout {
-            data_name: record.synthetic_name.clone(),
-            data_symbol,
-            field_symbols,
-            schema_symbol,
-            schema_field_symbols,
-            policy_symbol,
-            policy_plan_machine_symbol,
+            application: storage.application,
+            semantic_type: storage.semantic_type,
+            policy_application: application.clone(),
+            target_inputs: domain.layout_targets.clone(),
+            data_name: record.application_name,
+            data_symbol: semantic.symbol,
+            field_symbols: field_symbols.clone(),
+            schema_symbol: semantic.symbol,
+            schema_field_symbols: field_symbols,
+            policy_symbol: application.declaration,
+            policy_plan_machine_symbol: machine.symbol,
             schema_argument,
-            realizations,
+            realizations: PlanLaidRealizations::TargetInputs(
+                target_layouts.insert_many(alternatives),
+            ),
         });
     }
-
     typed.plan_laid_layouts = layouts;
     typed.plan_laid_target_layouts = target_layouts;
     typed.plan_laid_schema_fields = captured_schema_fields;
     Ok(())
 }
 
-/// The structural roster is authoritative, including deployment target names
-/// outside the native target catalog. Never infer membership from spelling.
-fn validate_family_roster(
-    typed: &TypedTrees,
-    family: &typed_trees::machine::TargetMachineFamily,
-) -> Result<(), String> {
-    let canonical = typed.machine_by_symbol(family.canonical).ok_or_else(|| {
-        format!(
-            "layout policy family `{}` lost its canonical interface",
-            family.name
-        )
-    })?;
-    let canonical_identity = typed.machine_callable_identity(canonical);
-    if family.members.is_empty()
-        || !canonical.target_family_interface
-        || !canonical_identity.is_valid()
-    {
-        return Err(format!(
-            "layout policy family `{}` has no complete structural roster",
-            family.name
-        ));
-    }
-    for (position, member) in family.members.iter().enumerate() {
-        if family.members[..position]
-            .iter()
-            .any(|earlier| earlier.target == member.target || earlier.machine == member.machine)
-        {
-            return Err(format!(
-                "layout policy family `{}` has duplicate target/member `{}`",
-                family.name, member.target
-            ));
-        }
-        let machine = typed.machine_by_symbol(member.machine).ok_or_else(|| {
-            format!(
-                "layout policy family `{}` target `{}` lost its exact member",
-                family.name, member.target
-            )
-        })?;
-        if member.target.as_str().is_empty()
-            || machine.authored_target.as_ref() != Some(&member.target)
-            || machine.target_family_interface
-            || machine.purpose != family.purpose
-            || machine.attached_data_symbol != canonical.attached_data_symbol
-            || typed.machine_callable_identity(machine) != canonical_identity
-            || typed.machine_entry_result_type_identity(machine)
-                != typed.machine_entry_result_type_identity(canonical)
-        {
-            return Err(format!(
-                "layout policy family `{}` target `{}` has an inconsistent member `{}`",
-                family.name,
-                member.target,
-                typed.symbols.name(member.machine)
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Version 1 records the complete active record argument; unsupported ABI axes
-/// reject before evaluation so omitted inputs can never masquerade as a fold.
-fn prepare_family_schema(
-    typed: &TypedTrees,
-    schema_symbol: symbols::SymbolHandle,
-    schema_name: &str,
-) -> Result<
-    (
-        Vec<super::super::schema_reflection::SchemaFieldInfo>,
-        u64,
-        Vec<PlanLaidSchemaField>,
-    ),
-    String,
-> {
-    let schema = typed
-        .data_definition_by_symbol(schema_symbol)
-        .ok_or_else(|| "layout family lost its exact schema declaration".to_owned())?;
-    if !schema.retired_identities.is_empty() {
-        return Err(format!(
-            "target-family layout schema `{schema_name}` has retired identities; retained Schema ABI v1 supports active record fields only"
-        ));
-    }
-    if typed
-        .data_members(schema)
-        .iter()
-        .any(|member| member.as_field().is_none())
-    {
-        return Err(format!(
-            "target-family layout schema `{schema_name}` has cases; retained Schema ABI v1 supports records only"
-        ));
-    }
-    let (fields, fingerprint) = super::super::schema_reflection::schema_fields(typed, schema_name)?;
-    for field in typed.live_data_fields(typed.data_members(schema)) {
-        if !fields.iter().any(|row| row.schema_field == field.symbol) {
-            return Err(format!(
-                "target-family layout schema `{schema_name}` field `{}` has zero-sized relevant storage; retained Schema ABI v1 requires every relevant field to have an active row",
-                field.name
-            ));
-        }
-    }
-    let retained = fields.iter().map(|field| {
-        let kind = match field.kind {
-            "Scalar" => PlanLaidSchemaFieldKind::Scalar,
-            "Nested" => PlanLaidSchemaFieldKind::Nested,
-            kind => return Err(format!(
-                "target-family layout schema `{schema_name}` field `{}` uses `{kind}`; retained Schema ABI v1 supports Scalar and Nested fields only",
-                field.name
-            )),
-        };
-        Ok(PlanLaidSchemaField {
-            schema_field: field.schema_field,
-            key: field.key,
-            identity: field.identity,
-            byte_size: field.size,
-            byte_alignment: field.align,
-            kind,
-        })
-    }).collect::<Result<Vec<_>, String>>()?;
-    Ok((fields, fingerprint, retained))
-}
-
 fn install_geometry(
     typed: &TypedTrees,
-    record: &PlanLaidRecord,
+    record: &FixedRepresentationRequest,
     schema_fields: &[(String, typed_trees::types::TypeReferenceHandle)],
     native_report: crate::layouts::layout_plans::NativeLayoutPlanReport,
 ) -> Result<PlanLaidGeometry, Vec<Diagnostic>> {
@@ -419,7 +295,7 @@ fn install_geometry(
                 offsets[field_index] = Some(usize::try_from(offset).map_err(|_| {
                     vec![Diagnostic::error(format!(
                         "plan-laid value type `{}`: byte offset {offset} cannot be represented on this compiler host",
-                        record.synthetic_name
+                        record.application_name
                     ))]
                 })?);
             }
@@ -435,7 +311,7 @@ fn install_geometry(
                 offsets[field_index] = Some(usize::try_from(offset).map_err(|_| {
                     vec![Diagnostic::error(format!(
                         "plan-laid value type `{}`: stored-integer byte offset {offset} cannot be represented on this compiler host",
-                        record.synthetic_name
+                        record.application_name
                     ))]
                 })?);
                 integer_fields.push(PlanLaidIntegerField {
@@ -443,7 +319,7 @@ fn install_geometry(
                     stored_width_bits: u16::try_from(stored_width).map_err(|_| {
                         vec![Diagnostic::error(format!(
                             "plan-laid value type `{}`: stored-integer width {stored_width} exceeds the backend width vocabulary",
-                            record.synthetic_name
+                            record.application_name
                         ))]
                     })?,
                     interpretation,
@@ -468,13 +344,13 @@ fn install_geometry(
                 else {
                     return Err(vec![Diagnostic::error(format!(
                         "plan-laid value type `{}`: field `{field_name}` has repeated byte placements but is not a literal outer fixed array",
-                        record.synthetic_name
+                        record.application_name
                     ))]);
                 };
                 if entries.len() != *element_count {
                     return Err(vec![Diagnostic::error(format!(
                         "plan-laid value type `{}`: field `{field_name}` has {} element placements but its outer fixed array has {element_count} elements",
-                        record.synthetic_name,
+                        record.application_name,
                         entries.len()
                     ))]);
                 }
@@ -494,14 +370,14 @@ fn install_geometry(
                 {
                     return Err(vec![Diagnostic::error(format!(
                         "plan-laid value type `{}`: field `{field_name}` does not retain one positive constant destination stride",
-                        record.synthetic_name
+                        record.application_name
                     ))]);
                 }
                 offsets[field_index] = Some(
                     usize::try_from(element_offsets[0]).map_err(|_| {
                         vec![Diagnostic::error(format!(
                             "plan-laid value type `{}`: repeated field offset {} cannot be represented on this compiler host",
-                            record.synthetic_name, element_offsets[0]
+                            record.application_name, element_offsets[0]
                         ))]
                     })?,
                 );
@@ -510,7 +386,7 @@ fn install_geometry(
                     element_stride: usize::try_from(stride).map_err(|_| {
                         vec![Diagnostic::error(format!(
                             "plan-laid value type `{}`: repeated field stride {stride} cannot be represented on this compiler host",
-                            record.synthetic_name
+                            record.application_name
                         ))]
                     })?,
                 });
@@ -536,31 +412,31 @@ fn install_geometry(
                         container_byte_offset: usize::try_from(container).map_err(|_| {
                             vec![Diagnostic::error(format!(
                                 "plan-laid value type `{}`: bit-container offset {container} cannot be represented on this compiler host",
-                                record.synthetic_name
+                                record.application_name
                             ))]
                         })?,
                         container_width_bits: u16::try_from(container_width).map_err(|_| {
                             vec![Diagnostic::error(format!(
                                 "plan-laid value type `{}`: bit-container width {container_width} exceeds the backend width vocabulary",
-                                record.synthetic_name
+                                record.application_name
                             ))]
                         })?,
                         destination_lsb: u16::try_from(destination_lsb).map_err(|_| {
                             vec![Diagnostic::error(format!(
                                 "plan-laid value type `{}`: destination bit {destination_lsb} exceeds the backend width vocabulary",
-                                record.synthetic_name
+                                record.application_name
                             ))]
                         })?,
                         source_lsb: u16::try_from(source_lsb).map_err(|_| {
                             vec![Diagnostic::error(format!(
                                 "plan-laid value type `{}`: source bit {source_lsb} exceeds the backend width vocabulary",
-                                record.synthetic_name
+                                record.application_name
                             ))]
                         })?,
                         width: u16::try_from(width).map_err(|_| {
                             vec![Diagnostic::error(format!(
                                 "plan-laid value type `{}`: fragment width {width} exceeds the backend width vocabulary",
-                                record.synthetic_name
+                                record.application_name
                             ))]
                         })?,
                     };
@@ -576,7 +452,7 @@ fn install_geometry(
                 return Err(vec![Diagnostic::error(format!(
                     "plan-laid value type `{}`: field `{field_name}` does not have one \
                      byte placement or a completely tiled bit-fragment placement",
-                    record.synthetic_name
+                    record.application_name
                 ))]);
             }
         }
@@ -593,13 +469,13 @@ fn install_geometry(
     let size = usize::try_from(size).map_err(|_| {
         vec![Diagnostic::error(format!(
             "plan-laid value type `{}`: fixed size {size} cannot be represented on this compiler host",
-            record.synthetic_name
+            record.application_name
         ))]
     })?;
     let align = usize::try_from(report.align).map_err(|_| {
         vec![Diagnostic::error(format!(
             "plan-laid value type `{}`: alignment {} cannot be represented on this compiler host",
-            record.synthetic_name, report.align
+            record.application_name, report.align
         ))]
     })?;
     Ok(PlanLaidGeometry {

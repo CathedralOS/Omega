@@ -12,10 +12,7 @@ boundary trait WindowProcedure {
 data Spread {
 }
 
-WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
-    Spread,
-    WindowProcedure::call
-> { }
+WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, WindowProcedure::call> { }
 
 machine Spread::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];

@@ -661,6 +661,7 @@ fn expect_value(
 fn kind(value: &BuildTimeValue) -> &'static str {
     match value {
         BuildTimeValue::Unit => "Unit",
+        BuildTimeValue::LayoutTarget(_) => "compiler-issued target context",
         BuildTimeValue::Int(_) => "integer",
         BuildTimeValue::Bool(_) => "Bool",
         BuildTimeValue::Float(_) | BuildTimeValue::UndeterminedNaN(_) => "float",
