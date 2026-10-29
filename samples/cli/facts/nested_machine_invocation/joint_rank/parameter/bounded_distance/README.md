@@ -67,8 +67,12 @@ The named whole-view, selected-cell and store customers retain their original
 postcondition. The store proof follows canonical call values and exact captured
 exclusive-reference actuals; it executes the supported body without treating
 callee contracts or a pending result as evidence. Bad terminal branches and
-wrong forwarded storage remain reject controls. Arbitrary recursive mutation
-still needs an actual invariant proof; revisiting its body grants no result.
+wrong forwarded storage remain reject controls. An overlapping write cannot
+reuse an immutable record-field observation as current contents: this symbolic
+body fragment declines that unrepresented record mutation. Ordinary record
+reads and writes keep their existing owners; versioned record-field predicate
+handback remains on the parent task. Arbitrary recursive mutation still needs
+an actual invariant proof; revisiting its body grants no result.
 
 Run records identify the exact producer and target in the qualification and PR.
 Other hosted native execution, suffix-parser retirement, the remaining source
