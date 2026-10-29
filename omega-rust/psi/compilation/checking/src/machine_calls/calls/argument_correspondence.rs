@@ -87,7 +87,7 @@ fn trace_missing_parameter_telescope(
     let parent = symbol.parent;
     eprintln!(
         "CALL_SIGNATURE missing caller={caller:?} raw={raw_target:?} target={target:?} name={} kind={:?} parent={parent:?} parent_kind={:?} generated_from={:?} application={application:?}",
-        symbol.name,
+        program.symbols.name(target),
         symbol.kind,
         program.symbols.get(parent).kind,
         symbol.generated_from,
