@@ -36,14 +36,7 @@ where
         targeted,
         target_operations::TargetUnitOperation::Call { .. }
     ) {
-        call_instructions::project_call(
-            optimized,
-            unit,
-            targeted,
-            native,
-            plan,
-            call_descriptor_origins,
-        )?
+        call_instructions::project_call(optimized, unit, targeted, call_descriptor_origins)?
     } else if let target_operations::TargetUnitOperation::PlacementLifecycle {
         boundary,
         operands,
