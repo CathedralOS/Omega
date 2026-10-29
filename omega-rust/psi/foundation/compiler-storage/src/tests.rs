@@ -158,3 +158,87 @@ fn fixed_width_sequences_keep_size_budget_and_value_refusals() {
         []
     );
 }
+
+#[test]
+fn generation_domains_preserve_semantic_handles_and_separate_equal_old_tags() {
+    struct Text;
+    struct OtherText;
+    struct Semantic;
+    let mut input = crate::RecordReader::<()>::new(&[], RecordLimits::default()).unwrap();
+    input.remap_generations::<Text>();
+    assert_eq!(input.generation::<Semantic>(3).unwrap(), 3);
+    assert!(input.generation::<Text>(3).is_err());
+    assert_eq!(
+        input
+            .define_generation::<Text, _>(3, &"source", || Ok(11))
+            .unwrap(),
+        11
+    );
+    assert_eq!(
+        input
+            .define_generation::<OtherText, _>(3, &"other", || Ok(22))
+            .unwrap(),
+        22
+    );
+    input.remap_generations::<Text>();
+    assert_eq!(
+        input
+            .define_generation::<Text, _>(3, &"source", || panic!(
+                "must reuse the existing correspondence"
+            ))
+            .unwrap(),
+        11
+    );
+    assert!(
+        input
+            .define_generation::<Text, _>(3, &"changed", || Ok(33))
+            .is_err()
+    );
+    assert!(
+        input
+            .define_generation::<Text, _>(3, &17_u32, || Ok(33))
+            .is_err()
+    );
+    assert_eq!(input.generation::<Text>(3).unwrap(), 11);
+    assert_eq!(input.generation::<OtherText>(3).unwrap(), 22);
+    assert_eq!(input.generation::<Semantic>(3).unwrap(), 3);
+}
+
+#[test]
+fn failed_generation_publication_does_not_register_or_publish_a_domain() {
+    struct Text;
+    for limits in [
+        RecordLimits {
+            allocation: 0,
+            ..RecordLimits::default()
+        },
+        RecordLimits {
+            elements: 0,
+            ..RecordLimits::default()
+        },
+    ] {
+        let mut input = crate::RecordReader::<()>::new(&[], limits).unwrap();
+        assert!(
+            input
+                .define_generation::<Text, _>(3, &"source", || panic!(
+                    "budget must refuse before allocating a generation"
+                ))
+                .is_err()
+        );
+        assert_eq!(input.generation::<Text>(3).unwrap(), 3);
+    }
+    let mut input = crate::RecordReader::<()>::new(&[], RecordLimits::default()).unwrap();
+    assert!(
+        input
+            .define_generation::<Text, _>(3, &"source", || Err("generation exhausted"))
+            .is_err()
+    );
+    assert_eq!(input.generation::<Text>(3).unwrap(), 3);
+    input.remap_generations::<Text>();
+    assert!(
+        input
+            .define_generation::<Text, _>(3, &"source", || Err("generation exhausted"))
+            .is_err()
+    );
+    assert!(input.generation::<Text>(3).is_err());
+}

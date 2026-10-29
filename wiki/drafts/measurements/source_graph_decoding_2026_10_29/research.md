@@ -105,3 +105,21 @@ existing generation map, payload-conflict checks, and failure behavior.
 Next hypothesis: remove the repeated outer type hash, retaining explicit generic
 domain registration and unchanged inner generation correspondence checks. Use
 the newly instrumented producer as the matched baseline for that single change.
+
+## Generation-domain registry: retained
+
+The 32-pair initial run established an end-to-end reduction on both workloads.
+A separate 16-pair repeat was noisier and inconclusive alone; it is fully
+reported. Pooling all complete, compatible pairs estimates median paired savings
+of 100.312 ms / 9.57% for length (95% percent interval [2.81%, 11.28%]) and
+42.402 ms / 4.47% for square-sum ([1.58%, 6.51%]). The analysis reproduces every
+original Rust bootstrap interval before combining the intact within-run pairs.
+Decode profile medians fell 17.50% and 15.31%; retained-check restoration owns
+most of that reduction. The change is retained with shared-host, warm-cache and
+exploratory-analysis limitations, not as a cold or universal compiler speedup.
+
+All 208 warmup/measured native products passed and were identical per workload.
+Both engine agreement, static invalid twins, frozen cache hashes and corruption
+recovery passed. The final source passed 110 decoder/arena/syntax tests, scoped
+Clippy and Linux/macOS cross-target checks. The [result ledger](README.md) links
+all identities, failed setup attempts, raw observations and limitations.
