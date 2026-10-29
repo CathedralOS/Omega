@@ -2219,6 +2219,12 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         let Some(owner) = selected_call_contract(program, scope.0.symbol, call) else {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-capture refused expression={expression:?} target={} stage=selected-contract",
+                    call.target
+                );
+            }
             return None;
         };
         // Computed proof machines are erased mathematical applications. Their
@@ -2232,7 +2238,12 @@ impl<'program> StructuralJudge<'program> {
         }
         let site = crate::CallSite::Expression { expression, call };
         let application =
-            AppliedProofBindings::for_call_site(program, scope.0.symbol, &owner, site)?;
+            AppliedProofBindings::for_call_site(program, scope.0.symbol, &owner, site).or_else(|| {
+                if super::super::struct_trace() {
+                    eprintln!("STRUCT normal-capture refused expression={expression:?} target={} owner={:?} application={:?} stage=static-bindings", call.target, owner_symbol(&owner), call.authored_machine_application);
+                }
+                None
+            })?;
         // The shared application intake authenticates the complete static
         // telescope. This observer imports only its selected public contract;
         // it never interprets a callback body. The exact call's callback
@@ -2243,7 +2254,12 @@ impl<'program> StructuralJudge<'program> {
             scope.0.symbol,
             &owner,
             crate::CallSite::Expression { expression, call },
-        )?;
+        ).or_else(|| {
+            if super::super::struct_trace() {
+                eprintln!("STRUCT normal-capture refused expression={expression:?} target={} owner={:?} stage=parameter-scope", call.target, owner_symbol(&owner));
+            }
+            None
+        })?;
         let parameters = parameter_scope.as_ref();
         if super::super::struct_trace() {
             eprintln!(

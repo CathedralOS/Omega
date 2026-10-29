@@ -331,7 +331,7 @@ pub struct CustodyConstraint {
 pub struct RetainedProvider {
     pub report_identity: u64,
     pub plan_digest: [u8; 32],
-    /// Complete canonical v4 commitment input, never executable authority.
+    /// Complete canonical v5 commitment input, never executable authority.
     pub plan_input: Vec<u8>,
     /// Exact requirement identities this provider seals for the component.
     pub requirement_identities: Vec<String>,

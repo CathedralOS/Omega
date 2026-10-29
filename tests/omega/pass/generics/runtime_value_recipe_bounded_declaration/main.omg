@@ -1,4 +1,4 @@
 // Expected exit: 0
 data Index<Count: u64> { value: u64; }
-trait Contract { machine unused(total: u64 [0..=100]) -> Index<(total + 1)>; }
+trait Contract { machine unused(total: u64) -> Index<(total + 1)> requires total >= 0 && total <= 100; }
 machine main() {}
