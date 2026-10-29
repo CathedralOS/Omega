@@ -76,6 +76,7 @@ impl ComponentPublication {
         TerminalProductRequest {
             view: TerminalProductionView::checked(&self.checked, &mut self.timings),
             selections: self.selections.effective(),
+            use_kind: crate::terminal::TerminalProductUse::Application,
         }
     }
 

@@ -17,7 +17,6 @@ use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selec
 use std::sync::Arc;
 
 pub(crate) mod constant_recipe_closure;
-pub(crate) use constant_recipe_closure::same_checked_program;
 
 /// One target's complete provider selection beside the shared source custody.
 /// Terminal production borrows this record to mint the target-neutral artifact.
@@ -164,6 +163,11 @@ impl SelectedProductTarget {
 
     pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         crate::terminal::check_terminal_conditions(&mut self.custody)?;
+        self.check_task_activations()?;
+        Ok(self.into_checked_compilation())
+    }
+
+    pub(crate) fn check_task_activations(&self) -> Result<(), Vec<Diagnostic>> {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let demands = psi_compiler::lower_task_activation_demands(
             &self.custody.execution.program,
@@ -178,7 +182,7 @@ impl SelectedProductTarget {
                 .selected_target_profile
                 .unwrap_or_else(target::TargetProfile::host),
         )?;
-        Ok(self.into_checked_compilation())
+        Ok(())
     }
 
     /// Assemble the already-prepared result. Executable products discharge task

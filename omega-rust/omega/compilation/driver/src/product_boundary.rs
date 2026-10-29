@@ -388,9 +388,9 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
 }
 
 #[test]
-fn terminal_cohorts_retain_admitted_applications() {
+fn terminal_cohorts_retain_admitted_products() {
     let source = include_str!("terminal/terminal_artifact.rs");
-    assert!(source.contains("struct AdmittedTerminalApplication"));
+    assert!(source.contains("struct AdmittedTerminalProduct"));
     for forbidden in [
         "requests[",
         "entries[",

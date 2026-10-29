@@ -6,6 +6,7 @@
 //! across Terminal production. Permission and trust admission stay after selected
 //! execution installation; planning is not authority to execute or publish.
 
+mod checking;
 mod component;
 mod native_inputs;
 
@@ -155,6 +156,7 @@ pub(crate) enum CompilationWork {
 /// there is no independent requested-mode/report-mode pair to reconcile later.
 pub(crate) enum TerminalCompilation {
     Requested(RequestedTerminalCompilation),
+    Checking(checking::CheckingCompilation),
     Component(ComponentPublication),
 }
 
@@ -205,6 +207,18 @@ impl ProductRequest {
                 },
             )))
         } else {
+            if realization
+                .custody
+                .execution
+                .program
+                .facts
+                .proof_applications
+                .has_obligations
+            {
+                return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
+                    checking::CheckingCompilation::new(realization, report, permissions),
+                )));
+            }
             let checked = realization.finish_check()?;
             admit_permissions(&checked, permissions.as_ref(), false)?;
             checked
@@ -227,18 +241,20 @@ impl TerminalCompilation {
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
             Self::Requested(product) => product.terminal_request(),
+            Self::Checking(product) => product.terminal_request(),
             Self::Component(product) => product.terminal_request(),
         }
     }
 
     pub(crate) fn finish(
         self,
-        produced: TerminalApplication,
+        produced: crate::terminal::ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         match self {
-            Self::Requested(product) => product.finish(produced),
+            Self::Requested(product) => product.finish(produced.into_application()?),
+            Self::Checking(product) => product.finish(produced),
             Self::Component(product) => product
-                .finish(produced)
+                .finish(produced.into_application()?)
                 .map(CompilationOutput::Component)
                 .map_err(CompilationProductError::Production),
         }
@@ -255,6 +271,7 @@ impl RequestedTerminalCompilation {
                     .then_some(self.realization.independent_component_products.as_slice()),
             ),
             selections: self.report.optimizations(),
+            use_kind: crate::terminal::TerminalProductUse::Application,
         }
     }
 

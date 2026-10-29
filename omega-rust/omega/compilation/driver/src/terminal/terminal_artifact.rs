@@ -90,27 +90,93 @@ impl<'a> TerminalProductionView<'a> {
 pub(crate) struct TerminalProductRequest<'a> {
     pub view: TerminalProductionView<'a>,
     pub selections: &'a OptimizationSelections,
+    pub use_kind: TerminalProductUse,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TerminalProductUse {
+    Declarations,
+    Application,
+}
+
+pub(crate) enum ProducedTerminalProduct {
+    Declarations {
+        artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
+        proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    },
+    Application(TerminalApplication),
+}
+
+impl ProducedTerminalProduct {
+    pub(crate) fn into_application(self) -> Result<TerminalApplication, Vec<Diagnostic>> {
+        match self {
+            Self::Application(application) => Ok(application),
+            Self::Declarations { .. } => Err(vec![Diagnostic::error(
+                "declaration checking produced no executable application",
+            )]),
+        }
+    }
+
+    pub(crate) fn check_conditions(
+        self,
+        selection: &mut SelectedProviderCustody,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Self::Declarations {
+            artifact,
+            proposals,
+        } = self
+        else {
+            return Err(vec![Diagnostic::error(
+                "declaration checking received an executable application",
+            )]);
+        };
+        let target = selection
+            .execution
+            .selected_target_profile
+            .unwrap_or_else(target::TargetProfile::host);
+        super::scalar_completion::complete(
+            &artifact,
+            target.target_name(),
+            &[],
+            &proposals,
+            &mut selection.source_completion_accounting,
+        )
+        .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
+        Ok(())
+    }
 }
 
 /// Admission retains the request's entry and composition policy together.
 /// The position is only for restoring caller order after source-cohort work;
 /// it never indexes another table to recover semantic identity.
-struct AdmittedTerminalApplication<'a> {
+struct AdmittedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
     selected_machine: symbols::SymbolHandle,
-    signature_identity: [u8; 32],
+    signature_identity: Option<[u8; 32]>,
     admission_roots: Vec<symbols::SymbolHandle>,
     policy: Option<TerminalBehaviorExclusions<'a>>,
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
 
-impl<'a> AdmittedTerminalApplication<'a> {
+impl<'a> AdmittedTerminalProduct<'a> {
     fn admit(
         position: usize,
         request: TerminalProductRequest<'a>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
+        if request.use_kind == TerminalProductUse::Declarations {
+            let provider_publication = prepare_target_provider_publication(view);
+            return Ok(Self {
+                position,
+                request,
+                selected_machine: Default::default(),
+                signature_identity: None,
+                admission_roots: Vec::new(),
+                policy: None,
+                provider_publication,
+            });
+        }
         let entry = admit_terminal_production(
             view.entry,
             view.provenance,
@@ -137,7 +203,7 @@ impl<'a> AdmittedTerminalApplication<'a> {
             position,
             request,
             selected_machine,
-            signature_identity,
+            signature_identity: Some(signature_identity),
             admission_roots,
             policy,
             provider_publication,
@@ -145,20 +211,19 @@ impl<'a> AdmittedTerminalApplication<'a> {
     }
 
     fn shares_production(&self, other: &Self) -> bool {
-        crate::execution_settlement::same_checked_program(
-            self.request.view.program,
-            other.request.view.program,
-        ) && self.request.view.sources == other.request.view.sources
+        self.request.use_kind == other.request.use_kind
+            && Arc::ptr_eq(self.request.view.program, other.request.view.program)
+            && self.request.view.sources == other.request.view.sources
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 
     fn custody(&self) -> TerminalApplicationCustody<'_> {
         TerminalApplicationCustody {
             admission_roots: &self.admission_roots,
-            entry_identity: Some(self.signature_identity),
-            entry_machine: Some(psi_compiler::TerminalMachineSelection::Symbol(
-                self.selected_machine,
-            )),
+            entry_identity: self.signature_identity,
+            entry_machine: self.selected_machine.is_valid().then_some(
+                psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
+            ),
             admission: self
                 .policy
                 .as_ref()
@@ -172,11 +237,11 @@ impl<'a> AdmittedTerminalApplication<'a> {
 /// keeps each request with its policy; cohorts own applications, not indices.
 pub(crate) fn produce_retained_terminal_artifacts(
     requests: Vec<TerminalProductRequest<'_>>,
-) -> Vec<Result<TerminalApplication, Vec<Diagnostic>>> {
+) -> Vec<Result<ProducedTerminalProduct, Vec<Diagnostic>>> {
     let mut outcomes = Vec::with_capacity(requests.len());
-    let mut cohorts: Vec<Vec<AdmittedTerminalApplication<'_>>> = Vec::new();
+    let mut cohorts: Vec<Vec<AdmittedTerminalProduct<'_>>> = Vec::new();
     for (position, request) in requests.into_iter().enumerate() {
-        let application = match AdmittedTerminalApplication::admit(position, request) {
+        let application = match AdmittedTerminalProduct::admit(position, request) {
             Ok(application) => application,
             Err(diagnostics) => {
                 outcomes.push((position, Err(diagnostics)));
@@ -225,6 +290,19 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 let artifact = Arc::new(artifact);
                 let mut applications = applications.into_iter();
                 for application in cohort {
+                    if application.request.use_kind == TerminalProductUse::Declarations {
+                        outcomes.push((
+                            application.position,
+                            Ok(ProducedTerminalProduct::Declarations {
+                                proposals: application.provider_publication.publish(
+                                    artifact.view(),
+                                    application.request.selections.identity(),
+                                ),
+                                artifact: Arc::clone(&artifact),
+                            }),
+                        ));
+                        continue;
+                    }
                     let outcome = match applications.next() {
                         Some(receipt) => receipt.and_then(|receipt| {
                             let receipt = receipt.ok_or_else(|| {
@@ -232,7 +310,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     "terminal-artifact production retained no checked ProgramEntry receipt",
                                 )]
                             })?;
-                            Ok(TerminalApplication {
+                            Ok(ProducedTerminalProduct::Application(TerminalApplication {
                                 physical_entry_adapter: application
                                     .request
                                     .view
@@ -245,7 +323,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                 ),
                                 artifact: Arc::clone(&artifact),
                                 receipt,
-                            })
+                            }))
                         }),
                         None => Err(vec![Diagnostic::error(
                             "Terminal production lost an application outcome",
@@ -265,7 +343,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
 /// Produce one nonempty source cohort. Application-specific admission borrows
 /// each member's retained policy; portable roots and optimization are shared.
 fn produce_shared_terminal(
-    cohort: &[AdmittedTerminalApplication<'_>],
+    cohort: &[AdmittedTerminalProduct<'_>],
     timings: &mut CompileTimings,
 ) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
     let first = &cohort[0];
@@ -273,6 +351,19 @@ fn produce_shared_terminal(
     let checked_program = view.program;
     let typed = &checked_program.typed;
     let boundary_roots = retained_boundary_roots(view)?;
+    if first.request.use_kind == TerminalProductUse::Declarations {
+        return produce_terminal(
+            view,
+            first.request.selections,
+            psi_compiler::TerminalMachineSelection::Declarations,
+            psi_compiler::TerminalProgramRoots {
+                machines: &[],
+                boundaries: &boundary_roots,
+            },
+            &[],
+            timings,
+        );
+    }
     let mut machines = view.build.config.program_roots();
     if machines.is_empty() {
         machines.push(first.selected_machine);
@@ -304,7 +395,7 @@ fn produce_shared_terminal(
         .map_or(default, |family| family.canonical);
     let applications = cohort
         .iter()
-        .map(AdmittedTerminalApplication::custody)
+        .map(AdmittedTerminalProduct::custody)
         .collect::<Vec<_>>();
     produce_terminal(
         view,
@@ -521,41 +612,18 @@ pub(crate) fn check_terminal_conditions(
     {
         return Ok(());
     }
-    let view = TerminalProductionView::selection(selection, None);
-    let boundaries = retained_boundary_roots(&view)?;
-    let providers = prepare_target_provider_publication(&view);
     let selections = OptimizationSelections::default();
-    let mut timings = std::mem::take(view.timings);
-    let started = std::time::Instant::now();
-    let produced = produce_terminal(
-        &view,
-        &selections,
-        psi_compiler::TerminalMachineSelection::Declarations,
-        psi_compiler::TerminalProgramRoots {
-            machines: &[],
-            boundaries: &boundaries,
-        },
-        &[],
-        &mut timings,
-    );
-    timings.add_completed(TERMINAL_PRODUCTION_STAGE, started.elapsed().as_micros());
-    *view.timings = timings;
-    let produced = produced?;
-    let (artifact, _) = produced
-        .into_parts()
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let artifact = Arc::new(artifact);
-    let proposals = providers.publish(artifact.view(), selections.identity());
-    let target = view
-        .selected_target_profile
-        .unwrap_or_else(target::TargetProfile::host);
-    super::scalar_completion::complete(
-        &artifact,
-        target.target_name(),
-        &[],
-        &proposals,
-        &mut selection.source_completion_accounting,
-    )
-    .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
-    Ok(())
+    let request = TerminalProductRequest {
+        view: TerminalProductionView::selection(selection, None),
+        selections: &selections,
+        use_kind: TerminalProductUse::Declarations,
+    };
+    let produced = produce_retained_terminal_artifacts(vec![request])
+        .pop()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "declaration checking lost its production",
+            )]
+        })??;
+    produced.check_conditions(selection)
 }

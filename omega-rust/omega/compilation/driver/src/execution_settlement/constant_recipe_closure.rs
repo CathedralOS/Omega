@@ -179,10 +179,3 @@ fn close_constant_values(
     )?;
     evaluation.close_constants(constants, &source.program.typed)
 }
-
-/// Whether two selections consume one checked program: the same shared
-/// storage, or two closed copies whose folded programs (closure values,
-/// realization receipts, layout answers) and judgments agree.
-pub(crate) fn same_checked_program(left: &Arc<CheckedTrees>, right: &Arc<CheckedTrees>) -> bool {
-    Arc::ptr_eq(left, right) || (left.typed == right.typed && left.facts == right.facts)
-}

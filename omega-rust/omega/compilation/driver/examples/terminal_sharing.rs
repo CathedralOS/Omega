@@ -8,6 +8,8 @@
 //! expects that target to refuse while its siblings still produce their outputs.
 //! `--reason TEXT` pins a different refusal than the default missing ProgramEntry.
 //! `--run` also executes the host native product and its reloaded Terminal image.
+//! `--expected-terminal-productions 1` measures a Check requiring shared scalar
+//! evaluation; ordinary debt-free Check defaults to zero productions.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -26,6 +28,7 @@ fn main() {
     let mut execute_host = false;
     let mut product = RequestedCompileProduct::NativeArtifact;
     let mut rejected_target = None;
+    let mut expected_terminal_productions = None;
     let mut rejection_reason = "ProgramEntry".to_owned();
     while arguments
         .peek()
@@ -35,6 +38,15 @@ fn main() {
             Some("--run") => execute_host = true,
             Some("--check") => product = RequestedCompileProduct::Check,
             Some("--terminal") => product = RequestedCompileProduct::TerminalArtifact,
+            Some("--expected-terminal-productions") => {
+                expected_terminal_productions = Some(
+                    arguments
+                        .next()
+                        .expect("expected Terminal production count")
+                        .parse::<u64>()
+                        .expect("numeric Terminal production count"),
+                );
+            }
             Some("--reject") => rejected_target = Some(arguments.next().expect("rejected target")),
             Some("--reason") => rejection_reason = arguments.next().expect("refusal diagnostic"),
             flag => panic!("unknown measurement flag: {flag:?}"),
@@ -164,7 +176,8 @@ fn main() {
             1,
             1,
             2,
-            u64::from(product != RequestedCompileProduct::Check)
+            expected_terminal_productions
+                .unwrap_or_else(|| u64::from(product != RequestedCompileProduct::Check))
         )
     );
     println!(
