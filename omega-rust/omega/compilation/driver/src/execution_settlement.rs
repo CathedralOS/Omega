@@ -166,21 +166,7 @@ impl SelectedProductTarget {
     }
 
     pub(crate) fn check_task_activations(&self) -> Result<(), Vec<Diagnostic>> {
-        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let demands = psi_compiler::lower_task_activation_demands(
-            &self.custody.execution.program,
-            &mut identities,
-        )?;
-        task_plans::realize_task_activations(
-            &demands,
-            &identities.build(),
-            &self.custody.execution.selected_provider_plan_facts,
-            self.custody
-                .execution
-                .selected_target_profile
-                .unwrap_or_else(target::TargetProfile::host),
-        )?;
-        Ok(())
+        check_task_activations(&self.custody.execution)
     }
 
     /// Assemble the already-prepared result. Executable products discharge task
@@ -192,6 +178,22 @@ impl SelectedProductTarget {
             self.independent_component_products,
         )
     }
+}
+
+/// Nonexecuting publication still owes every selected task activation contract.
+/// Source selection and component completion consume the same retained input.
+pub(crate) fn check_task_activations(execution: &SelectedExecution) -> Result<(), Vec<Diagnostic>> {
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let demands = psi_compiler::lower_task_activation_demands(&execution.program, &mut identities)?;
+    task_plans::realize_task_activations(
+        &demands,
+        &identities.build(),
+        &execution.selected_provider_plan_facts,
+        execution
+            .selected_target_profile
+            .unwrap_or_else(target::TargetProfile::host),
+    )?;
+    Ok(())
 }
 
 /// Discovery survives selection failure so package review can acquire the

@@ -138,8 +138,9 @@ pub(crate) enum ProductRequest {
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
     },
-    /// Review and dependency demands already own installed checked custody.
-    /// They publish a component without selecting or installing it again.
+    /// Review and dependency demands own Psi-checked, target-selected custody.
+    /// Declaration obligations complete against the shared produced artifact,
+    /// before publishing a component description or admitting it to the cache.
     Component {
         checked: CheckedCompilation,
         retain_native_inputs: bool,
@@ -255,8 +256,7 @@ impl TerminalCompilation {
             Self::Checking(product) => product.finish(produced),
             Self::Component(product) => product
                 .finish(produced.into_application()?)
-                .map(CompilationOutput::Component)
-                .map_err(CompilationProductError::Production),
+                .map(CompilationOutput::Component),
         }
     }
 }

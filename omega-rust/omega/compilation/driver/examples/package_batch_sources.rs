@@ -48,6 +48,11 @@ fn measure() {
     .expect("batch workspace");
     let mut session = BuildSession::create(workspace.path()).expect("batch resources");
     let mut completed = Vec::new();
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--component-scalars")) {
+        measure_component_scalars(&mut session, &mut completed, &root);
+        session.close().expect("close batch resources");
+        return;
+    }
     let (mut first, first_custody) = discover(
         &mut session,
         &mut completed,
@@ -311,4 +316,93 @@ fn measure_component_review(
     println!(
         "lazy_component_publications=2 equal_descriptions=true builds=0 checks=0 source_completions=0"
     );
+}
+
+/// A component cohort owes one portable production, including scalar checks.
+/// These are unchanged authored fixtures; component publication gets no new
+/// ProgramEntry authority and the false contract must still reject both targets.
+fn measure_component_scalars(
+    session: &mut BuildSession,
+    completed: &mut Vec<CompletedBuild>,
+    root: &Path,
+) {
+    let targets = [TargetProfile::WindowsX64, TargetProfile::MacosArm64];
+    let mut observed = Vec::new();
+    for (fixture, expected_failure) in [
+        ("pass/layouts/runtime_constant_layout_contract_exit", None),
+        (
+            "fail/layouts/false_constant_layout_contract",
+            Some("scalar predicate is false"),
+        ),
+        (
+            "pass/build/component_declaration_scalar_conditions_exit",
+            None,
+        ),
+        (
+            "fail/build/component_declaration_scalar_conditions",
+            Some("cause: Trap"),
+        ),
+    ] {
+        let (requests, custody) = discover(
+            session,
+            completed,
+            &root.join("tests/omega").join(fixture).join("main.omg"),
+            &targets,
+        );
+        let mut builds = Vec::new();
+        for (target, request) in targets.into_iter().zip(requests) {
+            let build =
+                omega_build::prepare_package(session.compiler(), request.occurrences, completed)
+                    .unwrap_or_else(|error| {
+                        panic!("preparation: {:?}", error.failure.into_diagnostics())
+                    });
+            builds.push((target, build));
+        }
+        let before = work_counts();
+        let outputs = session
+            .compiler()
+            .complete_package_components(builds)
+            .expect("component batch");
+        let counts = work_since(before);
+        assert_eq!(outputs.len(), 2);
+        let mut subjects = Vec::new();
+        for (expected_target, (target, output)) in targets.into_iter().zip(outputs) {
+            assert_eq!(target, expected_target, "target order and identity");
+            match expected_failure {
+                Some(reason) => {
+                    let diagnostics = output.expect_err("false component contract must reject");
+                    assert!(
+                        diagnostics
+                            .iter()
+                            .any(|diagnostic| diagnostic.message.contains(reason)),
+                        "{diagnostics:?}"
+                    );
+                }
+                None => subjects.push(output.expect("valid component").expected_subject()),
+            }
+        }
+        if expected_failure.is_none() {
+            assert_eq!(
+                subjects[0], subjects[1],
+                "targets retain one canonical component identity"
+            );
+        }
+        println!(
+            "component_fixture={fixture} builds={} checks={} source_completions={} terminal_productions={} outcomes=2 rejected={}",
+            counts.0,
+            counts.1,
+            counts.2,
+            counts.3,
+            if expected_failure.is_some() { 2 } else { 0 }
+        );
+        observed.push(counts);
+        drop(custody);
+    }
+    for counts in observed {
+        assert_eq!(counts.0, 0, "component publication must not replay Build");
+        assert_eq!(
+            counts.3, 1,
+            "scalar checking and component publication share one Terminal production"
+        );
+    }
 }

@@ -450,9 +450,12 @@ impl CompilationSession {
             }
             let mut requests = Vec::new();
             for (owner, selected) in self.select_build_batch(pending) {
-                let request = match selected.finish_check().result {
-                    Ok(checked) => Ok(crate::product_execution::ProductRequest::Component {
-                        checked,
+                let request = match selected.result {
+                    Ok(selected) => Ok(crate::product_execution::ProductRequest::Component {
+                        // This assembles source custody, not completed scalar
+                        // evidence. Component publication checks its obligations
+                        // against the same artifact the batch produces below.
+                        checked: selected.into_checked_compilation(),
                         retain_native_inputs: owner.2.is_some(),
                     }),
                     Err(failure) => Err(crate::CompilationProductError::Production(

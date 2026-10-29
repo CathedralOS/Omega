@@ -419,6 +419,11 @@ the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
 Declaration-only Check publishes a rootless Terminal product when conditions need
 completion; a Check with no retained scalar obligations stops before publication.
+Demanded components complete all declaration conditions against their shared
+Application artifact before publishing descriptions or entering the component
+cache. They do not first produce a disposable declaration artifact per target.
+Lazy review retains its earlier checking boundary because review evidence may
+be consumed without ever requesting a component.
 
 Build-helper production publishes the checked source unchanged. The waiting
 Build activation admits each explicitly named provider slot, discovers its
