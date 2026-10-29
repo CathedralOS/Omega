@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""Read existing Omega evidence; export one portable HTML snapshot or serve it locally.
+
+No compiler is launched. Goldens remain historical observations, and fact-file
+presence never establishes runtime acceptance. The UI and this collector share
+one snapshot format so publishing needs no second progress ledger.
+"""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+from pathlib import Path
+import subprocess
+import sys
+from urllib.parse import urlsplit
+
+import corpus_records
+from corpus_scoreboard import native_scoreboard, oracle_lookup
+
+ROOT = Path(__file__).resolve().parents[1]
+PLACES = ("local", "field", "parameter", "call_result", "match_join",
+          "const_name", "other_state", "other_machine", "target_body")
+TARGETS = ("windows_x86_64", "linux_x86_64", "macos_arm64", "linux_arm64")
+
+
+def git(repository, *arguments):
+    result = subprocess.run(["git", "-C", str(repository), *arguments],
+                            capture_output=True, text=True, encoding="utf-8",
+                            errors="replace", timeout=30)
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or "Git read failed")
+    return result.stdout.strip()
+
+
+def instant(value):
+    date = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if date.tzinfo is None:
+        raise ValueError("Evidence timestamp has no timezone")
+    return date
+
+
+def source_base(repository, revision):
+    remote = git(repository, "remote", "get-url", "origin")
+    if remote.startswith("git@github.com:"):
+        remote = "https://github.com/" + remote.split(":", 1)[1]
+    if not remote.startswith("https://github.com/"):
+        return ""
+    return remote.removesuffix(".git") + "/blob/" + revision + "/"
+
+
+def shared_evidence_root(repository):
+    # sample_native_gate writes every worktree's run records beside the common .git.
+    return Path(git(repository, "rev-parse", "--path-format=absolute", "--git-common-dir")).parent
+
+
+def fact_records(records_dir, warnings):
+    latest = {}
+    for path in sorted(records_dir.glob("*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8-sig"))
+            started = instant(record["started"])
+            target = record["target"]
+            if target not in TARGETS:
+                continue
+            for result in record["results"]:
+                sample = result["sample"].replace("\\", "/").rstrip("/")
+                parts = sample.split("/")
+                if len(parts) < 5 or parts[:3] != ["samples", "cli", "facts"]:
+                    continue
+                if parts[4] not in PLACES:
+                    continue
+                suffix = parts[5:]
+                if suffix and suffix != ["invalid"] and not (len(suffix) == 2 and suffix[0] == "controls"):
+                    continue
+                key = (parts[3], parts[4], target, "/".join(suffix))
+                observation = {
+                    "state": result["state"], "detail": result.get("detail", ""),
+                    "started": record["started"], "revision": record.get("revision", ""),
+                    "dirty": bool(record.get("dirty", True)),
+                    "stale_cli": bool(record.get("cli", {}).get("stale")),
+                    "profile_verified": bool(record.get("compiler_profile")),
+                    "record": "build/sample-gate-runs/" + path.name,
+                }
+                if key not in latest or started > instant(latest[key]["started"]):
+                    latest[key] = observation
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+            warnings.append(f"Skipped sample record {path.name}: {error}")
+    return latest
+
+
+def collect_facts(repository, records):
+    facts = []
+    directory = repository / "samples/cli/facts"
+    for folder in sorted(directory.iterdir() if directory.is_dir() else []):
+        if not folder.is_dir() or folder.name == "build":
+            continue
+        places = []
+        for place in PLACES:
+            path = folder / place
+            twins = (["invalid"] if (path / "invalid/main.omg").is_file() else [])
+            twins += ["controls/" + control.name for control in sorted((path / "controls").glob("*"))
+                      if (control / "main.omg").is_file()]
+            observations = {}
+            for target in TARGETS:
+                positive = records.get((folder.name, place, target, ""))
+                controls = [{"path": twin, "observation": records.get((folder.name, place, target, twin))}
+                            for twin in twins]
+                if positive or any(control["observation"] for control in controls):
+                    observations[target] = {"positive": positive, "controls": controls}
+            places.append({"name": place, "program": (path / "main.omg").is_file(),
+                           "twins": twins, "observations": observations})
+        facts.append({"name": folder.name, "path": folder.relative_to(repository).as_posix(),
+                      "readme": (folder / "README.md").is_file(), "places": places})
+    return facts
+
+
+def collect_native(repository, warnings):
+    hosts = []
+    for target in TARGETS:
+        relative = f"tests/omega/corpus_native_{target}.txt"
+        golden = repository / relative
+        host = {"target": target, "path": relative, "available": golden.is_file()}
+        if host["available"]:
+            try:
+                records = [row for row in corpus_records.read(golden) if row["tier"] in ("pass", "run")]
+                host["counts"] = native_scoreboard(records, oracle_lookup(repository, golden, None, target))
+                host["stamps"] = dict(Counter(row.get("recorded_at") or "unstamped" for row in records))
+                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", relative)
+            except (OSError, ValueError) as error:
+                host.update(available=False, error=str(error))
+                warnings.append(f"Cannot read native golden {target}: {error}")
+        hosts.append(host)
+    return hosts
+
+
+def collect_claims(repository):
+    try:
+        command = [sys.executable, str(repository / "tools/claims.py"),
+                   "--repository", str(repository), "--timeout-seconds", "15", "status"]
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
+                                errors="replace", timeout=20)
+        if result.returncode:
+            return {"available": False, "error": "Coordination registry unavailable; active work is unknown."}
+        record = json.loads(result.stdout)
+        allowed = ("ticket", "item", "owner", "board", "paths", "note", "claimed_utc", "expires_utc")
+        def entries(key):
+            rows = record.get(key, [])
+            for row in rows:
+                instant(row["expires_utc"])
+            return [{key: row.get(key) for key in allowed} for row in rows]
+        return {"available": True, "version": record["version"],
+                "active": entries("claims"), "expired": entries("expired")}
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired):
+        return {"available": False, "error": "Coordination registry unavailable; active work is unknown."}
+
+
+def collect(repository, evidence_root):
+    revision = git(repository, "rev-parse", "HEAD")
+    warnings = []
+    records = fact_records(evidence_root / "build/sample-gate-runs", warnings)
+    data = {"schema": "omega-dashboard-v1", "revision": revision,
+            "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "source_base": source_base(repository, revision),
+            "dirty": bool(git(repository, "status", "--porcelain", "--untracked-files=no")),
+            "places": PLACES, "targets": TARGETS,
+            "facts": collect_facts(repository, records),
+            "native": collect_native(repository, warnings),
+            "claims": collect_claims(repository), "warnings": warnings}
+    if git(repository, "rev-parse", "HEAD") != revision:
+        raise ValueError("Checkout revision changed during collection; refresh again.")
+    return data
+
+
+def render(data, live=False):
+    template = (ROOT / "tools/dashboard/index.html").read_text(encoding="utf-8")
+    payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+    return template.replace("/*__SNAPSHOT__*/", payload).replace("/*__LIVE__*/false", str(live).lower())
+
+
+def serve(repository, evidence_root, port):
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            path = urlsplit(self.path).path
+            if path not in ("/", "/index.html", "/api/snapshot"):
+                self.send_error(404)
+                return
+            try:
+                data = collect(repository, evidence_root)
+                body = (json.dumps(data) if path == "/api/snapshot" else render(data, live=True)).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8" if path == "/api/snapshot" else "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                self.send_error(503, "Evidence refresh failed")
+                print(f"Dashboard refresh: {error}", file=sys.stderr)
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    print(f"Omega dashboard: http://127.0.0.1:{server.server_port}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--repository", type=Path, default=ROOT)
+    parser.add_argument("--evidence-root", type=Path, help="checkout holding ignored build/sample-gate-runs records")
+    parser.add_argument("--output", type=Path, default=ROOT / "build/compiler-dashboard/index.html")
+    parser.add_argument("--serve", action="store_true", help="serve a read-only local dashboard with Refresh evidence")
+    parser.add_argument("--port", type=int, default=8765)
+    args = parser.parse_args()
+    repository = args.repository.resolve()
+    evidence_root = (args.evidence_root or shared_evidence_root(repository)).resolve()
+    try:
+        if args.serve:
+            serve(repository, evidence_root, args.port)
+        else:
+            html = render(collect(repository, evidence_root))
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            temporary = args.output.with_suffix(".tmp")
+            temporary.write_text(html, encoding="utf-8")
+            temporary.replace(args.output)
+            print(args.output.resolve())
+        return 0
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        print(f"Dashboard: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
