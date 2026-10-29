@@ -31,9 +31,11 @@ pub(super) struct PreparedConflicts {
     /// (`offsets`, `entries`) so large functions do not allocate a separate
     /// heap vector per domain.
     offsets: Vec<u32>,
-    entries: Vec<(u32, DomainPair)>,
+    entries: Vec<PreparedNeighbor>,
     affinity_offsets: Vec<u32>,
-    affinity_entries: Vec<(u32, DomainPair)>,
+    // Positions in `entries`: the filtered roster borrows the same identities
+    // and relation bits rather than duplicating every selected edge.
+    affinity_entries: Vec<u32>,
     view_count: usize,
     physical_counts: Vec<u16>,
     max_any_physical_conflicts: usize,
@@ -63,6 +65,49 @@ impl DomainPair {
     }
 }
 
+/// One exact neighbor and its three relationship bits. Byte columns avoid the
+/// padding in `(u32, DomainPair)` without narrowing the neighbor identity or
+/// requiring unaligned typed access. This is attempt-local storage, not a wire form.
+#[derive(Clone, Copy, Default)]
+struct PreparedNeighbor {
+    neighbor: [u8; 4],
+    relations: u8,
+}
+
+const _: () = {
+    assert!(std::mem::size_of::<PreparedNeighbor>() == 5);
+    assert!(std::mem::align_of::<PreparedNeighbor>() == 1);
+};
+
+impl PreparedNeighbor {
+    #[inline]
+    fn new(neighbor: u32, pair: DomainPair) -> Self {
+        Self {
+            neighbor: neighbor.to_le_bytes(),
+            relations: pair.to_mask(),
+        }
+    }
+
+    #[inline]
+    fn neighbor(self) -> u32 {
+        u32::from_le_bytes(self.neighbor)
+    }
+
+    #[inline]
+    fn pair(self) -> DomainPair {
+        DomainPair {
+            interferes: (self.relations & MASK_INTERFERES) != 0,
+            left_defines: (self.relations & MASK_LEFT_DEFINES) != 0,
+            right_defines: (self.relations & MASK_RIGHT_DEFINES) != 0,
+        }
+    }
+
+    #[inline]
+    fn merge(&mut self, other: Self) {
+        self.relations |= other.relations;
+    }
+}
+
 impl PreparedConflicts {
     pub(super) fn new(
         function: usize,
@@ -82,10 +127,9 @@ impl PreparedConflicts {
         let domain_count = domains.len();
         let mut counts = vec![0u32; domain_count];
         for interference in &ranges.interference {
-            if let (Some(left), Some(right)) = (
-                lookup(interference.lower),
-                lookup(interference.higher),
-            ) && left != right
+            if let (Some(left), Some(right)) =
+                (lookup(interference.lower), lookup(interference.higher))
+                && left != right
             {
                 counts[left] += 1;
                 counts[right] += 1;
@@ -109,34 +153,28 @@ impl PreparedConflicts {
             offsets[i + 1] = offsets[i] + counts[i];
         }
         let mut cursors = offsets.clone();
-        let mut entries = vec![(0u32, DomainPair::default()); offsets[domain_count] as usize];
+        let mut entries = vec![PreparedNeighbor::default(); offsets[domain_count] as usize];
         // The live-range representation already stores these relationships sparsely.
         // Record each authored fact once on both of its domains instead of rescanning
         // every fact and every domain member for every ordered domain pair.
         let mut neighbors_strictly_sorted = ranges.early_clobbers.is_empty()
-            && domains
-                .iter()
-                .all(|d| d.extra_members.is_empty())
-            && domains
-                .windows(2)
-                .all(|w| w[0].leader() < w[1].leader());
+            && domains.iter().all(|d| d.extra_members.is_empty())
+            && domains.windows(2).all(|w| w[0].leader() < w[1].leader());
         let mut prev_pair = (VirtualRegisterId(0), VirtualRegisterId(0));
         let mut first_pair = true;
         for interference in &ranges.interference {
             if neighbors_strictly_sorted {
                 if interference.lower >= interference.higher
-                    || (!first_pair
-                        && (interference.lower, interference.higher) <= prev_pair)
+                    || (!first_pair && (interference.lower, interference.higher) <= prev_pair)
                 {
                     neighbors_strictly_sorted = false;
                 }
                 prev_pair = (interference.lower, interference.higher);
                 first_pair = false;
             }
-            let (Some(left), Some(right)) = (
-                lookup(interference.lower),
-                lookup(interference.higher),
-            ) else {
+            let (Some(left), Some(right)) =
+                (lookup(interference.lower), lookup(interference.higher))
+            else {
                 continue;
             };
             if left == right {
@@ -148,10 +186,10 @@ impl PreparedConflicts {
                 right_defines: false,
             };
             let lc = &mut cursors[left];
-            entries[*lc as usize] = (right as u32, pair);
+            entries[*lc as usize] = PreparedNeighbor::new(right as u32, pair);
             *lc += 1;
             let rc = &mut cursors[right];
-            entries[*rc as usize] = (left as u32, pair);
+            entries[*rc as usize] = PreparedNeighbor::new(left as u32, pair);
             *rc += 1;
         }
         for early_clobber in &ranges.early_clobbers {
@@ -166,7 +204,7 @@ impl PreparedConflicts {
                     continue;
                 }
                 let dc = &mut cursors[definition];
-                entries[*dc as usize] = (
+                entries[*dc as usize] = PreparedNeighbor::new(
                     used_domain as u32,
                     DomainPair {
                         interferes: false,
@@ -176,7 +214,7 @@ impl PreparedConflicts {
                 );
                 *dc += 1;
                 let uc = &mut cursors[used_domain];
-                entries[*uc as usize] = (
+                entries[*uc as usize] = PreparedNeighbor::new(
                     definition as u32,
                     DomainPair {
                         interferes: false,
@@ -206,7 +244,7 @@ impl PreparedConflicts {
                     continue;
                 }
                 let row = &mut entries[start..end];
-                if row.windows(2).all(|w| w[0].0 < w[1].0) {
+                if row.windows(2).all(|w| w[0].neighbor() < w[1].neighbor()) {
                     if write_pos != start {
                         entries.copy_within(start..end, write_pos);
                     }
@@ -214,13 +252,12 @@ impl PreparedConflicts {
                     continue;
                 }
                 if len <= 32 {
-                    row.sort_unstable_by_key(|&(other, _)| other);
+                    row.sort_unstable_by_key(|entry| entry.neighbor());
                     let mut kept = 0usize;
                     for idx in 1..len {
-                        if row[kept].0 == row[idx].0 {
-                            row[kept].1.interferes |= row[idx].1.interferes;
-                            row[kept].1.left_defines |= row[idx].1.left_defines;
-                            row[kept].1.right_defines |= row[idx].1.right_defines;
+                        if row[kept].neighbor() == row[idx].neighbor() {
+                            let duplicate = row[idx];
+                            row[kept].merge(duplicate);
                         } else {
                             kept += 1;
                             if kept != idx {
@@ -238,7 +275,8 @@ impl PreparedConflicts {
                     let mut monotonic = true;
                     let mut prev = 0u32;
                     for idx in 0..len {
-                        let (other, pair) = row[idx];
+                        let entry = row[idx];
+                        let other = entry.neighbor();
                         let off = domain_offset[other as usize];
                         if off == u32::MAX {
                             domain_offset[other as usize] = unique as u32;
@@ -246,20 +284,17 @@ impl PreparedConflicts {
                                 monotonic = false;
                             }
                             prev = other;
-                            row[unique] = (other, pair);
+                            row[unique] = entry;
                             unique += 1;
                         } else {
-                            let existing = &mut row[off as usize].1;
-                            existing.interferes |= pair.interferes;
-                            existing.left_defines |= pair.left_defines;
-                            existing.right_defines |= pair.right_defines;
+                            row[off as usize].merge(entry);
                         }
                     }
                     for idx in 0..unique {
-                        domain_offset[row[idx].0 as usize] = u32::MAX;
+                        domain_offset[row[idx].neighbor() as usize] = u32::MAX;
                     }
                     if !monotonic {
-                        row[..unique].sort_unstable_by_key(|&(other, _)| other);
+                        row[..unique].sort_unstable_by_key(|entry| entry.neighbor());
                     }
                     if write_pos != start {
                         entries.copy_within(start..start + unique, write_pos);
@@ -276,8 +311,8 @@ impl PreparedConflicts {
         let model = physical.model();
         let view_count = model.views.len();
         let mut used_views = vec![false; view_count];
-        let all_domains_under_128 = view_count <= 128
-            || domains.iter().all(|d| d.candidates.is_empty());
+        let all_domains_under_128 =
+            view_count <= 128 || domains.iter().all(|d| d.candidates.is_empty());
         let dense_view_ids = all_domains_under_128
             && model
                 .views
@@ -365,7 +400,10 @@ impl PreparedConflicts {
         let mut physical_counts = vec![0u16; view_count];
         let mut physical_matrix = vec![0u8; view_count * view_count];
         let use_conflict_masks = all_domains_under_128
-            && used_views.iter().enumerate().all(|(idx, &used)| !used || idx < 128);
+            && used_views
+                .iter()
+                .enumerate()
+                .all(|(idx, &used)| !used || idx < 128);
         let mut conflict_masks = if use_conflict_masks {
             vec![[0u128; 8]; view_count.min(128)]
         } else {
@@ -480,9 +518,12 @@ impl PreparedConflicts {
             for domain in 0..domain_count {
                 let start = offsets[domain] as usize;
                 let end = offsets[domain + 1] as usize;
-                for &(neighbor, pair) in &entries[start..end] {
-                    if !affinities.get_domain_affinities(neighbor as usize).is_empty() {
-                        affinity_entries.push((neighbor, pair));
+                for (position, entry) in entries[start..end].iter().enumerate() {
+                    if !affinities
+                        .get_domain_affinities(entry.neighbor() as usize)
+                        .is_empty()
+                    {
+                        affinity_entries.push((start + position) as u32);
                     }
                 }
                 affinity_offsets.push(affinity_entries.len() as u32);
@@ -519,10 +560,7 @@ impl PreparedConflicts {
 
     #[inline]
     pub(super) fn has_affinity_neighbor(&self, domain: usize) -> bool {
-        self.affinity_offsets
-            .get(domain + 1)
-            .copied()
-            .unwrap_or(0)
+        self.affinity_offsets.get(domain + 1).copied().unwrap_or(0)
             > self.affinity_offsets.get(domain).copied().unwrap_or(0)
     }
 
@@ -533,9 +571,10 @@ impl PreparedConflicts {
     ) -> impl Iterator<Item = (usize, DomainPair)> + '_ {
         let start = self.affinity_offsets.get(domain).copied().unwrap_or(0) as usize;
         let end = self.affinity_offsets.get(domain + 1).copied().unwrap_or(0) as usize;
-        self.affinity_entries[start..end]
-            .iter()
-            .map(|&(other, pair)| (other as usize, pair))
+        self.affinity_entries[start..end].iter().map(|&position| {
+            let entry = self.entries[position as usize];
+            (entry.neighbor() as usize, entry.pair())
+        })
     }
 
     #[inline]
@@ -549,7 +588,7 @@ impl PreparedConflicts {
     }
 
     #[inline]
-    fn row(&self, domain: usize) -> &[(u32, DomainPair)] {
+    fn row(&self, domain: usize) -> &[PreparedNeighbor] {
         let start = self.offsets[domain] as usize;
         let end = self.offsets[domain + 1] as usize;
         &self.entries[start..end]
@@ -562,7 +601,9 @@ impl PreparedConflicts {
         &self,
         domain: usize,
     ) -> impl Iterator<Item = usize> + '_ {
-        self.row(domain).iter().map(|&(other, _)| other as usize)
+        self.row(domain)
+            .iter()
+            .map(|entry| entry.neighbor() as usize)
     }
 
     pub(super) fn get_constrained_neighbors_with_pair(
@@ -571,7 +612,7 @@ impl PreparedConflicts {
     ) -> impl Iterator<Item = (usize, DomainPair)> + '_ {
         self.row(domain)
             .iter()
-            .map(|&(other, pair)| (other as usize, pair))
+            .map(|entry| (entry.neighbor() as usize, entry.pair()))
     }
 
     #[inline]
@@ -586,8 +627,8 @@ impl PreparedConflicts {
         view: RegisterViewId,
         other_view: RegisterViewId,
     ) -> bool {
-        let physical_mask = self.physical_matrix
-            [usize::from(view.0) * self.view_count + usize::from(other_view.0)];
+        let physical_mask =
+            self.physical_matrix[usize::from(view.0) * self.view_count + usize::from(other_view.0)];
         (physical_mask & pair.to_mask()) != 0
     }
 
@@ -600,8 +641,8 @@ impl PreparedConflicts {
     fn pair(&self, left: usize, right: usize) -> DomainPair {
         let right_u32 = right as u32;
         let row = self.row(left);
-        row.binary_search_by_key(&right_u32, |&(other, _)| other)
-            .map_or_else(|_| DomainPair::default(), |position| row[position].1)
+        row.binary_search_by_key(&right_u32, |entry| entry.neighbor())
+            .map_or_else(|_| DomainPair::default(), |position| row[position].pair())
     }
 
     /// Candidates have already been admitted by construction. Both IDs come
@@ -613,8 +654,8 @@ impl PreparedConflicts {
         other_domain: usize,
         other_view: RegisterViewId,
     ) -> bool {
-        let physical_mask = self.physical_matrix
-            [usize::from(view.0) * self.view_count + usize::from(other_view.0)];
+        let physical_mask =
+            self.physical_matrix[usize::from(view.0) * self.view_count + usize::from(other_view.0)];
         if physical_mask == 0 {
             return false;
         }
