@@ -52,7 +52,7 @@ executable complement total without assuming an authored interval or a pending g
   and the constant-stack component. All four hosted entries are declared;
   execution evidence here is macOS ARM64 native/Terminal agreement with exit 0.
 
-The [clamped-view overshoot](increasing_to_overshoot/main.omg) checks the physical
+The [clamped-view overshoot](increasing_to_overshoot/main.omg) checks the
 boundary where an increasing cursor passes its bound. Its
 [twin](increasing_to_overshoot/invalid/main.omg) removes advancement. A
 [post-clamp-only cycle](../../controls/increasing_to_post_clamp/main.omg) cannot
@@ -73,3 +73,10 @@ still needs an actual invariant proof; revisiting its body grants no result.
 Run records identify the exact producer and target in the qualification and PR.
 Other hosted native execution, suffix-parser retirement, the remaining source
 migration and the Omega-written compiler remain outside this acceptance.
+
+The integrated producer `817db649b669` was measured on macOS ARM64:
+all nine bounded-distance places and the overshoot control agree at exit 0,
+and all nonadvancing twins reject for their own rank obligation. The focused
+qualification also observes the three unchanged slice customers, preserves the
+borrowed-record positive and erased-field refusal, and checks the independent
+store-branch, backing-identity, arithmetic-formation and caller-bound controls.
