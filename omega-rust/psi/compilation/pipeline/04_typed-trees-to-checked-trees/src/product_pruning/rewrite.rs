@@ -34,6 +34,9 @@ fn apply_fact_pruning(
     index: &MachineIndex,
 ) {
     facts
+        .proof_applications
+        .retain_product_machines(|machine| retained.contains(&machine));
+    facts
         .mutation
         .machines
         .retain(|row| retained.contains(&row.machine));

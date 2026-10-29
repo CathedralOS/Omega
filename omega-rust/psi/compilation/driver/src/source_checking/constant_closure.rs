@@ -36,14 +36,11 @@ pub(super) fn retain_evaluation_entries(
     }
     Ok(())
 }
-use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeModel};
+use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeModel, ProofApplications};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-
-mod applications;
-use applications::ProofApplications;
 
 /// Invocation-local proof closure over a private, evaluated copy of a checked program.
 /// Provider selection stays with the caller; only complete coverage can publish.
@@ -77,7 +74,10 @@ impl<'source> ConstantProofClosure<'source> {
         facts.constant_recipe_obligations.clear();
         Self {
             source,
-            applications: ProofApplications::new(source),
+            applications: ProofApplications::new(
+                &source.facts.proof_applications,
+                &source.facts.operational,
+            ),
             program,
             facts,
             value_scope: value_scope.to_owned(),

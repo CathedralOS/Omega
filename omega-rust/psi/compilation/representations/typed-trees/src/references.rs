@@ -603,6 +603,78 @@ pub fn collect_selected_program_references(
     collect_program_references_with_roles(program, selection, None)
 }
 
+/// Per-declaration symbol dependencies from the same traversal used by product
+/// retention. Each root gets its own visited-node set: a shared type node still
+/// contributes its dependencies to every declaration that owns a reference.
+/// Ordinary and descriptive references both participate in formation; neither
+/// turns these rows into executable call edges.
+pub fn collect_declaration_symbol_dependencies(
+    program: &TypedTrees,
+) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
+    #[derive(Default)]
+    struct Declarations {
+        rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+        owner: SymbolHandle,
+        current: ReferenceCollector,
+    }
+
+    impl Declarations {
+        fn finish(&mut self) {
+            let references = std::mem::take(&mut self.current);
+            if !self.owner.is_valid() {
+                return;
+            }
+            let mut dependencies: Vec<_> = references
+                .symbols
+                .into_iter()
+                .chain(references.descriptor_symbols)
+                .collect();
+            dependencies.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+            dependencies.dedup();
+            self.rows.push((self.owner, dependencies));
+        }
+    }
+
+    impl Extend<SymbolHandle> for Declarations {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+            self.current.extend(symbols);
+        }
+    }
+
+    impl TypedReferences for Declarations {
+        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+            self.finish();
+            self.owner = symbol;
+            true
+        }
+
+        fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+            self.current.declaration_description_dependency(symbol);
+        }
+
+        fn expression(&mut self, expression: ExpressionHandle) -> bool {
+            self.current.expression(expression)
+        }
+
+        fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+            self.current.type_reference(reference)
+        }
+
+        fn proof_fact(&mut self, fact: arena::Handle<ProofFact>) -> bool {
+            self.current.proof_fact(fact)
+        }
+
+        fn mathematical_type(&mut self, ty: crate::mathematical::MathematicalTypeHandle) -> bool {
+            self.current.mathematical_type(ty)
+        }
+    }
+
+    let mut declarations = Declarations::default();
+    visit_program(program, &mut declarations);
+    declarations.finish();
+    declarations.rows
+}
+
 /// Use the consumer's established operand classification while preserving the
 /// same declaration, value, proof and occurrence traversal for both roles.
 pub fn collect_program_references_with_roles(

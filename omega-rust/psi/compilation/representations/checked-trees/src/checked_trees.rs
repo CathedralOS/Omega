@@ -59,6 +59,10 @@ pub use facts::{
     CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
     CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
+pub use facts::{
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
+    ProofDeclarationDependencies,
+};
 
 pub use facts::{
     CheckedStoredIntegerWrite, ConstantRecipeObligation, ConstantRecipeRequirement,

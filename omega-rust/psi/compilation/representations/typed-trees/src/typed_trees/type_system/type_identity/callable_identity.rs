@@ -626,12 +626,8 @@ impl TypedTrees {
             return Vec::new();
         };
         self.sweep_callable_identities();
-        let positions = self.read_callable_memo(|memo| {
-            memo.machines
-                .get(slot)
-                .cloned()
-                .unwrap_or_default()
-        });
+        let positions =
+            self.read_callable_memo(|memo| memo.machines.get(slot).cloned().unwrap_or_default());
         let machines = self.machines();
         positions
             .into_iter()
