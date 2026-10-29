@@ -47,7 +47,8 @@ pub(crate) fn evaluate_default_calling_application(
         .traits()
         .iter()
         .filter(|definition| {
-            typed.trait_declaration_path(definition) == trait_name
+            (typed.trait_declaration_path(definition) == trait_name
+                || trait_name == requirement_identity)
                 && crate::service_schema::is_product_declaration(typed, definition.symbol)
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == trait_package_identity
@@ -56,6 +57,12 @@ pub(crate) fn evaluate_default_calling_application(
             typed
                 .trait_machine_signatures(definition)
                 .iter()
+                .chain(
+                    typed
+                        .closed_requirement_applications()
+                        .filter(|application| application.declaring_trait == definition.symbol)
+                        .map(|application| application.signature),
+                )
                 .filter(|signature| signature.name.as_str() == method_name)
                 .map(|signature| {
                     (

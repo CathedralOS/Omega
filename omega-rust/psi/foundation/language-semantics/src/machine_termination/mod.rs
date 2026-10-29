@@ -8,7 +8,7 @@ use crate::SemanticDomainId;
 /// How a machine is supplied to its consumers (record §Machines). Provider
 /// admission, proof artifacts, manifests, and lowering consume this directly;
 /// resolved and typed trees do not retain a parallel source-spelling flag.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum MachineSupplyMode {
     /// An ordinary checked body compiled in this program (the ZII default).
     #[default]
@@ -53,7 +53,7 @@ impl MachineSupplyMode {
 /// participates in published machine-contract and import-slot identity.
 /// The premises are explicit; an exported omission normalizes to
 /// `NoGuarantee` (never to an implied promise).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TerminationGuarantee {
     #[default]
     NoGuarantee,
@@ -74,7 +74,7 @@ impl TerminationGuarantee {
 /// One exact progress premise. The profile identifies the closed semantic
 /// domain; the subject prevents a grant for one capability occurrence from
 /// discharging a premise about another.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProgressPremise {
     pub profile: SemanticDomainId,
     pub subject: ProgressSubject,
@@ -82,7 +82,7 @@ pub struct ProgressPremise {
 
 /// Identity-preserving subject path rooted at a declared parameter or local.
 /// Projections are semantic field symbols, never rendered names or offsets.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProgressSubject {
     pub root: symbols::SymbolHandle,
     pub projections: Vec<symbols::SymbolHandle>,
@@ -93,7 +93,7 @@ pub struct ProgressSubject {
 /// provider-local revalidation — and NEVER enters published contract
 /// identity (the record's ordering constraint: swapping one valid witness
 /// for another revalidates only the provider/proof artifact).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct RankingWitness {
     /// The ranked subjects (parameter/field names, in rank order).
     pub subjects: Vec<String>,
@@ -125,7 +125,7 @@ pub struct RankingWitness {
 
 /// The rank-range fact (`in 0..=capacity`), rendered source-like. Its floor
 /// establishes the well-founded floor; the ceiling bounds the produced rank.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct RankRange {
     pub floor: String,
     pub ceiling: String,
@@ -135,7 +135,7 @@ pub struct RankRange {
 /// The interface/implementation split for one machine's termination story
 /// (record §Machines): the published guarantee is contract identity, the
 /// checked summary serves local consumers, the witness stays private.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum TerminationInterface {
     /// A private checked body publishes no external progress promise. Local
     /// checked consumers may still use its derived summary.
@@ -155,7 +155,7 @@ impl TerminationInterface {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct MachineTerminationPlan {
     pub interface: TerminationInterface,
     /// What the checker established for THIS body (local consumers only).

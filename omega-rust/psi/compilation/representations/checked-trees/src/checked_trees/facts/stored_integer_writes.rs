@@ -11,7 +11,7 @@ use typed_trees::expression::ExpressionHandle;
 
 /// Distinguish a place update from the creation of one encoded aggregate.
 /// Neither operation invents an assignment expression for the other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum StoredIntegerWriteSite {
     #[default]
     Missing,
@@ -33,7 +33,7 @@ pub enum StoredIntegerWriteSite {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStoredIntegerWrite {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,

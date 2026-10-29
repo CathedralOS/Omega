@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::hash::Hash;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CrashCause {
     Trap,
     Abort,
@@ -19,7 +19,7 @@ impl From<typed_trees::signature::CrashCause> for CrashCause {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CrashInterface {
     #[default]
     InternalInferred,
@@ -32,7 +32,7 @@ pub enum CrashInterface {
 /// `ValueId`s. The terminal producer assigns those identities and lowers the
 /// supported scalar subset into `semantic_vocabulary::Proposition`; syntax outside that
 /// subset remains explicit and fails closed there.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CrashPredicateExpression {
     Invalid,
     /// Contextual proof identity, distinct from an executable equality token.
@@ -578,9 +578,10 @@ impl CrashPredicateExpression {
 /// An identity is immutable once built, and checked joins copy it into every
 /// site, call, and envelope that holds the route, so copies share one
 /// allocation instead of repeating the bytes and both syntax trees.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct CrashPredicateIdentity(Arc<CrashPredicateIdentityParts>);
 
+#[derive(compiler_storage::Record)]
 struct CrashPredicateIdentityParts {
     canonical_bytes: Vec<u8>,
     expression: Option<CrashPredicateExpression>,
@@ -693,7 +694,7 @@ impl Hash for CrashPredicateIdentity {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CrashRouteGuard {
     /// The canonical route contributed by a route-less clause or an authored
     /// `true` route. It subsumes every guarded alternative in its bucket.
@@ -705,7 +706,7 @@ pub enum CrashRouteGuard {
 /// machine's crash plan. Bucket normalization happens before these identities
 /// are assigned, so clause regrouping and duplicate routes cannot renumber
 /// them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CrashRouteBucketId(u32);
 
 impl CrashRouteBucketId {

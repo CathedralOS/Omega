@@ -1,0 +1,29 @@
+// Expected exit: 0
+public boundary trait First {
+ machine value() -> u32 reaches First;
+}
+public boundary trait Second {
+ machine value() -> u32 reaches Second;
+}
+public boundary trait Combined {
+ machine observe() -> bool
+ invokes First;
+ reaches First + Second
+ invokes Second;
+}
+FirstReading satisfies First { machine value() -> u32 reaches First { 7 } }
+SecondReading satisfies Second { machine value() -> u32 reaches Second { 231 } }
+CombinedReading satisfies Combined {
+ machine observe() -> bool reaches First + Second { read_both() }
+}
+public machine read_both() -> bool
+invokes First;
+reaches First + Second
+{
+ First::value() == 7 && Second::value() == 231
+}
+machine main() reaches First + Second crashes Trap {
+ transition Combined::observe() { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() { crash Trap; }
+}

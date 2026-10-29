@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "forged_native_protocol");
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ BuildBindingOperations::bind_native<u64>(0u64, 0u64, 7u64);
+}

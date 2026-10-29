@@ -1,7 +1,7 @@
 use arena::Arena;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CapabilityFlowKind {
     #[default]
     Uses,
@@ -23,7 +23,7 @@ impl CapabilityFlowKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapabilityFlowFact {
     pub kind: CapabilityFlowKind,
     pub capability_symbol: SymbolHandle,
@@ -37,7 +37,7 @@ pub struct CapabilityFlowFact {
     pub via_state_symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapabilityFlowPlan {
     pub flows: Arena<CapabilityFlowFact>,
 }

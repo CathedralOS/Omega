@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use syntax_trees::ParsedSources;
 use syntax_trees::SyntaxTrees;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub(crate) struct SourceStorage {
     pub filesystem: source::SourceFileSystem,
     pub build_handoffs: crate::BuildHandoffInventory,
@@ -29,7 +29,7 @@ pub(crate) struct SourceStorage {
     pub(crate) build_source_custody: Option<crate::CapturedBuildSource>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct RegisteredPackageRoot {
     root: PathBuf,
     identity: Option<PackageKeyIdentity>,
@@ -123,28 +123,11 @@ impl SourceStorage {
                 Ok::<_, Vec<Diagnostic>>(storage)
             }
             None => {
-                let root_package = if root_path.is_dir() {
-                    root_path.to_path_buf()
-                } else {
-                    root_path
-                        .parent()
-                        .filter(|path| !path.as_os_str().is_empty())
-                        .unwrap_or_else(|| Path::new("."))
-                        .to_path_buf()
-                };
                 // The content owner and every compiler source read must see
                 // the same complete snapshot, including negative observations.
                 let captured = match source_capture {
                     Some(captured) => captured.clone(),
-                    None => package_source::local::operations::capture_local_source_input(
-                        &root_package,
-                        package_source::LocalSourceLimits::default(),
-                    )
-                    .map_err(|error| {
-                        vec![Diagnostic::error(format!(
-                            "cannot capture anonymous source: {error}"
-                        ))]
-                    })?,
+                    None => crate::capture_anonymous_compilation_source(root_path)?,
                 };
                 let root = captured.canonical_live_root().to_path_buf();
                 if source_capture.is_some() && !root_path.starts_with(&root) {
@@ -646,7 +629,7 @@ fn normalize_directory(path: PathBuf) -> PathBuf {
 /// source frontier, and import reconciliation: exact contract files map to
 /// their registered root, while bundled contract fallback roots admit their
 /// whole closed subtree.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub(crate) struct ToolchainContractCustody {
     roots: BTreeMap<PathBuf, PathBuf>,
     dirs: Vec<PathBuf>,
@@ -666,6 +649,7 @@ impl ToolchainContractCustody {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 /// Root associations borrow path and custody through the existing source id.
 /// SourceMap owns the only retained path for each checked source instance.
+#[derive(compiler_storage::Record)]
 pub(crate) struct SourceRoots {
     pub source_id: source::SourceId,
     pub root_items: Vec<syntax_trees::item::ItemHandle>,

@@ -14,7 +14,7 @@ use crate::{
 /// surviving buckets use proven caller-entry values or conservative Truth.
 /// An empty surviving set records a proved discharge, not a missing analysis.
 /// These checked-source rows are not yet portable Terminal crash evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCrashOperatorSite {
     pub operator_use: Handle<CheckedOperatorUseFact>,
     pub invocation: Handle<FlowOperatorInvocationFact>,

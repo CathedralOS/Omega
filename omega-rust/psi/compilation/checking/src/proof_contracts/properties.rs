@@ -33,7 +33,7 @@ pub enum DeclaredPropertyRequirement {
 
 /// Closed property admitted for one exact opaque data declaration by an
 /// external compiler-owned representation receipt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum OpaqueDataPropertyReceiptKind {
     Copy,
 }
@@ -43,7 +43,7 @@ pub enum OpaqueDataPropertyReceiptKind {
 /// Construction grants nothing by itself. The orchestration owner must derive
 /// this row from independently rechecked representation custody; validation
 /// rejects missing, duplicate, stale, wrong-kind, and wrong-declaration rows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct OpaqueDataPropertyReceipt {
     declaration: symbols::SymbolHandle,
     kind: OpaqueDataPropertyReceiptKind,

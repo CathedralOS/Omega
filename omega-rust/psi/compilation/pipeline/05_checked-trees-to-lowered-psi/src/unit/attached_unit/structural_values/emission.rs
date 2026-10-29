@@ -2383,6 +2383,17 @@ impl Emission<'_, '_, '_> {
                     continuation,
                 )
             }
+            CheckedStructuralValueKind::FixedByteArrayLiteral { bytes } => {
+                let place =
+                    self.fixed_byte_array_literal(node.expression, &bytes, self.type_reference)?;
+                self.complete_construction(
+                    identities,
+                    place,
+                    node.qualification_decisions,
+                    completion,
+                    continuation,
+                )
+            }
             CheckedStructuralValueKind::ByteLiteralView { bytes } => {
                 // The literal carries the memberships checking established
                 // for this occurrence (`""` into a `&[u8] in Utf8` field);

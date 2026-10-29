@@ -572,6 +572,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::Scalar { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
             | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
+            | checked_trees::CheckedStructuralValueKind::FixedByteArrayLiteral { .. }
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }
@@ -695,7 +696,9 @@ fn collect<'a>(
         return Some(());
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+    // Use the same applied formal roster that established the operands.
+    // Raw boundary declarations retain their own generic binder namespace.
+    let parameters = site.parameters(program, machine.symbol)?;
     let parameters = parameters.iter().enumerate().collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;

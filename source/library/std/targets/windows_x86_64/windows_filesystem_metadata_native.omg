@@ -37,7 +37,6 @@ data WindowsNativeFileStandardInfo {
     padding: [u8; 2];
 }
 data WindowsNativeFileAttributeTagInfo { attributes: u32; reparse_tag: u32; }
-data WindowsFilesystemMetadataImports {}
 
 boundary trait WindowsFilesystemMetadataIo {
     machine file_type(handle: i64) -> u32 reaches FilesystemMetadataQuery blocks;
@@ -55,7 +54,6 @@ boundary trait WindowsFilesystemMetadataIo {
     requires handle != 0 && information_class == 9 && size == 8
     reaches FilesystemMetadataQuery blocks;
 }
-
 
 // A separate applied contract for the same CreateFileW mechanism: exact
 // read-attributes access, OPEN_EXISTING, shared delete, synchronous directory

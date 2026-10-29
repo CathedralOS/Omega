@@ -15,7 +15,7 @@ pub struct PlacementPlan {
     pub reach: BoundaryReach,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct PlacementPlanId(pub(crate) u64);
 
 impl PlacementPlanId {
@@ -26,7 +26,7 @@ impl PlacementPlanId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ValidatedPlacementPlan {
     pub(crate) identity: PlacementPlanId,
     pub(crate) content_interpretation: extents::ExtentContentInterpretation,

@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 /// claims. Checked Psi has neither target stack closure nor a selected fuel
 /// schedule/instruction footprint, so claiming a numeric realization here
 /// would promote backend or installation authority into the wrong stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedResourceDerivationObligation {
     TerminalAndTargetStackClosure,
     TerminalControlAndFuelSchedule,
@@ -32,7 +32,7 @@ impl CheckedResourceDerivationObligation {
 /// source-handle-free and redundantly binds the exact machine entry and
 /// normalized contract so later carriage cannot swap a valid axis between
 /// implementations or between entries of one machine.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedResourceAxisAnchor {
     machine: SymbolHandle,
     entry: SymbolHandle,
@@ -129,7 +129,7 @@ impl CheckedResourceAxisAnchor {
 /// receipt, callback placement, or installation authority. Its report
 /// fingerprint is a compilation-local summary/join key, never artifact or
 /// admission authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEntryResourceEnvelope {
     machine: SymbolHandle,
     entry: SymbolHandle,
@@ -253,7 +253,7 @@ impl CheckedEntryResourceEnvelope {
 /// machine's entries. The private roster report fingerprint is compilation-
 /// local summary evidence: it detects deletion and reordering during checked-
 /// fact carriage but grants no artifact or installation authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedMachineResourceEnvelopes {
     pub(crate) machine: SymbolHandle,
     pub(crate) contract_report_fingerprint: u64,
@@ -432,7 +432,7 @@ fn checked_resource_report_fingerprint(bytes: impl IntoIterator<Item = u8>) -> u
 /// machine. These axes are evidence, not a replacement public contract
 /// commitment. The resource field is an exact derivation-obligation anchor,
 /// not a claim that downstream resource realizations already exist.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct RealizedMachineContractEnvelope {
     pub machine: SymbolHandle,
     pub contract_report_fingerprint: u64,

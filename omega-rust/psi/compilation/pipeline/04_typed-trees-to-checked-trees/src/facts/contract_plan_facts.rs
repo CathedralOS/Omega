@@ -1116,6 +1116,7 @@ fn computation_contains_trapping_operation(
                 | Value::Call { .. }
                 | Value::FixedArray { .. }
                 | Value::ByteLiteralView { .. }
+                | Value::FixedByteArrayLiteral { .. }
                 | Value::ZeroedStructural { .. } => {}
             }
         }

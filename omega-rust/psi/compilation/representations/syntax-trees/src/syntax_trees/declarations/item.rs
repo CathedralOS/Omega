@@ -22,7 +22,7 @@ pub use data_items::*;
 pub use machine_items::*;
 pub use proof_items::*;
 
-#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum Item {
     Capability(CapabilityDefinition),
     Conformance(ConformanceItem),
@@ -74,7 +74,9 @@ impl Item {
 /// use substitutes a fresh copy of the initializer, so typed trees and
 /// everything downstream never see a const value. Resolution retains only a
 /// declaration-provenance symbol for authored-selection/package custody.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct ConstDefinition {
     /// The type scope (`EfiStatus` in `EfiStatus::SUCCESS`); empty text for
     /// a package/module-scoped declaration.
@@ -97,14 +99,28 @@ pub struct ConstDefinition {
     pub pending_qualification: Option<ConstDestinationObligation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct ConstQualification {
     pub destination: crate::types::TypeReferenceHandle,
     pub initializer: crate::expression::ExpressionHandle,
 }
 
 /// A required checked destination judgment, never an accepted receipt.
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct ConstDestinationObligation {
     pub declaration: source::SourceSpan,
     pub destination: crate::types::TypeReferenceHandle,
@@ -113,7 +129,7 @@ pub struct ConstDestinationObligation {
 
 /// Custody at one preparation boundary. Exact rosters have one owner: source
 /// declaration readiness must never become an invocation or effect grant.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstInitializerCustody {
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
     pub builtin_operators: Vec<source::SourceSpan>,
@@ -123,7 +139,15 @@ pub struct ConstInitializerCustody {
 /// Authored syntax and exact source custody retained when a constant initializer
 /// becomes an evaluated value. Source coordinates remain unchanged on copying;
 /// the authored expression is remapped into the destination syntax arena.
-#[derive(Debug, Clone, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct ConstInitializerNormalization {
     /// Original source closure before private implementation realization.
     pub authored_custody: ConstInitializerCustody,
@@ -145,17 +169,41 @@ impl Default for Item {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct UseItem {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct ModuleDeclaration {
     pub path: HandleSpan<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct PackageDeclaration {
     pub path: HandleSpan<Identifier>,
 }
@@ -591,7 +639,9 @@ fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<sou
 /// an erased parameter stays in checking, contracts, and semantic identity
 /// but owns no runtime storage, transfer, or read.
 /// Every parameter is explicit; carrier qualification creates no receiver row.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct StateParameterNode {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -604,14 +654,18 @@ pub struct StateParameterNode {
 /// boundary requirement. It participates in the authored native telescope but
 /// is not an Omega runtime parameter and therefore has no type-reference or
 /// source-call argument.
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct NativeCallbackParameterNode {
     pub name: Identifier,
     pub binder: Identifier,
     pub native_ordinal: u32,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
@@ -626,7 +680,9 @@ pub struct MachineNode {
     pub states: HandleSpan<StateHandle>,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct TraitNode {
     pub is_boundary: bool,
     pub name: Identifier,

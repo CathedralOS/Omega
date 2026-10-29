@@ -23,7 +23,7 @@ use std::sync::Arc;
 /// each consumer still validates its own closure, custody, purpose, effective
 /// target, and build execution profile. Equal product bytes do not establish that the
 /// generator ran under the consumer's admitted build context.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageBuildHandoff {
     contents: Arc<PackageBuildHandoffContents>,
 }
@@ -38,9 +38,10 @@ struct PackageBuildHandoffContents {
         Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
     native_bindings: Arc<[super::retained_native_bindings::RetainedNativeBinding]>,
+    native_evaluation: Option<Arc<super::NativeBuildEvaluation>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 enum BuildSourceSubject {
     Package {
         package: PackageKeyIdentity,
@@ -103,6 +104,7 @@ impl PackageBuildHandoff {
                 provider_selections: Arc::from([]),
                 selection_observation: None,
                 native_bindings: Arc::from([]),
+                native_evaluation: None,
             }),
         }
     }
@@ -163,6 +165,7 @@ impl PackageBuildHandoff {
                 provider_selections: Arc::from([]),
                 selection_observation: None,
                 native_bindings: Arc::from([]),
+                native_evaluation: None,
             }),
         }
     }
@@ -251,6 +254,10 @@ impl PackageBuildHandoff {
         &self.contents.native_bindings
     }
 
+    pub fn native_evaluation(&self) -> Option<&Arc<super::NativeBuildEvaluation>> {
+        self.contents.native_evaluation.as_ref()
+    }
+
     /// Only completed immutable package checking exports native application
     /// judgments. Recovery retains them inertly; receiving source admission
     /// independently checks every supplier and declaration anchor.
@@ -258,14 +265,45 @@ impl PackageBuildHandoff {
     pub fn with_checked_native_bindings(
         self,
         bindings: Vec<super::retained_native_bindings::RetainedNativeBinding>,
-    ) -> Result<Self, &'static str> {
+        evaluation: Option<Arc<super::NativeBuildEvaluation>>,
+    ) -> Result<Self, String> {
+        if !bindings.is_empty() && evaluation.is_none() {
+            return Err("native package intent lost its completed Terminal Build code".into());
+        }
+        if let Some(evaluation) = &evaluation {
+            evaluation
+                .usage
+                .validate()
+                .map_err(|_| "native package evaluation has inconsistent accounting")?;
+            if !matches!(
+                evaluation.usage.measurement,
+                evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
+            ) {
+                return Err("native package intent requires its actual Terminal evaluation".into());
+            }
+            if self
+                .selection_observation()
+                .is_some_and(|provider| provider != evaluation.observation_digest)
+            {
+                return Err(
+                    "one package handoff mixes different original Build observations".into(),
+                );
+            }
+            if bindings.iter().any(|row| {
+                row.observation != evaluation.observation_digest
+                    || row.usage != evaluation.usage
+                    || row.producer_recipe.terminal_code != evaluation.terminal_code
+            }) {
+                return Err("native package code and retained rows disagree on their original Build invocation".into());
+            }
+        }
         for (position, binding) in bindings.iter().enumerate() {
             binding.validate()?;
             if bindings[..position]
                 .iter()
                 .any(|prior| prior.origin == binding.origin)
             {
-                return Err("native package intent repeats an executed Build occurrence");
+                return Err("native package intent repeats an executed Build occurrence".into());
             }
             if !self.owns_activation_source(binding.origin.activation().source())
                 || binding.origin.event_ordinal().is_none()
@@ -274,16 +312,14 @@ impl PackageBuildHandoff {
                     != binding.origin.author().source().package_identity
                 || binding.usage.validate().is_err()
             {
-                return Err(
-                    "native package intent lost its checked activation, supplier or Build observation",
-                );
+                return Err("native package intent lost its checked activation, supplier or Build observation".into());
             }
             if let Some(first) = bindings.first()
                 && (first.origin.activation() != binding.origin.activation()
                     || first.observation != binding.observation
                     || first.usage != binding.usage)
             {
-                return Err("native package intents mix sponsoring Build invocations");
+                return Err("native package intents mix sponsoring Build invocations".into());
             }
             if let Some(demand) = &binding.same_stack_demand
                 && (demand.bytes == 0
@@ -291,13 +327,12 @@ impl PackageBuildHandoff {
                     || demand.origin.author().source().package_identity
                         != binding.origin.author().source().package_identity)
             {
-                return Err(
-                    "native package footprint differs from its original binding activation or supplier",
-                );
+                return Err("native package footprint differs from its original binding activation or supplier".into());
             }
         }
         let mut contents = Arc::unwrap_or_clone(self.contents);
         contents.native_bindings = bindings.into();
+        contents.native_evaluation = evaluation;
         Ok(Self {
             contents: Arc::new(contents),
         })
@@ -313,6 +348,11 @@ impl PackageBuildHandoff {
         selections: Vec<build_time_evaluation::provider_declarations::RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
+        if let (Some(provider), Some(native)) = (observation, self.native_evaluation()) {
+            if provider != native.observation_digest {
+                return Err("one package handoff mixes different original Build observations");
+            }
+        }
         if !selections.is_empty() && observation.is_none() {
             return Err("package provider choices have no original Build observation");
         }
@@ -593,4 +633,74 @@ fn generated_source_relative_path(
 
 fn generated_source_logical_path(package_root: &Path, relative: &Path) -> PathBuf {
     package_root.join(".omega/generated").join(relative)
+}
+
+// Compiler-private source snapshots carry the same complete provider/native
+// payload as ordinary handoffs. Delegate those fields to their custody-aware
+// codecs instead of defining a second graph shape or losing original Build
+// observations during source-cache recovery. Decoded handoffs remain candidates;
+// receiving source and package admission run independently.
+impl compiler_storage::Record for PackageBuildHandoffContents {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.subject.write(output)?;
+            self.purpose.write(output)?;
+            self.build_execution_profile.write(output)?;
+            self.sources.write(output)?;
+            super::provider_selection_codec::encode_package_provider_selections(
+                &self.provider_selections,
+                self.selection_observation,
+            )
+            .write(output)?;
+            super::native_selection_codec::encode_package_native_bindings(
+                &self.native_bindings,
+                self.native_evaluation.as_deref(),
+            )
+            .write(output)
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        input.record(|input| {
+            let subject = BuildSourceSubject::read(input)?;
+            let purpose = DependencyPurpose::read(input)?;
+            let build_execution_profile = Option::<target::TargetProfile>::read(input)?;
+            let sources = Vec::<PackageGeneratedSource>::read(input)?;
+            let provider_bytes = Vec::<u8>::read(input)?;
+            let native_bytes = Vec::<u8>::read(input)?;
+            let (selections, observation) =
+                super::provider_selection_codec::decode_package_provider_selections(
+                    &provider_bytes,
+                )
+                .ok_or_else(|| input.error("invalid retained provider selection payload"))?;
+            let (bindings, evaluation) =
+                super::native_selection_codec::decode_package_native_bindings(&native_bytes)
+                    .ok_or_else(|| input.error("invalid retained native binding payload"))?;
+            let candidate = PackageBuildHandoff {
+                contents: Arc::new(Self {
+                    subject,
+                    purpose,
+                    build_execution_profile,
+                    sources,
+                    provider_selections: Arc::from([]),
+                    selection_observation: None,
+                    native_bindings: Arc::from([]),
+                    native_evaluation: None,
+                }),
+            };
+            let candidate = candidate
+                .with_retained_provider_selections(selections, observation)
+                .map_err(|reason| input.error(reason))?
+                .with_checked_native_bindings(bindings, evaluation)
+                .map_err(|reason| input.error(reason))?;
+            Ok(Arc::unwrap_or_clone(candidate.contents))
+        })
+    }
 }

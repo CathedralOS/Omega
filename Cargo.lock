@@ -64,6 +64,7 @@ dependencies = [
 name = "access-plans"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "extents",
  "language-core",
  "layout-plans",
@@ -103,6 +104,7 @@ name = "arena"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
+ "compiler-storage",
 ]
 
 [[package]]
@@ -165,6 +167,7 @@ dependencies = [
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "language-semantics",
  "optimization-core",
  "psi-compiler",
@@ -214,6 +217,7 @@ dependencies = [
 name = "build-output"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "diagnostics",
  "filesystem-authority",
  "optimization-core",
@@ -228,6 +232,7 @@ dependencies = [
  "build-time-values",
  "checked-interpreter",
  "checked-trees",
+ "compiler-storage",
  "diagnostics",
  "flow-effects",
  "language-core",
@@ -257,6 +262,7 @@ dependencies = [
 name = "build-time-values"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "numerics",
 ]
 
@@ -337,6 +343,7 @@ dependencies = [
  "arena",
  "build-time-values",
  "checked-trees",
+ "compiler-storage",
  "evaluation-accounting",
  "filesystem-authority",
  "language-core",
@@ -356,6 +363,7 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "arena",
+ "compiler-storage",
  "diagnostics",
  "facts",
  "flow-effects",
@@ -417,6 +425,7 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "checked-trees",
+ "compiler-storage",
  "component-description",
  "diagnostics",
  "effects",
@@ -425,6 +434,7 @@ dependencies = [
  "native-artifact",
  "optimization-core",
  "package-compilation",
+ "phase-profile",
  "platform-custody",
  "program-entry-plan",
  "provider-planning",
@@ -462,9 +472,11 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
+ "cap-std",
  "checked-interpreter",
  "checked-trees",
  "compilation-products",
+ "compiler-storage",
  "component-description",
  "diagnostics",
  "effects",
@@ -512,6 +524,22 @@ dependencies = [
  "trust-model",
  "typed-trees",
  "validation",
+]
+
+[[package]]
+name = "compiler-storage"
+version = "0.1.0"
+dependencies = [
+ "compiler-storage-derive",
+]
+
+[[package]]
+name = "compiler-storage-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -574,6 +602,7 @@ dependencies = [
 name = "diagnostics"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "source",
 ]
 
@@ -591,6 +620,7 @@ dependencies = [
 name = "effects"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "diagnostics",
  "language-core",
  "language-semantics",
@@ -626,6 +656,7 @@ dependencies = [
 name = "evaluation-accounting"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "semantic-vocabulary",
 ]
 
@@ -644,12 +675,16 @@ dependencies = [
 [[package]]
 name = "extents"
 version = "0.1.0"
+dependencies = [
+ "compiler-storage",
+]
 
 [[package]]
 name = "facts"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "language-core",
  "language-semantics",
  "numerics",
@@ -662,6 +697,7 @@ dependencies = [
 name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "optimization",
 ]
 
@@ -676,6 +712,7 @@ name = "flow-effects"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "language-semantics",
  "symbols",
 ]
@@ -975,6 +1012,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 name = "language-core"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "numerics",
 ]
 
@@ -984,6 +1022,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "build-time-values",
+ "compiler-storage",
  "language-core",
  "numerics",
  "optimization",
@@ -1018,6 +1057,7 @@ dependencies = [
 name = "layout-plans"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "semantic-vocabulary",
 ]
 
@@ -1310,6 +1350,7 @@ dependencies = [
 name = "numerics"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "optimization",
 ]
 
@@ -1438,6 +1479,7 @@ dependencies = [
  "cap-std",
  "checked-interpreter",
  "checked-trees",
+ "compiler-storage",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -1539,6 +1581,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
+ "compiler-storage",
  "nix",
  "optimization-core",
  "platform-custody",
@@ -1659,6 +1702,7 @@ name = "proof-admission"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "numerics",
  "semantic-vocabulary",
  "terminal-psi",
@@ -1703,6 +1747,7 @@ dependencies = [
  "arena",
  "build-time-evaluation",
  "checked-trees",
+ "compiler-storage",
  "diagnostics",
  "flow-effects",
  "language-semantics",
@@ -1734,6 +1779,7 @@ version = "0.1.0"
 dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
+ "compiler-storage",
  "diagnostics",
  "language-semantics",
  "lowered-psi",
@@ -1858,6 +1904,7 @@ dependencies = [
 name = "representation-selections"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "optimization",
  "source",
  "symbols",
@@ -2064,6 +2111,7 @@ name = "semantic-vocabulary"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "optimization",
 ]
 
@@ -2153,6 +2201,7 @@ name = "source"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "semantic-vocabulary",
  "sha2",
 ]
@@ -2188,6 +2237,7 @@ name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "diagnostics",
  "language-core",
  "language-semantics",
@@ -2201,6 +2251,7 @@ name = "symbol-resolved-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "diagnostics",
  "facts",
  "language-core",
@@ -2219,6 +2270,7 @@ name = "symbols"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "semantic-vocabulary",
  "source",
 ]
@@ -2239,6 +2291,7 @@ name = "syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "diagnostics",
  "language-core",
  "numerics",
@@ -2262,6 +2315,7 @@ name = "syntax-trees-to-symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "compiler-storage",
  "diagnostics",
  "language-core",
  "language-semantics",
@@ -2278,6 +2332,7 @@ dependencies = [
 name = "target"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "diagnostics",
  "optimization-core",
  "semantic-vocabulary",
@@ -2360,6 +2415,7 @@ dependencies = [
 name = "terminal-fuel"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "evaluation-accounting",
  "semantic-vocabulary",
  "terminal-psi",
@@ -2369,6 +2425,7 @@ dependencies = [
 name = "terminal-installation"
 version = "0.1.0"
 dependencies = [
+ "compiler-storage",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
@@ -2381,6 +2438,7 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "arena",
+ "compiler-storage",
  "evaluation-accounting",
  "extents",
  "layout-plans",
@@ -2400,6 +2458,7 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "arena",
+ "compiler-storage",
  "language-core",
  "language-semantics",
  "optimization",
@@ -2417,6 +2476,7 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "compiler-storage",
  "component-description",
  "diagnostics",
  "effects",
@@ -2532,6 +2592,7 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "arena",
+ "compiler-storage",
  "diagnostics",
  "flow-effects",
  "language-core",
@@ -2553,6 +2614,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "checked-trees",
+ "compiler-storage",
  "diagnostics",
  "facts",
  "flow-effects",
@@ -2580,6 +2642,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "checked-trees",
+ "compiler-storage",
  "diagnostics",
  "language-core",
  "language-semantics",
@@ -2612,6 +2675,7 @@ dependencies = [
  "access-plans",
  "arena",
  "checked-trees",
+ "compiler-storage",
  "diagnostics",
  "facts",
  "flow-effects",

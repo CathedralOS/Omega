@@ -6,7 +6,7 @@
 
 use crate::materialization::field_identities::validate_materialization_field_identities;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum IntegerInterpretation {
     Signed,
     Unsigned,
@@ -27,7 +27,7 @@ impl IntegerInterpretation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum LayoutPlacementReport {
     At {
         offset: u64,
@@ -46,7 +46,7 @@ pub enum LayoutPlacementReport {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct LayoutFieldEntryReport {
     /// Normalized field name. Compiler-issued keys do not escape into artifact
     /// reports.
@@ -59,7 +59,7 @@ pub struct LayoutFieldEntryReport {
 }
 
 /// A validated layout plan, ready for consumers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct LayoutPlanReport {
     /// Compact FNV report coordinate for the complete reflected schema.
     ///
@@ -287,7 +287,7 @@ impl ConventionalRecursiveRecordSumPathsLayoutReport {
 /// The authoritative layout policy owns
 /// `offset`, but callback-address size/alignment close later with the selected
 /// target calling plan and are deliberately absent here.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PrivateCallbackLayoutDemandReport<SlotApplication> {
     pub slot_application: SlotApplication,
     pub slot_identity: String,

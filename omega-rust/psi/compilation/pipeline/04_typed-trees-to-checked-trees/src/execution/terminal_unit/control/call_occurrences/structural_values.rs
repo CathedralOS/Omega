@@ -265,7 +265,8 @@ pub(super) fn collect<'facts>(
             | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::Scalar { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-            | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => {}
+            | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
+            | checked_trees::CheckedStructuralValueKind::FixedByteArrayLiteral { .. } => {}
         }
     }
     Some(())

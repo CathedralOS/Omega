@@ -12,8 +12,8 @@ use symbols::SymbolHandle;
 mod receipt;
 mod retention;
 pub use retention::{
-    capture_package_native_bindings, rejoin_package_native_bindings,
-    unify_native_binding_identities,
+    ResolvedNativeApplication, capture_package_native_bindings, rejoin_package_native_bindings,
+    resolve_native_binding_application, unify_native_binding_identities,
 };
 use target::{ForeignLocatorCandidate, TargetProfile};
 
@@ -200,6 +200,7 @@ pub fn admit_native_binding(
     event_ordinal: usize,
     observation: &package_compilation::BuildObservationSummary,
     usage: package_compilation::BuildEvaluationUsage,
+    terminal_code: terminal_psi::TerminalPsiIdentity,
     table_field: Option<(SymbolHandle, SymbolHandle)>,
     same_stack_demand: Option<NativeSameStackDemand>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -243,7 +244,7 @@ pub fn admit_native_binding(
         .strip_prefix(&source.package_root)
         .map_err(|_| "native binding source is outside its immutable package")?;
     let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.build-native-binding.source.sha256.v4\0",
+        b"omega.build-native-binding.source-choices.sha256.v6\0",
     );
     hash.bytes(producer.as_bytes());
     hash.bytes(requirement_identity.as_bytes());
@@ -424,7 +425,10 @@ pub fn admit_native_binding(
     let receipt_source = std::sync::Arc::new(receipt::ReceiptSource::new(
         typed.symbols.symbol_package_identity(selecting_machine),
         producer,
-        source_digest,
+        package_compilation::native_receipts::NativeBindingProducerRecipe {
+            source_choices: source_digest,
+            terminal_code,
+        },
         locator_identity,
     ));
     let receipt = receipt_source.materialize(observation, usage, identities)?;

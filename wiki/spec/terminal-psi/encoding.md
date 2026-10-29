@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 201 even when every table
+order below. This layout uses semantic format marker 206 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 201 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 206 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1346,156 +1346,25 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
-Marker 201 adds a counted module-level external-provider conformance roster
-after boundary machines and before checked provider candidates. It is independent
-of call shapes: directly lowered comparisons still require satisfaction evidence.
-Each row contains the requirement's nominal declaration and callable identity
-indices, optional requirement package digest, optional four-byte numeric meaning,
-optional authored target membership string, checked realization machine
-declaration, optional realization package digest, optional selecting owner
-(nominal declaration index, provider identity index, optional package digest),
-and the structural external binding. Package digests are 32 bytes with a
-presence Boolean; owners likewise have a presence Boolean. Binding tags retain
-the language vocabulary: 2 = syscall followed by an i64 number, 3 = compiler
-intrinsic with no payload, 4 = vtable slot followed by an i64 index, 5 = vtable
-field and 6 = table function, each followed by a counted field string.
-Rows are strictly ordered and unique. Referenced declarations and signatures
-must exist; checked commitments, target membership and field names must be
-nonempty. Numeric meaning agrees with any corresponding callable boundary.
-These are checked satisfaction edges, not provider choices or external execution
-grants. Authored target membership retains the existing family migration
-vocabulary; it is never inferred from a normalized overload's spelling.
+Marker 206 retains a counted module-level numeric-realization roster after
+boundary machines and before checked provider candidates. It replaces the retired
+external-binding conformance payload; markers 201 through 205 are not decoded as
+this layout. Each row contains the requirement nominal declaration and callable
+identity indices, optional requirement package digest, requirement-schema presence
+Boolean and its three indices (provider schema, method name, requirement owner),
+four-byte numeric meaning, a one-byte closed instruction-set membership tag, checked
+realization declaration, optional realization package digest, and optional code
+owner (nominal declaration, identity, optional package digest). Packages and owners
+have presence Booleans; package digests contain 32 bytes.
 
-Marker 200 added optional numeric meaning immediately after the optional checked
-callable: a presence Boolean followed, when
-present, by four bytes. This meaning is independent of provider selection and
-authority. Decoding checks the complete parameter/result signature, including
-the structural IEEE classification result. Non-callable evidence cannot carry it.
-
-| Kind | Byte 0 | Bytes 1–3 |
-| --- | --- | --- |
-| Named IEEE operation | 0 | operation tag, format, zero |
-| Primitive IEEE binary | 1 | binary-operation tag, format, zero |
-| Integer comparison | 2 | comparison tag, numeric type, zero |
-| IEEE negation | 3 | format, zero, zero |
-| Numeric conversion | 4 | source type, result type, arithmetic domain |
-
-Formats are 0 = binary32, 1 = binary64. Numeric types are, in tag order:
-i8, i16, i32, i64, u8, u16, u32, u64, f32, f64. Arithmetic domains are
-0 = Exact, 1 = Wrapping, 2 = Saturating, 3 = Trapping; Wrapping conversions
-and non-Exact conversions into floats are unsupported. Binary tags are
-add, subtract, multiply, divide, equal, not-equal, less, less-or-equal, greater,
-greater-or-equal; comparison tags are the last six in that order, starting at 0.
-Named tags, starting at 0, are minimum, maximum, square_root,
-multiply_then_add, fused_multiply_add, is_nan, is_finite, is_infinite, is_normal,
-is_subnormal, classify, then add/subtract/multiply/divide/square_root/
-fused_multiply_add, each with toward_zero, toward_positive, toward_negative in
-that order. Unknown tags and nonzero padding reject. Changing this order
-requires a format change; display spelling does not select a provider.
-
-| Row | Fields |
-| --- | --- |
-| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling |
-| optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
-| structural requirement | `u32` argument index + domain id |
-| program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
-| structural parameter | the machine-row structural parameter encoding |
-| service reach | counted service ids |
-| provider candidate | boundary machine id + requirement identity index + source requirement identity index + receiving application identity index + counted receiving region identity indices + provider identity index + selecting declaration nominal identity index + candidate identity index + source candidate identity index + optional source candidate package identity + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
-| optional source candidate package identity | `bool` present + 32-byte package digest when present |
-| signature parameter | `u32` position + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
-| projected qualification | structural path + domain id |
-| positional refinement | `u32` boundary parameter index + `u32` candidate parameter index |
-| required domain | `u32` argument index + domain id |
-
-Declaration-role tags are `0` for Callable and `1` for ContractEvidence.
-Unknown tags reject. ContractEvidence retains proof-only foreign loan custody;
-it cannot be invoked, installed, imported, or selected as a callable provider.
-Its schema owner introduces no runtime provider demand. Callable signatures
-retain their exact declaring schema owner; provider candidates retain their
-exact selecting declaration independently of display labels and callable bodies.
-
-The receiving application retains the complete checked trait application, not
-its erased runtime carrier. Receiving region identities follow the selecting
-declaration's public binder order, including repeated and unused positions.
-Zero application means no closed trait application; it is never a wildcard and
-requires an empty region tuple. Nonzero application and region indices name
-nonempty entries in this artifact's identity table. Only trait requirements may
-carry this association. Installation preserves it beneath the exact admitted
-candidate and artifact; retaining these bytes grants no selection, loan or
-permission authority and does not itself open regional provider eligibility.
-
-Boundary completion tags are `0` for the exact normal-return provider premise
-and `1` for external process exit. Unknown tags reject. Completion is independent
-of the result and reach rosters and must match the exact admitted provider
-contract. The transitional external Unit encoding remains unsupported in
-implicit cleanup and does not supply an external terminal invocation or trace.
-
-The unconditional termination bit retains an explicit `Terminates` contract
-with no progress premises. Normal completion alone does not promise finite
-work. Conditional termination projects to false; its premises remain in the
-provider schema and cannot be discharged by this bit. Native admission compares
-the bit with that exact schema. Checked provider bodies and executable cleanup
-dependencies must independently preserve finite normal completion, including
-ranked control cycles and the contracts of opaque calls.
-
-<!-- boundary-parameter-kind-tags -->
-
-| tag | Boundary parameter kind |
-| --- | --- |
-| 0 | Scalar |
-| 1 | Structural |
-
-<!-- boundary-result-tags -->
-
-| tag | Boundary machine result |
-| --- | --- |
-| 0 | Unit |
-| 1 | Scalar | scalar type |
-| 2 | Structural | structural type id + structural multiplicity + counted qualification domain ids + counted projected qualifications |
-
-<!-- boundary-content-guarantee-tags -->
-
-| tag | Boundary content guarantee |
-| --- | --- |
-| 1 | Conservation | content conservation guarantee |
-| 2 | RetainedBorrow | retained-borrow custody |
-
-A content conservation guarantee is a `u64` report fingerprint + counted
-structural places (each a place id + content structural place kind) + a
-content conservation (content algebra + content term + content term).
-
-| Row | Fields |
-| --- | --- |
-| retained-borrow custody | callable identity string + source retained-borrow place + result retained-borrow place + structural access + `u32` callable lifetime parameter count + `u32` callable lifetime parameter ordinal + result nominal identity string + result structural multiplicity + `u32` result lifetime argument count + `u32` result lifetime argument ordinal + `bool` result lifetime slot erased + retained semantic domain id + source retained-borrow projection + result retained-borrow projection |
-| retained-borrow place | content place version + retained-borrow root + counted retained-borrow segments |
-| retained-borrow projection | semantic domain id + carrier identity string + domain id + `u64` report fingerprint + content algebra + content projection expression |
-
-<!-- retained-borrow-root-tags -->
-
-| tag | Retained-borrow root |
-| --- | --- |
-| 1 | Parameter | `u32` position + identity string |
-| 2 | Result |
-
-<!-- retained-borrow-segment-tags -->
-
-| tag | Retained-borrow place segment |
-| --- | --- |
-| 1 | Case | case name string |
-| 2 | Field | field name string |
-| 3 | FixedIndex | `u64` index |
-
-Retained-borrow place segments order Case before Field — deliberately the
-reverse of the content-place segment table; the two tag spaces are
-independent and a receiver must not share the decode table.
-
-Boundary machines are strictly ordered by boundary machine id with canonical
-crash routes, dense parameter positions, strictly ordered requirements,
-canonical strictly increasing scalar requires propositions (the machine
-contract `requires` rule) and strictly ordered service ceilings. Provider candidates are strictly ordered
-by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
-candidate machine id.
+Rows are strictly ordered and unique. Numeric meaning requires the exact schema
+coordinates, all of which must name nonempty text. The checked declaration,
+signature, contract, package and owner survive independently of executable calls.
+Receiving selection still requires one exact schema-method-row association and
+matching sealed numeric meaning and compatible instruction-set membership.
+No authored target prefix or legacy family membership is retained in this roster. This roster grants neither provider
+selection nor native execution authority and carries no locator, syscall, table,
+vtable or legacy external-binding tags.
 
 ### Float-meaning rows
 

@@ -101,6 +101,7 @@ pub fn closed_const_arguments(
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_syntax: Option<&SyntaxTrees>,
 ) -> Result<ClosedConstArguments, Vec<Diagnostic>> {
     let data_positions = collect_data_type_reference_positions(syntax, false);
     let data_public_positions: HashSet<TypeReferenceHandle> =
@@ -121,6 +122,7 @@ pub fn closed_const_arguments(
         let data_arguments = collect_closed_const_arguments(
             syntax,
             &selection,
+            declaration_syntax,
             &data_positions,
             &data_public_positions,
             false,
@@ -128,6 +130,7 @@ pub fn closed_const_arguments(
         let mut machine_arguments = collect_closed_const_arguments(
             syntax,
             &selection,
+            declaration_syntax,
             &machine_positions,
             &machine_public_positions,
             true,
@@ -135,6 +138,7 @@ pub fn closed_const_arguments(
         static_argument_positions::collect(
             syntax,
             &selection,
+            declaration_syntax,
             &machine_positions,
             &machine_public_positions,
             &mut machine_arguments,
@@ -179,10 +183,11 @@ pub fn closed_const_arguments(
 /// resolution request, which consumes the forest it prepares.
 /// Each tuple retains the argument, parameter type, and real owner's public exposure.
 pub fn closed_data_const_argument_expressions(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_syntax: Option<&SyntaxTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let positions = collect_data_type_reference_positions(syntax, false);
     if !positions_may_have_closed_const_arguments(syntax, &positions) {
@@ -201,6 +206,7 @@ pub fn closed_data_const_argument_expressions(
     Ok(collect_closed_const_arguments(
         syntax,
         &selection,
+        declaration_syntax,
         &positions,
         &public_positions,
         false,
@@ -211,23 +217,26 @@ fn positions_may_have_closed_const_arguments(
     syntax: &SyntaxTrees,
     positions: &[TypeReferenceHandle],
 ) -> bool {
-    positions.iter().any(|position| {
-        match syntax.type_references.type_reference(*position) {
+    positions.iter().any(
+        |position| match syntax.type_references.type_reference(*position) {
             TypeReferenceNode::Generic { arguments, .. } => syntax
                 .type_references
                 .type_reference_handles(*arguments)
                 .iter()
-                .any(|argument| match syntax.type_references.type_reference(*argument) {
-                    TypeReferenceNode::ConstExpression(_) => true,
-                    TypeReferenceNode::Named(name) => {
-                        syntax
-                            .type_references
-                            .const_argument_normalization(*argument)
-                            .is_none()
-                            && ConstScalarSpelling::from_bare_name(name.as_str(syntax)).is_none()
-                    }
-                    _ => false,
-                }),
+                .any(
+                    |argument| match syntax.type_references.type_reference(*argument) {
+                        TypeReferenceNode::ConstExpression(_) => true,
+                        TypeReferenceNode::Named(name) => {
+                            syntax
+                                .type_references
+                                .const_argument_normalization(*argument)
+                                .is_none()
+                                && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
+                                    .is_none()
+                        }
+                        _ => false,
+                    },
+                ),
             TypeReferenceNode::Constrained { constraints, .. } => syntax
                 .type_references
                 .constraints(*constraints)
@@ -237,23 +246,25 @@ fn positions_may_have_closed_const_arguments(
                         .type_references
                         .type_reference_handles(domain.arguments)
                         .iter()
-                        .any(|argument| match syntax.type_references.type_reference(*argument) {
-                            TypeReferenceNode::ConstExpression(_) => true,
-                            TypeReferenceNode::Named(name) => {
-                                syntax
-                                    .type_references
-                                    .const_argument_normalization(*argument)
-                                    .is_none()
-                                    && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
+                        .any(
+                            |argument| match syntax.type_references.type_reference(*argument) {
+                                TypeReferenceNode::ConstExpression(_) => true,
+                                TypeReferenceNode::Named(name) => {
+                                    syntax
+                                        .type_references
+                                        .const_argument_normalization(*argument)
                                         .is_none()
-                            }
-                            _ => false,
-                        }),
+                                        && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
+                                            .is_none()
+                                }
+                                _ => false,
+                            },
+                        ),
                     _ => false,
                 }),
             _ => false,
-        }
-    })
+        },
+    )
 }
 
 /// Reachable concrete array-extent uses share ordinary constant-expression
@@ -322,10 +333,11 @@ pub fn retain_deferred_array_extent(
 /// supplies destinations, not value-selection authority: callers must resolve
 /// each expression in its original machine and state scope before evaluation.
 pub fn closed_machine_const_arguments(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_syntax: Option<&SyntaxTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let selection = declaration_selection::ConstantSelection::with_retained_base(
         syntax,
@@ -334,13 +346,19 @@ pub fn closed_machine_const_arguments(
         retained_base,
     )?;
     let (positions, public_positions_vec) = collect_machine_type_reference_positions(syntax);
-    let public_positions: HashSet<TypeReferenceHandle> =
-        public_positions_vec.into_iter().collect();
-    let mut arguments =
-        collect_closed_const_arguments(syntax, &selection, &positions, &public_positions, true);
+    let public_positions: HashSet<TypeReferenceHandle> = public_positions_vec.into_iter().collect();
+    let mut arguments = collect_closed_const_arguments(
+        syntax,
+        &selection,
+        declaration_syntax,
+        &positions,
+        &public_positions,
+        true,
+    );
     static_argument_positions::collect(
         syntax,
         &selection,
+        declaration_syntax,
         &positions,
         &public_positions,
         &mut arguments,
@@ -349,20 +367,23 @@ pub fn closed_machine_const_arguments(
 }
 
 fn collect_closed_const_arguments(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     selection: &declaration_selection::ConstantSelection<'_>,
+    declaration_syntax: Option<&SyntaxTrees>,
     positions: &[TypeReferenceHandle],
     public_positions: &HashSet<TypeReferenceHandle>,
     include_machine_casts: bool,
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut pending = Vec::new();
     let mut seen_pending = HashSet::new();
-    let mut retain_arguments = |parameters: &[TypeParameter], arguments: &[TypeReferenceHandle]| {
+    let mut retain_arguments = |syntax: &SyntaxTrees,
+                                parameters: &[Option<TypeReferenceHandle>],
+                                arguments: &[TypeReferenceHandle]| {
         if parameters.len() != arguments.len() {
             return;
         }
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            if let TypeParameterKind::Const { type_reference } = parameter.kind
+            if let Some(type_reference) = *parameter
                 && match syntax.type_references.type_reference(*argument) {
                     TypeReferenceNode::ConstExpression(_) => true,
                     TypeReferenceNode::Named(name) => {
@@ -384,36 +405,28 @@ fn collect_closed_const_arguments(
             }
         }
     };
-    let mut data_by_name: Option<HashMap<&str, Option<&DataDefinition>>> = None;
     for position in positions {
-        match syntax.type_references.type_reference(*position) {
+        match syntax.type_references.type_reference(*position).clone() {
             TypeReferenceNode::Generic {
                 base_name,
                 arguments,
                 ..
             } => {
-                let data_by_name = data_by_name.get_or_insert_with(|| {
-                    let mut map: HashMap<&str, Option<&DataDefinition>> = HashMap::new();
-                    for item in syntax.root_items() {
-                        if let Item::Data(definition) = item {
-                            map.entry(definition.name.as_str(syntax))
-                                .and_modify(|entry| *entry = None)
-                                .or_insert(Some(definition));
-                        }
-                    }
-                    map
-                });
-                let Some(Some(definition)) = data_by_name.get(base_name.as_str(syntax)).copied()
-                else {
-                    continue;
-                };
-                retain_arguments(
-                    syntax.items.type_parameters(definition.type_parameters),
-                    syntax.type_references.type_reference_handles(*arguments),
-                );
+                let arguments = syntax
+                    .type_references
+                    .type_reference_handles(arguments)
+                    .to_vec();
+                if let Some(parameters) = selection.const_parameter_carriers(
+                    syntax,
+                    declaration_syntax,
+                    &base_name,
+                    &[symbols::SymbolKind::Data],
+                ) {
+                    retain_arguments(syntax, &parameters, &arguments);
+                }
             }
             TypeReferenceNode::Constrained { constraints, .. } => {
-                for constraint in syntax.type_references.constraints(*constraints) {
+                for constraint in syntax.type_references.constraints(constraints) {
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
@@ -425,8 +438,16 @@ fn collect_closed_const_arguments(
                     ) else {
                         continue;
                     };
+                    let carriers = parameters
+                        .iter()
+                        .map(|parameter| match parameter.kind {
+                            TypeParameterKind::Const { type_reference } => Some(type_reference),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
                     retain_arguments(
-                        parameters,
+                        syntax,
+                        &carriers,
                         syntax
                             .type_references
                             .type_reference_handles(domain.arguments),
@@ -476,8 +497,16 @@ fn collect_closed_const_arguments(
             else {
                 continue;
             };
+            let carriers = parameters
+                .iter()
+                .map(|parameter| match parameter.kind {
+                    TypeParameterKind::Const { type_reference } => Some(type_reference),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             retain_arguments(
-                parameters,
+                syntax,
+                &carriers,
                 syntax
                     .type_references
                     .type_reference_handles(cast.semantic_domain_arguments),

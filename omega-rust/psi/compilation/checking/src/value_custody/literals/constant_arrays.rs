@@ -10,6 +10,29 @@ use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Exact cooked bytes of a literal copied into an owned fixed-byte array.
+/// This is carrier and payload correspondence, not qualification or ownership
+/// authority: the normal value-formation owner retains those decisions.
+/// Borrowed literal descriptors keep their separate image-backed producer.
+pub fn fixed_byte_array_literal<'program>(
+    program: &'program dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> Option<&'program [u8]> {
+    let bytes = program.expression_table.string_node(expression)?;
+    let carrier = crate::unwrapped_type_reference(program, expected)?;
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(carrier)
+    else {
+        return None;
+    };
+    (program.primitive_type_reference(*element_type) == Some(typed_trees::types::PrimitiveType::U8)
+        && *length == bytes.len())
+    .then_some(bytes)
+}
+
 /// Peel arithmetic-policy shells from `reference`. `i32 in Wrapping`
 /// qualifies arithmetic on the value, never its storage shape, so a
 /// policy-constrained layer or element is still a closed primitive carrier;

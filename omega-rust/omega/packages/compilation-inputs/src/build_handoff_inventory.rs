@@ -7,12 +7,12 @@ use build_declarations::DependencyPurpose;
 
 mod admission;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BuildHandoffInventory {
     handoffs: Vec<BuildHandoffInstance>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct BuildHandoffInstance {
     consumer_scope: DependencyPurpose,
     handoff: PackageBuildHandoff,

@@ -10,11 +10,12 @@ use diagnostics::Diagnostic;
 
 use super::{CompletedSource, SourceCompletionInput};
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub(super) struct AuthoredCompletions {
     entries: Arc<Mutex<Vec<Completion>>>,
 }
 
+#[derive(compiler_storage::Record)]
 struct Completion {
     input: Arc<SourceCompletionInput>,
     source: CompletedSource,
@@ -72,4 +73,36 @@ fn unavailable() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "authored source completion retention owner is poisoned",
     )]
+}
+
+impl AuthoredCompletions {
+    pub(super) fn rejoin_current_authority(
+        &self,
+        authority: Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
+    ) -> Result<Self, String> {
+        let stored = self
+            .entries
+            .lock()
+            .map_err(|_| "authored source completion retention owner is poisoned")?;
+        let mut entries = Vec::new();
+        for entry in stored.iter() {
+            // A stored completion is optional. Changed contexts recompute it
+            // from this frontier rather than returning an unrelated refusal.
+            let Ok(input) = entry.input.rejoin_current_authority(authority.clone()) else {
+                continue;
+            };
+            let mut source = entry.source.clone();
+            if source.pending_pre_checks.iter_mut().any(|pending| {
+                pending
+                    .rejoin_source_authority(source.typing.typed(), authority.clone())
+                    .is_err()
+            }) {
+                continue;
+            }
+            entries.push(Completion { input, source });
+        }
+        Ok(Self {
+            entries: Arc::new(Mutex::new(entries)),
+        })
+    }
 }

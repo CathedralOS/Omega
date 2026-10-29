@@ -72,15 +72,15 @@ fn evaluate_application_group(
     }
     let mut const_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(), context.retained_base(),
-
+            &mut syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(), context.retained_base(), context.declaration_syntax,
         )?;
     const_arguments.extend(
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            &syntax,
+            &mut syntax,
             sources.clone(),
             source_scoped_top_level_bindings.to_vec(),
             context.retained_base(),
+            context.declaration_syntax,
         )?,
     );
     let extent_arguments =

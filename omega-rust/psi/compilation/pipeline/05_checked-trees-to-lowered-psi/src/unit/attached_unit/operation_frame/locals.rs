@@ -186,16 +186,10 @@ impl OperationFrame<'_, '_> {
                 "mutable scalar value refinements require invariant-window custody",
             );
         }
-        let machine = crate::terminal_identities::lookup_machine_id_with(
-            self.calls.machine_ids,
-            self.machine,
-            "local refinement lost its machine identity",
-        )?;
         self.values.push(value);
         self.evaluation.require_value_refinements(
             identities,
             self.checked,
-            machine,
             predicates,
             self.values,
             self.next_value,

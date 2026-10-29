@@ -8,7 +8,6 @@ use omega::language::core::filesystem_authority;
 // as a declaration-local scalar precondition. The last WCHAR bounds the scan.
 domain [u16; 4096]::WindowsNativePath requires self[4095] == 0;
 
-data WindowsFilesystemImports { }
 data WindowsFilesystemIoStatus { status: i64; information: u64; }
 
 // Exact native contracts belong to one trait. In particular, the mode query is
@@ -61,15 +60,12 @@ boundary trait WindowsFilesystemIo {
     machine c_status_to_error(status: i32) -> u32 reaches;
 }
 
-
 // Same foreign locator, distinct checked contract. Do not select the broad
 // c_move_file requirement and infer narrower authority from its caller.
 // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw
 
-
 // The destination comes first in the native ABI. No metadata lookup, copy,
 // security descriptor change or cross-volume fallback is performed here.
 // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-createhardlinkw
-
 
 // One closed native implementation map, selected as a whole below the raw family.

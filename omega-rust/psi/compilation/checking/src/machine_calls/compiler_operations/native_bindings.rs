@@ -1,6 +1,9 @@
 //! Exact compiler-owned ForeignBinding vocabulary and closed const application.
 //! This query authenticates source/type custody only; neither locator payload
 //! validation nor this closed schema grants provider execution authority.
+//! Ordinary constructor and call inference produce these closed applications.
+//! Native binding consumes their retained origin; it must not run a second
+//! constructor interpreter or recover templates from presentation names.
 use diagnostics::Diagnostic;
 use source::SourceOrigin;
 use symbols::SymbolHandle;

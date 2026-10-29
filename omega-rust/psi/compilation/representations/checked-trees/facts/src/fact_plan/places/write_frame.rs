@@ -1,6 +1,6 @@
 /// Whether a normalized may-write frame completely describes the caller-visible
 /// writes of the body being summarized.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum WriteFrameCompleteness {
     Complete,
     /// Body inspection could not produce a sound finite frame. Consumers must
@@ -14,7 +14,7 @@ pub enum WriteFrameCompleteness {
 /// report coordinate is computed; opaque frames intentionally expose no usable
 /// paths. Semantic consumers compare completeness and exact normalized paths,
 /// never the compact coordinate alone.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct NormalizedWriteFrame {
     completeness: WriteFrameCompleteness,
     paths: Vec<String>,

@@ -1,0 +1,18 @@
+// The incoming guarded period makes the original remainder operation defined.
+// Expected exit: 0
+public data State { phase: i32; period: i32; }
+machine main() crashes Trap {
+ transition probe(-7,2) == -1 && probe(-2147483648,1) == 0 && probe(-2147483648,-1) == 0 { true -> done() _ -> failed() }
+ machine done() {}
+ machine failed() { crash Trap; }
+}
+machine probe(phase: i32, period: i32) -> i32 {
+ let mut cell: State;
+ cell.phase = phase;
+ cell.period = period;
+ transition cell.period != 0 && (cell.phase != -2147483648 || cell.period != -1) { true -> sample(&mut cell) _ -> (0) }
+machine sample(cell: &mut State) -> i32 {
+ cell.phase = cell.phase % cell.period;
+ cell.phase
+}
+}

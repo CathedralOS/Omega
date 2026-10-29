@@ -7,7 +7,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::StructuralPathSegment;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalScalarValue {
     Boolean(bool),
     Integer {
@@ -25,7 +25,7 @@ pub use terminal_installation::TerminalStructuralValue;
 /// This payload contains no storage identity or custody. Import validates it
 /// before publishing an ordinary placed home; export snapshots that home's
 /// actual optional discriminator and scalar cells rather than keeping a second carrier.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalScalarAggregateValue {
     pub structural_type: StructuralTypeId,
     pub result_case: Option<StructuralCaseId>,

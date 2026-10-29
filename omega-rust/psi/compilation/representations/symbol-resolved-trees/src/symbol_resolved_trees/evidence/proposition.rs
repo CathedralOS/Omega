@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 /// A proof-formula declaration after lexical symbol assignment. This is a
 /// distinct root category: it has no result type, executable signature,
 /// effects, termination plan, or runtime body.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PropositionDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -26,7 +26,7 @@ pub type PropositionBinder = Binder<PropositionBinderKind>;
 /// Proof-static binder kinds admitted by the first proposition-family slice.
 /// In particular, `Machine` is an opaque machine identity index and is not a
 /// callable machine parameter with an operation contract.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum PropositionBinderKind {
     #[default]
     Type,
@@ -36,7 +36,7 @@ pub enum PropositionBinderKind {
     Machine,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum PropositionBody {
     #[default]
     Primitive,

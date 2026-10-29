@@ -29,7 +29,8 @@ fn identities(
     let project =
         |operand: &language_semantics::declaration_selection::ProductDeclarationOperand, role| {
             let symbol = resolve_product_path(context.typed, &operand.path, operand.source_span, role)
-            .ok_or_else(|| Diagnostic::error(format!("Product provider operand `{}` does not resolve to one visible declaration of role {role:?}", operand.path))
+            .ok_or_else(|| Diagnostic::error(format!("Product provider operand `{}` does not resolve to one visible declaration of role {role:?}\n  {}", operand.path,
+                typed_trees::product_operand::product_declaration_lookup_diagnostic(context.typed, &operand.path, operand.source_span, role)))
                 .with_source_span(operand.source_span))?;
             Ok(ProviderSelectionIdentity {
                 symbol,

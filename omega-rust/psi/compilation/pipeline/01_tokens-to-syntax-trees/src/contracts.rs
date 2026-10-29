@@ -42,14 +42,11 @@ pub(crate) fn reject_retired_operational_reach(
     )))
 }
 /// One `reaches` member plus its `,`/`+` separator, shared by the machine
-/// clause and trait signature clause loops; the caller's builder accumulates
-/// the contiguous span.
+/// clause and trait signature clause loops. Members remain in independent
+/// clause scratch until the caller publishes each complete arena span.
 pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
     input: crate::input::token_cursor::Input<'tokens, 'source>,
-    syntax_trees: &mut syntax_trees::SyntaxTrees,
-    service_reaches: &mut crate::handle_spans::HandleSpanBuilder<
-        syntax_trees::identifier::Identifier,
-    >,
+    service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
 ) -> Result<
     crate::input::token_cursor::Input<'tokens, 'source>,
     crate::diagnostics::parse_error::ParseError,
@@ -57,8 +54,7 @@ pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
     use tokens::PunctuationKind;
     let (service, rest) = input.take_identifier()?;
     reject_retired_operational_reach(&service, rest)?;
-    let handle = syntax_trees.items.append_identifier_path_member(service);
-    service_reaches.push(handle);
+    service_reaches.push(service);
     let mut input = rest;
     if input.at_punctuation(PunctuationKind::Comma) {
         input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -70,14 +66,12 @@ pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
 
 /// The whole `reaches <Service> + ...` clause both grammars share: the `<=`
 /// installation-bound rules plus the member loop bounded by the caller's own
-/// clause-boundary set. The caller's builder accumulates the contiguous span.
+/// clause-boundary set. The caller stages this row separately from invocation
+/// identifiers, so interleaved clauses cannot become an accidental arena run.
 pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     input: crate::input::token_cursor::Input<'tokens, 'source>,
-    syntax_trees: &mut syntax_trees::SyntaxTrees,
     service_reach_keyword_source_spans: &mut Vec<source::SourceSpan>,
-    service_reaches: &mut crate::handle_spans::HandleSpanBuilder<
-        syntax_trees::identifier::Identifier,
-    >,
+    service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
     service_reach_is_installation_bound: &mut bool,
     at_clause_boundary: impl Fn(crate::input::token_cursor::Input<'_, '_>) -> bool,
 ) -> Result<
@@ -87,7 +81,7 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     use tokens::PunctuationKind;
     service_reach_keyword_source_spans.push(input.current_source_span());
     let mut input = input.take_contextual("reaches")?;
-    let service_count_before_clause = service_reaches.count();
+    let service_count_before_clause = service_reaches.len();
     if input.at_punctuation(PunctuationKind::LessEqual) {
         if *service_reach_is_installation_bound || !service_reaches.is_empty() {
             return Err(input.error_here(
@@ -102,10 +96,9 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
         ));
     }
     while !at_clause_boundary(input) {
-        input = take_service_reach_row_member(input, syntax_trees, service_reaches)?;
+        input = take_service_reach_row_member(input, service_reaches)?;
     }
-    if *service_reach_is_installation_bound
-        && service_reaches.count() == service_count_before_clause
+    if *service_reach_is_installation_bound && service_reaches.len() == service_count_before_clause
     {
         return Err(input.error_here(
             "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",

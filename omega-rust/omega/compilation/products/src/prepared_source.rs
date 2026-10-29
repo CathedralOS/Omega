@@ -6,6 +6,7 @@
 //! the slot occurs only after preparation succeeds. Neither product grants authority.
 
 use artifacts::compile_timings::CompileTimings;
+use compiler_storage::Record;
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
     DeferredProductSources, ImmutableSourceParseCheckpoint,
@@ -17,7 +18,7 @@ use std::sync::{Arc, Mutex};
 /// One invocation owns source coordinates and canonical Psi frontend inputs.
 /// The coordinator borrows coordinates only during admission; no execution or
 /// semantic stage runs while the catalogue is locked.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub struct SourcePreparation {
     catalogue: Arc<Mutex<source::SourceCatalogue>>,
     pub frontends: psi_compiler::SourceFrontends,
@@ -36,7 +37,7 @@ impl SourcePreparation {
 /// With authored Build, Product imports remain unopened under captured custody;
 /// otherwise the default-Build route retains pending Product implementations.
 /// This is a reusable compilation checkpoint, not a portable program form.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct TypedCompilationFrontier {
     pub build_handoffs: package_compilation::BuildHandoffInventory,
     pub preparation: SourcePreparation,
@@ -55,7 +56,7 @@ pub struct TypedCompilationFrontier {
 
 /// Siblings of one captured Build prefix share its deferred Product preparation.
 /// Only the frontend is retained: Build returns, charges and selections are not.
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct DeferredProductCompilation {
     sources: DeferredProductSources,
     frontiers: Arc<Mutex<Vec<(ProductSourceInputs, TypedCompilationFrontier)>>>,
@@ -85,6 +86,7 @@ impl DeferredProductCompilation {
             .iter()
             .find(|(stored, _)| stored == inputs)
             .map(|(_, frontier)| frontier.clone());
+        let frontier = frontier.and_then(|frontier| frontier.rejoin_current_authority(packages));
         if frontier.is_some() {
             self.sources.admit_inputs(packages)?;
         }
@@ -119,6 +121,7 @@ impl DeferredProductCompilation {
 /// consuming the last checkpoint allows assembly to move the original arenas.
 /// Every child supplies its own policy and independently admits its custody.
 pub struct PreparedCheckedSource {
+    restored: bool,
     preparation: SourcePreparation,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
@@ -161,9 +164,24 @@ impl PreparedCheckedSource {
     ) -> Result<package_compilation::CapturedCoreSource, Vec<Diagnostic>> {
         self.source_checkpoint.captured_core_source()
     }
+    /// A persisted observation is historical. Fresh requests start their own
+    /// enabled/disabled clock accumulator, with no replayed elapsed durations.
+    pub fn fork_for_request(&mut self, collect_timings: bool) -> Self {
+        let mut source = self.fork();
+        if source.restored {
+            source.shared_timings = if collect_timings {
+                CompileTimings::enabled()
+            } else {
+                CompileTimings::default()
+            };
+        }
+        source
+    }
+
     /// Fork only at a real sibling boundary, freezing shared source pages once.
     pub fn fork(&mut self) -> Self {
         Self {
+            restored: self.restored,
             preparation: self.preparation.clone(),
             source_checkpoint: self.source_checkpoint.fork(),
             shared_timings: self.shared_timings.clone(),
@@ -177,6 +195,7 @@ impl PreparedCheckedSource {
         preparation: SourcePreparation,
     ) -> Self {
         Self {
+            restored: false,
             preparation,
             source_checkpoint,
             shared_timings,
@@ -185,12 +204,7 @@ impl PreparedCheckedSource {
     }
 
     pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {
-        if root_path != self.source_checkpoint.root_path() {
-            return Err(vec![Diagnostic::error(
-                "checked child compilation root does not match its prepared source checkpoint",
-            )]);
-        }
-        Ok(())
+        self.source_checkpoint.admit_root(root_path)
     }
 
     /// Select by the package owner's complete assembly inputs. Even an exact
@@ -210,6 +224,8 @@ impl PreparedCheckedSource {
             .iter()
             .find(|(stored, _)| *stored == inputs)
             .map(|(_, frontier)| frontier.clone());
+        let retained =
+            retained.and_then(|frontier| frontier.rejoin_current_authority(package_inputs));
         if let Some(frontier) = retained {
             if let Some(packages) = package_inputs {
                 packages.validate_for_compilation(
@@ -242,5 +258,49 @@ impl TypedFrontierRetention {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         entries.retain(|(stored, _)| *stored != self.inputs);
         entries.push((self.inputs, frontier.clone()));
+    }
+}
+
+impl TypedCompilationFrontier {
+    fn rejoin_current_authority(self, packages: Option<&PackageCompilationInputs>) -> Option<Self> {
+        let authority = packages.map(|packages| {
+            Arc::new(packages.clone())
+                as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+        });
+        match self.source.rejoin_current_authority(authority) {
+            Ok(source) => Some(Self { source, ..self }),
+            Err(reason) => {
+                phase_profile::count("source.graph.authority_misses", 1);
+                if phase_profile::enabled() {
+                    eprintln!("retained source frontier ignored: {reason}");
+                }
+                None
+            }
+        }
+    }
+}
+impl compiler_storage::Record for PreparedCheckedSource {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.preparation.write(output)?;
+            self.source_checkpoint.write(output)?;
+            self.frontiers.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            Ok(Self {
+                restored: true,
+                preparation: Record::read(input)?,
+                source_checkpoint: Record::read(input)?,
+                shared_timings: CompileTimings::default(),
+                frontiers: Record::read(input)?,
+            })
+        })
     }
 }

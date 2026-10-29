@@ -1,1 +1,1 @@
-no provider selected for reached boundary requirement
+no provider is selected for boundary requirement `IntegerDivision::divide`

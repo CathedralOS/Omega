@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 pub struct CapturedBuildSource {
     root: PathBuf,
     filesystem: source::SourceFileSystem,

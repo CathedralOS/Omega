@@ -22,7 +22,7 @@ use arena::Arena;
 /// `Level` is syntax, not a normal form: `Maximum(v, u)` and `Maximum(u, v)`
 /// are different levels that convert. Semantic equality is decided by
 /// `levels_equal` through the `max`-normal form, never by `==`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum Level {
     /// A closed natural level `k`.
     Constant(u32),
@@ -178,7 +178,7 @@ pub(crate) fn sorts_equal(left: &Sort, right: &Sort) -> bool {
 /// A mathematical universe sort: `Type u` is relevant, `Strict v` is the
 /// definitionally irrelevant logical layer. Derived `PartialEq` is
 /// syntactic on the level syntax; conversion uses `sorts_equal`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum Sort {
     Type(Level),
     Strict(Level),
@@ -203,7 +203,7 @@ pub type TermHandle = arena::Handle<Term>;
 /// `Variable` indices are de Bruijn indices; 0 names the innermost binder.
 /// `Sort` payloads clone their level expressions out of the arena — terms
 /// are `Clone`, not `Copy`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, compiler_storage::Record)]
 pub enum Term {
     /// ZII arena dummy; never well-typed. Typing rejects it with
     /// `CoreError::DummyTerm`.
@@ -531,7 +531,7 @@ term_layout! {
     BoxElim { motive: 0, body: 0, scrutinee: 0 }
 }
 /// Contiguous arena storage for terms. Null handles resolve to `Term::Dummy`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TermArena {
     terms: Arena<Term>,
 }

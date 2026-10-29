@@ -59,7 +59,7 @@ use crate::{MachineContractCommitment, NominalMachineUseSite};
 use typed_trees::type_identity::TypeIdentityId;
 
 /// The exact machine state a call enters and the service reach of the edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitCallTarget {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -68,7 +68,7 @@ pub struct CheckedUnitCallTarget {
 }
 
 /// How a call reaches its target.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallRoute {
     /// A sealed compiler operation performed in this caller's activation.
     /// Its source invocation shares operand evaluation and result custody with
@@ -113,7 +113,7 @@ pub enum CheckedUnitCallRoute {
 }
 
 /// What a call binds for the operations after it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallResult {
     /// The exact checked module invocation has no normal continuation. Its
     /// declared callee signature remains intact; no value or normal custody
@@ -137,7 +137,7 @@ pub enum CheckedUnitCallResult {
 
 /// The existing claims a call carries through completion. Transfers never
 /// establish fresh authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitCallTransfers {
     /// An ordinary Unit or scalar call's claim transfers.
     Claims(Vec<CheckedUnitClaimTransferPlan>),
@@ -172,7 +172,7 @@ pub struct CheckedUnitCallParts {
 }
 
 /// One call operation in an admitted route, result and custody shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitCallPlan {
     pub coordinate: CheckedUnitCallCoordinate,
     source_site: Option<NominalMachineUseSite>,

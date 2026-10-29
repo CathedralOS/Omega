@@ -55,6 +55,7 @@ pub(super) fn post_store_predicate_holds(
         statement_index,
         receiver,
         place.definition,
+        place.active_case,
         predicate,
     ) {
         return true;

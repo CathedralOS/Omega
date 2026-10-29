@@ -17,7 +17,6 @@ data WindowsNativeLockRequest {
     offset_high: u32;
     event: u64;
 }
-data WindowsFilesystemLockImports {}
 
 boundary trait WindowsFilesystemLockIo {
     machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: &mut WindowsNativeLockRequest) -> i32

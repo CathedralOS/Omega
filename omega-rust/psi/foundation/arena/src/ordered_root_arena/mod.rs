@@ -1,3 +1,4 @@
+use compiler_storage::Record;
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
 
@@ -238,5 +239,44 @@ mod tests {
         arena.push(3);
         assert_eq!(arena.iter().copied().collect::<Vec<_>>(), [2, 3]);
         assert_eq!(*arena.storage.get(second), 2);
+    }
+}
+
+impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
+    for OrderedRootArena<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.handles.write(output)?;
+            self.roots.write(output)?;
+            self.storage.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let result = Self {
+                handles: Arena::read(input)?,
+                roots: HandleSpan::read(input)?,
+                storage: Arena::read(input)?,
+            };
+            let roots = result
+                .handles
+                .span(result.roots)
+                .ok_or_else(|| input.error("ordered roots have no live roster"))?;
+            if roots.iter().any(|handle| !result.storage.is_valid(*handle)) {
+                return Err(input.error("ordered root does not name live declaration storage"));
+            }
+            let mut identities = roots.to_vec();
+            identities.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+            if identities.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(input.error("ordered roots repeat a declaration"));
+            }
+            Ok(result)
+        })
     }
 }

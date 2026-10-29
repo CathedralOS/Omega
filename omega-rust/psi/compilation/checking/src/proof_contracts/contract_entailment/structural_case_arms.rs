@@ -1832,6 +1832,8 @@ fn recognize_structural_state_leaves_from<'a>(
                             definition,
                             variant,
                             &constructor,
+                            subject_expression,
+                            &subject,
                             subject_type,
                             invocation,
                             state,

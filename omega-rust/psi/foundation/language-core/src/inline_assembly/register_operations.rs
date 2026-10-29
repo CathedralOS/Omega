@@ -35,7 +35,7 @@ impl AsmRegisterCarrier {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmRegisterOperation {
     /// Stop instruction execution until the architecture's admitted wake event.
     /// No value operand or result is implied; this is not an empty Unit call.

@@ -38,8 +38,8 @@ pub(super) use binary::{
     binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
 };
 pub(super) use constructors::{
-    admitted_const_value_term, case_classifier, case_guard_classifier, case_value_term,
-    constructor_literal_term, is_case_observation, zero_value_structural_term,
+    admitted_const_value_term, captured_constructor_term, case_classifier, case_guard_classifier,
+    case_value_term, constructor_literal_term, is_case_observation, zero_value_structural_term,
 };
 pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms};
 pub(super) use scalar_operands::{
@@ -530,7 +530,7 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |_, field| {
+            constructor_literal_term(program, expression, literal, |_, field| {
                 let field = field?;
                 structural_term(program, scope, frame, field.value, bindings)
             })

@@ -35,7 +35,7 @@ pub enum ObjectFormat {
 /// The selected deployment profile. Unlike [`NativeTarget`], this identity
 /// retains policy distinctions that share one architecture/object format
 /// (notably Windows and UEFI x86-64).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TargetProfile {
     LinuxArm64,
     LinuxX64,
@@ -97,7 +97,7 @@ pub enum ProgramEntryCallingConvention {
 
 /// Closed identity of a toolchain-owned physical-entry contract package.
 /// Source paths prove membership in this identity; they never define it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,
@@ -148,8 +148,7 @@ impl ProgramEntryPhysicalContractPackage {
 /// console and process-exit leaves close as hosted compiler intrinsics.
 ///
 /// "Hosted" here means the bundle's bodyless `boundary machine` leaves
-/// (`ConsoleNativeProvider::{read_byte, write_byte, exit_process}` and
-/// `ProcessExitNativeProvider::exit_process`) bind by exact realization
+/// (the exact `native::hosted` catalogue declarations) bind by exact realization
 /// identity and this compiler emits the kernel syscall itself through
 /// `image-emission`'s hosted encoders (`HostedReadByte`, hosted byte output,
 /// `HostedExitProcessI32`). A target joins that catalog by gaining a variant
@@ -196,22 +195,12 @@ impl HostedIntrinsicBundle {
 
     /// Package-relative path of the bundled console provider closure.
     pub const fn console_source(self) -> &'static str {
-        match self {
-            Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
-            Self::LinuxX64 => "targets/linux_x86_64/console_impl.omg",
-            Self::MacosArm64 => "targets/macos_arm64/console_impl.omg",
-            Self::MacosX64 => "targets/macos_x86_64/console_impl.omg",
-        }
+        "native/hosted.omg"
     }
 
     /// Package-relative path of the bundled process-exit provider closure.
     pub const fn process_exit_source(self) -> &'static str {
-        match self {
-            Self::LinuxArm64 => "targets/linux_arm64/process_exit_impl.omg",
-            Self::LinuxX64 => "targets/linux_x86_64/process_exit_impl.omg",
-            Self::MacosArm64 => "targets/macos_arm64/process_exit_impl.omg",
-            Self::MacosX64 => "targets/macos_x86_64/process_exit_impl.omg",
-        }
+        "native/hosted.omg"
     }
 
     /// The admitted bundle a canonical target name selects, or `None` for

@@ -314,9 +314,10 @@ impl CompilationReceipt {
                 )));
             }
             Some(Err(error)) => {
+                let diagnostics = error.failure.into_diagnostics();
                 return Err(ProjectCompilationError::Review(Error::Compilation {
                     package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
-                    diagnostics: error.failure.into_diagnostics(),
+                    diagnostics,
                 }));
             }
             Some(Ok(output)) => output,

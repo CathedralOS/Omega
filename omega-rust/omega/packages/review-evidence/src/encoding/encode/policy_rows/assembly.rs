@@ -212,7 +212,12 @@ pub(super) fn project(
                 encode_nominal(encoder, &native.method.requirement)?;
                 let producer = native.producer();
                 encode_nominal(encoder, &producer.declaration)?;
-                encoder.string(&producer.callable_identity)
+                encoder.string(&producer.callable_identity)?;
+                encoder.field_by(
+                    "application",
+                    &native.application,
+                    baseline::native_application,
+                )
             },
             |encoder| baseline::native_binding(encoder, native),
         )?;

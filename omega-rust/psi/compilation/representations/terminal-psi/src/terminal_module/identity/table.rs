@@ -8,7 +8,7 @@
 
 /// Index of one entry in the module identity table. Rows hold this handle;
 /// the text itself lives in [`TerminalModule::identities`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct TerminalIdentityIndex(pub u32);
 
 impl Default for TerminalIdentityIndex {
@@ -282,5 +282,37 @@ impl From<Vec<String>> for TerminalIdentityTable {
             invocation_local: Vec::new(),
             positions: TerminalIdentityPositionsMemo::default(),
         }
+    }
+}
+
+// Identity rows used in retained source metadata are portable. A local code
+// scope cannot be reconstructed from bytes; ordinary identity construction
+// also rejects duplicate/empty nominal rows before publication.
+impl compiler_storage::Record for TerminalIdentityTable {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        if self.invocation.is_some() || !self.invocation_local.is_empty() {
+            return Err(output.error("invocation-local identity cannot leave its retained owner"));
+        }
+        self.entries.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        let entries = Vec::<String>::read(input)?;
+        if entries.first().is_none_or(|entry| !entry.is_empty()) {
+            return Err(input.error("identity table has no absent entry"));
+        }
+        let mut builder = TerminalIdentityTableBuilder::default();
+        for (ordinal, entry) in entries.iter().enumerate().skip(1) {
+            if builder.intern(entry).0 as usize != ordinal {
+                return Err(input.error("identity table repeats an entry or has an empty identity"));
+            }
+        }
+        Ok(builder.build())
     }
 }

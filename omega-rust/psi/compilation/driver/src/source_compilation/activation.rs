@@ -18,14 +18,21 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub(super) struct SourceContext {
+    /// Freshly acquired parsed declarations remain lookup context when their
+    /// resolved/typed owners leave the new cohort's worklist.
+    pub declaration_syntax: Arc<SyntaxTrees>,
     pub bindings: Vec<SourceScopedTopLevelBinding>,
     pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-    pub build_helper_identity: &'static str,
+    pub build_helper_identity: std::borrow::Cow<'static, str>,
+    pub recorded_authority: Option<validation::RecordedDeclarationAuthority>,
 }
 
 impl SourceContext {
     pub fn same_input(&self, other: &Self) -> bool {
-        self.bindings == other.bindings
+        self.recorded_authority.is_none()
+            && other.recorded_authority.is_none()
+            && Arc::ptr_eq(&self.declaration_syntax, &other.declaration_syntax)
+            && self.bindings == other.bindings
             && self.build_helper_identity == other.build_helper_identity
             && match (&self.authority, &other.authority) {
                 (None, None) => true,
@@ -76,21 +83,33 @@ impl SourceContext {
             if !sources.same_product_dependency_scope(previous, requester) {
                 return Err(SourceReuseMiss::ProductAliases);
             }
-            match (&self.authority, &current.authority) {
-                (None, None) => {}
-                (Some(old), Some(new)) => {
-                    for owner in sources
-                        .selected_files()
-                        .filter_map(|file| file.package_identity)
-                    {
-                        if old.allows_declaration_selection(requester, owner)
-                            != new.allows_declaration_selection(requester, owner)
-                        {
-                            return Err(SourceReuseMiss::DeclarationAuthority);
-                        }
+            if current.recorded_authority.is_some() {
+                return Err(SourceReuseMiss::DeclarationAuthority);
+            }
+            let old_has_authority = self.recorded_authority.as_ref().map_or(
+                self.authority.is_some(),
+                validation::RecordedDeclarationAuthority::has_authority,
+            );
+            if old_has_authority != current.authority.is_some() {
+                return Err(SourceReuseMiss::DeclarationAuthority);
+            }
+            if let Some(new) = &current.authority {
+                for owner in sources
+                    .selected_files()
+                    .filter_map(|file| file.package_identity)
+                {
+                    let old = match &self.recorded_authority {
+                        Some(recorded) => recorded.allows(requester, owner),
+                        None => self
+                            .authority
+                            .as_ref()
+                            .map(|old| old.allows_declaration_selection(requester, owner)),
+                    }
+                    .ok_or(SourceReuseMiss::DeclarationAuthority)?;
+                    if old != new.allows_declaration_selection(requester, owner) {
+                        return Err(SourceReuseMiss::DeclarationAuthority);
                     }
                 }
-                _ => return Err(SourceReuseMiss::DeclarationAuthority),
             }
         }
         Ok(())
@@ -323,10 +342,28 @@ pub(super) fn select_retained_source(
             phase_profile::count("source_activation.miss.reference_closure", 1);
             continue;
         }
-        let pre_checks = pending_pre_checks
+        let mut pre_checks = pending_pre_checks
             .iter()
             .map(|pending| pending.activate_sources(original.typed(), typing.typed()))
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
+        // Projection removes the old consumer's work before authority rejoins.
+        // Exact whole-frontier hits keep the stronger full-context comparison.
+        let mut authority_miss = None;
+        for pending in &mut pre_checks {
+            if let Err(reason) =
+                pending.rejoin_source_authority(typing.typed(), context.authority.clone())
+            {
+                authority_miss = Some(reason);
+                break;
+            }
+        }
+        if let Some(reason) = authority_miss {
+            phase_profile::count("source_activation.miss.authority", 1);
+            if phase_profile::enabled() {
+                eprintln!("retained pending source work ignored: {reason}");
+            }
+            continue;
+        }
         phase_profile::count("source_activation.retained_sources", count as u64);
         return Ok(Some(ActivatedSource {
             typing,

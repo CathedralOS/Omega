@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Entry-field tolerance is retired. Older records may describe provisional
 // reviews and must miss, never acquire complete admission by dropping their flag.
-const RECORD_VERSION: u16 = 13;
+const RECORD_VERSION: u16 = 21;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -584,9 +584,7 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
     );
     push_framed(
         out,
-        &package_compilation::native_selection_codec::encode_package_native_bindings(
-            bundle.native_bindings(),
-        ),
+        &package_compilation::native_output_codec::encode(bundle),
     );
 }
 
@@ -616,10 +614,7 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
         package_compilation::provider_selection_codec::decode_package_provider_selections(
             cursor.framed()?,
         )?;
-    let native = package_compilation::native_selection_codec::decode_package_native_bindings(
-        cursor.framed()?,
-    )?;
-    PackageBuildHandoff::from_checked(
+    let handoff = PackageBuildHandoff::from_checked(
         package,
         purpose,
         target,
@@ -629,9 +624,8 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
         sources,
     )
     .with_retained_provider_selections(selections, observation)
-    .ok()?
-    .with_checked_native_bindings(native)
-    .ok()
+    .ok()?;
+    package_compilation::native_output_codec::decode(cursor.framed()?, handoff)
 }
 
 fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
@@ -824,14 +818,15 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let semantic_bindings = cursor_vec(&mut cursor, recover_binding)?;
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;
     let build_handoff = recover_build_handoff(&mut cursor)?;
+    let original_observation = build_observation_summary
+        .as_ref()
+        .map(|summary| summary.identity().digest());
     if build_handoff
         .selection_observation()
-        .is_some_and(|original| {
-            Some(original)
-                != build_observation_summary
-                    .as_ref()
-                    .map(|summary| summary.identity().digest())
-        })
+        .is_some_and(|original| Some(original) != original_observation)
+        || build_handoff
+            .native_evaluation()
+            .is_some_and(|evaluation| Some(evaluation.observation_digest) != original_observation)
     {
         return None;
     }

@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 source = { path = "../../../foundation/source" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 diagnostics = { path = "../../../foundation/diagnostics" }

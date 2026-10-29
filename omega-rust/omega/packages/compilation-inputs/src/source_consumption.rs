@@ -15,7 +15,7 @@ pub use source::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
 /// This binds review output to what the compiler consumed. It is not an
 /// accepted package instance, a whole-compiler identity, or protection against
 /// a hostile process that can race every filesystem observation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct PackageSourceConsumptionCommitment {
     digest: [u8; 32],
 }

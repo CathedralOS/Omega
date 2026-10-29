@@ -15,6 +15,7 @@
 
 use std::sync::Mutex;
 
+#[derive(compiler_storage::Record)]
 pub struct OwnedInterner<T> {
     table: Mutex<T>,
 }

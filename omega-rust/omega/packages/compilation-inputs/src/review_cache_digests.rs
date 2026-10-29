@@ -21,13 +21,13 @@ use crate::{
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SOURCE-SUBJECT-INPUTS\x01";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SOURCE-SUBJECT-INPUTS\x02";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
 /// Commit the current activation's own generated outputs as well as the
 /// dependency bundles already covered by `review_cache_inputs_digest`.
 pub fn package_build_handoff_digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
-    let mut digest = DomainDigestEncoder::new(b"omega-source-build-handoff-v1\0");
+    let mut digest = DomainDigestEncoder::new(b"omega-source-build-handoff-v2\0");
     hash_generated_bundle(&mut digest, bundle);
     digest.finish()
 }
@@ -216,9 +216,9 @@ fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageBuild
             bundle.selection_observation(),
         ),
     );
-    digest.raw(
-        &crate::native_selection_codec::package_native_bindings_digest(bundle.native_bindings()),
-    );
+    digest.raw(&super::package_compilation::native_output_codec::digest(
+        bundle,
+    ));
     digest.u64(bundle.sources().len() as u64);
     for source in bundle.sources() {
         digest.bytes(source.relative_path());

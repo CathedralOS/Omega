@@ -579,3 +579,30 @@ impl ServiceSchema {
 
 #[cfg(test)]
 mod tests;
+
+impl compiler_storage::Record for ServiceSchemaDigest {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(self.as_bytes(), output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        compiler_storage::Record::read(input).map(Self::from_digest)
+    }
+}
+impl compiler_storage::Record for ProviderPlanDigest {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(self.as_bytes(), output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        compiler_storage::Record::read(input).map(Self::from_digest)
+    }
+}

@@ -5,9 +5,7 @@
 //! catalog, complete contract and explicit target-keyed Build choice before
 //! realization. Native locators belong to Build requests, never source leaves.
 
-use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
-use typed_trees::boundary_completions::exact_direct_intrinsic_signature;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
 /// The exact boundary requirement a direct call to a bodyless external leaf
@@ -22,146 +20,19 @@ pub fn exact_external_leaf_boundary_requirement(
     exact_compiler_intrinsic_boundary_requirement(program, target_state_symbol)
 }
 
-/// The satisfied trait's resolved definition and requirement, or `None`
-/// when the conformance is not a plain trait satisfaction.
-fn satisfied_trait_parts<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    conformance: &'program typed_trees::machine::TraitConformance,
-) -> Option<(
-    &'program typed_trees::trait_definition::TraitDefinition,
-    &'program typed_trees::signature::StateSignature,
-)> {
-    let typed_trees::machine::SatisfiedDeclaration::Trait {
-        definition,
-        requirement,
-    } = typed_trees::machine::resolve_satisfied_declaration(program, machine, conformance)?
-    else {
-        return None;
-    };
-    Some((definition, requirement))
-}
-
-/// The sealed compiler-intrinsic catalog's exact requirement edge. This is
-/// the narrower identity the checked interpreter hosts; checking and lowering
-/// consume `exact_external_leaf_boundary_requirement`.
+/// The immutable catalogue's exact requirement edge, independently of target
+/// selection, native permission or accepted package execution authority.
 pub fn exact_compiler_intrinsic_boundary_requirement(
     program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    // State spans are disjoint append-only ranges: at most one machine can
-    // contain a state symbol, so the holder is unique by construction.
     let machine = program.machine_holding_state(target_state_symbol)?;
-    if !program.machine_type_parameters(machine).is_empty() {
-        return None;
-    }
-    let inferred_hosted_intrinsic = intrinsic_realization_candidate(program, machine)?;
-    let inferred_trait_name = Some(inferred_hosted_intrinsic.1);
-    let [state] = program.machine_states(machine) else {
+    let catalogue = program.hosted_intrinsic_declaration(machine.symbol)?;
+    let [entry] = program.machine_states(machine) else {
         return None;
     };
-    // A concrete byte leaf returns its requirement's nominal sum, not Unit.
-    // Keep this separate from the scalar-to-Unit signature: this join also
-    // feeds source custody and reach inference, not just host interpretation.
-    let byte_result = (machine.name.as_str() == "ConsoleNativeProvider::read_byte"
-        && program.state_parameters(state).is_empty())
-    .then(|| exact_byte_read_result_type(program, state.return_type))
-    .flatten();
-    if state.symbol != target_state_symbol
-        || !(exact_direct_intrinsic_signature(
-            program,
-            program.state_parameters(state),
-            state.return_type,
-        ) || byte_result.is_some())
-    {
-        return None;
-    }
-
-    let mut matches = program
-        .machine_trait_conformances(machine)
-        .iter()
-        .filter_map(|conformance| {
-            if conformance.requirement.is_none()
-                || !program
-                    .type_reference_table
-                    .type_reference_handles(conformance.arguments)
-                    .is_empty()
-            {
-                return None;
-            }
-            let (definition, requirement) = satisfied_trait_parts(program, machine, conformance)?;
-            let provider_prefix = inferred_hosted_intrinsic.0;
-            (definition.symbol == conformance.symbol
-                && definition.is_boundary
-                && inferred_trait_name
-                    .is_none_or(|trait_name| definition.name.as_str() == trait_name)
-                && definition.lifetime_parameters.is_empty()
-                && program.trait_type_parameters(definition).is_empty()
-                && requirement.symbol == conformance.requirement_symbol
-                && (inferred_trait_name.is_none()
-                    || machine
-                        .name
-                        .as_str()
-                        .strip_prefix(provider_prefix)
-                        .and_then(|suffix| suffix.strip_prefix("::"))
-                        == Some(requirement.name.as_str()))
-                && requirement.lifetime_parameters.is_empty()
-                && program
-                    .state_signature_type_parameters(requirement)
-                    .is_empty()
-                && requirement.native_callback_parameters.is_empty()
-                && !requirement.suspends
-                // The hosted byte-input leaf publishes `blocks;` honestly:
-                // it may occupy the worker while it waits for input. Every
-                // other intrinsic boundary leaf must stay nonblocking.
-                && byte_result.is_some() == requirement.blocks
-                && ((byte_result.is_none()
-                    && exact_direct_intrinsic_signature(
-                        program,
-                        program.state_signature_parameters(requirement),
-                        requirement.return_type,
-                    ))
-                    || (byte_result.is_some()
-                        && definition.name.as_str() == "Console"
-                        && requirement.name.as_str() == "read_byte"
-                        && program.state_signature_parameters(requirement).is_empty()
-                        && exact_byte_read_result_type(program, requirement.return_type)
-                            == byte_result)))
-                .then_some(requirement.symbol)
-        });
-    let requirement = matches.next()?;
-    matches
-        .next()
-        .is_none()
-        .then_some((requirement, machine.attached_data_symbol))
-}
-
-/// The machine-level half of the intrinsic identity: the authored
-/// compiler-intrinsic binding, or the exact hosted catalog leaf (realization,
-/// provider nominal, boundary trait) admitted without an authored `via`
-/// binding. `None` when the machine cannot realize an intrinsic boundary.
-fn intrinsic_realization_candidate(
-    _program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> Option<(&'static str, &'static str)> {
-    if machine.body_is_present
-        || !machine.lifetime_parameters.is_empty()
-        || machine.supply_mode != MachineSupplyMode::Boundary
-    {
-        return None;
-    }
-    // This is source call classification only. Omega independently requires
-    // exact sealed catalog/package identity and an explicit target-keyed Build
-    // choice before granting realization or execution authority.
-    let candidate = match machine.name.as_str() {
-        "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte" => {
-            ("ConsoleNativeProvider", "Console")
-        }
-        "ProcessExitNativeProvider::exit_process" => ("ProcessExitNativeProvider", "ProcessExit"),
-        _ => return None,
-    };
-    (machine.attached_data.as_ref().map(|name| name.as_str()) == Some(candidate.0))
-        .then_some(candidate)
+    (entry.symbol == target_state_symbol)
+        .then_some((catalogue.requirement.symbol, catalogue.code_owner))
 }
 
 /// A `CheckedShape` data declaration resolved through a type reference's

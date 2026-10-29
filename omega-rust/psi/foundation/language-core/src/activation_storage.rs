@@ -6,7 +6,7 @@
 
 pub const ACTIVATION_CORE_SOURCE: &str = "activation.omg";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ActivationStorageOperation {
     Establish,
     BorrowBytes,

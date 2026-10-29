@@ -230,6 +230,41 @@ and nine direct places with native/Terminal agreement and reloaded their ten
 canonical artifacts. Producer `842ec84f27fb` executed the private dependency
 producer with agreement; its copy and incomplete-schema controls refused.
 Those are retained observations of their exact producers, not final-candidate
-qualification or unmeasured Windows/Linux execution. Generic helper transport,
-full migrated-library/audio execution, final replay and independent review
+qualification or unmeasured Windows/Linux execution. Full migrated-library/audio execution, final replay and independent review
 remain part of this task's acceptance.
+
+
+The [generic Build helper](controls/generic_requirement_helper/main.omg) keeps
+this same C fact while an ordinary `install<Tag>` helper transports the exact
+closed requirement and inferred locator. Its [twin](controls/generic_requirement_helper/invalid/main.omg)
+changes only the installed nominal type. The
+[qualified type control](controls/qualified_requirement_type/main.omg) distinguishes
+same-spelled declarations in separate ordinary modules; its
+[twin](controls/qualified_requirement_type/invalid/main.omg) selects the other type.
+Both twins are Source-valid native-publication refusals, not Source errors.
+
+The [owned literal controls](controls/owned_byte_literals/) cover the evaluator
+snapshot required by those locators: exact fixed bytes, qualified byte elements,
+and the empty array. Bad element predicates also reject inside an unused generic
+body, and incorrect widths reject before publication. These are constructor
+prerequisites, not additional numeric rows. The
+[named terminal-call control](controls/named_terminal_call/main.omg) retains the
+same C operation through a returning terminal call; its copy twin still rejects.
+
+The [invocation-roster control](controls/invocation_clause_rosters/main.omg) keeps
+reach and synchronous invocation identities separate when their source clauses
+interleave. Its two controls remove one invocation edge from the body or boundary
+signature. This pins the parser arena-contiguity prerequisite exposed by the
+migrated standard library; it adds no new source syntax or implicit invocation.
+
+Producer `ace8ceebd74a` executed the unchanged generic helper and the qualified,
+closed-application, unused-const and private-package controls with native/Terminal
+agreement, then reloaded all five canonical artifacts. The owned-literal
+compatibility controls also agreed; malformed element and width controls retained
+their Source refusals. These are intermediate exact-source observations.
+Migrated-library/audio execution, current-main integration, final qualification
+and independent review remain required for the parent outcome.
+
+The [Named callback forwarding control](controls/named_callback_forwarding/main.omg) retains an explicit machine callback through an ordinary Named wrapper, with two distinct callback outcomes. The invocation roster controls independently reject a missing body or requirement ceiling.
+
+The other-target place uses four ordinary Named implementations selected by Build. Distinct pre-call identity tags make an incorrect target implementation fail before the unchanged signed division result checks. The source migration was observed with producer18 on its frozen staged inputs; fresh integrated acceptance remains required.

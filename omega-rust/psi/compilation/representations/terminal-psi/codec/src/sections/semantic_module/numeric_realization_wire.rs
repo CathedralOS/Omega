@@ -15,6 +15,12 @@ pub(super) fn encode(
     writer.u32(candidate.requirement.identity().0);
     writer.u32(candidate.requirement_identity.0);
     encode_package(writer, candidate.requirement_package);
+    writer.boolean(candidate.requirement_schema.is_some());
+    if let Some(schema) = &candidate.requirement_schema {
+        writer.u32(schema.identity.0);
+        writer.u32(schema.method.0);
+        writer.u32(schema.owner.0);
+    }
     writer.bytes(&candidate.numeric_intrinsic.canonical_encoding().ok_or(
         CodecError::MalformedStructuralFoundation("invalid numeric realization meaning"),
     )?);
@@ -34,6 +40,15 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<NumericRealization, Code
     let requirement = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
     let requirement_identity = TerminalIdentityIndex(reader.u32()?);
     let requirement_package = decode_package(reader)?;
+    let requirement_schema = if reader.boolean()? {
+        Some(terminal_psi::NumericRequirementSchema {
+            identity: TerminalIdentityIndex(reader.u32()?),
+            method: TerminalIdentityIndex(reader.u32()?),
+            owner: TerminalIdentityIndex(reader.u32()?),
+        })
+    } else {
+        None
+    };
     let numeric_intrinsic =
         language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
             reader.array()?,
@@ -63,6 +78,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<NumericRealization, Code
         requirement,
         requirement_identity,
         requirement_package,
+        requirement_schema,
         numeric_intrinsic,
         instruction_set,
         realization,

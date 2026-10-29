@@ -53,6 +53,8 @@ mod wire_codec_sources;
 pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
+#[doc(hidden)]
+pub use package_compilation::native_output_codec;
 pub use package_compilation::{
     CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
     PackageBuildSource, PackageCompilationInputError, PackageCompilationInputs,
@@ -61,7 +63,7 @@ pub use package_compilation::{
 };
 #[doc(hidden)]
 pub use package_compilation::{
-    native_selection_codec, provider_selection_codec, retained_native_bindings,
+    native_receipts, native_selection_codec, provider_selection_codec, retained_native_bindings,
 };
 pub use review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
@@ -80,3 +82,30 @@ pub(crate) use source_snapshot::capture_scoped_source_input;
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
+
+pub use package_compilation::NativeBuildEvaluation;
+
+/// Capture the same complete anonymous namespace that source assembly consumes.
+/// Callers may compare a private checkpoint before parsing, then pass this exact
+/// capture into assembly. Capture grants neither Build nor package authority.
+pub fn capture_anonymous_compilation_source(
+    root_path: &std::path::Path,
+) -> Result<CapturedLocalSource, Vec<diagnostics::Diagnostic>> {
+    let root = if root_path.is_dir() {
+        root_path
+    } else {
+        root_path
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| std::path::Path::new("."))
+    };
+    package_source::local::operations::capture_local_source_input(
+        root,
+        package_source::LocalSourceLimits::default(),
+    )
+    .map_err(|reason| {
+        vec![diagnostics::Diagnostic::error(format!(
+            "cannot capture anonymous source: {reason}"
+        ))]
+    })
+}

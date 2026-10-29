@@ -17,6 +17,75 @@ pub enum NumericInvocation<'identity> {
     },
 }
 
+/// Declaration facts borrowed from either the source view (early Build) or
+/// canonical Psi. Display coordinates are consistency checks; exact overload
+/// and package identity still establish the requirement association.
+pub struct RequirementPlanIdentity<'a> {
+    pub overload: &'a str,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub schema: &'a str,
+    pub method: &'a str,
+    pub owner: &'a str,
+}
+
+impl RequirementPlanIdentity<'_> {
+    pub fn matches(
+        &self,
+        plan: &ProviderPlan,
+        method: &crate::provider_plan::ServiceMethod,
+        row: &ProviderPlanRow,
+    ) -> bool {
+        plan.schema.trait_package_identity == self.package
+            && method.requirement_owner_package_identity == self.package
+            && plan.schema.identity_text(method.requirement_identity) == self.overload
+            && plan.identities.text(row.requirement_identity) == self.overload
+            && plan.schema.row_binds_method(row, method, &plan.identities)
+            && plan.schema.identity_text(plan.schema.trait_name) == self.schema
+            && method.name == self.method
+            && method.requirement_owner == self.owner
+    }
+}
+
+/// Numeric provider plans contain one method and one realization. This is
+/// independent of the operation's numeric meaning and its execution authority.
+pub fn matches_requirement_schema(
+    candidate: &NumericRealization,
+    identities: &TerminalIdentityTable,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+) -> bool {
+    let Some(schema) = &candidate.requirement_schema else {
+        return false;
+    };
+    let requirement = identities.text(candidate.requirement_identity);
+    let mut methods = plan.schema.methods.iter().filter(|method| {
+        Some(plan.schema.identity_text(method.requirement_identity)) == requirement
+    });
+    let Some(method) = methods.next() else {
+        return false;
+    };
+    if methods.next().is_some() || plan.rows.iter().filter(|selected| *selected == row).count() != 1
+    {
+        return false;
+    }
+    let (Some(overload), Some(schema), Some(name), Some(owner)) = (
+        identities.text(candidate.requirement_identity),
+        identities.text(schema.identity),
+        identities.text(schema.method),
+        identities.text(schema.owner),
+    ) else {
+        return false;
+    };
+    RequirementPlanIdentity {
+        overload,
+        package: candidate.requirement_package,
+        schema,
+        method: name,
+        owner,
+    }
+    .matches(plan, method, row)
+}
+
 /// Select one numeric satisfaction edge using nominal requirement identity,
 /// the exact callable, package owners, binding kind and deployment target.
 /// Absence is not authorization: a consumer requiring numeric execution must
@@ -71,8 +140,9 @@ pub fn matches_numeric_selection(
     row: &ProviderPlanRow,
     machine: &str,
 ) -> bool {
-    identities.text(candidate.requirement_identity)
-        == Some(plan.identities.text(row.requirement_identity))
+    matches_requirement_schema(candidate, identities, plan, row)
+        && identities.text(candidate.requirement_identity)
+            == Some(plan.identities.text(row.requirement_identity))
         && candidate.requirement_package == plan.schema.trait_package_identity
         && language_semantics::declaration_selection::ProductTarget::from_canonical_name(
             &plan.target,

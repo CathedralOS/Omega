@@ -18,7 +18,7 @@ use syntax_trees::{SyntaxTrees, types::TypeReferenceHandle};
 
 mod projections;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) enum DeclaredTypeOrigin {
     Parameter(Handle<symbol_resolved_trees::signature::StateParameter>),
     Result(Handle<symbol_resolved_trees::state::State>),

@@ -53,10 +53,10 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     allow_clauses_after_operational_separator: bool,
 ) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::diagnostics::parse_error::ParseError>
 {
-    let mut service_reaches = crate::handle_spans::HandleSpanBuilder::new();
+    let mut service_reaches = Vec::new();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
-    let mut invokes = crate::handle_spans::HandleSpanBuilder::new();
+    let mut invokes = Vec::new();
     let mut suspends_keyword_source_spans = Vec::new();
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
@@ -109,7 +109,6 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         if input.at_contextual("reaches") {
             input = super::take_operational_reaches_clause(
                 input,
-                syntax_trees,
                 &mut service_reach_keyword_source_spans,
                 &mut service_reaches,
                 &mut service_reach_is_installation_bound,
@@ -121,8 +120,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         if input.at_contextual("invokes") {
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
-            let handle = syntax_trees.items.append_identifier_path_member(binding);
-            invokes.push(handle);
+            invokes.push(binding);
             input = take_invokes_signature_clause(
                 after_binding,
                 allow_clauses_after_operational_separator,
@@ -245,10 +243,12 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
 
     Ok((
         SignatureClauses {
-            service_reaches: service_reaches.finish(),
+            service_reaches: syntax_trees
+                .items
+                .insert_identifier_path_members(service_reaches),
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            invokes: invokes.finish(),
+            invokes: syntax_trees.items.insert_identifier_path_members(invokes),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,

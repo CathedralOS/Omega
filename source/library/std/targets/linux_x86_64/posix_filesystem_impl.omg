@@ -21,53 +21,66 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
     machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration;
 }
 
-
 use filesystem_host;
 
-data PosixFilesystemLinux { }  // requirement namespace for the system calls
+// requirement namespace for the system calls
 data PosixFilesystemLinuxSyscalls { }
 
-boundary requirement PosixFilesystemLinux::openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemLinux::close(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemLinux::lseek(fd: i32, offset: i64, whence: i32) -> i64
-;
-boundary requirement PosixFilesystemLinux::mkdirat(dirfd: i32, path: &u8, mode: i32) -> i32
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemLinux::unlinkat(dirfd: i32, path: &u8, flags: i32) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemLinux::fchmodat(dirfd: i32, path: &u8, mode: u32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemLinux::fchmod(fd: i32, mode: u32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemLinux::renameat(from_dirfd: i32, from: &u8, to_dirfd: i32, to: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemLinux::linkat(from_dirfd: i32, from: &u8, to_dirfd: i32, to: &u8, flags: i32) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemLinux::symlinkat(target: &u8, link_dirfd: i32, link: &u8) -> i32
-reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemLinux::newfstatat(dirfd: i32, path: &u8, buffer: &mut u8, flags: i32) -> i32
-reaches FilesystemMetadataQuery;
-boundary requirement PosixFilesystemLinux::fstat(fd: i32, buffer: &mut u8) -> i32
-reaches FilesystemMetadataQuery;
-boundary requirement PosixFilesystemLinux::ftruncate(fd: i32, length: i64) -> i32
-reaches FilesystemContentWrite + FilesystemMetadataMutation;
-boundary requirement PosixFilesystemLinux::utimensat(dirfd: i32, path: u64, times: &u8, flags: i32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemLinux::fsync(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemLinux::fdatasync(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemLinux::dup(fd: i32) -> i32
-;
-boundary requirement PosixFilesystemLinux::flock(fd: i32, operation: i32) -> i32
-;
-boundary requirement PosixFilesystemLinux::fchownat(dirfd: i32, path: &u8, uid: i32, gid: i32, flags: i32) -> i32
-reaches FilesystemMetadataMutation;
-boundary requirement PosixFilesystemLinux::fchown(fd: i32, uid: i32, gid: i32) -> i32
-reaches FilesystemMetadataMutation;
+boundary trait PosixFilesystemLinux {
+    machine openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 
+    machine close(fd: i32) -> i32 reaches;
+
+    machine lseek(fd: i32, offset: i64, whence: i32) -> i64 reaches;
+
+    machine mkdirat(dirfd: i32, path: &u8, mode: i32) -> i32
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+
+    machine unlinkat(dirfd: i32, path: &u8, flags: i32) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine fchmodat(dirfd: i32, path: &u8, mode: u32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine fchmod(fd: i32, mode: u32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine renameat(from_dirfd: i32, from: &u8, to_dirfd: i32, to: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine linkat(from_dirfd: i32, from: &u8, to_dirfd: i32, to: &u8, flags: i32) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine symlinkat(target: &u8, link_dirfd: i32, link: &u8) -> i32
+    reaches FilesystemNamespaceMutation;
+
+    machine newfstatat(dirfd: i32, path: &u8, buffer: &mut u8, flags: i32) -> i32
+    reaches FilesystemMetadataQuery;
+
+    machine fstat(fd: i32, buffer: &mut u8) -> i32
+    reaches FilesystemMetadataQuery;
+
+    machine ftruncate(fd: i32, length: i64) -> i32
+    reaches FilesystemContentWrite + FilesystemMetadataMutation;
+
+    machine utimensat(dirfd: i32, path: u64, times: &u8, flags: i32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine fsync(fd: i32) -> i32 reaches;
+
+    machine fdatasync(fd: i32) -> i32 reaches;
+
+    machine dup(fd: i32) -> i32 reaches;
+
+    machine flock(fd: i32, operation: i32) -> i32 reaches;
+
+    machine fchownat(dirfd: i32, path: &u8, uid: i32, gid: i32, flags: i32) -> i32
+    reaches FilesystemMetadataMutation;
+
+    machine fchown(fd: i32, uid: i32, gid: i32) -> i32
+    reaches FilesystemMetadataMutation;
+}
 
 LinuxX86PosixFilesystem satisfies PosixFilesystemHost {
     machine open(path: &[u8] in Path, flags: i32) -> i32

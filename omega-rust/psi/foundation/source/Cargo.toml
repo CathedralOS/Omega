@@ -9,6 +9,7 @@ name = "source"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../compiler-storage" }
 sha2 = "0.10"
 arena = { path = "../arena" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }

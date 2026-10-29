@@ -448,9 +448,11 @@ retired-syntax deletions to completion.
     (observation freedom), and `return_ranges::infer_return_interval` (captured
     arrivals under the caller's actual intervals) over one
     declaration/state/expression correspondence.
-  - Persist compiler-private checked package reuse and native Terminal product
-    reuse across invocations bound to exact source, dependency, and compiler
-    identity.
+  - Complete cross-consumer checked dependency admission bound to full producer
+    dependency context. Exact-program source/check graphs and native Terminal
+    products persist across invocations with fresh source, dependency, compiler
+    and invocation admission; body hashes alone do not admit a dependency
+    judgment into another consumer.
   Acceptance: fixture median under 2 s and a 10-line `std` probe check under 3 s,
   with `corpus_gate --compare` over the touched groups losing nothing and
   `tests/omega/fail/proofs/structural_ensures_unjudged_rejected` still rejecting.

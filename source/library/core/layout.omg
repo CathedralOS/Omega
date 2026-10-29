@@ -616,11 +616,13 @@ public boundary trait PlacementLifecycle<P, T> {
         PlacementReturn<Extent in Granted & Vacant, T>,
         PlacementInitializationFailure
     >
-    reaches ResourceProfileSupply;
+    reaches ResourceProfileSupply
+    invokes ResourceProfileSupply;
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
         -> PlacementExtraction<Extent in Granted & Vacant, T>
-    reaches ResourceProfileSupply;
+    reaches ResourceProfileSupply
+    invokes ResourceProfileSupply;
 }
 
 // Ordinary provider orchestration keeps profile selection, call ordering and

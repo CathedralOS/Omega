@@ -8,64 +8,23 @@
 use windows_gui_host;
 use omega::language::core::external_binding;
 
-data WindowsGuiIo { }
 data WindowsGuiImports { }
 
 
-boundary requirement WindowsGuiIo::create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 
 
-boundary requirement WindowsGuiIo::foreground_window() -> u64
-reaches WindowManagement;
 
 
-boundary requirement WindowsGuiIo::is_window(window: u64) -> i32
-reaches WindowManagement;
 
 
-boundary requirement WindowsGuiIo::destroy_window(window: u64) -> i32
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 
 
-boundary requirement WindowsGuiIo::peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 
 
-boundary requirement WindowsGuiIo::translate_message(message: &WindowsMessage) -> i32
-reaches WindowEventDispatch;
 
 
-boundary requirement WindowsGuiIo::dispatch_message(message: &WindowsMessage) -> i64
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 
 
-boundary requirement WindowsGuiIo::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
-reaches WindowManagement;
 
 
 // Complete explicit provider map; concrete bodies retain their own namespace.
@@ -203,4 +162,54 @@ NativeWindowsGui satisfies WindowsGuiHost {
                 FilesystemNamespaceMutation {
         WindowsGuiDrawing::stretch_dibits(device, destination_x, destination_y, destination_width, destination_height, source_x, source_y, source_width, source_height, pixels, info, usage, raster_operation)
     }
+}
+
+boundary trait WindowsGuiIo {
+    machine create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+
+    machine foreground_window() -> u64
+    reaches WindowManagement;
+
+    machine is_window(window: u64) -> i32
+    reaches WindowManagement;
+
+    machine destroy_window(window: u64) -> i32
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+
+    machine peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+
+    machine translate_message(message: &WindowsMessage) -> i32
+    reaches WindowEventDispatch;
+
+    machine dispatch_message(message: &WindowsMessage) -> i64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+
+    machine adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
+    reaches WindowManagement;
 }

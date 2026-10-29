@@ -71,7 +71,7 @@ pub(super) fn complete_initializer_receipt_dependencies(
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct DeferredResolvedFrontier {
     pub(super) syntax: Arc<SyntaxTrees>,
     pub(super) trees: Arc<SymbolResolvedTrees>,

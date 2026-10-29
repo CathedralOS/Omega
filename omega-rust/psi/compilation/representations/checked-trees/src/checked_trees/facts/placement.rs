@@ -2,7 +2,7 @@
 /// view machine input. The complete validated placement is retained because
 /// its compact compatibility fingerprint is not semantic authority. Symbol
 /// handles remain private joins and never cross the Terminal boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPlacedViewInput {
     pub machine: symbols::SymbolHandle,
     pub state: symbols::SymbolHandle,

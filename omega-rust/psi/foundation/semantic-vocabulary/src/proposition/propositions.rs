@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 /// stable terminal values or closed literals. Operation-specific predicates
 /// will extend this vocabulary together with their execution semantics and
 /// obligation schemas.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum Proposition {
     Truth,
     Falsehood,

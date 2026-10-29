@@ -48,9 +48,40 @@ pub(super) fn instantiate_application(
     )
 }
 
+pub(super) fn instantiate_captured_application(
+    compilation: &mut TypedTrees,
+    source: &TypedTrees,
+    reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    regions: &[(
+        typed_trees::type_identity::LifetimeParameterIdentity,
+        Identifier,
+    )],
+) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
+    project(
+        compilation,
+        reference,
+        &[],
+        LifetimeProjection::Regions {
+            source,
+            lexical_owner,
+            regions,
+        },
+        0,
+    )
+}
+
 #[derive(Clone, Copy)]
 enum LifetimeProjection<'a> {
     Names(&'a [(Identifier, Identifier)]),
+    Regions {
+        source: &'a TypedTrees,
+        lexical_owner: SymbolHandle,
+        regions: &'a [(
+            typed_trees::type_identity::LifetimeParameterIdentity,
+            Identifier,
+        )],
+    },
     Application {
         source: &'a TypedTrees,
         supplying_owner: SymbolHandle,
@@ -87,8 +118,27 @@ fn project(
             *lexical_owner = retained;
         }
     }
+    if let LifetimeProjection::Regions { lexical_owner, .. } = &mut lifetimes {
+        let retained = compilation
+            .type_reference_table
+            .operand_lifetime_owner(reference);
+        if retained.is_valid() {
+            *lexical_owner = retained;
+        }
+    }
     let lifetime = |name: &Identifier| {
         match lifetimes {
+            LifetimeProjection::Regions {
+                source,
+                lexical_owner,
+                regions,
+            } => typed_trees::type_identity::lifetime_parameter_identity(
+                source,
+                lexical_owner,
+                name.as_str(),
+            )
+            .and_then(|identity| regions.iter().find(|(candidate, _)| *candidate == identity))
+            .map(|(_, name)| name.clone()),
             LifetimeProjection::Names(names) => names
                 .iter()
                 .find(|(source, _)| source == name)

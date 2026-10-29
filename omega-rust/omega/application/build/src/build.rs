@@ -85,7 +85,7 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
                         "Build execution needs an admitted host profile",
                     )])
                 })?;
-                let mut session = crate::BuildSession::create(&base_directory)
+                let mut session = crate::BuildSession::create_retained(&base_directory)
                     .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
                 let resolved = crate::resolve_project_sources(
                     &mut session,

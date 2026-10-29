@@ -250,11 +250,10 @@ pub(crate) fn evaluate(
     super::const_qualifications::defer_unproved(&mut selection_syntax);
     let selection_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax,
+            &mut syntax,
             sources.clone(),
             bindings.to_vec(),
-            context.retained_base(),
-
+            context.retained_base(), context.declaration_syntax,
         )?;
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut selection_syntax,

@@ -1,6 +1,18 @@
 //! Resolve a Build operation's static operand path to its declaration symbol
 //! over the typed program.
 
+mod input_selections;
+pub use input_selections::{
+    ProductArgumentStep, ProductInputSelection, ProductInputSelectionTarget,
+    ProductTypeSelectionSlot,
+};
+
+mod applications;
+pub use applications::{ProductApplicationDemand, ProductOperandApplication};
+
+mod occurrences;
+pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
+
 mod static_environment;
 pub use static_environment::capture_static_environment;
 
@@ -47,12 +59,85 @@ pub fn resolve_product_path(
     occurrence: source::SourceSpan,
     kind: ProductOperandKind,
 ) -> Option<symbols::SymbolHandle> {
+    if kind == ProductOperandKind::TableField {
+        return resolve_native_table_field(typed, path, occurrence).map(|(_, field)| field);
+    }
     let program = typed.product_declarations();
+    let candidates = product_candidates(program, kind)?;
+    let token_bound_machines = if kind == ProductOperandKind::BoundarySubject {
+        program
+            .machine_token_bindings()
+            .iter()
+            .filter(|binding| binding.is_boundary)
+            .map(|binding| binding.symbol)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    program.symbols.find_build_subject_declaration_from_source(
+        path,
+        occurrence,
+        candidates,
+        &token_bound_machines,
+    )
+}
+
+/// Explain a refused designation without resolving another declaration or
+/// granting access. The current and frozen description views can differ while
+/// Product sources are being joined; diagnostics retain that distinction.
+pub fn product_declaration_lookup_diagnostic(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+    kind: ProductOperandKind,
+) -> String {
+    let leaf = path.rsplit("::").next().unwrap_or(path);
+    let describe = |program: &TypedTrees| {
+        let reference = program.symbols.rejoin_product_occurrence(occurrence);
+        let candidates = product_candidates(program, kind).unwrap_or_default();
+        let matching = candidates.iter().filter_map(|(symbol, _)| {
+            let name = program.symbols.display_path(*symbol, "::");
+            if name.rsplit("::").next() != Some(leaf) { return None; }
+            Some({
+                let declaration = program.symbols.symbol_provenance_source_span(*symbol);
+                let file = declaration.and_then(|span| program.symbols.source_file(span));
+                format!("{name}: selected={}, package={:?}, scope={:?}, stratum={:?}, same-package={}, permitted-stratum={}",
+                    program.symbols.symbol_source_is_selected(*symbol),
+                    file.and_then(|file| file.package_identity),
+                    file.map(|file| file.dependency_scope),
+                    file.map(|file| file.resolution_stratum),
+                    declaration.is_some_and(|span| program.symbols.same_product_package_instance(reference, span)),
+                    program.symbols.source_reference_can_describe_product_symbol(reference, *symbol),
+                )
+            })
+        }).take(8).collect::<Vec<_>>();
+        format!(
+            "{} role candidates; matching declarations: [{}]",
+            candidates.len(),
+            matching.join("; ")
+        )
+    };
+    let source = typed.symbols.rejoin_product_occurrence(occurrence);
+    let file = typed.symbols.source_file(source);
+    let selected = typed
+        .symbols
+        .source_map()
+        .is_some_and(|sources| sources.source_is_selected(source.source_id));
+    format!(
+        "designation source: selected={selected}, package={:?}, scope={:?}; current Product view: {}; designated description view: {}",
+        file.and_then(|file| file.package_identity),
+        file.map(|file| file.dependency_scope),
+        describe(typed),
+        describe(typed.product_declarations())
+    )
+}
+
+fn product_candidates(
+    program: &TypedTrees,
+    kind: ProductOperandKind,
+) -> Option<Vec<(SymbolHandle, bool)>> {
     let candidates = match kind {
-        ProductOperandKind::WireCompatibilityFact => return None,
-        ProductOperandKind::TableField => {
-            return resolve_native_table_field(typed, path, occurrence).map(|(_, field)| field);
-        }
+        ProductOperandKind::WireCompatibilityFact | ProductOperandKind::TableField => return None,
         ProductOperandKind::BoundarySubject => program
             .traits()
             .iter()
@@ -83,10 +168,6 @@ pub fn resolve_product_path(
                 program
                     .conformances()
                     .iter()
-                    .filter(|definition| {
-                        definition.type_parameters.is_empty()
-                            && definition.lifetime_parameters.is_empty()
-                    })
                     .map(|definition| (definition.symbol, definition.is_public)),
             )
             .collect(),
@@ -122,58 +203,7 @@ pub fn resolve_product_path(
             .map(|definition| (definition.symbol, definition.is_public))
             .collect(),
     };
-    let token_bound_machines = if kind == ProductOperandKind::BoundarySubject {
-        program
-            .machine_token_bindings()
-            .iter()
-            .filter(|binding| binding.is_boundary)
-            .map(|binding| binding.symbol)
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    program.symbols.find_build_subject_declaration_from_source(
-        path,
-        occurrence,
-        candidates,
-        &token_bound_machines,
-    )
-}
-
-/// Resolve the complete typed dispatch field designation through the same
-/// source/package visibility query as all other inert Product operands.
-/// A field is never recovered by its final spelling or by a numeric slot.
-pub fn resolve_native_table_field(
-    typed: &TypedTrees,
-    path: &str,
-    occurrence: source::SourceSpan,
-) -> Option<(SymbolHandle, SymbolHandle)> {
-    use crate::data::DataMember;
-    if !path.contains("::") {
-        return None;
-    }
-    let program = typed.product_declarations();
-    let candidates = program.data_definitions().iter().flat_map(|definition| {
-        program
-            .data_members(definition)
-            .iter()
-            .filter_map(move |member| match member {
-                DataMember::Field(field) => Some((field.symbol, definition.is_public)),
-                _ => None,
-            })
-    });
-    let field = program.symbols.find_build_subject_declaration_from_source(
-        path,
-        occurrence,
-        candidates,
-        &[],
-    )?;
-    let owner = program.data_definitions().iter().find(|definition| {
-        program.data_members(definition).iter().any(
-            |member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field),
-        )
-    })?;
-    Some((owner.symbol, field))
+    Some(candidates)
 }
 
 /// Source-signature compatibility for the narrowly designated product-entry
@@ -319,4 +349,87 @@ pub fn resolve_build_request_author(
         return Err("executed Build request has ambiguous authored machine custody".into());
     }
     Ok(machine.symbol)
+}
+
+impl TypedTrees {
+    /// Exact source correspondence, followed by whole owned-graph equality.
+    /// Equal display paths or numeric SourceIds cannot replace this join.
+    pub fn same_product_operand_source(
+        &self,
+        left: &language_semantics::declaration_selection::ProductDeclarationOperand,
+        right: &language_semantics::declaration_selection::ProductDeclarationOperand,
+    ) -> bool {
+        if left.path != right.path
+            || self.symbols.rejoin_product_occurrence(left.source_span)
+                != self.symbols.rejoin_product_occurrence(right.source_span)
+        {
+            return false;
+        }
+        match (&left.application, &right.application) {
+            (None, None) => true,
+            (Some(left), Some(right)) => {
+                if std::sync::Arc::ptr_eq(left, right) {
+                    return true;
+                }
+                let mut left = left.as_ref().clone();
+                let mut right = right.as_ref().clone();
+                left.remap_source_spans(|span| self.symbols.rejoin_product_occurrence(span));
+                right.remap_source_spans(|span| self.symbols.rejoin_product_occurrence(span));
+                left == right
+            }
+            _ => false,
+        }
+    }
+
+    pub fn same_product_request_source(
+        &self,
+        left: &language_semantics::declaration_selection::ProductDeclarationRequest,
+        right: &language_semantics::declaration_selection::ProductDeclarationRequest,
+    ) -> bool {
+        left.operation == right.operation
+            && self.symbols.rejoin_product_occurrence(left.source_span)
+                == self.symbols.rejoin_product_occurrence(right.source_span)
+            && left.operands.len() == right.operands.len()
+            && left
+                .operands
+                .iter()
+                .zip(right.operands.iter())
+                .all(|(left, right)| self.same_product_operand_source(left, right))
+    }
+}
+
+/// Resolve the complete typed dispatch field designation through the same
+/// source/package visibility query as all other inert Product operands.
+/// A field is never recovered by its final spelling or by a numeric slot.
+pub fn resolve_native_table_field(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: source::SourceSpan,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    use crate::data::DataMember;
+    if !path.contains("::") {
+        return None;
+    }
+    let program = typed.product_declarations();
+    let candidates = program.data_definitions().iter().flat_map(|definition| {
+        program
+            .data_members(definition)
+            .iter()
+            .filter_map(move |member| match member {
+                DataMember::Field(field) => Some((field.symbol, definition.is_public)),
+                _ => None,
+            })
+    });
+    let field = program.symbols.find_build_subject_declaration_from_source(
+        path,
+        occurrence,
+        candidates,
+        &[],
+    )?;
+    let owner = program.data_definitions().iter().find(|definition| {
+        program.data_members(definition).iter().any(
+            |member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field),
+        )
+    })?;
+    Some((owner.symbol, field))
 }

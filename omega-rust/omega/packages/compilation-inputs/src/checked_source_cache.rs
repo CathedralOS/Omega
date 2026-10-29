@@ -60,7 +60,7 @@ use std::path::{Path, PathBuf};
 
 const AGGREGATE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
-const RECORD_MAGIC: &[u8; 8] = b"OMGCSRC\x01";
+const RECORD_MAGIC: &[u8; 8] = b"OMGCSRC\x02";
 const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-CHECKED-SOURCE-CACHE-KEY-V1\0";
 const RECORD_EXTENSION: &str = "rec";
 const DEFAULT_MAX_RECORDS: usize = 256;

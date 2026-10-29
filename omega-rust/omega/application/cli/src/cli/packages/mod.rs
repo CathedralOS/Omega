@@ -23,14 +23,15 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                 PackageCommand::Resume { kind } => *kind,
                 _ => PackageCommandKind::Update,
             };
-            let mut session =
-                match BuildSession::create(&options.project_root.join("build/package-manager")) {
-                    Ok(session) => session,
-                    Err(error) => {
-                        eprintln!("{error}");
-                        std::process::exit(1);
-                    }
-                };
+            let mut session = match BuildSession::create_retained(
+                &options.project_root.join("build/package-manager"),
+            ) {
+                Ok(session) => session,
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            };
             // This owner spans all targets and automatic review rounds. A
             // later user-issued command creates its own resource grant.
             let result = (|| -> Result<PackageCommandOutcome, PackageCommandError> {

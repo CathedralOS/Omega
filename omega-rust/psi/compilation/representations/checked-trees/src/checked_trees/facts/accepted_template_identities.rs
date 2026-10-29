@@ -7,7 +7,7 @@
 //! hash canonical template bytes.
 
 /// One accepted machine template's checked portable identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedAcceptedTemplateClassification {
     pub machine: symbols::SymbolHandle,
     /// The universal template identity when the machine declares type
@@ -16,14 +16,14 @@ pub struct CheckedAcceptedTemplateClassification {
 }
 
 /// The retained fingerprint and commitment pair for one generic template.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedAcceptedTemplateIdentity {
     pub report_fingerprint: u64,
     pub commitment: typed_trees::typed_trees::MachineTemplateCommitment,
 }
 
 /// Frozen checked classifications keyed by the template machine symbol.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedAcceptedTemplateIdentities {
     rows: Box<[CheckedAcceptedTemplateClassification]>,
 }

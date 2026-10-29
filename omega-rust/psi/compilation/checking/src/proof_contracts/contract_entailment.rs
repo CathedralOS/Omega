@@ -82,6 +82,7 @@ pub(crate) mod collection_bounds;
 pub(crate) mod completed_domains;
 pub(crate) mod completed_observations;
 mod completed_values;
+pub(crate) use completed_values::completed_value_case_at_occurrence;
 mod construction_predicates;
 pub(crate) mod statement_predicates;
 
@@ -97,6 +98,8 @@ pub(crate) mod law_conformance;
 pub(crate) mod numeric_observations;
 mod observed_projections;
 mod operand_fits;
+mod operation_definedness;
+pub(crate) use operation_definedness::operation_inputs_exclude_integer_values;
 mod proof_edges;
 pub(crate) mod proof_integer;
 mod quotient_congruence;

@@ -8,7 +8,7 @@ use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, C
 use std::borrow::Cow;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CarryFacts {
     /// One entry per data declaration, in declaration order.
     pub data: Vec<DataCarryFact>,
@@ -34,7 +34,7 @@ pub struct CarryFacts {
     pub suspension_value_loans: Arena<Handle<SuspensionCrossingLoanFact>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClaimCarryPolicyFact {
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     pub effective: CarryPolicy,
@@ -44,7 +44,7 @@ pub struct ClaimCarryPolicyFact {
     pub contributing_origins: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineActivationCarryFact {
     pub machine: SymbolHandle,
     /// Direct envelope of this machine's explicit storage and call values.
@@ -62,7 +62,7 @@ pub struct MachineActivationCarryFact {
     pub unnamed_strict_values: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SuspensionCrossingCarryFact {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -79,7 +79,7 @@ pub struct SuspensionCrossingCarryFact {
 /// that span avoids re-reading an argument after a later operand mutates it.
 /// Empty loans do not establish that an incoming or unresolved carrier is
 /// borrow-free. Admission still needs the independent lifetime/access join.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SuspensionCrossingBorrowFrontier {
     pub loans: HandleSpan<SuspensionCrossingLoanFact>,
     pub operands: HandleSpan<crate::FlowOperandFact>,
@@ -89,7 +89,7 @@ pub struct SuspensionCrossingBorrowFrontier {
 /// owns its access, captured referent, carrier path, parent and supplying-loan
 /// identities. A supplying loan transports custody; it is not a reborrow
 /// parent. Neither edge is inferred from matching storage or source labels.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SuspensionCrossingLoanFact {
     pub source: SuspensionCrossingLoanSource,
     /// False for a dependency retained solely by a current descendant. This
@@ -102,7 +102,7 @@ pub struct SuspensionCrossingLoanFact {
     pub backing: SuspensionCrossingLoanBacking,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum SuspensionCrossingLoanSource {
     /// Current invocation-entry permission, not a loan of the parameter slot.
     Incoming {
@@ -141,7 +141,7 @@ impl SuspensionCrossingLoanFact {
 /// loan. An incoming reference's opaque referent cannot become the parameter
 /// slot merely because they have the same root symbol. Stack provisioning and
 /// physical address stability remain runtime obligations, not these coordinates.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SuspensionCrossingLoanBacking {
     #[default]
     Unresolved,
@@ -153,7 +153,7 @@ pub enum SuspensionCrossingLoanBacking {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SuspensionCrossingLiveValueFact {
     pub type_reference: typed_trees::types::TypeReferenceHandle,
     pub storage: SuspensionCrossingStorage,
@@ -177,7 +177,7 @@ pub struct SuspensionCrossingLiveValueFact {
 
 /// Complete borrowed-leaf coverage by stored and captured occurrences.
 /// Coverage alone does not prove lifetime/access/backing preservation.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SuspensionValueBorrowFrontier {
     #[default]
     Unresolved,
@@ -189,7 +189,7 @@ pub enum SuspensionValueBorrowFrontier {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum SuspensionCrossingValueOrigin {
     Parameter {
         symbol: SymbolHandle,
@@ -210,7 +210,7 @@ pub enum SuspensionCrossingValueOrigin {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum SuspensionCrossingStorage {
     /// Entry/state parameter that must survive the parked continuation.
     Parameter,
@@ -327,7 +327,7 @@ impl StableCrossingHash {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataCarryFact {
     pub data: SymbolHandle,
     /// The optional authored minimum promise retained for diagnostics and

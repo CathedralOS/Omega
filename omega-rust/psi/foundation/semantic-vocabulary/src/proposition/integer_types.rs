@@ -8,19 +8,19 @@ mod bit_ranges;
 #[cfg(test)]
 mod exact_offsets_tests;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IntegerSign {
     Signed,
     Unsigned,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IntegerCarrier {
     Fixed,
     Address,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct IntegerType {
     carrier: IntegerCarrier,
     sign: IntegerSign,
@@ -907,7 +907,7 @@ impl IntegerType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IntegerValue {
     Signed(i128),
     Unsigned(u128),
@@ -927,7 +927,7 @@ impl IntegerValue {
 /// One canonical mathematical integer literal. Unlike [`IntegerValue`], this
 /// proof-only form carries no fixed-width signedness and therefore has exactly
 /// one representation for every integer in its supported literal range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct IntegerMathLiteral {
     negative: bool,
     magnitude: u128,
@@ -985,7 +985,7 @@ impl IntegerMathLiteral {
 /// Total, proof-only mathematical integer syntax. `MathValue` embeds the
 /// mathematical value of one exact integer or address carrier; the other forms are
 /// interpreted over unbounded integers rather than machine arithmetic.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IntegerMathTerm {
     IntegerLiteral(IntegerMathLiteral),
     MathValue {

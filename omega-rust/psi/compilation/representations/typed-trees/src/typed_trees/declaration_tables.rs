@@ -56,6 +56,40 @@ impl TypedTrees {
         crate::references::collect_program_conformance_occurrences(self)
     }
 
+    /// Prepared Product rows remain source-owned: the current declaration/body
+    /// census must still contain their exact authored operand and role. Cloned
+    /// helper bodies retain their original author; an arena row alone supplies
+    /// neither an occurrence nor authority to select an implementation.
+    pub fn live_product_operand_applications(
+        &self,
+    ) -> Vec<Handle<crate::product_operand::ProductOperandApplication>> {
+        if self.product_operand_applications.is_empty() {
+            return Vec::new();
+        }
+        let occurrences = crate::product_operand::collect_product_selection_occurrences(self);
+        self.product_operand_applications
+            .iter()
+            .filter_map(|(handle, selected)| {
+                let role = selected.role?;
+                let author = self.symbols.authored_origin(selected.owner);
+                occurrences
+                    .iter()
+                    .any(|occurrence| {
+                        self.symbols.authored_origin(occurrence.machine) == author
+                            && occurrence.request.operands.iter().enumerate().any(
+                                |(ordinal, operand)| {
+                                    occurrence.request.operation.product_operand_role(ordinal)
+                                        == Some(role)
+                                        && self
+                                            .same_product_operand_source(operand, &selected.operand)
+                                },
+                            )
+                    })
+                    .then_some(handle)
+            })
+            .collect()
+    }
+
     /// Census of occurrence/evidence selections, preserving each source anchor.
     pub fn closed_conformance_application_sites(
         &self,
@@ -626,6 +660,23 @@ impl TypedTrees {
             declaration = Some(current);
         }
         declaration
+    }
+
+    /// Retain an original unresolved type token for later ordinary checking.
+    /// This produces occurrence custody, never a resolved declaration choice.
+    pub fn record_late_bound_authored_declaration_selection(
+        &mut self,
+        source_span: source::SourceSpan,
+        exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+        binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionRecordError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .record_late_bound(source_span, exposure, kind, binding)
     }
 
     pub fn record_resolved_authored_declaration_selection_once(

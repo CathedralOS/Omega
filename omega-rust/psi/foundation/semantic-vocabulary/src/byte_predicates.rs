@@ -9,7 +9,7 @@
 /// A compiler-recognized comptime byte-predicate primitive over a byte
 /// sequence. These are reusable building blocks (like `+`/`==`), NOT
 /// domain-specific.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ByteSequencePredicate {
     /// `valid_utf8(self)`: the bytes are well-formed UTF-8.
     ValidUtf8,
@@ -113,7 +113,9 @@ impl ByteSequencePredicate {
 
 /// A closed set of primitive byte predicates. Zero is the unconstrained set;
 /// decoding rejects unknown bits instead of forgetting an unknown restriction.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct ByteSequencePredicateSet(u8);
 
 impl ByteSequencePredicateSet {

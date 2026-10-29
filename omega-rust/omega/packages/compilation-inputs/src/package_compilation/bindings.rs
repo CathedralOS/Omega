@@ -108,7 +108,7 @@ impl PackageSourceBinding {
 
 /// One requester-local alias selected by the reconciled package graph for one
 /// authorized dependency scope.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageDependencyBinding {
     pub(super) requester: PackageKeyIdentity,
     pub(super) alias: String,

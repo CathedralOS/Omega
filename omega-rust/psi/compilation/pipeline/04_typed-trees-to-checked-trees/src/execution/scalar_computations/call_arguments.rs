@@ -111,7 +111,24 @@ impl Builder<'_, '_> {
             }
             return;
         }
-        let Some(parameters) = validation::call_target_parameters(self.program, target) else {
+        // The invocation owns its complete logical parameter application.
+        // The raw declaration can still name a member Type binder, which
+        // cannot establish the caller's concrete constructor operand.
+        let (Ok(statement_index), Ok(site_ordinal)) =
+            (usize::try_from(statement), usize::try_from(call_ordinal))
+        else {
+            return;
+        };
+        let Some(site) = validation::find_call_site(
+            self.program,
+            self.machine,
+            self.state,
+            statement_index,
+            site_ordinal,
+        ) else {
+            return;
+        };
+        let Some(parameters) = site.parameters(self.program, self.machine) else {
             return;
         };
         let explicit_parameters = parameters.iter();

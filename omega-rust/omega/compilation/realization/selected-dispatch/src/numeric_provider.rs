@@ -14,6 +14,9 @@ pub struct NumericProviderSelection<'a> {
 }
 
 impl<'a> NumericProviderSelection<'a> {
+    pub(crate) fn has_requirement_schema(&self, requirement: SymbolHandle) -> bool {
+        self.custody.has_requirement_schema(requirement)
+    }
     pub(crate) fn execution(
         self,
         plan: &ProviderPlan,
@@ -55,6 +58,13 @@ impl<'a> NumericProviderSelection<'a> {
                             .text(candidate.realization.machine.identity()),
                         candidate.provider.as_ref().and_then(|owner| {
                             declarations.identities.text(owner.declaration.identity())
+                        }),
+                        candidate.requirement_schema.as_ref().map(|schema| {
+                            (
+                                declarations.identities.text(schema.identity),
+                                declarations.identities.text(schema.method),
+                                declarations.identities.text(schema.owner),
+                            )
                         }),
                     )
                 })

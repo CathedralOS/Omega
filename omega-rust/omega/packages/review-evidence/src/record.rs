@@ -7,7 +7,9 @@ mod accessors;
 mod authority;
 mod baseline;
 pub use baseline::PackagePolicyBaseline;
-pub(crate) use baseline::PackagePolicyNativeBinding;
+pub(crate) use baseline::{
+    PackagePolicyNativeApplication, PackagePolicyNativeBinding, PackagePolicyNativeLocalApplication,
+};
 mod authority_expressions;
 mod behavior_policy;
 pub(crate) use behavior_policy::{

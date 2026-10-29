@@ -23,7 +23,7 @@ pub enum SeededContinuationError {
 /// before either continuation allocates further IDs. Source selection stays exact.
 /// Forks share the immutable pair. Mutation detaches typed storage before a
 /// continuation changes it; retaining a frontier does not copy its whole graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SeededTypingBase {
     resolved: Arc<SymbolResolvedTrees>,
     typed: Arc<TypedTrees>,
@@ -32,7 +32,7 @@ pub struct SeededTypingBase {
     inactive_data: Vec<InactiveDataDeclaration>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct InactiveDataDeclaration {
     symbol: symbols::SymbolHandle,
     resolved: arena::Handle<symbol_resolved_trees::data::DataDefinition>,

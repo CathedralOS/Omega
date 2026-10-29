@@ -4,7 +4,7 @@ use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 /// One exact authored member of a service-reach ceiling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredServiceReachTarget {
     pub service: SymbolHandle,
     pub source_span: source::SourceSpan,
@@ -13,7 +13,7 @@ pub struct AuthoredServiceReachTarget {
 /// Provenance-only source custody for one callable's authored `reaches`
 /// clauses. Clause keyword occurrences preserve an explicit empty ceiling;
 /// targets bind exact boundary-trait identity to exact member spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredServiceReachRow {
     pub owner: SymbolHandle,
     pub keyword_source_spans: Vec<source::SourceSpan>,
@@ -23,7 +23,7 @@ pub struct AuthoredServiceReachRow {
 
 /// Exact semantic target selected by one authored `invokes` occurrence.
 /// Spelling is never used to reselect this target after typed lowering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AuthoredInvocationTarget {
     Unresolved,
     Parameter { ordinal: u32, symbol: SymbolHandle },
@@ -33,7 +33,7 @@ pub enum AuthoredInvocationTarget {
 /// One source-backed synchronous-invocation declaration. The source span and
 /// exact target travel as one compiler-owned record so review provenance can
 /// never be paired with a target by position or spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredInvocation {
     pub name: Identifier,
     pub source_span: source::SourceSpan,
@@ -62,7 +62,7 @@ impl std::fmt::Display for AuthoredInvocation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -125,7 +125,7 @@ impl Default for StateSignature {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct NativeCallbackParameter {
     pub name: Identifier,
     pub binder: Identifier,
@@ -134,7 +134,7 @@ pub struct NativeCallbackParameter {
 
 /// An authored parameter with an explicit subject identity. Qualified machine
 /// names do not contribute a hidden receiver or shift argument positions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -171,7 +171,7 @@ impl Default for StateParameter {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
     /// Exact authored clause keyword retained independently from semantic facts.
@@ -188,7 +188,7 @@ impl SignatureContract {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SignatureContractKind {
     #[default]
     Requires,
@@ -202,7 +202,7 @@ pub enum SignatureContractKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CrashCause {
     Trap,
     Abort,

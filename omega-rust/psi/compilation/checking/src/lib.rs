@@ -249,7 +249,8 @@ pub use value_custody::intrinsic_boundaries::validate_boundary_completion_declar
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
 pub use crate::declarations::selection_authority::{
-    DeclarationSelectionAuthority, validate_authored_declaration_selections,
+    DeclarationSelectionAuthority, RecordedDeclarationAuthority,
+    validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
     RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
@@ -386,6 +387,7 @@ pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
 pub use value_custody::literals::evaluate_anonymous_numeric_comparison;
 pub use value_custody::literals::evaluate_anonymous_numeric_expression;
+pub use value_custody::literals::fixed_byte_array_literal;
 pub use value_custody::literals::has_anonymous_numeric_results;
 pub use value_custody::literals::has_anonymous_operator_meaning;
 pub use value_custody::literals::land_anonymous_integer_expression;
@@ -658,6 +660,5 @@ pub use value_custody::membership_evidence;
 
 pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
 
-pub mod native_locators;
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;

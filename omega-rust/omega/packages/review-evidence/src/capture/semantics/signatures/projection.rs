@@ -84,6 +84,8 @@ fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     tables.propositions = source.tables.propositions.clone();
     tables.proposition_binders = source.tables.proposition_binders.clone();
     tables.state_parameters = source.tables.state_parameters.clone();
+    tables.machines = source.tables.machines.clone();
+    tables.conformances = source.tables.conformances.clone();
     tables.traits = source.tables.traits.clone();
     tables.trait_requirements = source.tables.trait_requirements.clone();
     tables.trait_machine_signatures = source.tables.trait_machine_signatures.clone();

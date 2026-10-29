@@ -62,8 +62,13 @@ pub struct PackageCompileFailure {
 /// A completed Build with compiler-private source continuation. Applications
 /// can schedule its generated sources and demanded packages, but cannot extract
 /// typed trees, alter source completion, or install a checked checkpoint.
+#[derive(Clone)]
 pub struct PackageBuild {
     source: PreparedPackageBuild,
+    /// A successful Product judgment belongs to this immutable prepared owner.
+    /// Clones share only its exact activation, target and complete input graph.
+    checked_handoff:
+        std::sync::Arc<std::sync::Mutex<Option<package_compilation::PackageBuildHandoff>>>,
 }
 
 /// An admitted Build with opaque pending Product source. It owns its code and
@@ -124,7 +129,7 @@ impl SourceBuildDeclaration {
 /// replace its source graph, execution inputs, output bytes or observations.
 pub struct CompletedBuild {
     source: compilation_products::SettledPackageBuild,
-    products: Vec<PreparedPackageBuild>,
+    products: Vec<PackageBuild>,
 }
 
 /// Product judgment policy, distinct from the already settled Build execution.
@@ -225,6 +230,64 @@ impl PackageBuildInvocation {
 }
 
 impl PackageBuild {
+    fn new(source: PreparedPackageBuild) -> Self {
+        Self {
+            source,
+            checked_handoff: Default::default(),
+        }
+    }
+
+    fn retained_checked_handoff(
+        &self,
+    ) -> Result<Option<package_compilation::PackageBuildHandoff>, CompileFailure> {
+        self.checked_handoff
+            .lock()
+            .map(|ready| ready.clone())
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "successful package handoff retention owner is poisoned",
+                )]
+                .into()
+            })
+    }
+
+    fn retain_checked_handoff(
+        &self,
+        handoff: package_compilation::PackageBuildHandoff,
+    ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
+        let sealed = self.source.build_handoff();
+        let observation = self
+            .source
+            .build()
+            .observation_summary
+            .as_ref()
+            .map(|summary| summary.identity().digest());
+        if handoff.source_owner() != sealed.source_owner()
+            || handoff.purpose() != sealed.purpose()
+            || handoff.target() != sealed.target()
+            || handoff.build_execution_profile() != sealed.build_execution_profile()
+            || handoff
+                .selection_observation()
+                .is_some_and(|observed| Some(observed) != observation)
+            || handoff.native_evaluation()
+                != self
+                    .source
+                    .build()
+                    .config
+                    .native_binding_evaluation
+                    .as_ref()
+        {
+            return Err(vec![Diagnostic::error("checked package handoff changed its original source activation, observation or target context")].into());
+        }
+        let mut retained = self.checked_handoff.lock().map_err(|_| {
+            vec![Diagnostic::error(
+                "successful package handoff retention owner is poisoned",
+            )]
+        })?;
+        *retained = Some(handoff.clone());
+        Ok(handoff)
+    }
+
     /// Reuse this completed activation for an admitted product target with
     /// equal source and semantic inputs. The completed observations are shared;
     /// permissions remain on each requested product.
@@ -233,10 +296,17 @@ impl PackageBuild {
         target: target::TargetProfile,
         inputs: package_compilation::PackageCompilationInputs,
     ) -> Result<Self, CompileFailure> {
-        self.source
-            .select_target(target, inputs)
-            .map(|source| Self { source })
-            .map_err(CompileFailure::from)
+        let same_context = Some(target) == self.source.build_handoff().target()
+            && &inputs == self.source.package_inputs();
+        let source = self.source.select_target(target, inputs)?;
+        Ok(Self {
+            source,
+            checked_handoff: if same_context {
+                self.checked_handoff.clone()
+            } else {
+                Default::default()
+            },
+        })
     }
 
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
@@ -263,9 +333,19 @@ impl PackageBuild {
         self,
         descriptions: Vec<package_compilation::IndependentComponentDescription>,
     ) -> Result<Self, Vec<package_compilation::PackageCompilationInputError>> {
-        self.source
-            .with_independent_component_descriptions(descriptions)
-            .map(|source| Self { source })
+        let previous = self.source.package_inputs().clone();
+        let source = self
+            .source
+            .with_independent_component_descriptions(descriptions)?;
+        let checked_handoff = if source.package_inputs() == &previous {
+            self.checked_handoff
+        } else {
+            Default::default()
+        };
+        Ok(Self {
+            source,
+            checked_handoff,
+        })
     }
 }
 
@@ -317,18 +397,18 @@ impl CompilationSession {
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
             if let Some(prepared) = completed.products.iter().find(|prepared| {
-                prepared.has_source_admission(&inputs, &options.optimization_rollback)
+                prepared
+                    .source
+                    .has_source_admission(&inputs, &options.optimization_rollback)
             }) {
-                return prepared
-                    .select_target(target, inputs)
-                    .map(|source| PackageBuild { source })
-                    .map_err(CompileFailure::from);
+                return prepared.select_target(target, inputs);
             }
             let mut source = completed.source.fork();
             source.rollback = options.optimization_rollback;
             let source = super::checking::prepare_settled_package_product(source, target, inputs)?;
-            completed.products.push(source.clone());
-            Ok(PackageBuild { source })
+            let build = PackageBuild::new(source);
+            completed.products.push(build.clone());
+            Ok(build)
         })
     }
 
@@ -355,7 +435,7 @@ impl CompilationSession {
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
             self.complete_build(invocation.source, returned)
-                .map(|source| PackageBuild { source })
+                .map(PackageBuild::new)
         })
     }
 
@@ -378,22 +458,26 @@ impl CompilationSession {
     }
 
     /// Export one dependency's Product selections without replaying Build.
-    /// Native-bearing intent includes static recipes that must complete their
-    /// ordinary immutable Product checking before another package consumes it.
+    /// Source-issued selection intent must complete its ordinary immutable
+    /// Product judgment before another package consumes it.
     /// The original prepared Product remains available to its scheduler.
     pub fn prepare_package_build_handoff(
         &mut self,
         build: &PackageBuild,
     ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
-        if build.source.build().native_binding_requests.is_empty() {
+        if build.source.build().declared_product_selections.is_empty() {
             return Ok(build.build_handoff().clone());
         }
-        let checked = self.check_package_build(PackageBuild {
-            source: build.source.clone(),
-        })?;
-        checked
+        if let Some(handoff) = build.retained_checked_handoff()? {
+            return Ok(handoff);
+        }
+        // Never hold retention storage while executing compiler work. A failed
+        // judgment leaves no retained value and must run again on another demand.
+        let checked = self.check_package_build(build.clone())?;
+        let handoff = checked
             .package_build_handoff()
-            .map_err(|reason| vec![Diagnostic::error(reason)].into())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        build.retain_checked_handoff(handoff)
     }
 
     /// Produce the exact public helper selected by a waiting Build. Checking

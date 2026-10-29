@@ -51,6 +51,14 @@ pub(super) fn project(
         realization.argument_owner(),
         realization.requirement_machine,
     )?;
+    validate_realization_source(&projected, realization)?;
+    Ok(projected)
+}
+
+pub(super) fn validate_realization_source(
+    projected: &CallingSignatureProjection,
+    realization: &BoundaryCallingPlanRealization,
+) -> Result<(), Vec<Diagnostic>> {
     if projected.requirement.path
         != realization
             .materialized_signature()
@@ -69,7 +77,7 @@ pub(super) fn project(
             "calling semantic signature differs from its materialized parameter or result telescope",
         ));
     }
-    Ok(projected)
+    Ok(())
 }
 
 /// Project the semantic application without requiring any physical realization.
@@ -89,6 +97,76 @@ pub(crate) fn project_application(
         argument_owner,
         requirement_machine,
         &[],
+        None,
+        None,
+    )
+}
+
+/// Use the real checked requirement application when no conformance exists.
+/// The same projection engine retains all inherited/static/lifetime operands.
+pub(crate) fn project_requirement_application(
+    projection: &mut SignatureProjection<'_>,
+    boundary_trait: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+    source: &provider_planning::ResolvedNativeApplication,
+) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
+    let compilation = projection.input();
+    let root = compilation
+        .trait_definition_by_symbol(boundary_trait)
+        .filter(|root| root.is_boundary)
+        .ok_or_else(|| rejected("native signature lost its exact boundary declaration"))?;
+    let local = source
+        .closed_requirement
+        .map(|symbol| {
+            compilation
+                .closed_requirement_application(symbol)
+                .filter(|local| {
+                    local.template == requirement && local.declaring_trait == boundary_trait
+                })
+                .ok_or_else(|| {
+                    rejected("native signature lost its exact closed member application")
+                })
+        })
+        .transpose()?;
+    let retained = source
+        .trait_scope
+        .or_else(|| local.map(|local| local.trait_scope));
+    let applied = match retained {
+        Some(retained) => retained
+            .scope(&compilation)
+            .filter(|scope| scope.declaration.symbol == boundary_trait)
+            .ok_or_else(|| {
+                rejected("native signature lost its complete retained declaring scope")
+            })?,
+        None => typed_trees::trait_definition::AppliedTraitScope::abstract_scope(root),
+    };
+    let environment = applied.environment();
+    let scratch = projection.trees();
+    let arguments = if let Some(local) = local {
+        local.trait_arguments.to_vec()
+    } else {
+        scratch
+            .materialize_trait_application_arguments(&environment)
+            .map_err(rejected)?
+    };
+    let application_scope = scope::ApplicationScope::requirement(
+        &compilation,
+        scratch,
+        root,
+        &applied,
+        &arguments,
+        local.map_or(&[], |local| local.local_arguments),
+    )?;
+    project_with_binders(
+        &compilation,
+        scratch,
+        boundary_trait,
+        &arguments,
+        applied.argument_owner,
+        requirement,
+        &[],
+        Some(application_scope),
+        local,
     )
 }
 
@@ -100,6 +178,8 @@ fn project_with_binders(
     argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
     root_binders: &[(symbols::SymbolHandle, String)],
+    application_scope: Option<scope::ApplicationScope>,
+    local: Option<typed_trees::typed_trees::ClosedRequirementApplication<'_>>,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let roots = compilation
         .traits()
@@ -120,8 +200,12 @@ fn project_with_binders(
     {
         return Err(rejected("boundary trait repeats a lifetime binder"));
     }
-    let scope =
-        scope::ApplicationScope::new(compilation, root, boundary_arguments, argument_owner)?;
+    let scope = match application_scope {
+        Some(scope) => scope,
+        None => {
+            scope::ApplicationScope::new(compilation, root, boundary_arguments, argument_owner)?
+        }
+    };
     let root_arguments = boundary_arguments
         .iter()
         .map(|argument| scope.instantiate_argument(compilation, projected, *argument))
@@ -201,6 +285,26 @@ fn project_with_binders(
             .map(|(parameter, actual)| (parameter.symbol, *actual))
             .collect::<Vec<_>>(),
     );
+    if let Some(local) = local {
+        if local.template != signature.symbol
+            || local.local_arguments.len()
+                != compilation.state_signature_type_parameters(signature).len()
+        {
+            return Err(rejected(
+                "native member application changed its complete source telescope",
+            ));
+        }
+        for (parameter, actual) in compilation
+            .state_signature_type_parameters(signature)
+            .iter()
+            .zip(local.local_arguments)
+        {
+            substitutions.push((
+                parameter.symbol,
+                scope.instantiate_argument(compilation, projected, *actual)?,
+            ));
+        }
+    }
     let mut lifetime_binders = scope.binders.clone();
     let mut lifetimes = Vec::new();
     for (ordinal, name) in signature.lifetime_parameters.iter().enumerate() {
@@ -213,7 +317,29 @@ fn project_with_binders(
             name.clone()
         };
         lifetime_binders.push(normalized.clone());
-        lifetimes.push((name.clone(), normalized));
+        let actual = if let Some(local) = local {
+            let source = compilation
+                .expression_table
+                .static_machine_application(local.application);
+            let supplied = compilation
+                .expression_table
+                .static_machine_application_lifetimes(local.application);
+            if supplied.len() != signature.lifetime_parameters.len()
+                || supplied[ordinal].parameter != *name
+            {
+                return Err(rejected(
+                    "native member lifetime application changed its exact source telescope",
+                ));
+            }
+            scope.supplied_region(
+                compilation,
+                source.lexical_owner,
+                &supplied[ordinal].argument,
+            )?
+        } else {
+            normalized
+        };
+        lifetimes.push((name.clone(), actual));
     }
     // Method lifetime names shadow trait names in the method's own signature.
     lifetimes.extend(

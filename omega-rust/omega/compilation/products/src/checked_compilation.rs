@@ -24,7 +24,7 @@ pub use report::{CheckedProductReport, ProductReportPlan, ProductReportRequest};
 /// Invocation-local language judgments retained by the compiler session. Build
 /// and Product are independent checked programs; neither judgment carries
 /// provider selection, executor resources or consent.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct RetainedCompilationChecks {
     pub build: Option<psi_compiler::RetainedCheck>,
     pub product: Option<psi_compiler::RetainedCheck>,
@@ -235,14 +235,16 @@ impl CheckedCompilation {
                 &self.build().config.provider_selections,
                 self.build().observation_summary.as_ref(),
             )?
-            .with_checked_native_bindings(provider_planning::capture_package_native_bindings(
-                &self.typed,
-                &self.build().config.admitted_native_bindings,
-                self.build().selected_build_machine_symbol,
-                self.build().observation_summary.as_ref(),
-                self.build().evaluation_usage,
-            )?)
-            .map_err(str::to_owned)
+            .with_checked_native_bindings(
+                provider_planning::capture_package_native_bindings(
+                    &self.typed,
+                    &self.build().config.admitted_native_bindings,
+                    self.build().selected_build_machine_symbol,
+                    self.build().observation_summary.as_ref(),
+                    self.build().evaluation_usage,
+                )?,
+                self.build().config.native_binding_evaluation.clone(),
+            )
     }
 
     pub const fn timings(&self) -> &CompileTimings {

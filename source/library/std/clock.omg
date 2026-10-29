@@ -40,5 +40,8 @@ use targets::windows_x86_64::clock_impl;
 
 public boundary trait Clock {
     // Block the caller for `milliseconds`.
-    machine sleep(milliseconds: u32) reaches Clock;
+    machine sleep(milliseconds: u32) invokes DarwinClockWait;
+    invokes LinuxArmClockWait;
+    invokes LinuxClockWait;
+    reaches Clock;
 }

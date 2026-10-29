@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CoreSourceIdentity([u8; 32]);
 
 impl CoreSourceIdentity {
@@ -15,7 +15,7 @@ impl CoreSourceIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BuildSourceOwner {
     Package(semantic_vocabulary::PackageKeyIdentity),
     ToolchainCore(CoreSourceIdentity),
@@ -68,5 +68,37 @@ impl CapturedCoreSource {
 
     pub(crate) fn tree(&self) -> &Arc<source::CapturedSourceTree> {
         &self.tree
+    }
+}
+
+impl compiler_storage::Record for CapturedCoreSource {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.root.write(output)?;
+            self.tree.write(output)?;
+            self.identity.write(output)
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        input.record(|input| {
+            let root = PathBuf::read(input)?;
+            let tree = Arc::<source::CapturedSourceTree>::read(input)?;
+            let retained_identity = CoreSourceIdentity::read(input)?;
+            let captured = Self::new(root, tree).map_err(|reason| input.error(reason))?;
+            if captured.identity != retained_identity {
+                return Err(
+                    input.error("captured Core identity differs from its retained complete source")
+                );
+            }
+            Ok(captured)
+        })
     }
 }

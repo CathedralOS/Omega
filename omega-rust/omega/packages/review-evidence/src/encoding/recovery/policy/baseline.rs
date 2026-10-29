@@ -70,6 +70,23 @@ fn native_binding(
     Ok(crate::record::PackagePolicyNativeBinding {
         method: selected_providers::service_method(reader)?,
         producer: super::external::producer(reader)?,
+        application: native_application(reader)?,
         binding: selected_providers::bindings::binding(reader)?,
     })
+}
+
+fn native_application(
+    reader: &mut Reader<'_>,
+) -> Result<crate::record::PackagePolicyNativeApplication, Error> {
+    use crate::record::{PackagePolicyNativeApplication, PackagePolicyNativeLocalApplication};
+    Ok(super::tag!(reader => {
+        0 => PackagePolicyNativeApplication::Universal,
+        1 => PackagePolicyNativeApplication::Applied {
+            outer: reader.option(Reader::string)?,
+            local: reader.option(|reader| Ok(PackagePolicyNativeLocalApplication {
+                arguments: reader.sequence(1, Reader::string)?,
+                lifetimes: reader.sequence(1, Reader::string)?,
+            }))?,
+        },
+    }))
 }

@@ -5,16 +5,19 @@
 use arena::{Arena, Handle, HandleSpan};
 use source::SourceSpan;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductOperandName {
     pub text: String,
     pub source_span: SourceSpan,
     pub declaration: Option<SourceSpan>,
     pub builtin_type: Option<symbols::BuiltinTypeAtom>,
     pub builtin_function: Option<symbols::BuiltinFunction>,
+    /// Issued by the ordinary type-reference producer on this original token.
+    /// Generated environment names and declaration descriptors retain absence.
+    pub authored_selection: Handle<ProductOperandSelection>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticOperandGraph {
     pub root: Handle<ProductStaticOperand>,
     pub names: Arena<ProductOperandName>,
@@ -22,6 +25,7 @@ pub struct ProductStaticOperandGraph {
     pub applications: Arena<ProductStaticApplication>,
     pub types: Arena<ProductOperandType>,
     pub expressions: Arena<ProductOperandExpression>,
+    pub selections: Arena<ProductOperandSelection>,
     pub constraints: Arena<ProductOperandConstraint>,
     pub fields: Arena<ProductOperandField>,
     pub match_subjects: Arena<ProductMatchSubject>,
@@ -33,8 +37,11 @@ pub struct ProductStaticOperandGraph {
     pub expression_arguments: Arena<Handle<ProductOperandExpression>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticOperand {
+    /// Captured from this real original-call argument attachment. The root
+    /// Product descriptor has no such ordinary input obligation.
+    pub authored_selection: Handle<ProductOperandSelection>,
     pub path: HandleSpan<ProductOperandName>,
     pub application: Handle<ProductStaticApplication>,
     pub structural_type: Handle<ProductOperandType>,
@@ -43,14 +50,14 @@ pub struct ProductStaticOperand {
     pub declaration: Option<SourceSpan>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticApplication {
     pub lifetimes: HandleSpan<ProductOperandName>,
     pub arguments: HandleSpan<Handle<ProductStaticOperand>>,
     pub member: Handle<ProductStaticOperand>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductOperandType {
     /// Already evaluated, typed const actual from a checked specialization.
     /// Ordinary const replay validates its independent receiving carrier.
@@ -85,7 +92,7 @@ pub enum ProductOperandType {
     ConstExpression(Handle<ProductOperandExpression>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductArrayLength {
     Literal(usize),
     Expression(Handle<ProductOperandType>),
@@ -93,7 +100,7 @@ pub enum ProductArrayLength {
     Call(Handle<ProductOperandName>),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductOperandConstraint {
     #[default]
     Invalid,
@@ -110,19 +117,31 @@ pub enum ProductOperandConstraint {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductOperandExpression {
     pub source_span: SourceSpan,
+    pub authored_selections: HandleSpan<ProductOperandSelection>,
     pub kind: ProductExpressionKind,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// Coordinates issued from actual expression-to-ledger attachments. Local
+/// occurrence IDs and compiler-copy partition ordinals never escape their
+/// owning program; receiving preparation rejoins these immutable source facts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ProductOperandSelection {
+    pub source_span: SourceSpan,
+    pub exposure: super::AuthoredDeclarationSelectionExposure,
+    /// None is only the arena absence row, never an authored selection kind.
+    pub kind: Option<super::AuthoredDeclarationSelectionKind>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductOperandField {
     pub name: Handle<ProductOperandName>,
     pub value: Handle<ProductOperandExpression>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductExpressionKind {
     #[default]
     Invalid,
@@ -206,12 +225,12 @@ pub enum ProductExpressionKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductUnaryOperator {
     BitwiseNot,
     LogicalNot,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductBinaryOperator {
     /// Typed tag observation; its exact right case remains in the owned graph.
     CaseMembership,
@@ -235,17 +254,17 @@ pub enum ProductBinaryOperator {
     Subtract,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductMatchSubject {
     pub subject: Handle<ProductOperandExpression>,
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductMatchArm {
     pub pattern: ProductMatchPattern,
     pub value: Handle<ProductOperandExpression>,
     pub source_span: SourceSpan,
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductMatchPattern {
     #[default]
     Wildcard,
@@ -259,19 +278,19 @@ pub enum ProductMatchPattern {
         proof_selectors: HandleSpan<ProductProofSelector>,
     },
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductMatchField {
     pub member: Handle<ProductOperandName>,
     pub action: ProductMatchFieldAction,
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProductMatchFieldAction {
     Bind(Handle<ProductOperandName>),
     Equal(Handle<ProductOperandExpression>),
     #[default]
     Waive,
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductProofSelector {
     pub output: Handle<ProductOperandName>,
     pub binding: Handle<ProductOperandName>,
@@ -280,7 +299,7 @@ pub struct ProductProofSelector {
 /// Actual static substitutions of the checked helper activation that executed
 /// an inert Product request. Arena handles belong only to this owned graph;
 /// source declaration coordinates preserve exact binder and supplier scopes.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticEnvironment {
     /// Canonical comparison input from the exact specialization receipt, not
     /// an alternate type/value decoder. Semantic actuals remain in `graph`.
@@ -292,7 +311,7 @@ pub struct ProductStaticEnvironment {
     pub lifetimes: Arena<ProductStaticEnvironmentLifetime>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticEnvironmentBinding {
     pub parameter: SourceSpan,
     pub argument: Handle<ProductStaticOperand>,
@@ -300,10 +319,67 @@ pub struct ProductStaticEnvironmentBinding {
     pub declared_type: Handle<ProductOperandType>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductStaticEnvironmentLifetime {
     pub parameter_owner: SourceSpan,
     pub parameter_ordinal: u32,
     pub argument: Handle<ProductOperandName>,
     pub lexical_owner: SourceSpan,
+}
+
+impl ProductStaticOperandGraph {
+    /// Rebase retained source coordinates through the owning SourceMap's exact
+    /// correspondence. Graph handles and semantic operands stay unchanged.
+    pub fn remap_source_spans(&mut self, mut remap: impl FnMut(SourceSpan) -> SourceSpan) {
+        self.names.for_each_mut(|_, name| {
+            name.source_span = remap(name.source_span);
+            name.declaration = name.declaration.map(&mut remap);
+        });
+        self.operands.for_each_mut(|_, operand| {
+            operand.declaration = operand.declaration.map(&mut remap);
+        });
+        self.expressions.for_each_mut(|_, expression| {
+            expression.source_span = remap(expression.source_span);
+            if let ProductExpressionKind::Membership {
+                declaration,
+                case_type,
+                case,
+                ..
+            } = &mut expression.kind
+            {
+                *declaration = declaration.map(&mut remap);
+                *case_type = case_type.map(&mut remap);
+                *case = case.map(&mut remap);
+            }
+        });
+        self.selections
+            .for_each_mut(|_, selection| selection.source_span = remap(selection.source_span));
+        self.match_arms
+            .for_each_mut(|_, arm| arm.source_span = remap(arm.source_span));
+    }
+
+    /// The complete authored operand, rather than only its leading name.
+    /// Declaration anchors and foreign supplying expressions do not enlarge
+    /// this source range; their separate coordinates retain their own custody.
+    pub fn authored_operand_span(&self, leading: SourceSpan) -> SourceSpan {
+        let mut end = leading.span.end;
+        let mut include = |span: SourceSpan| {
+            if span.source_id == leading.source_id && span.span.start >= leading.span.start {
+                end = end.max(span.span.end);
+            }
+        };
+        for (_, name) in self.names.iter() {
+            include(name.source_span);
+        }
+        for (_, expression) in self.expressions.iter() {
+            include(expression.source_span);
+        }
+        for (_, arm) in self.match_arms.iter() {
+            include(arm.source_span);
+        }
+        SourceSpan::new(
+            leading.source_id,
+            source::Span::new(leading.span.start, end),
+        )
+    }
 }

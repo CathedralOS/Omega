@@ -22,7 +22,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 // Direct callable rows retain their complete original satisfaction plan.
 // Older partial-schema records cannot recover numeric custody and must reject
 // before their differently shaped payload is read.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI05";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI06";
 
 #[cfg(test)]
 mod tests {
@@ -185,7 +185,7 @@ impl DerivationInputs {
         }
         let evaluated_binding_identities =
             Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);
-        input.set_binding_identities(Arc::clone(&evaluated_binding_identities));
+        input.context.binding_identities = Some(Arc::clone(&evaluated_binding_identities));
         let checked_entry = RecordValue::read(input)?;
         let physical_adapter_requested = RecordValue::read(input)?;
         let provider_proposals = RecordValue::read(input)?;

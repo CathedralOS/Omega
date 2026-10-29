@@ -1,4 +1,5 @@
 //! Report coordinates are only a checked join to the complete calling value.
+use super::application::ApplicationSource;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
 use crate::record::PackagePolicyCallingPlan;
@@ -10,7 +11,7 @@ use symbols::SymbolHandle;
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     schema: ProviderSchemaDeclaration,
-    provider_type: Option<SymbolHandle>,
+    application: ApplicationSource<'_>,
     requirement: SymbolHandle,
     method: &ServiceMethod,
 ) -> Result<Option<PackagePolicyCallingPlan>, Vec<Diagnostic>> {
@@ -25,8 +26,45 @@ pub(super) fn project(
             ))
         };
     };
-    let arguments = boundary_arguments(compilation, schema, provider_type)?;
-    let argument_owner = argument_owner(compilation, schema_symbol, provider_type)?;
+    let (arguments, argument_owner, closed_requirement) = match application {
+        ApplicationSource::Provider(provider_type) => (
+            boundary_arguments(compilation, schema, provider_type)?,
+            argument_owner(compilation, schema_symbol, provider_type)?,
+            None,
+        ),
+        ApplicationSource::Requirement(source) => {
+            if let Some(closed) = source.closed_requirement {
+                let closed = compilation
+                    .closed_requirement_application(closed)
+                    .filter(|closed| {
+                        closed.template == requirement && closed.declaring_trait == schema_symbol
+                    })
+                    .ok_or_else(|| {
+                        rejected("native calling application lost its exact closed requirement")
+                    })?;
+                let owner = compilation
+                    .expression_table
+                    .static_machine_application(closed.application)
+                    .lexical_owner;
+                (closed.trait_arguments, owner, Some(closed.signature.symbol))
+            } else if compilation
+                .trait_definition_by_symbol(schema_symbol)
+                .is_some_and(|owner| compilation.trait_type_parameters(owner).is_empty())
+            {
+                (&[][..], schema_symbol, None)
+            } else if method.calling_plan_report_fingerprint.is_none()
+                && method.calling_plan_commitment.is_none()
+            {
+                // The exact open or outer-only source is independently projected
+                // below. It cannot borrow a physical application's identity.
+                return Ok(None);
+            } else {
+                return Err(rejected(
+                    "native calling application omits its complete source telescope",
+                ));
+            }
+        }
+    };
     let candidates = compilation
         .custody
         .providers()
@@ -34,7 +72,8 @@ pub(super) fn project(
         .iter()
         .filter(|candidate| {
             candidate.boundary_trait == schema_symbol
-                && candidate.requirement_machine == requirement
+                && (candidate.requirement_machine == requirement
+                    || Some(candidate.requirement_machine) == closed_requirement)
                 && candidate.boundary_arguments == arguments
                 && candidate.argument_owner() == argument_owner
         })
@@ -58,7 +97,27 @@ pub(super) fn project(
             "service method has ambiguous or stale calling realization",
         ));
     }
-    crate::capture::calling::project_checked_calling_policy(compilation, candidate).map(Some)
+    match application {
+        ApplicationSource::Provider(_) => {
+            crate::capture::calling::project_checked_calling_policy(compilation, candidate)
+                .map(Some)
+        }
+        ApplicationSource::Requirement(source) => {
+            let semantic =
+                crate::capture::calling::application::signature::project_requirement_application(
+                    &mut super::SignatureProjection::new(*compilation),
+                    schema_symbol,
+                    requirement,
+                    source,
+                )?;
+            crate::capture::calling::application::project_checked_calling_policy_with_source(
+                compilation,
+                candidate,
+                semantic,
+            )
+            .map(Some)
+        }
+    }
 }
 
 pub(super) fn boundary_arguments<'a>(

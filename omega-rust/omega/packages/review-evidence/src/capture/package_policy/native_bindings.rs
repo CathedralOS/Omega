@@ -45,15 +45,23 @@ pub(super) fn project(
                     rejected("native inventory lost its complete checked requirement")
                 })?;
             rows.push(PackagePolicyNativeBinding {
-                method: services::project(
+                method: services::project_native(
                     &mut signatures,
                     &candidate.plan.schema,
                     candidate.provenance.schema,
-                    None,
                     requirement,
                     method,
                     &candidate.plan.schema.identities,
+                    admitted,
                 )?,
+                application: crate::record::PackagePolicyNativeApplication::from(
+                    provider_planning::resolve_native_binding_application(
+                        input.checking_input.typed_program(),
+                        admitted,
+                    )
+                    .map_err(|reason| rejected(&reason))?
+                    .key,
+                ),
                 producer: bindings::native_producer(input, admitted)?,
                 binding: bindings::project(
                     input,

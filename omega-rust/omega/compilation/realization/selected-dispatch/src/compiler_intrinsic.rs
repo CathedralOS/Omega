@@ -9,6 +9,9 @@ use language_semantics::MachineSupplyMode;
 use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use target::HostedIntrinsicBundle;
+use typed_trees::typed_trees::declarations::hosted_intrinsics::{
+    CATALOGUE_PATH, CATALOGUE_SOURCE, HostedIntrinsicRole,
+};
 use typed_trees::types::TypeReferenceNode;
 
 /// Every compiler path without a closed catalog child stays unsupported.
@@ -302,13 +305,13 @@ impl HostedService {
             Self::Console => (
                 "console.omg",
                 BUNDLED_CONSOLE,
-                bundle.console_source(),
+                CATALOGUE_PATH,
                 bundled_console_source(bundle),
             ),
             Self::ProcessExit => (
                 "process_exit.omg",
                 BUNDLED_PROCESS_EXIT,
-                bundle.process_exit_source(),
+                CATALOGUE_PATH,
                 bundled_process_exit_source(bundle),
             ),
         };
@@ -384,28 +387,28 @@ const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "exit_process",
-        realization: "ConsoleNativeProvider::exit_process",
+        realization: "console_exit_process",
         shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
     },
     HostedIntrinsicRow {
         service: HostedService::ProcessExit,
         requirement: "exit_process",
-        realization: "ProcessExitNativeProvider::exit_process",
+        realization: "hosted_process_exit",
         shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "write_byte",
-        realization: "ConsoleNativeProvider::write_byte",
+        realization: "console_write_byte",
         shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "read_byte",
-        realization: "ConsoleNativeProvider::read_byte",
+        realization: "console_read_byte",
         shape: BoundaryIntrinsicShape::UnitToByteRead,
         identity: CompilerIntrinsicExecutionIdentity::HostedReadByte,
     },
@@ -428,6 +431,22 @@ impl HostedIntrinsicRow {
         bundle: HostedIntrinsicBundle,
         accepted: Option<AcceptedRowBinding<'_>>,
     ) -> Result<bool, Diagnostic> {
+        let Some(catalogue) = checked.hosted_intrinsic_declaration(realization_symbol) else {
+            return Ok(false);
+        };
+        let role = match (self.service, self.requirement) {
+            (HostedService::Console, "read_byte") => HostedIntrinsicRole::ReadByte,
+            (HostedService::Console, "write_byte") => HostedIntrinsicRole::WriteByte,
+            (HostedService::Console, "exit_process") => HostedIntrinsicRole::ConsoleExit,
+            (HostedService::ProcessExit, "exit_process") => HostedIntrinsicRole::ProcessExit,
+            _ => return Ok(false),
+        };
+        if catalogue.role != role
+            || catalogue.service.symbol != trait_symbol
+            || catalogue.requirement.symbol != requirement_symbol
+        {
+            return Ok(false);
+        }
         let bundled = self.service.bundled_binding(
             checked,
             trait_symbol,
@@ -495,45 +514,13 @@ fn selected_hosted_bundle(selected_target: Option<&str>) -> Option<(&str, Hosted
     Some((selected_target, bundle))
 }
 
-macro_rules! bundled_intrinsic_source {
-    ($name:ident, $($variant:ident => $file:literal),+ $(,)?) => {
-        fn $name(bundle: HostedIntrinsicBundle) -> &'static [u8] {
-            match bundle {
-                $(
-                    HostedIntrinsicBundle::$variant => {
-                        const BYTES: &[u8] = include_bytes!(concat!(
-                            env!("CARGO_MANIFEST_DIR"),
-                            "/../../../../../source/library/std/targets/",
-                            $file
-                        ));
-                        BYTES
-                    }
-                )+
-            }
-        }
-    };
+// The target catalogue selects an encoder, not another source declaration.
+fn bundled_console_source(_: HostedIntrinsicBundle) -> &'static [u8] {
+    CATALOGUE_SOURCE
 }
-
-// Compile-time copy of one admitted bundle's console provider closure. The
-// path each constant reads is the bundle's `console_source()`; the test
-// module holds the two in agreement with the checked-in file.
-bundled_intrinsic_source!(
-    bundled_console_source,
-    LinuxArm64 => "linux_arm64/console_impl.omg",
-    LinuxX64 => "linux_x86_64/console_impl.omg",
-    MacosArm64 => "macos_arm64/console_impl.omg",
-    MacosX64 => "macos_x86_64/console_impl.omg",
-);
-
-// Compile-time copy of one admitted bundle's process-exit provider closure,
-// paired with `process_exit_source()` the same way as the console copy.
-bundled_intrinsic_source!(
-    bundled_process_exit_source,
-    LinuxArm64 => "linux_arm64/process_exit_impl.omg",
-    LinuxX64 => "linux_x86_64/process_exit_impl.omg",
-    MacosArm64 => "macos_arm64/process_exit_impl.omg",
-    MacosX64 => "macos_x86_64/process_exit_impl.omg",
-);
+fn bundled_process_exit_source(_: HostedIntrinsicBundle) -> &'static [u8] {
+    CATALOGUE_SOURCE
+}
 
 fn exact_bundled_standalone_source(
     typed: &typed_trees::TypedTrees,
@@ -547,6 +534,7 @@ fn exact_bundled_standalone_source(
         .and_then(|span| typed.symbols.source_file(span))
         .is_some_and(|source| {
             source.package_identity.is_none()
+                && source.origin == source::SourceOrigin::Toolchain
                 && source.path.strip_prefix(&source.package_root).ok()
                     == Some(std::path::Path::new(expected_relative_path))
                 && source.source.as_bytes() == expected_source

@@ -9,6 +9,41 @@ use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 use crate::typed_trees::ClosedConformanceApplicationSite;
 
 impl TypedTrees {
+    /// Portable identity of the complete selected implementation telescope.
+    /// Its satisfied trait can omit phantom own arguments, so that receiver
+    /// view cannot identify the implementation application itself.
+    pub fn portable_conformance_application_identity(
+        &self,
+        application: &crate::typed_trees::ClosedConformanceApplication,
+        supplying_application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> Option<crate::type_identity::NormalizedTypeIdentity> {
+        if !supplying_application.is_valid() {
+            return None;
+        }
+        let source = self
+            .expression_table
+            .static_machine_application(supplying_application);
+        let selected = crate::expression::StaticMachineArgument {
+            symbol: application.declaration,
+            application: Some(Box::new(crate::expression::StaticSymbolApplication {
+                member: Default::default(),
+                lifetime_arguments: application
+                    .lifetime_arguments
+                    .iter()
+                    .map(Identifier::generated)
+                    .collect(),
+                arguments: application.arguments.clone(),
+            })),
+            ..Default::default()
+        };
+        crate::type_identity::portable_applied_index_identity(
+            self,
+            crate::type_identity::IndexIdentityArgument::StaticArgument(&selected),
+            source.lexical_owner,
+            &[],
+        )
+    }
+
     pub fn prepare_closed_conformance_scopes(&mut self) -> Result<(), String> {
         let pending = self
             .closed_conformance_application_sites()

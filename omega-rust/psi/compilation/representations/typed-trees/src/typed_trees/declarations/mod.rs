@@ -6,6 +6,8 @@ pub mod code_owners;
 pub mod constant;
 pub mod data;
 pub mod domain;
+pub mod hosted_intrinsics;
+pub mod intrinsic_requirements;
 pub mod invocations;
 pub mod measure;
 pub mod numeric_intrinsics;

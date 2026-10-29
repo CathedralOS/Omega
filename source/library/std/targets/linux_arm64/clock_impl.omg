@@ -9,14 +9,11 @@ use clock;
 
 public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 
-data LinuxArmClockWait { }
-
-boundary requirement LinuxArmClockWait::nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
-reaches
-    Clock;
-
-data LinuxArmClockNanosleep { }
-
+boundary trait LinuxArmClockWait {
+    machine nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
+    reaches
+        Clock;
+}
 
 // Splitting before widening preserves every u32 duration and keeps the
 // fractional field below one billion. A null remainder asks the kernel not

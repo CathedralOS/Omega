@@ -32,7 +32,6 @@ where length == 48 && root != 0 && attributes == 4096 && security == 0 && qualit
     quality: u64;
 }
 data WindowsNativeFileDisposition { delete: u8; }
-data WindowsFilesystemRemovalImports {}
 
 boundary trait WindowsFilesystemRemovalIo {
     // SYNCHRONIZE|DELETE|READ_ATTRIBUTES, adding LIST_DIRECTORY only when

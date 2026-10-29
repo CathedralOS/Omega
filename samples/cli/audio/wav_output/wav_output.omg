@@ -41,7 +41,7 @@ WindowsWavOutput satisfies WavOutput {
     invokes WindowsFilesystemHost;
     {
         let handle: u64 = block WindowsFilesystemHost::create_file(path, 1073741824, 0, 2, 128);
-        transition handle != 0 { true -> write(handle, bytes) _ -> failed() }
+        transition handle != 0 { true -> block write(handle, bytes) _ -> failed() }
 
         machine write(handle: u64, bytes: &[u8]) -> i64 {
             let n: i64 = block WindowsFilesystemHost::write_file(handle, bytes);
@@ -53,19 +53,4 @@ WindowsWavOutput satisfies WavOutput {
             transition { _ -> (0 - widen_u32_to_i64(code)) }
         }
     }
-}
-
-data WavOutputDefaults {}
-
-linux_x86_64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, PosixWavOutput>(defaults);
-}
-linux_arm64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, PosixWavOutput>(defaults);
-}
-macos_arm64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, PosixWavOutput>(defaults);
-}
-windows_x86_64 machine WavOutputDefaults::provider_defaults(defaults: &mut WavOutputDefaults) {
-    WavOutputDefaults::select_provider<WavOutput, WindowsWavOutput>(defaults);
 }

@@ -26,7 +26,7 @@ use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
 /// Which authored node a recipe keeps symbolic.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum RetainedConstantPosition {
     /// The arena's invalid sentinel only.
     #[default]
@@ -46,7 +46,7 @@ pub enum RetainedConstantPosition {
 }
 
 /// One retained symbolic constant application.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetainedConstantRecipe {
     pub position: RetainedConstantPosition,
     /// Exact nested value calls whose admission the contract root owns.
@@ -62,7 +62,7 @@ pub type ConstantRecipeHandle = Handle<RetainedConstantRecipe>;
 
 /// The exact selected realization one closure evaluated a dependency under.
 /// Equal values under different realizations are different closures.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantRecipeDependencyReceipt {
     pub requirement: SymbolHandle,
     pub plan_identity: [u8; 32],
@@ -74,14 +74,14 @@ pub struct ConstantRecipeDependencyReceipt {
 }
 
 /// One recipe's value under a closure.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClosedConstantRecipe {
     pub recipe: ConstantRecipeHandle,
     pub value: BigInt,
 }
 
 /// Exact scoped body used while a portable family was evaluated privately.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantTargetBodySelection {
     pub head: SymbolHandle,
     pub member: SymbolHandle,
@@ -90,7 +90,7 @@ pub struct ConstantTargetBodySelection {
 
 /// Every recipe's value under one target capsule, with the realization
 /// receipts the evaluation consumed. Empty in the shared program.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantRecipeClosure {
     /// Primary value application; supplemental proof receipts keep own scopes.
     pub target_scope: String,
@@ -118,7 +118,7 @@ impl ConstantRecipeClosure {
 /// An open const parameter and an unrostered pending call are neither.
 /// Checked plans carry this same vocabulary, so one closure query answers
 /// the type and the plan built from it alike.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum DeclaredArrayExtent {
     Literal(u64),
     Recipe(ConstantRecipeHandle),

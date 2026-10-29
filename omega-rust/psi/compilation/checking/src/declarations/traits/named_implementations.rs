@@ -73,6 +73,15 @@ pub fn revalidate_named_implementation(
         &mut diagnostics,
         &mut formation_obligations,
     );
+    if !diagnostics.iter().any(Diagnostic::is_error) {
+        let invocations = crate::infer_synchronous_invocations(program);
+        crate::machine_calls::invocations::validate_named_conformance_refinement(
+            program,
+            &invocations,
+            conformance,
+            &mut diagnostics,
+        );
+    }
     crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 

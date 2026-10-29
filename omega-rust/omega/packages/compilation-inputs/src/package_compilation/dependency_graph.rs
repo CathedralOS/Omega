@@ -359,3 +359,33 @@ fn dependency_cycle_in_set(
     }
     visited != packages.len()
 }
+
+impl compiler_storage::Record for PackageDependencyClosure {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        output.record(|output| {
+            self.root.write(output)?;
+            self.root_role.write(output)?;
+            self.packages.write(output)?;
+            self.dependencies.write(output)
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        input.record(|input| {
+            Self::from_canonical_parts(
+                PackageKeyIdentity::read(input)?,
+                BuildDeclarationKind::read(input)?,
+                Vec::<PackageKeyIdentity>::read(input)?,
+                Vec::<PackageDependencyBinding>::read(input)?,
+            )
+            .map_err(|reason| input.error(reason))
+        })
+    }
+}

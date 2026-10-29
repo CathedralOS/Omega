@@ -27,6 +27,82 @@ pub struct ProducedTerminalProgram {
         Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
 }
 
+// Source-completion receipts retain portable production. Recover its canonical
+// bytes through the ordinary validating ingress, then bind the retained source
+// companions to that artifact. Invocation-only code has a live owner and cannot
+// cross this boundary. The enclosing source continuation still requires fresh
+// input and declaration-authority admission before any receipt can be reused.
+impl compiler_storage::Record for ProducedTerminalProgram {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.artifact()
+                .map_err(|error| output.error(error.to_string()))?
+                .to_bytes()
+                .write(output)?;
+            let view = self.view();
+            macro_rules! companion {
+                ($value:expr) => {
+                    $value
+                        .ok_or_else(|| output.error("Terminal companion lost its artifact owner"))?
+                        .write(output)?
+                };
+            }
+            companion!(self.build_bindings.calls_for(view));
+            companion!(self.build_bindings.declarations_for(view));
+            companion!(self.build_bindings.queries_for(view));
+            companion!(self.build_requests.calls_for(view));
+            companion!(self.build_filesystem.calls_for(view));
+            self.applications.write(output)
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        use compiler_storage::Record;
+        input.record(|input| {
+            let bytes = Vec::<u8>::read(input)?;
+            let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+                .map_err(|error| input.error(error.to_string()))?;
+            let calls: std::sync::Arc<[crate::TerminalBuildBindingCall]> = Record::read(input)?;
+            let declarations: std::sync::Arc<
+                [std::sync::Arc<
+                    language_semantics::declaration_selection::ProductDeclarationRequest,
+                >],
+            > = Record::read(input)?;
+            let queries: std::sync::Arc<[crate::TerminalBuildQueryCall]> = Record::read(input)?;
+            let requests: std::sync::Arc<[crate::TerminalBuildRequestCall]> = Record::read(input)?;
+            let filesystem: std::sync::Arc<[crate::TerminalBuildFilesystemCall]> =
+                Record::read(input)?;
+            let applications: Vec<
+                Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>,
+            > = Record::read(input)?;
+            for application in &applications {
+                if let Ok(Some(receipt)) = application {
+                    lowered_psi_to_terminal_psi::rejoin_program_entry_receipt(receipt, &artifact)
+                        .map_err(|error| input.error(error.to_string()))?;
+                }
+            }
+            let view = artifact.view().into();
+            // Reuse the producer constructors with the recovered companion storage.
+            let build_bindings =
+                crate::TerminalBuildBindings::new(view, calls, declarations, queries);
+            let build_requests = crate::TerminalBuildRequests::new(view, requests);
+            let build_filesystem = crate::TerminalBuildFilesystem::new(view, filesystem);
+            Ok(Self {
+                program: terminal_codec::TerminalProgramProduct::Portable(artifact),
+                build_bindings,
+                build_requests,
+                build_filesystem,
+                applications,
+            })
+        })
+    }
+}
+
 impl ProducedTerminalProgram {
     pub const fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
         &self.build_filesystem

@@ -11,7 +11,7 @@ use layout_plans::{LayoutPlanReport, normalized_layout_plan_report_fingerprint};
 use std::collections::BTreeMap;
 
 /// How repeated observations of the placed field relate to one another.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ObservationModel {
     /// Ordinary owned or immutably borrowed storage. The compiler may use its
     /// ordinary load/store rules.
@@ -23,20 +23,22 @@ pub enum ObservationModel {
     Atomic,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AccessExposure {
     Exported,
     BindingPrivate,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ExternalRead {
     None,
     Read,
     Take,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct AtomicPermissions {
     pub load: bool,
     pub store: bool,
@@ -88,7 +90,9 @@ impl AtomicPermissions {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct AccessPermissions {
     pub read: bool,
     pub take: bool,
@@ -102,7 +106,7 @@ impl AccessPermissions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum FieldAccess {
     Inaccessible,
     /// Repeated scalar permission over a structural field, not one giant transfer.
@@ -191,10 +195,10 @@ impl FieldAccess {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub(crate) struct AccessLayoutCommitment(pub(crate) [u8; 32]);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AccessFieldKey {
     pub(crate) layout_report_fingerprint: u64,
     pub(crate) layout_commitment: AccessLayoutCommitment,
@@ -207,7 +211,7 @@ impl AccessFieldKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct AccessFieldEntry {
     pub(crate) key: AccessFieldKey,
     pub(crate) field: String,
@@ -228,7 +232,7 @@ impl AccessFieldEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AccessPlan {
     pub(crate) layout_report_fingerprint: u64,
     pub(crate) layout_commitment: AccessLayoutCommitment,
@@ -368,7 +372,7 @@ fn canonical_field_identity_label(identity: &CanonicalFieldIdentity) -> String {
 /// including inaccessible fields. Its identity includes every operation,
 /// observation, exposure, and transfer-width fact that lowering is allowed to
 /// consume. Boundary reach belongs to the enclosing placement identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AccessPlanId(pub(crate) u64);
 
 impl AccessPlanId {
@@ -383,7 +387,7 @@ impl AccessPlanId {
 ///
 /// The offset is intentionally private. Only plan validation can construct a
 /// descriptor, so later lowering never accepts an author-supplied byte offset.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct FieldAccessDescriptor {
     pub(crate) key: AccessFieldKey,
     pub(crate) field: String,
@@ -401,7 +405,7 @@ pub struct FieldAccessDescriptor {
 /// A fragmented field may contain several pieces, but every piece remains in
 /// the one transfer container admitted for primitive placed access. The source
 /// bit offset names the corresponding position in the logical field value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct LogicalFieldExtent {
     pub(crate) fragments: Vec<LogicalFieldFragment>,
 }
@@ -412,7 +416,7 @@ impl LogicalFieldExtent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct LogicalFieldFragment {
     pub(crate) layout_bit_offset: u64,
     pub(crate) source_bit_offset: u64,
@@ -434,7 +438,7 @@ impl LogicalFieldFragment {
 }
 
 /// The complete relative transfer container observed or changed by an event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct RelativeEffectFootprint {
     pub(crate) byte_offset: u64,
     pub(crate) length_bytes: u64,
@@ -552,7 +556,7 @@ impl AuthorizedFieldAccess {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ValidatedAccessPlan {
     pub(crate) identity: AccessPlanId,
     pub(crate) layout_report_fingerprint: u64,
@@ -567,7 +571,7 @@ pub struct ValidatedAccessPlan {
 /// no scalar event: in particular, a page is not a 32768-bit primitive access.
 /// The exact source shape and relative projection remain independent inputs
 /// to leaf specialization, together with the live parent occurrence and loan.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct FieldRegion {
     pub(crate) key: AccessFieldKey,
     pub(crate) field: String,

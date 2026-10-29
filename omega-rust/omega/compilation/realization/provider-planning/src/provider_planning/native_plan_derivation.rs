@@ -14,6 +14,7 @@ pub(super) fn append(
     plans: &mut Vec<DerivedProviderPlan>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let typed = context.typed;
+    let mut admitted_applications = Vec::new();
     for binding in bindings
         .iter()
         .filter(|binding| target == Some(binding.target.target_name()))
@@ -21,6 +22,28 @@ pub(super) fn append(
         let Some(binding) = binding.resolved_application(typed) else {
             continue;
         };
+        let application = crate::resolve_native_binding_application(typed, &binding)
+            .map_err(|reason| {
+                vec![diagnostics::Diagnostic::error(reason).with_source_span(binding.source_span)]
+            })?
+            .key;
+        if admitted_applications
+            .iter()
+            .any(|(requirement, package, previous)| {
+                *requirement == binding.requirement
+                    && *package == binding.receipt().producer_package()
+                    && applications_overlap(previous, &application)
+            })
+        {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "Build-native bindings overlap one exact requirement application for one supplier and target",
+            ).with_source_span(binding.source_span)]);
+        }
+        admitted_applications.push((
+            binding.requirement,
+            binding.receipt().producer_package(),
+            application,
+        ));
         let Some(provider_binding) = binding.binding() else {
             continue;
         };
@@ -32,55 +55,36 @@ pub(super) fn append(
                 "Build-native requirement is outside the admitted Product frontier",
             ));
         }
-        let (declaration, schema, requirement_identity, method, lifetime_partition) =
-            if let Some((owner, signature)) = typed.trait_machine_signature(binding.requirement) {
-                let schema = match binding.trait_scope {
-                    Some(scope) => crate::service_schema::from_typed_application(
-                        context,
-                        calling_plans,
-                        scope.scope(typed).ok_or_else(|| {
-                            refuse("native binding lost its retained source application")
-                        })?,
-                        &[],
-                    ),
-                    None => crate::service_schema::from_typed(context, calling_plans, owner),
-                }
-                .ok_or_else(|| {
-                    refuse("Build-native requirement lost its complete boundary schema")
-                })?;
+        let schema = crate::service_schema::from_typed_requirement_application(
+            context,
+            calling_plans,
+            binding.requirement,
+            binding.trait_scope,
+            binding.closed_requirement,
+        )
+        .ok_or_else(|| {
+            refuse("Build-native requirement lost its exact callable application schema")
+        })?;
+        let [method_schema] = schema.methods.as_slice() else {
+            return Err(refuse(
+                "Build-native application does not own one callable requirement",
+            ));
+        };
+        let requirement_identity = schema
+            .identity_text(method_schema.requirement_identity)
+            .to_owned();
+        let method = method_schema.name.clone();
+        let (declaration, lifetime_partition) =
+            if let Some((owner, _)) = typed.trait_machine_signature(binding.requirement) {
                 (
                     ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
-                    schema,
-                    typed.trait_requirement_callable_identity_text(owner, signature),
-                    signature.name.as_str().to_owned(),
                     (0..owner.lifetime_parameters.len())
                         .map(|ordinal| ordinal as u32)
                         .collect(),
                 )
             } else {
-                let requirement = typed
-                    .machine(binding.requirement)
-                    .ok_or_else(|| refuse("Build-native requirement disappeared"))?;
-                let schema =
-                    crate::service_schema::from_typed_boundary_requirement(context, requirement)
-                        .ok_or_else(|| {
-                            refuse("Build-native requirement lost its full declaration contract")
-                        })?;
-                let method = schema
-                    .methods
-                    .first()
-                    .ok_or_else(|| refuse("Build-native schema has no method"))?
-                    .name
-                    .clone();
                 (
-                    ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol),
-                    schema,
-                    typed
-                        .machine_callable_identity_text(requirement)
-                        .ok_or_else(|| {
-                            refuse("Build-native requirement has no callable identity")
-                        })?,
-                    method,
+                    ProviderSchemaDeclaration::BoundaryRequirement(binding.requirement),
                     Vec::new(),
                 )
             };
@@ -194,4 +198,38 @@ pub(super) fn append(
         }
     }
     Ok(())
+}
+
+/// A missing application axis is an admitted family, not a fresh arbitrary
+/// tuple. Families and concrete members cannot silently install overlapping
+/// choices; two different complete tuples remain independent coordinates.
+fn applications_overlap(
+    left: &package_compilation::retained_native_bindings::RetainedNativeApplication,
+    right: &package_compilation::retained_native_bindings::RetainedNativeApplication,
+) -> bool {
+    use package_compilation::retained_native_bindings::RetainedNativeApplication;
+    match (left, right) {
+        (RetainedNativeApplication::Universal, _) | (_, RetainedNativeApplication::Universal) => {
+            true
+        }
+        (
+            RetainedNativeApplication::Applied {
+                outer: left_outer,
+                local: left_local,
+            },
+            RetainedNativeApplication::Applied {
+                outer: right_outer,
+                local: right_local,
+            },
+        ) => {
+            left_outer
+                .as_ref()
+                .zip(right_outer.as_ref())
+                .is_none_or(|(left, right)| left == right)
+                && left_local
+                    .as_ref()
+                    .zip(right_local.as_ref())
+                    .is_none_or(|(left, right)| left == right)
+        }
+    }
 }

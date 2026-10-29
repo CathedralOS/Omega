@@ -153,7 +153,7 @@ impl TypedTrees {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct AppliedCallableSignature {
     owner: AppliedCallableOwner,
     signature: signature::StateSignature,
@@ -177,7 +177,7 @@ impl AppliedCallableSignature {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 enum AppliedCallableOwner {
     #[default]
     Absent,
@@ -216,7 +216,7 @@ enum AppliedCallableOwner {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallableSubstitution {
     pub parameter: SymbolHandle,
     pub actual: types::TypeReferenceHandle,
@@ -283,8 +283,52 @@ impl CallableApplication {
         &self,
         program: &TypedTrees,
         reference: types::TypeReferenceHandle,
+        slot: usize,
         original: &crate::name::Identifier,
     ) -> Result<ScopedCallableLifetime, &'static str> {
+        if let Some(region) = program
+            .type_reference_table
+            .operand_lifetimes(reference)
+            .get(slot)
+            .copied()
+            .filter(|region| region.declaration.is_valid())
+        {
+            // Only this exact local binder can be replaced by the invocation.
+            // A local mask with the same spelling cannot rewrite an outer slot.
+            if let Some(binding) = self.lifetimes.iter().rev().find(|binding| {
+                crate::type_identity::lifetime_parameter_identity(
+                    program,
+                    self.region_scope,
+                    binding.parameter.as_str(),
+                ) == Some(region)
+            }) {
+                return Ok(ScopedCallableLifetime {
+                    name: binding.argument.clone(),
+                    region: binding.region,
+                    origin: binding.origin,
+                });
+            }
+            let (region, substituted) =
+                if let Some((environment, preceding_frames)) = &self.trait_region_application {
+                    environment
+                        .resolved_lifetime_identity(program, region, *preceding_frames)
+                        .ok_or("resolved callable region lost its exact supplying frame")?
+                } else {
+                    (region, false)
+                };
+            let name = crate::type_identity::lifetime_parameter_name(program, region)
+                .ok_or("resolved callable region lost its declaration ordinal")?
+                .clone();
+            return Ok(ScopedCallableLifetime {
+                name,
+                region,
+                origin: if substituted {
+                    CallableLifetimeOrigin::Captured
+                } else {
+                    CallableLifetimeOrigin::Lexical
+                },
+            });
+        }
         if let Some(binding) = self
             .lifetimes
             .iter()

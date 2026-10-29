@@ -28,7 +28,13 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
                         symbol_seed(SymbolKind::Variant, &variant.name, has_sources)
                     }
                 },
-            )),
+            ))
+            // This compiler binder has no source-spellable qualified path.
+            // Only the owning predicate's lexical `self` aliases it.
+            .chain((!data_definition.where_facts.is_empty()).then_some((
+                SymbolKind::Parameter,
+                symbols::SymbolNameRef::Borrowed("$predicate_subject"),
+            ))),
         );
 
     let mut data_children = SymbolTableBuilder::child_handles(data_children);

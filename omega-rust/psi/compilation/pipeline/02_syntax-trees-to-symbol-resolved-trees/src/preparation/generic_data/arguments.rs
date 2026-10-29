@@ -393,6 +393,74 @@ fn closed_argument_identities(
         .collect::<Option<Vec<_>>>()
 }
 
+/// Explain a refused existing origin without changing the closed-shape gate.
+/// Ordinary open applications still use its optional eligibility result; an
+/// already published instance needs the precise lost producer correspondence.
+pub(super) fn closed_application_unavailability(
+    syntax: &SyntaxTrees,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    handle: TypeReferenceHandle,
+) -> String {
+    let retained = syntax.type_references.generic_application_origin(handle);
+    let effective = if retained.is_valid() {
+        retained
+    } else {
+        handle
+    };
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = syntax.type_references.type_reference(effective)
+    else {
+        return format!(
+            "retained origin is not an application: {:?}",
+            syntax.type_references.type_reference(effective)
+        );
+    };
+    let Some(declaration) = selected_data_item(syntax, selection, base_name) else {
+        let reason = selection
+            .and_then(|selection| selection.data(syntax, base_name).err())
+            .unwrap_or_else(|| "application has no unique syntax declaration".to_owned());
+        return format!(
+            "template `{}` at {:?}: {reason}",
+            base_name.as_str(syntax),
+            base_name.source_span()
+        );
+    };
+    let Some(data) = syntax.root_item(declaration).as_data() else {
+        return "selected application template is not data".to_owned();
+    };
+    let parameters = syntax.items.type_parameters(data.type_parameters);
+    let arguments = syntax.type_references.type_reference_handles(*arguments);
+    if parameters.len() != arguments.len() {
+        return format!(
+            "template `{}` has {} parameters but its retained origin has {} arguments",
+            base_name.as_str(syntax),
+            parameters.len(),
+            arguments.len()
+        );
+    }
+    for (ordinal, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
+        if closed_argument_identity(
+            syntax,
+            selection,
+            *argument,
+            parameter.kind.is_const_or_value(),
+        )
+        .is_none()
+        {
+            return format!(
+                "template `{}` argument {ordinal} has no closed {:?} identity: {:?}",
+                base_name.as_str(syntax),
+                parameter.kind,
+                syntax.type_references.type_reference(*argument)
+            );
+        }
+    }
+    "retained application disagrees with its selected template or original occurrence".to_owned()
+}
+
 pub(crate) fn closed_argument_identity(
     syntax: &SyntaxTrees,
     selection: Option<&declaration_selection::ConstantSelection>,

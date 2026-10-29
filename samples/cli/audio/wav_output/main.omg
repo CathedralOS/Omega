@@ -1,0 +1,2 @@
+// Ordinary package review root for the portable wav_output surface.
+use wav_output::wav_output;

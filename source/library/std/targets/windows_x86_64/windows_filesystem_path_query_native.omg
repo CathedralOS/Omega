@@ -8,8 +8,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::filesystem_authority;
 
-data WindowsFilesystemPathImports {}
-
 boundary trait WindowsFilesystemPathIo {
     machine final_path(handle: i64, output: &mut [u16; 4096], capacity: u32, flags: u32) -> u32
     requires handle != 0 && handle != -1 && capacity == 4096 && flags == 0

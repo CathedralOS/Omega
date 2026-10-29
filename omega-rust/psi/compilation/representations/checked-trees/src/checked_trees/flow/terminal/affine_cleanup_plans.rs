@@ -13,7 +13,7 @@ use typed_trees::type_identity::TypeIdentityId;
 /// Conditions and their paths share the ordinary Unit plan's storage namespace.
 /// They are control dependencies, not permission to dispose a payload. A nested
 /// condition follows its enclosing condition in the retained span.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCleanupControlPlans {
     pub conditions: arena::Arena<CheckedCleanupCaseCondition>,
     pub paths: arena::Arena<CheckedUnitStructuralPathSegment>,
@@ -30,7 +30,7 @@ pub struct CheckedCleanupControlPlans {
 /// One source-selected owner death and its already-materialized value home.
 /// Selection retains the original call disposition even when a returned child
 /// or shared cohort delays physical cleanup beyond that call's continuation.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReferenceOwnerCleanup {
     pub disposition: arena::Handle<crate::ContextualCleanupDisposition>,
     pub owner: super::CheckedUnitStructuralArgumentPlan,
@@ -99,7 +99,7 @@ impl CheckedCleanupControlPlans {
 
 /// Source-authorized normal death after one evaluated value, independent of
 /// whether its observer returns a scalar or a structural value.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedValueCompletionPlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
@@ -108,7 +108,7 @@ pub struct CheckedValueCompletionPlan {
     pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCleanupCaseCondition {
     pub path: arena::HandleSpan<CheckedUnitStructuralPathSegment>,
     pub type_identity: TypeIdentityId,
@@ -120,7 +120,7 @@ pub struct CheckedCleanupCaseCondition {
 /// denotes a retained residual subtree. The root is a structural parameter or
 /// call-result binding or retained expression, with canonical semantic path
 /// identity. A projection preserves that owner's identity through disposal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitPartialAffineDiscardPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
@@ -148,7 +148,7 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
 /// stay separate from `CheckedUnitEffectPlans` because their return cleanup is
 /// path-sensitive rather than a whole-root discard; the shapes they name live
 /// in that roster's one structural type namespace.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPartialAffineUnitCleanupPlans {
     pub machines: Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
 }
@@ -164,7 +164,7 @@ impl CheckedPartialAffineUnitCleanupPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedPartialAffineUnitCleanupMachinePlan {
     /// Complete ordinary Unit signature/call/return plan. This machine is not
     /// published through `CheckedUnitEffectPlans` while its return cleanup is
@@ -180,7 +180,7 @@ pub struct CheckedPartialAffineUnitCleanupMachinePlan {
 /// Declaration metadata for nominal cleanup callers. Executable actions and
 /// their source exit coordinates belong to `CheckedUnitEffectPlans`' shared
 /// cleanup owner; this catalogue never owns a competing body or action stream.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedNominalAffineUnitCleanupPlans {
     pub machines: Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
 }
@@ -194,7 +194,7 @@ impl CheckedNominalAffineUnitCleanupPlans {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedNominalAffineUnitCleanupMachinePlan {
     /// Declaration metadata only. The published body and its normal-exit spans
     /// stay in CheckedUnitEffectPlans; this catalogue owns no disposal stream.
@@ -205,7 +205,7 @@ pub struct CheckedNominalAffineUnitCleanupMachinePlan {
     pub caller_requirements: Vec<CheckedUnitNominalAffineCallerRequirementPlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitNominalAffineCallerRequirementPlan {
     pub source_parameter_index: u32,
     pub field_identity: CheckedMemberIdentity,
@@ -215,7 +215,7 @@ pub struct CheckedUnitNominalAffineCallerRequirementPlan {
 /// One whole affine owner disposed by its exact checked nominal cleanup.
 /// The source belongs to the ordinary state value namespace; parameter indexes
 /// are dense structural indexes. Type identity joins it to the attachment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitNominalAffineCleanupPlan {
     /// Exact source claims consumed by this selected nominal disposition.
     pub consumed_claims: Vec<language_semantics::PermissionClaimIdentity>,
@@ -241,7 +241,7 @@ pub struct CheckedUnitNominalAffineCleanupRequirementPlan {
     pub expected: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitClaimTransferPlan {
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     /// Dense index into this call's structural argument list. The callee-local
@@ -262,7 +262,7 @@ pub struct CheckedUnitClaimTransferPlan {
 /// independently checked unqualified, claim-free result. Checking decides
 /// the record once (`validation::structural_call_custody`) and lowering reads
 /// it as recorded.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralCallCustodyPlan {
     /// Complete source-loan group carried by a root reference result. Runtime
     /// selection chooses the referent, but every possible source stays live.
@@ -285,7 +285,7 @@ pub struct CheckedStructuralCallCustodyPlan {
 
 /// One claim the caller holds beneath a structural call result after normal
 /// completion.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralResultClaimPlan {
     /// The caller's identity for the received claim. An input returned on
     /// every exit keeps its transferred identity; a result received by a
@@ -297,7 +297,7 @@ pub struct CheckedStructuralResultClaimPlan {
 }
 
 /// One action in a selected normal edge's reverse establishment order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedNormalCleanupAction {
     Discard(CheckedUnitPartialAffineDiscardPlan),
     InvokeNominal(CheckedUnitNominalAffineCleanupPlan),
@@ -368,7 +368,7 @@ impl CheckedUnitNominalAffineCleanupPlan {
 
 /// Exact source outgoing coordinate, including the selected continuation arm.
 /// These actions consume retained custody; they never establish entry premises.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedNormalExitCleanupPlan {
     /// Candidate owners retained by source checking across selected transfers.
     /// Their ordered actions run only where the exact emitted occurrence remains

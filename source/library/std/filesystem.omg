@@ -474,6 +474,7 @@ public boundary trait FilesystemService {
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     invokes WindowsFilesystemHost;
+    invokes PosixCanonicalLibc;
     machine lock(file: File) -> UnitResult
     reaches
     blocks;
