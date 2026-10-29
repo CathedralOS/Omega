@@ -253,7 +253,10 @@ pub(super) fn validate_git_path(
             limit: limits.max_depth,
         });
     }
-    git_path_from_bytes(path)
+    // Git identity keeps slash-separated bytes. The acquired entry's PathBuf
+    // instead uses host separators, as required by the captured namespace.
+    // Normalize only after rejecting ambiguous and traversal components above.
+    Ok(git_path_from_bytes(path)?.components().collect())
 }
 
 fn validate_portable_git_component(
