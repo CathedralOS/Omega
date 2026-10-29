@@ -25,6 +25,13 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod metadata_paths;
 
+fn published_contract_trace_filter() -> Option<&'static str> {
+    static FILTER: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    FILTER
+        .get_or_init(|| std::env::var("OMEGA_PUBLISHED_CONTRACT_TRACE").ok())
+        .as_deref()
+}
+
 /// Keep the original completed producer of an immutable Boolean copy. Only
 /// exact local identities participate; parameters, projections and mutable
 /// observations cannot acquire a body-wide constant through a saved name.
@@ -173,6 +180,30 @@ struct SelectedApplicationCarrier<'program> {
 }
 
 impl StructuralJudge<'_> {
+    pub(in crate::proof_contracts::contract_entailment) fn published_contract_tracing(
+        &self,
+    ) -> bool {
+        published_contract_trace_filter().is_some_and(|filter| {
+            filter == "1"
+                || filter == "all"
+                || self
+                    .program
+                    .symbols
+                    .display_path(self.machine_symbol, "::")
+                    .contains(filter)
+        })
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn trace_published_contract_context(&self) {
+        eprintln!(
+            "PUBLISHED installed caller={:?} runtime={} case_only={} rewrites={:?} substitutions={:?}",
+            self.machine_symbol,
+            self.runtime_body_values,
+            self.case_facts_only,
+            self.rewrites.entries(),
+            self.substitutions
+        );
+    }
     pub(in crate::proof_contracts::contract_entailment) fn captured_metadata_predicate_judgment(
         &self,
         owner: SymbolHandle,
@@ -225,8 +256,14 @@ impl StructuralJudge<'_> {
         let mut applications = Vec::new();
         collect_applications(value, &mut applications);
         for application in applications {
-            let Some(equations) = self.specification_application_equations(application, depth + 1)
-            else {
+            let equations = self.specification_application_equations(application, depth + 1);
+            if self.published_contract_tracing() {
+                eprintln!(
+                    "PUBLISHED observed normalization caller={:?} application={application:?} equations={equations:?}",
+                    self.machine_symbol
+                );
+            }
+            let Some(equations) = equations else {
                 continue;
             };
             for (left, right) in equations {
@@ -252,7 +289,7 @@ impl StructuralJudge<'_> {
         depth: usize,
     ) -> Option<StructuralTerm> {
         let carrier = self.selected_application_carrier(value, depth);
-        if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() && carrier.is_none() {
+        if self.published_contract_tracing() && carrier.is_none() {
             eprintln!(
                 "PUBLISHED carrier unavailable caller={:?} value={value:?}",
                 self.machine_symbol
@@ -271,7 +308,7 @@ impl StructuralJudge<'_> {
             .collect::<Vec<_>>();
         let equations =
             self.declared_contract_equations(&owner, &bindings, &bindings, Some(value), depth);
-        if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() {
+        if self.published_contract_tracing() {
             eprintln!(
                 "PUBLISHED equations caller={:?} callee={:?} value={value:?} equations={equations:?}",
                 self.machine_symbol,
@@ -648,12 +685,12 @@ impl StructuralJudge<'_> {
                     ProofFact::Proposition(_) => StructuralJudgment::Unknown,
                 };
                 if !matches!(judgment, StructuralJudgment::Proven) {
-                    if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() {
+                    if self.published_contract_tracing() {
                         eprintln!(
                             "PUBLISHED failed entry callee={callable:?} fact={fact:?} bindings={entry_bindings:?} judgment={judgment:?}"
                         );
                     }
-                    if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some()
+                    if self.published_contract_tracing()
                         && let ProofFact::Expression(required) = fact
                     {
                         let required = bound_term(

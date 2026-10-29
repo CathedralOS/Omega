@@ -99,6 +99,20 @@ fn stable_entry_premise(
                         .primitive_type_reference(parameter.type_reference)
                         .is_some();
             }
+            if matches!(
+                program.symbols.get(symbol).kind,
+                symbols::SymbolKind::Unknown
+                    | symbols::SymbolKind::Field
+                    | symbols::SymbolKind::Local
+                    | symbols::SymbolKind::Parameter
+                    | symbols::SymbolKind::HostCapability
+                    | symbols::SymbolKind::Object
+                    | symbols::SymbolKind::Function
+                    | symbols::SymbolKind::Section
+                    | symbols::SymbolKind::Import
+            ) {
+                return false;
+            }
             program
                 .data_type_parameter_by_symbol(symbol)
                 .is_none_or(|parameter| {
@@ -158,7 +172,7 @@ impl<'program> PublishedContractNormalizer<'program> {
         // value eligibility, exact carrier and all substituted entry premises.
         let mut judge =
             StructuralJudge::from_declaration_requires(program, implementation, &[], &[], false);
-        if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() {
+        if judge.published_contract_tracing() {
             eprintln!(
                 "PUBLISHED caller premises implementation={implementation:?} premises={premises:?}"
             );
@@ -173,6 +187,44 @@ impl<'program> PublishedContractNormalizer<'program> {
                 },
                 0,
             );
+        }
+        if judge.published_contract_tracing() {
+            judge.trace_published_contract_context();
+            for premise in premises {
+                let resolved = judge.resolve(premise.clone());
+                eprintln!("PUBLISHED installed premise={premise:?} resolved={resolved:?}");
+                if let StructuralTerm::ScalarBinary {
+                    references,
+                    left,
+                    right,
+                    ..
+                } = premise
+                {
+                    let types = references.map(|reference| {
+                        if program
+                            .type_reference_table
+                            .contains_type_reference(reference)
+                        {
+                            program.display_type_reference(reference)
+                        } else {
+                            "<missing>".to_owned()
+                        }
+                    });
+                    let observed = [left.as_ref(), right.as_ref()]
+                        .into_iter()
+                        .zip(references)
+                        .map(|(value, reference)| {
+                            program
+                                .type_reference_table
+                                .contains_type_reference(*reference)
+                                && super::super::structural_terms::scalar_operand_is_observed(
+                                    program, *reference, value,
+                                )
+                        })
+                        .collect::<Vec<_>>();
+                    eprintln!("PUBLISHED premise carriers={types:?} observed={observed:?}");
+                }
+            }
         }
         Self { judge }
     }

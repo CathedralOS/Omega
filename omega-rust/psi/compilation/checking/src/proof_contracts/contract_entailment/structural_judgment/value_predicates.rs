@@ -174,7 +174,7 @@ impl StructuralJudge<'_> {
         };
         let references =
             [binary.left, binary.right].map(|operand| self.declaration_expression_type(operand));
-        if super::super::struct_trace() {
+        if super::super::struct_trace() || self.published_contract_tracing() {
             eprintln!(
                 "STRUCT ieee operands owner={:?} expression={expression:?} references={references:?}",
                 self.machine_symbol
@@ -184,7 +184,7 @@ impl StructuralJudge<'_> {
             return None;
         };
         let primitive = program.primitive_type_reference(left_type)?;
-        if super::super::struct_trace()
+        if (super::super::struct_trace() || self.published_contract_tracing())
             && matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
         {
             eprintln!(
@@ -230,6 +230,12 @@ impl StructuralJudge<'_> {
         };
         let left = project(binary.left)?;
         let right = project(binary.right)?;
+        if self.published_contract_tracing() {
+            eprintln!(
+                "PUBLISHED IEEE equation caller={:?} left={left:?} right={right:?}",
+                self.machine_symbol
+            );
+        }
         let comparison = match binary.operator {
             BinaryOperator::Equal => FloatSemanticComparison::Equal,
             BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
@@ -872,7 +878,7 @@ impl StructuralJudge<'_> {
         let left_nan = nan_truth(left);
         let right_nan = nan_truth(right);
         let classified = left_nan.or(right_nan).or(observed_non_nan.then_some(false));
-        if super::super::struct_trace() {
+        if super::super::struct_trace() || self.published_contract_tracing() {
             eprintln!(
                 "STRUCT ieee completed comparison={comparison:?} same_meaning={same_meaning} left_nan={left_nan:?} right_nan={right_nan:?} observed_non_nan={observed_non_nan}",
             );
@@ -946,7 +952,7 @@ impl StructuralJudge<'_> {
             });
         let operator = candidates.next();
         let duplicate = candidates.next();
-        if super::super::struct_trace() {
+        if super::super::struct_trace() || self.published_contract_tracing() {
             eprintln!(
                 "STRUCT ieee projection primitive={primitive:?} target={:?} duplicate={:?}",
                 operator.map(|operator| operator.symbol),
@@ -970,8 +976,18 @@ impl StructuralJudge<'_> {
                 crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)
                     .is_some_and(|(row, _)| matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN)))
             });
-        let operator = candidates.next()?;
-        if candidates.next().is_some() {
+        let operator = candidates.next();
+        let duplicate = candidates.next();
+        if self.published_contract_tracing() {
+            eprintln!(
+                "PUBLISHED NaN predicate caller={:?} selected={:?} duplicate={:?} meaning={meaning:?}",
+                self.machine_symbol,
+                operator.map(|operator| operator.symbol),
+                duplicate.map(|operator| operator.symbol)
+            );
+        }
+        let operator = operator?;
+        if duplicate.is_some() {
             return None;
         }
         operator_application(program, operator, meaning)
