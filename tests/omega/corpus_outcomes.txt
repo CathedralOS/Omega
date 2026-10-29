@@ -1987,6 +1987,10 @@ fail/build/component_declaration_scalar_conditions rejected 1017ms expected @6fb
 	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(10)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
 fail/build/context_entry_returns_value rejected 2892ms expected @a92f16431042
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/crash_exclusion_closed_provider rejected 1195ms expected @b59884d31497
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 7 at crash terminator in block 11
+	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 9 at crash terminator in block 13
 fail/build/crash_exclusion_trapping_provider rejected 3172ms expected @a92f16431042
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 5, reached through machine `CheckingAssert::check` (Terminal machine 3) at crash terminator in block 8
@@ -24587,6 +24591,7 @@ pass/build/component_declaration_scalar_conditions_exit checked 1116ms check-tar
 pass/build/conditional_root_binding checked 3030ms check-target:windows_x86_64 @a92f16431042
 pass/build/const_index_dependency_order_exit rejected 219ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	cleanup effect dependency in `outer` has no exact structural residual disposition in state `entry` at statement 2
+pass/build/crash_exclusion_closed_provider_exit checked 1284ms check-target:macos_arm64 @b59884d31497
 pass/build/crash_exclusion_unexecuted_helper_exit checked 1280ms check-target:macos_arm64 @9ac99b4eaa48
 pass/build/crash_exclusion_untrapping_provider_exit checked 2206ms check-target:macos_arm64 @a92f16431042
 pass/build/declaration_domain_context checked 1887ms @a92f16431042
