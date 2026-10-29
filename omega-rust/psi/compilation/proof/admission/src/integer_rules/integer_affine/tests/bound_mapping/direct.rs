@@ -1,5 +1,14 @@
 use super::*;
 
+macro_rules! math_value {
+    ($source_type:expr => $value:expr) => {
+        IntegerMathTerm::MathValue {
+            source_type: $source_type,
+            value: $value,
+        }
+    };
+}
+
 #[test]
 fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -25,14 +34,8 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
     )
     .expect("direct mathematical add endpoint");
     let sum = IntegerMathTerm::Add(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -117,10 +120,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::Truth,
             ]),
             IntegerMathTerm::Add(
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(1).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
                 Box::new(IntegerMathTerm::literal(IntegerValue::Signed(7))),
             ),
         ),
@@ -133,10 +133,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
             ]),
             IntegerMathTerm::Add(
                 Box::new(IntegerMathTerm::literal(IntegerValue::Signed(7))),
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(2).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
             ),
         ),
     ] {
@@ -244,14 +241,8 @@ fn direct_subtract_bound_replays_opposite_ordered_endpoints_and_rejects_mutation
         Ok(Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::literal(IntegerValue::Signed(-120)),
             IntegerMathTerm::Subtract(
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(1).unwrap(),
-                }),
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(2).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
             ),
         )),
     );
@@ -333,14 +324,8 @@ fn direct_multiply_replays_four_corners_and_rejects_order_mutations() {
         Proposition::LessOrEqual(right.clone(), literal(integer_type, 2)),
     ]);
     let product = IntegerMathTerm::Multiply(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
     );
     assert_eq!(
         map_integer_affine_bound(&checked, &lower),
@@ -396,14 +381,8 @@ fn direct_multiply_requires_oriented_zero_evidence_for_exact_zero_bounds() {
     .expect("direct multiply witness");
     let zero = literal(integer_type, 0);
     let product = IntegerMathTerm::Multiply(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
     );
     let lower = Proposition::Conjunction(vec![
         Proposition::Truth,
@@ -470,14 +449,8 @@ fn direct_shift_bound_replays_count_range_and_sign_oriented_endpoint() {
     let lower_count = Proposition::LessOrEqual(literal(count_type, 0), count.clone());
     let upper_count = Proposition::LessOrEqual(count.clone(), literal(count_type, 3));
     let shifted = IntegerMathTerm::ShiftLeft {
-        value: Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        count: Box::new(IntegerMathTerm::MathValue {
-            source_type: count_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        value: Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        count: Box::new(math_value!(count_type => ValueId::new(2).unwrap())),
     };
     let mapped = |root_bound| {
         map_integer_affine_bound(
