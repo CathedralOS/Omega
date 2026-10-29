@@ -2,7 +2,19 @@
 //! materializations, bitwise and wrapping alias custody, decoded
 //! footprints, and the compare-immediate canonical form.
 
+use super::super::ValidatedAarch64SelectedFormEncoding;
 use super::*;
+use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+
+fn check_encoding(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_aarch64_selected_form_encoding(physical, kind, alternative, operands, bytes)
+}
 
 #[test]
 fn scalar_call_is_explicitly_refused_before_encoding() {
@@ -35,14 +47,7 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
             let key = alternative(MachineAlternativeFamily::ZeroExtendU8);
             let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
             assert_eq!(encoded.bytes().len(), 4);
-            validate_aarch64_selected_form_encoding(
-                &physical,
-                kind,
-                key,
-                &operands,
-                encoded.bytes(),
-            )
-            .unwrap();
+            check_encoding(&physical, kind, key, &operands, encoded.bytes()).unwrap();
             let copy = encode_aarch64_selected_form(
                 &physical,
                 SelectedInstructionKind::CopyI64,
@@ -50,25 +55,11 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
                 &operands,
             )
             .unwrap();
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    copy.bytes()
-                )
-                .is_err()
-            );
+            assert!(check_encoding(&physical, kind, key, &operands, copy.bytes()).is_err());
             for byte in 0..4 {
                 let mut changed = encoded.bytes().to_vec();
                 changed[byte] ^= 1;
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed
-                    )
-                    .is_err()
-                );
+                assert!(check_encoding(&physical, kind, key, &operands, &changed).is_err());
             }
         }
     }
@@ -90,14 +81,7 @@ fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
             // UBFM with immr=0, imms=31 selects exactly the low U32 bits.
             let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
             assert_eq!(word & 0xffff_fc00, 0xd340_7c00);
-            validate_aarch64_selected_form_encoding(
-                &physical,
-                kind,
-                key,
-                &operands,
-                encoded.bytes(),
-            )
-            .unwrap();
+            check_encoding(&physical, kind, key, &operands, encoded.bytes()).unwrap();
             let narrow = encode_aarch64_selected_form(
                 &physical,
                 SelectedInstructionKind::ZeroExtendU8,
@@ -105,16 +89,7 @@ fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
                 &operands,
             )
             .unwrap();
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    narrow.bytes()
-                )
-                .is_err()
-            );
+            assert!(check_encoding(&physical, kind, key, &operands, narrow.bytes()).is_err());
             let copy = encode_aarch64_selected_form(
                 &physical,
                 SelectedInstructionKind::CopyI64,
@@ -122,25 +97,11 @@ fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
                 &operands,
             )
             .unwrap();
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    copy.bytes()
-                )
-                .is_err()
-            );
+            assert!(check_encoding(&physical, kind, key, &operands, copy.bytes()).is_err());
             for byte in 0..4 {
                 let mut changed = encoded.bytes().to_vec();
                 changed[byte] ^= 1;
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed
-                    )
-                    .is_err()
-                );
+                assert!(check_encoding(&physical, kind, key, &operands, &changed).is_err());
             }
         }
     }
@@ -168,7 +129,7 @@ fn zero_seeded_materialization_is_canonical_and_decoded_independently() {
         let mut corrupted = encoded.bytes().to_vec();
         corrupted[0] ^= 0x20;
         assert!(
-            validate_aarch64_selected_form_encoding(
+            check_encoding(
                 &physical,
                 kind,
                 alternative(MachineAlternativeFamily::MaterializeI64),
@@ -216,7 +177,7 @@ fn bitwise_xor_preserves_exact_eor_registers_aliases_and_effects() {
                     1 << 10,
                 ] {
                     assert!(
-                        validate_aarch64_selected_form_encoding(
+                        check_encoding(
                             &physical,
                             kind,
                             alternative,
@@ -228,7 +189,7 @@ fn bitwise_xor_preserves_exact_eor_registers_aliases_and_effects() {
                     );
                 }
                 assert!(
-                    validate_aarch64_selected_form_encoding(
+                    check_encoding(
                         &physical,
                         kind,
                         alternative,
@@ -239,14 +200,7 @@ fn bitwise_xor_preserves_exact_eor_registers_aliases_and_effects() {
                 );
                 let duplicated = [encoded.bytes(), encoded.bytes()].concat();
                 assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &duplicated,
-                    )
-                    .is_err()
+                    check_encoding(&physical, kind, alternative, &operands, &duplicated,).is_err()
                 );
             }
         }
@@ -268,25 +222,13 @@ fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
                 let operands = [left, right, output];
                 let encoded =
                     encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
+                check_encoding(&physical, kind, key, &operands, encoded.bytes()).unwrap();
                 assert!(!encoded.footprint().writes_nzcv);
                 assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
                 assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
                 let mut changed = encoded.bytes().to_vec();
                 changed[0] ^= 1;
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed
-                    )
-                    .is_err()
-                );
+                assert!(check_encoding(&physical, kind, key, &operands, &changed).is_err());
                 assert!(
                     encode_aarch64_selected_form(
                         &physical,
@@ -297,7 +239,7 @@ fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
                     .is_err()
                 );
                 assert!(
-                    validate_aarch64_selected_form_encoding(
+                    check_encoding(
                         &physical,
                         kind,
                         alternative(MachineAlternativeFamily::ExactAddI64),
@@ -331,14 +273,8 @@ fn bitwise_and_preserves_aliases_and_rejects_opcode_corruption() {
                     let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
                     let corrupted = (word ^ mask).to_le_bytes();
                     assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &corrupted
-                        )
-                        .is_err()
+                        check_encoding(&physical, kind, alternative, &operands, &corrupted)
+                            .is_err()
                     );
                 }
             }
@@ -485,29 +421,11 @@ fn compare_i64_immediate_is_subs_xzr_imm12_with_exact_footprint() {
                 .is_empty()
         );
         assert!(!encoded.footprint().encoded.implicit_unit_defs.is_empty());
-        assert!(
-            validate_aarch64_selected_form_encoding(
-                &physical,
-                kind,
-                alternative,
-                &[operand],
-                encoded.bytes()
-            )
-            .is_ok()
-        );
+        assert!(check_encoding(&physical, kind, alternative, &[operand], encoded.bytes()).is_ok());
         for mask in [1_u32, 1 << 5, 1 << 10, 1 << 22, 1 << 30] {
             let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
             let corrupted = (word ^ mask).to_le_bytes();
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[operand],
-                    &corrupted
-                )
-                .is_err()
-            );
+            assert!(check_encoding(&physical, kind, alternative, &[operand], &corrupted).is_err());
         }
     }
     // `subs xzr, xN, #0` decodes as the shared `CompareZero` word; the
@@ -517,16 +435,7 @@ fn compare_i64_immediate_is_subs_xzr_imm12_with_exact_footprint() {
     };
     let encoded = encode_aarch64_selected_form(&physical, zero, alternative, &[x3]).unwrap();
     assert_eq!(encoded.bytes(), [0x7f, 0x00, 0x00, 0xf1]);
-    assert!(
-        validate_aarch64_selected_form_encoding(
-            &physical,
-            zero,
-            alternative,
-            &[x3],
-            encoded.bytes()
-        )
-        .is_ok()
-    );
+    assert!(check_encoding(&physical, zero, alternative, &[x3], encoded.bytes()).is_ok());
     for immediate in [IntegerValue::Unsigned(4096), IntegerValue::Signed(-1)] {
         let kind = SelectedInstructionKind::CompareI64Immediate { immediate };
         assert!(encode_aarch64_selected_form(&physical, kind, alternative, &[x3]).is_err());
