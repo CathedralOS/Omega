@@ -1009,6 +1009,13 @@ impl<'program> StructuralJudge<'program> {
         // Containment is needed only when this value could actually fold.
         // Other operands keep their ordinary scheduler without subtree walks.
         if matches!(demand, NormalValueDemand::Value)
+            // The receiving callable owns a float argument's landing. Even an
+            // integral decimal must keep its floating meaning here; turning
+            // it into an integer loses its format and signed-zero identity.
+            && !matches!(
+                program.primitive_type_reference(scope.2),
+                Some(typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64)
+            )
             && crate::value_custody::literals::has_anonymous_numeric_results(program, expression)
             && !observes_inner_operation()
             && let Some(value) =
