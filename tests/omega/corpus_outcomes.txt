@@ -991,7 +991,7 @@ fail/borrow/write_only_stored_reference_constraint_loss rejected 1667ms expected
 fail/borrow/write_only_stored_shared_widening rejected 1205ms expected @a92f16431042
 	machine `replace` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
 	write-only argument `slot` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrows/affine_array_projection_copy rejected 2381ms expected @a92f16431042
+fail/borrows/affine_array_projection_copy rejected 424ms expected @27c558b731f4
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/affine_record_copy_handoff rejected 2309ms expected @a92f16431042
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
@@ -1268,7 +1268,7 @@ fail/borrows/dynamic_window_result_recast_backing rejected 1524ms expected @a92f
 	statement 2 mutates `bytes[2]` while local borrow `word` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/dynamic_window_result_requires_bounds rejected 2892ms expected @a92f16431042
 	cannot prove subslice range end bound `start..end` is within unknown slice length of `bytes` in select::capture
-fail/borrows/empty_array_snapshot_requires_read_authority rejected 499ms expected @b78d64e8fd65
+fail/borrows/empty_array_snapshot_requires_read_authority rejected 325ms expected @27c558b731f4
 	machine `snapshot` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1617ms expected @a92f16431042
 	statement 3 mutates `source` while local borrow `forwarded` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -1830,7 +1830,7 @@ fail/borrows/stored_reference_child_constructor_live_source_write rejected 6292m
 	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrows/stored_reference_constructor_transfer_live_source_write rejected 6285ms expected @a92f16431042
 	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/borrows/stored_reference_exclusive_array_copy rejected 1594ms expected @a92f16431042
+fail/borrows/stored_reference_exclusive_array_copy rejected 581ms expected @27c558b731f4
 	cannot use `windows[0].` in machine `main` state `entry` (statement 4) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 	cannot use `windows[0][0]` in machine `main` state `entry` (statement 5) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 fail/borrows/stored_reference_leaf_child_live_source_write rejected 5926ms expected @a92f16431042
@@ -2648,7 +2648,7 @@ fail/collections/array_child_membership_requires_issuance rejected 1722ms expect
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in sibling state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for call observe from lookalike::entry: parameter values[1].ticket requires Ticket::Issued
 	construction of `Envelope` field `ticket` is not proven in domain `Ticket::Issued` in lookalike state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/collections/array_projection_copy_out_of_bounds rejected 2247ms expected @a92f16431042
+fail/collections/array_projection_copy_out_of_bounds rejected 529ms expected @27c558b731f4
 	cannot prove index `2` is within length 2
 fail/collections/authored_index_guard_bound rejected 1522ms expected @a92f16431042
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
@@ -14607,6 +14607,31 @@ fail/facts/saved_observation_snapshot_predicate_handback_target_body_rejected re
 	cannot prove ensures contract for exit from preserve at statement 3: kept(&holder.items) == true
 	cannot prove requires contract for call agree from HostedObservationBody::observe: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
 	cannot prove ensures contract for exit from HostedObservationBody::observe at statement 2: result == holder.items[0] && result == 7
+fail/facts/saved_observation_snapshot_stored_reference_handback_call_result_rejected rejected 742ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_const_name_rejected rejected 710ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_field_rejected rejected 731ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: note.observed == holder.items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_local_rejected rejected 728ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_match_join_rejected rejected 767ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+	cannot prove requires contract for call agree from probe: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_other_machine_rejected rejected 733ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 0: kept(&holder.items) == true
+	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_other_state_rejected rejected 782ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 0: kept(&holder.items) == true
+	cannot prove requires contract for call check from main: saved == current_zero && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_observation_snapshot_stored_reference_handback_parameter_rejected rejected 694ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
+fail/facts/saved_observation_snapshot_stored_reference_handback_target_body_rejected rejected 640ms expected @27c558b731f4
+	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
 fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 2328ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 2317ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
@@ -24300,7 +24325,7 @@ pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 262
 pass/borrows/copied_image_descriptor_unrelated_write incomplete 2538ms check-target:macos_arm64 @a92f16431042
 	`receive` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `receive::entry`
 pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3956ms check-target:macos_arm64 @a92f16431042
-pass/borrows/copied_input_descriptor_local_copy_exit checked 2984ms check-target:macos_arm64 @a92f16431042
+pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
 pass/borrows/copied_input_descriptor_return_copy_exit checked 2508ms check-target:macos_arm64 @a92f16431042
 pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2740ms check-target:macos_arm64 @a92f16431042
 pass/borrows/data_copy_property checked 2619ms @a92f16431042
@@ -25244,7 +25269,7 @@ pass/collections/runtime_nested_record_element_window_store_exit checked 2210ms 
 pass/collections/runtime_nested_selected_element_extents_exit checked 3786ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_offset_view_case_observation_exit checked 4142ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_ordered_computed_selector_reads_exit checked 3249ms check-target:macos_arm64 @a92f16431042
-pass/collections/runtime_owned_array_projection_snapshot_exit checked 9402ms check-target:macos_arm64 @a92f16431042
+pass/collections/runtime_owned_array_projection_snapshot_exit checked 6175ms check-target:macos_arm64 @27c558b731f4
 pass/collections/runtime_owned_descriptor_parameter_read_exit incomplete 2935ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`observe` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `observe::entry`
 pass/collections/runtime_parameter_computed_selector_wrapping_exit checked 3331ms check-target:macos_arm64 @a92f16431042
@@ -25273,7 +25298,7 @@ pass/collections/runtime_stored_reference_array_replacement_contract_exit incomp
 pass/collections/runtime_three_indexed_record_float_read_exit checked 14276ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_vec_u32_growth_exit checked 21256ms check-target:macos_arm64 @a92f16431042
 pass/collections/runtime_view_element_structural_replacement_exit checked 2345ms check-target:macos_arm64 @a92f16431042
-pass/collections/runtime_whole_array_value_copy_exit checked 8995ms check-target:macos_arm64 @a92f16431042
+pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target:macos_arm64 @27c558b731f4
 pass/collections/shared_slice_view_dropped_receiver checked 8583ms check-target:macos_arm64 @a92f16431042
 pass/collections/std_option_runtime_match_exit checked 8368ms check-target:macos_arm64 @a92f16431042
 pass/collections/std_option_surface checked 1717ms @a92f16431042
@@ -29987,6 +30012,15 @@ pass/facts/saved_observation_snapshot_predicate_handback_other_machine_exit chec
 pass/facts/saved_observation_snapshot_predicate_handback_other_state_exit checked 997ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_parameter_exit checked 993ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_target_body_exit checked 989ms check-target:macos_arm64 @5c5c178f82c7
+pass/facts/saved_observation_snapshot_stored_reference_handback_call_result_exit checked 910ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_const_name_exit checked 971ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_field_exit checked 920ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_local_exit checked 929ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_match_join_exit checked 965ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_other_machine_exit checked 935ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_other_state_exit checked 956ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_parameter_exit checked 901ms check-target:macos_arm64 @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_target_body_exit checked 964ms check-target:macos_arm64 @27c558b731f4
 pass/facts/saved_observation_snapshot_through_call_result_exit checked 2697ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_observation_snapshot_through_const_name_exit checked 2640ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_observation_snapshot_through_field_exit checked 3160ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674

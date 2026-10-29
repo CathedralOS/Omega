@@ -183,11 +183,8 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, record-field and owned-array predicate
-    handback with current storage versions (the indexed-store production is
-    qualified across [nine saved-observation places](samples/cli/facts/saved_observation_snapshot/predicate_handback/README.md),
-    and whole owned-array field replacement across
-    [nine current/previous handback places](samples/cli/facts/owned_array_field_replacement/README.md)),
+    nonliteral and indexed writes, remaining record-field and owned-array
+    predicate handback with current storage versions,
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
