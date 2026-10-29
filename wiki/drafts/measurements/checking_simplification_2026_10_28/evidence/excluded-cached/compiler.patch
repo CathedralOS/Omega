@@ -1,0 +1,124 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+index f69326ce89e..ed798a83a28 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+@@ -269,49 +269,12 @@ pub(super) fn analyze_arrival(
+     CheckedAnalysis { value, decisions }
+ }
+ 
+-/// A carrier/policy meaning query over `expression` with no flow facts: the
+-/// walk an ordered-value operand or a relational range proof asks for the
+-/// primitive and arithmetic domain of a composite. It declines body inference
+-/// and trap coverage alike. Coverage would re-derive the machine's route
+-/// complement and re-decide formation under it, and that formation judgment
+-/// is what asked for this meaning in the first place (`proves_range` →
+-/// `ordered_values::operand` → here), so a coverage-checking query recursed
+-/// without bound on every guarded Trapping site. Ordinary validation still
+-/// owes every formation diagnostic, including coverage, on its own walk.
+-pub(super) fn analyze_meaning(
+-    program: &dyn crate::CheckingInput,
+-    machine: &Machine,
+-    state: Option<&State>,
+-    expression: ExpressionHandle,
+-    owner: &str,
+-) -> CheckedAnalysis {
+-    let mut decisions = ArithmeticDecisions::default();
+-    let value = ExpressionWalk {
+-        program,
+-        machine: Some(machine),
+-        lexical_owner: machine.symbol,
+-        parameters: &[],
+-        declaration_facts: &[],
+-        state,
+-        environment: &ValueEnvironment::new(),
+-        target_primitive: None,
+-        target_domain: ArithmeticDomain::Exact,
+-        owner,
+-        infer_call_bodies: false,
+-        checks_trap_coverage: false,
+-        checks_occurrence_fit: false,
+-        retain_trap_receipts: false,
+-    }
+-    .analyze(expression, &mut Vec::new(), &mut decisions);
+-    CheckedAnalysis { value, decisions }
+-}
+-
+ /// The facts every node of one expression walk shares: where it is, what flow
+ /// facts hold, and which destination the enclosing statement names.
+ #[derive(Clone, Copy)]
+ struct ExpressionWalk<'a> {
+-    /// Meaning-only queries must not recursively execute the runtime-prefix
+-    /// proof owner. Only the validating walk publishes formation decisions.
++    /// Only the validating walk publishes formation decisions; arrival queries
++    /// retain values without replaying the runtime-prefix proof owner.
+     checks_occurrence_fit: bool,
+     /// Optional execution receipts are requested by a retained-decision
+     /// consumer, never by type/range queries that discard their output.
+@@ -334,9 +297,8 @@ struct ExpressionWalk<'a> {
+     /// Whether a Trapping operation must prove its trap fits the machine's
+     /// published Trap ceiling. A coverage re-analysis under the route
+     /// complement only asks whether one node forms; its nested operations
+-    /// were already judged by the walk that reached them. A meaning query
+-    /// (`analyze_meaning`) declines it too, because coverage re-enters the
+-    /// range proof that issued the query.
++    /// were already judged by the walk that reached them. Arrival queries
++    /// also decline coverage; their consumer needs only the delivered value.
+     checks_trap_coverage: bool,
+ }
+ 
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs
+index 3afcafa5751..af41d2a833c 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs
+@@ -20,7 +20,6 @@ use super::{
+     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+     PrimitiveType, State, ValueEnvironment, declared_place_type_raw, place_path,
+ };
+-use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze_meaning;
+ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+     literal_interval, primitive_range,
+ };
+@@ -734,37 +733,14 @@ fn integer_meaning(
+         if collection_length_receiver(program, machine, Some(state), expression).is_some() {
+             return Some((PrimitiveType::U64, ArithmeticDomain::Exact));
+         }
+-        // Reuse the arithmetic owner's operand-driven carrier/policy selection.
+-        // This query supplies no range proof; ordinary validation still owes all
+-        // formation diagnostics, and the empty environment contains no relations.
+-        let analysis = analyze_meaning(
+-            program,
+-            machine,
+-            Some(state),
+-            expression,
+-            "ordered operand type",
+-        )
+-        .value;
+-        // Ordinary call arithmetic deliberately leaves an unconstrained result
+-        // neutral. Ordering still knows the exact selected declaration's carrier;
+-        // querying it here does not grant repeat-call equality or a body-derived
+-        // range contract.
+-        let declared_call = match program.expression_table.expression(expression) {
+-            ExpressionNode::Call(call) => super::return_ranges::call_return_type(program, call),
+-            _ => None,
+-        };
+-        let primitive = analysis.primitive.or_else(|| {
+-            declared_call.and_then(|reference| program.primitive_type_reference(reference))
+-        })?;
++        // Ordering needs the selected carrier and policy, not a second range
++        // analysis. Formation and live bounds remain the arithmetic walk's job.
++        let reference =
++            crate::expression_result_type_reference(program, machine, state, expression)?;
++        let primitive = program.primitive_type_reference(reference)?;
+         (primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()).then_some((
+             primitive,
+-            analysis
+-                .domain
+-                .or_else(|| {
+-                    declared_call
+-                        .map(|reference| program.arithmetic_domain_for_type_reference(reference))
+-                })
+-                .unwrap_or(ArithmeticDomain::Exact),
++            program.arithmetic_domain_for_type_reference(reference),
+         ))
+     })();
+     if let Some((memos, key)) = memo
