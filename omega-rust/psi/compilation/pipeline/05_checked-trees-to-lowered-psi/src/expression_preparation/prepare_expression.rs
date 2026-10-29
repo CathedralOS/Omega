@@ -54,6 +54,12 @@ pub(crate) fn selector_bound_is_decided(
     selector: &checked_trees::CheckedScalarSelector,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> bool {
+    // Entry-coordinate formation was proved before source rank admission and
+    // retained on that exact selector/collection plan. It has no authored []
+    // occurrence to consult. Ordinary source reads retain occurrence custody.
+    if selector.entry_bound.is_some() {
+        return !selector.occurrence.is_valid();
+    }
     selector.occurrence.is_valid()
         && proven_indexes
             .binary_search_by_key(

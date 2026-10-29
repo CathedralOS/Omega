@@ -2,8 +2,8 @@
 //! Capture RHS first, authenticate exact locations at the same effect cut,
 //! retire overwritten observations, then publish the new value and dependencies.
 //! Typed origins establish equality; invalidation paths only expire observations.
-use super::scalar_fields::CapturedScalarField;
-use super::{CurrentScalarValues, field_storage_path, integer_carrier, unsigned};
+use super::scalar_fields::{CapturedScalarField, ScalarProjection, source_path};
+use super::{CurrentScalarValues, integer_carrier, unsigned};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
@@ -13,7 +13,7 @@ use validation::ScopedArithmeticValue;
 /// The read paths serve later invalidation; they are never equality evidence.
 pub(super) struct ScalarStoreAlias {
     owner: SymbolHandle,
-    path: Vec<SymbolHandle>,
+    path: Vec<ScalarProjection>,
     read_dependencies: Vec<String>,
 }
 
@@ -26,7 +26,7 @@ impl CurrentScalarValues<'_> {
         value: Option<ScopedArithmeticValue>,
         ordinal: usize,
     ) -> Option<CapturedScalarField> {
-        let (owner, path) = field_storage_path(self.program, target)?;
+        let (owner, path) = self.scalar_storage_path(target)?;
         let reference = validation::expression_result_type_reference(
             self.program,
             self.machine,
@@ -49,7 +49,14 @@ impl CurrentScalarValues<'_> {
             read_dependencies: self
                 .fields
                 .iter()
-                .find(|field| field.owner == owner && field.path == path)
+                .find(|field| {
+                    field.owner == owner
+                        && super::scalar_fields::same_projection(
+                            self.occurrence(),
+                            &field.path,
+                            &path,
+                        )
+                })
                 .map_or_else(Vec::new, |field| field.read_dependencies.clone()),
             value,
         })
@@ -83,11 +90,29 @@ impl CurrentScalarValues<'_> {
             .iter()
             .map(|(root, path)| validation::frame_coordinate_path(self.program, *root, path))
             .collect::<Option<Vec<_>>>();
-        let values = sources.iter().map(|(root, path)| {
-            if path.is_empty() { return self.current_symbol(*root); }
-            self.fields.iter().find(|field| field.owner == *root
-                && field.path.len() == path.len() && field.path.iter().zip(path).all(|(field, segment)| matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)))?.value.clone()
-        }).collect::<Option<Vec<_>>>();
+        let values = sources
+            .iter()
+            .map(|(root, path)| {
+                if path.is_empty() {
+                    return self.current_symbol(*root);
+                }
+                let path = super::scalar_fields::capture_path(path, |selector| {
+                    self.capture(self.program, self.machine, self.state, selector)
+                })?;
+                self.fields
+                    .iter()
+                    .find(|field| {
+                        field.owner == *root
+                            && super::scalar_fields::same_projection(
+                                self.occurrence(),
+                                &field.path,
+                                &path,
+                            )
+                    })?
+                    .value
+                    .clone()
+            })
+            .collect::<Option<Vec<_>>>();
         let value = values.and_then(|values| {
             let first = values.first()?;
             values
@@ -153,10 +178,7 @@ impl CurrentScalarValues<'_> {
             );
         candidates
             .filter_map(|(owner, path)| {
-                let coordinate = path
-                    .iter()
-                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                    .collect::<Vec<_>>();
+                let coordinate = source_path(&path);
                 let sources = frames.coordinate_sources_before_statement(
                     self.machine,
                     self.state,
@@ -198,11 +220,18 @@ impl CurrentScalarValues<'_> {
                 binding.read_dependencies = Some(alias.read_dependencies.clone());
             }
         }
+        let occurrence = super::ScopedOccurrence {
+            program: self.program,
+            machine: self.machine,
+            state: self.state,
+            lengths: &self.lengths,
+            hypotheses: &self.hypotheses,
+        };
         for field in &mut self.fields {
-            if let Some(alias) = aliases
-                .iter()
-                .find(|alias| alias.owner == field.owner && alias.path == field.path)
-            {
+            if let Some(alias) = aliases.iter().find(|alias| {
+                alias.owner == field.owner
+                    && super::scalar_fields::same_projection(occurrence, &alias.path, &field.path)
+            }) {
                 field.value = Some(value.clone());
                 field.read_dependencies.clone_from(&alias.read_dependencies);
             }

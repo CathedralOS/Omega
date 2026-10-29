@@ -548,7 +548,7 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let coordinate = coordinate.clone();
-                return self.scalar_coordinate(expression, &coordinate, expected_type);
+                return self.scalar_coordinate(expression, &coordinate, expected_type, &[]);
             }
         }
         if validation::atomic_load_carrier(self.program, expression).is_some() {

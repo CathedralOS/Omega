@@ -7,7 +7,6 @@
 use super::{
     Binding, CurrentScalarValues, Length, LengthSubject, ScalarField, admitted, fixed_length,
     integer_carrier, length_occurrence, literal_window_length, scalar_field_occurrence, scoped,
-    unsigned,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
@@ -375,7 +374,7 @@ impl CurrentScalarValues<'_> {
         let mut lengths = Vec::new();
         let mut fields = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
+            let Some(_primitive) = integer_carrier(self.program, parameter.type_reference) else {
                 let measured = self.collection_length(*argument, 0);
                 if let Some(value) = measured
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
@@ -426,10 +425,7 @@ impl CurrentScalarValues<'_> {
             formals.push(Binding {
                 symbol: parameter.symbol,
                 name: parameter.name.to_string(),
-                value: Some(ScopedArithmeticValue::Atom {
-                    identity: format!("callee:{:?}", parameter.symbol),
-                    unsigned: unsigned(primitive),
-                }),
+                value: self.capture(self.program, self.machine, self.state, *argument),
                 alternatives: Vec::new(),
                 immutable_coordinate: false,
                 read_dependencies: Some(Vec::new()),
@@ -455,8 +451,13 @@ impl CurrentScalarValues<'_> {
             // merely because the declaration and formal symbol are equal.
             if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
                 && length_occurrence(self.program, occurrence, &lengths).is_none()
-                && scalar_field_occurrence(self.program, callee, state, occurrence, &fields)
-                    .is_none()
+                && scalar_field_occurrence(
+                    self.occurrence_at(self.program, callee, state, &lengths),
+                    occurrence,
+                    &formals,
+                    &fields,
+                )
+                .is_none()
                 && literal_window_length(self.program, occurrence).is_none()
             {
                 return None;

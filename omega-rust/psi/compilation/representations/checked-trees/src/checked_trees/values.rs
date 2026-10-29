@@ -29,11 +29,11 @@ use typed_trees::types::TypeReferenceHandle;
 use super::keyed_rows::KeyedRows;
 
 pub use facts::{
-    CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedIeeeFloatComparisonKind,
-    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
-    CheckedIntegerMathTerm, CheckedScalarExpression, CheckedScalarReadProjection,
-    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
-    CheckedStructuralCaseSubject, CheckedStructuralParameterField,
+    CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedEntryIndexBound,
+    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedScalarExpression,
+    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
+    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralParameterField,
     CheckedStructuralPredicatePathSegment,
 };
 

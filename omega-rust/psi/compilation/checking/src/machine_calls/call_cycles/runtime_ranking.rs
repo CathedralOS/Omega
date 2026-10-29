@@ -33,6 +33,7 @@ pub struct ValidatedRuntimeNaturalState {
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub coordinate: crate::RankSubjectCoordinate,
+    pub entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
     pub observation: crate::RankPremiseObservation,
