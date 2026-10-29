@@ -468,6 +468,7 @@ mod native_formation_tests {
                 source_span: Default::default(),
                 operation: BuildOperation::NativeBinding,
                 operands: vec![ProductDeclarationOperand {
+                    application: None,
                     path: "Raw::read".into(),
                     source_span: Default::default(),
                 }]

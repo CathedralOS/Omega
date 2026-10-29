@@ -15,7 +15,7 @@ fn execute_build(
         .begin_package_build(request)
         .expect("admit package Build");
     let returned = invocation.execution().map(|execution| {
-        let mut host = execution.host().expect("Build host");
+        let host = execution.host().expect("Build host");
         let mut activation = host.start().expect("Build activation");
         while !activation.advance(1024).expect("Build step").returned {}
         activation.complete().expect("normal Build return")
