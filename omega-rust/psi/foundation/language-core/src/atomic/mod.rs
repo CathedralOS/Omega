@@ -165,66 +165,36 @@ pub struct AtomicCompareExchangeOutcomeCaseSchema {
     pub payload: Option<AtomicCompareExchangeOutcomePayload>,
 }
 
+macro_rules! exchange_case {
+    ($case:ident => $tag:literal => $payload:expr) => {
+        AtomicCompareExchangeOutcomeCaseSchema {
+            case: AtomicCompareExchangeOutcomeCase::$case,
+            tag: $tag,
+            payload: $payload,
+        }
+    };
+}
+
 const OBSERVING_DECISIVE_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 2] = [
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Mismatched,
-        tag: 0,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Observed),
-    },
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Exchanged,
-        tag: 1,
-        payload: None,
-    },
+    exchange_case!(Mismatched => 0 => Some(AtomicCompareExchangeOutcomePayload::Observed)),
+    exchange_case!(Exchanged => 1 => None),
 ];
 
 const OBSERVING_SINGLE_ATTEMPT_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 3] = [
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Mismatched,
-        tag: 0,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Observed),
-    },
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Exchanged,
-        tag: 1,
-        payload: None,
-    },
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Uncommitted,
-        tag: 2,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Observed),
-    },
+    exchange_case!(Mismatched => 0 => Some(AtomicCompareExchangeOutcomePayload::Observed)),
+    exchange_case!(Exchanged => 1 => None),
+    exchange_case!(Uncommitted => 2 => Some(AtomicCompareExchangeOutcomePayload::Observed)),
 ];
 
 const NON_OBSERVING_DECISIVE_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 2] = [
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Mismatched,
-        tag: 0,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Proposed),
-    },
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Exchanged,
-        tag: 1,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Displaced),
-    },
+    exchange_case!(Mismatched => 0 => Some(AtomicCompareExchangeOutcomePayload::Proposed)),
+    exchange_case!(Exchanged => 1 => Some(AtomicCompareExchangeOutcomePayload::Displaced)),
 ];
 
 const NON_OBSERVING_SINGLE_ATTEMPT_CASES: [AtomicCompareExchangeOutcomeCaseSchema; 3] = [
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Mismatched,
-        tag: 0,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Proposed),
-    },
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Exchanged,
-        tag: 1,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Displaced),
-    },
-    AtomicCompareExchangeOutcomeCaseSchema {
-        case: AtomicCompareExchangeOutcomeCase::Uncommitted,
-        tag: 2,
-        payload: Some(AtomicCompareExchangeOutcomePayload::Proposed),
-    },
+    exchange_case!(Mismatched => 0 => Some(AtomicCompareExchangeOutcomePayload::Proposed)),
+    exchange_case!(Exchanged => 1 => Some(AtomicCompareExchangeOutcomePayload::Displaced)),
+    exchange_case!(Uncommitted => 2 => Some(AtomicCompareExchangeOutcomePayload::Proposed)),
 ];
 
 const OUTCOME_TYPE_PARAMETERS: [&str; 1] = ["T"];
