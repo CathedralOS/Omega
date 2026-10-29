@@ -49,7 +49,7 @@ impl CheckingCompilation {
     ) -> Result<CompilationOutput, CompilationProductError> {
         let completed = produced
             .check_conditions(&mut self.realization.custody)
-            .and_then(|()| self.realization.check_task_activations());
+            .and_then(|()| self.realization.check_declaration_requirements());
         if let Err(diagnostics) = completed {
             return Err(CompilationProductError::ProductionAttempt {
                 diagnostics,

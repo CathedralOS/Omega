@@ -19,14 +19,18 @@ pub struct SelectedExecution {
     pub program: Arc<CheckedProgram>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
-    /// Only native handoff demands these source identities. A refusal remains
-    /// data so checking-only stops acquire no native-only obligations.
+    /// Native handoff and executable exclusion admission demand these source
+    /// identities. A refusal remains data so checking-only stops acquire no
+    /// native-only obligations.
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     /// Exact admitted deployment provider; absence retains the SSE2 baseline.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    /// Authored selection and closed physical leaves. Checked adapter instances
+    /// come from Terminal for native consumers, or an explicit checked-source
+    /// projection for reference execution and review.
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,

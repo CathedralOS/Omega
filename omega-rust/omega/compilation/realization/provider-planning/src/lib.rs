@@ -67,9 +67,10 @@ pub use provider_planning::{
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderReviewProvenance,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
-    same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
-    selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,
-    selected_use_plan, specialized_provider_machines,
+    project_checked_provider_instances, same_semantic_name, satisfies_plan_name,
+    select_derived_provider_plans, selected_provider_plan_facts,
+    selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
+    specialized_provider_machines,
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,

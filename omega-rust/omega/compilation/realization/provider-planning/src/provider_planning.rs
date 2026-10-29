@@ -41,8 +41,8 @@ pub(crate) use provenance_replay::{
 };
 pub use provenance_replay::{
     ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
-    exact_checked_adapter, same_semantic_name, satisfies_plan_name,
-    selected_requirement_checked_adapter,
+    exact_checked_adapter, project_checked_provider_instances, same_semantic_name,
+    satisfies_plan_name, selected_requirement_checked_adapter,
 };
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
 pub(crate) use selection_provenance::{
@@ -99,7 +99,7 @@ pub fn bind_selected_provider_plan_facts(
     let (installation_reach_resolutions, installation_reach_identities) =
         derive_selected_installation_reach_resolutions(typed, check_facts, &facts)?;
     let (specialized_requirement_rows, specialized_identities) =
-        provenance_replay::derive_selected_requirement_specializations(typed, check_facts, &facts)?;
+        provenance_replay::derive_leaf_requirement_specializations(typed, &facts)?;
     let (external_applications, external_identities) =
         external_requirements::derive(typed, &facts, provenance)
             .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
