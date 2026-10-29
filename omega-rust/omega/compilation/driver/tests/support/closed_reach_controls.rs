@@ -45,6 +45,11 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         .as_ref()
         .unwrap();
     let mut controls: Vec<(&str, &str, TerminalModule)> = Vec::new();
+    macro_rules! control {
+        ($label:literal => $needle:literal => $module:expr) => {
+            controls.push(($label, $needle, $module));
+        };
+    }
 
     let mut bad = module.clone();
     let fixed = &mut bad.machines[owner]
@@ -82,11 +87,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         .unwrap()
         .dependencies
         .push(u32::MAX);
-    controls.push((
-        "incomplete dependency telescope",
-        "outside its machine telescope",
-        bad,
-    ));
+    control!("incomplete dependency telescope" => "outside its machine telescope" => bad);
 
     let mut bad = module.clone();
     let ClosedReachParameter::Machine(binding) = parameter_mut(
@@ -110,11 +111,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             .unwrap()
             .calls
             .remove(0);
-        controls.push((
-            "removed original call occurrence",
-            "no exact call occurrence",
-            bad,
-        ));
+        control!("removed original call occurrence" => "no exact call occurrence" => bad);
 
         // This control specifically duplicates an operation owner. Retain a
         // real normal invocation; a terminal edge has no operation identity.
@@ -131,11 +128,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             .find(|operation| operation.id == operation_id)
             .ok_or("missing marked operation")?;
         operation.static_reach_binding = Some(u32::MAX);
-        controls.push((
-            "redirected operation binder",
-            "invocation binder marker",
-            bad,
-        ));
+        control!("redirected operation binder" => "invocation binder marker" => bad);
 
         let mut bad = module.clone();
         let block = bad.machines[owner]
@@ -155,19 +148,11 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             .unwrap()
             .clone();
         block.operations.push(operation);
-        controls.push((
-            "ambiguous owner operation",
-            "operation identities are ambiguous",
-            bad,
-        ));
+        control!("ambiguous owner operation" => "operation identities are ambiguous" => bad);
 
         let mut bad = module.clone();
         bad.machines[owner].closed_reach_application = None;
-        controls.push((
-            "removed retained application",
-            "no retained application",
-            bad,
-        ));
+        control!("removed retained application" => "no retained application" => bad);
     }
 
     let mut changed_selection = false;
@@ -245,11 +230,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             };
             binding.callee = Some(alternative);
         }
-        controls.push((
-            "redirected same-shaped selected callee",
-            "closed reach",
-            bad,
-        ));
+        control!("redirected same-shaped selected callee" => "closed reach" => bad);
     } else {
         return Err("reach controls need two distinct same-shaped selected callables".to_owned());
     }
@@ -276,11 +257,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                 .unwrap()
                 .arguments
                 .pop();
-            controls.push((
-                "incomplete schema invocation tuple",
-                "exact retained application",
-                bad,
-            ));
+            control!("incomplete schema invocation tuple" => "exact retained application" => bad);
             break;
         }
     }
@@ -309,11 +286,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
                     }
                 }
             }
-            controls.push((
-                "omitted declaration argument",
-                "complete declaration telescope",
-                bad,
-            ));
+            control!("omitted declaration argument" => "complete declaration telescope" => bad);
         }
         if let Some((binder, _)) = application.parameters().enumerate().find(|(_, parameter)| {
             matches!(parameter, ClosedReachParameter::Machine(binding) if !binding.requirement_arguments.is_empty())
