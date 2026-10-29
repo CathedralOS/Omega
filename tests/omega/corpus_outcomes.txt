@@ -25882,7 +25882,7 @@ pass/domains/guard_predicate_establishes_domain checked 2118ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit checked 2717ms check-target:macos_arm64 @a92f16431042
 pass/domains/indexed_domain_fact rejected 2116ms regressed-from:checked @a92f16431042
 	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-pass/domains/indexed_domain_known_disjoint_call_exit checked 2849ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ee1410030dca
+pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 5167ms check-target:macos_arm64 @a92f16431042
 pass/domains/intersected_qualifiers checked 4340ms @a92f16431042
 pass/domains/issued_indexed_subject_predicate checked 2072ms @a92f16431042
