@@ -926,10 +926,6 @@ fn loan_sources<'a>(
             if resource.state_symbol != state.state
                 || !resource.owner_path.is_empty()
                 || !facts.flow.control.calls.is_valid(resource.call)
-                || !facts
-                    .borrow
-                    .incoming_references
-                    .is_valid(resource.backing_incoming_reference)
             {
                 return Err(LoweringError::Unsupported(
                     "state loan ingress has no exact current namespace",
@@ -951,38 +947,90 @@ fn loan_sources<'a>(
                     "state loan ingress belongs to another captured operand",
                 ));
             }
-            let incoming = facts
-                .borrow
-                .incoming_references
-                .get(resource.backing_incoming_reference);
-            if incoming.machine_symbol != resource.machine_symbol
-                || incoming.state_symbol != state.state
-            {
-                return Err(LoweringError::Unsupported(
-                    "state loan ingress origin belongs to another invocation",
-                ));
-            }
-            let path = facts
-                .borrow
-                .call_loan_backing_paths
-                .span(resource.backing_path)
-                .ok_or(LoweringError::Unsupported(
-                    "state loan ingress backing path is stale",
-                ))?;
-            let owner = facts
-                .borrow
-                .owner_segments
-                .span(incoming.owner_path)
-                .ok_or(LoweringError::Unsupported(
-                    "state loan ingress owner path is stale",
-                ))?;
-            let symbol = match incoming.origin {
-                checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol }
-                | checked_trees::IncomingReferenceOrigin::Parameter { symbol } => symbol,
-                checked_trees::IncomingReferenceOrigin::Invocation { .. }
-                | checked_trees::IncomingReferenceOrigin::Output { .. } => {
-                    return Ok(LoanSource::Foreign);
+            let path = if resource.backing_path.is_empty() {
+                &[][..]
+            } else {
+                facts
+                    .borrow
+                    .call_loan_backing_paths
+                    .span(resource.backing_path)
+                    .ok_or(LoweringError::Unsupported(
+                        "state loan ingress backing path is stale",
+                    ))?
+            };
+            let (symbol, projected) = if resource.backing_incoming_reference.is_valid() {
+                if !facts
+                    .borrow
+                    .incoming_references
+                    .is_valid(resource.backing_incoming_reference)
+                {
+                    return Err(LoweringError::Unsupported(
+                        "state loan ingress identity is stale",
+                    ));
                 }
+                let incoming = facts
+                    .borrow
+                    .incoming_references
+                    .get(resource.backing_incoming_reference);
+                if incoming.machine_symbol != resource.machine_symbol
+                    || incoming.state_symbol != state.state
+                {
+                    return Err(LoweringError::Unsupported(
+                        "state loan ingress origin belongs to another invocation",
+                    ));
+                }
+                let owner = if incoming.owner_path.is_empty() {
+                    &[][..]
+                } else {
+                    facts
+                        .borrow
+                        .owner_segments
+                        .span(incoming.owner_path)
+                        .ok_or(LoweringError::Unsupported(
+                            "state loan ingress owner path is stale",
+                        ))?
+                };
+                let symbol = match incoming.origin {
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol }
+                    | checked_trees::IncomingReferenceOrigin::Parameter { symbol } => symbol,
+                    checked_trees::IncomingReferenceOrigin::Invocation { .. }
+                    | checked_trees::IncomingReferenceOrigin::Output { .. } => {
+                        return Ok(LoanSource::Foreign);
+                    }
+                };
+                (symbol, !path.is_empty() || !owner.is_empty())
+            } else {
+                let symbol =
+                    resource
+                        .parent_lifetime
+                        .root
+                        .as_symbol()
+                        .ok_or(LoweringError::Unsupported(
+                            "ordinary state loan ingress has no formal root",
+                        ))?;
+                let (machine, typed_state) = validation::find_state(&checked.typed, state.state)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordinary state loan ingress state is absent",
+                    ))?;
+                let parameter = checked
+                    .typed
+                    .state_parameter_by_symbol(typed_state, symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordinary state loan ingress formal is absent",
+                    ))?;
+                if validation::reference_shell(&checked.typed, parameter.type_reference).is_none()
+                    || !validation::state_reference_parameter_binding_is_stable(
+                        &checked.typed,
+                        machine,
+                        typed_state,
+                        symbol,
+                    )
+                {
+                    return Err(LoweringError::Unsupported(
+                        "ordinary state loan ingress binding is not established",
+                    ));
+                }
+                (symbol, !path.is_empty())
             };
             let typed_state =
                 checked
@@ -1014,10 +1062,10 @@ fn loan_sources<'a>(
             let dense = u32::try_from(dense).map_err(|_| {
                 LoweringError::Unsupported("state loan ingress formal index overflows")
             })?;
-            Ok(if path.is_empty() && owner.is_empty() {
-                LoanSource::Parameter(dense)
-            } else {
+            Ok(if projected {
                 LoanSource::ProjectedParameter(dense)
+            } else {
+                LoanSource::Parameter(dense)
             })
         })
         .chain(legacy)

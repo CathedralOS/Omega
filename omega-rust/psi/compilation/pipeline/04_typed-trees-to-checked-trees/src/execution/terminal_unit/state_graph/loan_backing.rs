@@ -172,19 +172,44 @@ pub(super) fn retained_storage(
     // Preserve the complete captured ingress relation, not a local descriptor's
     // initializer. A mixture with owned/unknown backing supplies no ingress
     // shortcut; every resource continues through the ordinary retention owner.
+    let typed_state = program
+        .state_by_symbol(state)
+        .ok_or("state loan ingress: state is absent")?;
+    let typed_machine = validation::find_state(program, state)
+        .map(|(machine, _)| machine)
+        .ok_or("state loan ingress: machine is absent")?;
     let incoming = if resources.iter().all(|(_, resource)| {
-        resource.backing_incoming_reference.is_valid()
-            && facts
+        if resource.backing_incoming_reference.is_valid() {
+            return facts
                 .borrow
                 .incoming_references
                 .is_valid(resource.backing_incoming_reference)
-            && {
-                let origin = facts
-                    .borrow
-                    .incoming_references
-                    .get(resource.backing_incoming_reference);
-                origin.machine_symbol == machine && origin.state_symbol == state
-            }
+                && {
+                    let origin = facts
+                        .borrow
+                        .incoming_references
+                        .get(resource.backing_incoming_reference);
+                    origin.machine_symbol == machine && origin.state_symbol == state
+                };
+        }
+        // Plain loan parameters already name their caller-supplied referent in
+        // the checked access namespace; only stored descriptors need a separate
+        // opaque incoming-reference identity. Do not confuse the absence of
+        // that identity with locally owned referent storage.
+        resource
+            .parent_lifetime
+            .root
+            .as_symbol()
+            .and_then(|symbol| program.state_parameter_by_symbol(typed_state, symbol))
+            .is_some_and(|parameter| {
+                validation::reference_shell(program, parameter.type_reference).is_some()
+                    && validation::state_reference_parameter_binding_is_stable(
+                        program,
+                        typed_machine,
+                        typed_state,
+                        parameter.symbol,
+                    )
+            })
     }) {
         resources.iter().map(|(handle, _)| *handle).collect()
     } else {
