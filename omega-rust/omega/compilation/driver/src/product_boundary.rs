@@ -20,9 +20,7 @@ fn product_policy_admission_has_one_source_owner() {
         .find("rejoin_package_provider_selections(")
         .unwrap();
     let source_admission = coordinator.find("source.admit_product_policy(").unwrap();
-    let receipt_attachment = coordinator
-        .find("native_binding_evaluation.clone()")
-        .unwrap();
+    let receipt_attachment = coordinator.find("native_binding_evaluation").unwrap();
     assert!(authentication < source_admission && source_admission < receipt_attachment);
     let source =
         include_str!("../../../../psi/compilation/driver/src/source_compilation/product_policy.rs");
@@ -932,7 +930,8 @@ fn terminal_consumers_call_psi_without_a_product_wrapper() {
 fn exclusion_source_resolution_stays_out_of_terminal_policy() {
     let selection = include_str!("checked/checking/product_selections.rs");
     assert!(selection.contains("exclusions::resolve("));
-    let source = include_str!("checked/checking/product_selections/exclusions.rs");
+    let source =
+        include_str!("../../../../psi/compilation/compile-time/src/product_policy/exclusions.rs");
     assert!(source.contains("pub(super) fn resolve("));
     assert!(source.contains("resolve_product_path("));
     let policy = include_str!("terminal/behavior_exclusions.rs");
