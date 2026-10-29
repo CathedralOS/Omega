@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `compute_*(60u64)` across eleven sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `machine done() {}`, terminating with native exit 0. If preservation fails or corrupts the live value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `compute_*(60u64)` across eleven sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `machine done() {}`, terminating with native exit 0. The final helper-chain result is checked, but the arithmetic sum cancels the preserved value: corruption within the admitted range can still return zero. This migration does not renew exact live-value preservation acceptance.
 - Each invalid twin widens the bound contract to `saved >= 39 && saved <= 80` (or `SAVED = 39`), so `res - 40` may underflow. Exact subtraction `let underflow: u64 = res - 40;` fails closed at compile time with `exact arithmetic in machine ... local underflow may overflow u64`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -80,3 +80,18 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions encode into machine bytes, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
 - **What remains open:** Values live across 16 or more sequential calls with extreme register pressure forcing multi-slot stack frame spill reallocation, live-across-call floating point scalar preservation, and live-across-call vector register preservation.
+
+## Build-owned target-body migration
+
+`BUILD-OWNED-TARGET-SELECTION` migrates this existing target-body witness to
+ordinary named implementations selected by explicit target-keyed Build rows.
+Its original live-across-call body tokens, input and result contracts, helper parameter
+count and main exit oracle are preserved. A separately selected tag check
+(17 for X86, 29 for ARM) makes wrong implementation selection observable.
+The target-body pin requests five unchanged-artifact Terminal installations;
+other eight places, root, their authored Build rows and runtime oracles remain
+unchanged and are reobserved with the current optimized producer.
+
+This source migration does not renew historical calling-plan row completeness,
+claim native execution on Windows/Linux, or close the target/native migration
+parent tasks. The original head/underflow sum cancels the saved value, so in-range corruption can retain exit zero. The added tag guards discriminate provider selection only; exact live-value preservation acceptance is not renewed.
