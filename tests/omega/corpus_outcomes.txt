@@ -8426,6 +8426,24 @@ fail/facts/fixed_array_value_through_target_body_rejected rejected 1573ms expect
 	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in read_element::entry
+fail/facts/fixed_layout_storage_through_call_result_rejected rejected 1023ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_const_name_rejected rejected 708ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_field_rejected rejected 624ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_local_rejected rejected 701ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_match_join_rejected rejected 990ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_machine_rejected rejected 831ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_state_rejected rejected 800ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_parameter_rejected rejected 671ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_target_body_rejected rejected 573ms expected @50285e49318d
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/float_comparison_route_mixed_format_rejected rejected 1822ms expected @a92f16431042
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/facts/float_comparison_route_through_call_result_rejected rejected 1804ms expected @a92f16431042
@@ -17780,6 +17798,15 @@ pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 1
 pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 2013ms check-target:macos_arm64 @6d4edb1c9d50
 pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 2120ms check-target:macos_arm64 @6d4edb1c9d50
 pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 2279ms check-target:macos_arm64 @6d4edb1c9d50
+pass/facts/fixed_layout_storage_through_call_result_exit checked 3270ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_const_name_exit checked 5725ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_field_exit checked 3862ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_local_exit checked 3732ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_match_join_exit checked 3528ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_other_machine_exit checked 3828ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_other_state_exit checked 3215ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_parameter_exit checked 3927ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_target_body_exit checked 3859ms check-target:macos_arm64 @50285e49318d
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt

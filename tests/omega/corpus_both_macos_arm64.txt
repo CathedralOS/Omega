@@ -1325,6 +1325,15 @@ pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_machine_exit b
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_state_exit built 18992ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_parameter_exit built 19000ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_exit built 21258ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
+pass/facts/fixed_layout_storage_through_call_result_exit built 3948ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_const_name_exit built 5252ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_field_exit built 3497ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_local_exit built 3316ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_match_join_exit built 3593ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_other_machine_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_other_state_exit built 3678ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_parameter_exit built 3861ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
+pass/facts/fixed_layout_storage_through_target_body_exit built 3774ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
 pass/facts/float_comparison_route_through_call_result_exit built 28838ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_const_name_exit built 26029ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_field_exit built 21884ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
