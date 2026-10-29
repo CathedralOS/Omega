@@ -1,1 +1,1 @@
-cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`
+cannot prove initializer of `scoped` in X86Probe::exercise is in domain `BelowIndex`

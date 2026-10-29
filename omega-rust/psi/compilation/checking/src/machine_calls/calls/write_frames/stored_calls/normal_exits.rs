@@ -409,7 +409,15 @@ fn collect_exit(
             {
                 continue;
             }
-            None => return None,
+            None => {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE slot-exit-source state={} slot={} phase=unknown-contents",
+                        state.name, slot.local_path
+                    );
+                }
+                return None;
+            }
         };
         for mut supplied in sources {
             super::summary_windows::coarsen(program, &mut supplied);
@@ -421,7 +429,12 @@ fn collect_exit(
                 if !source.source.root.is_valid() {
                     return None;
                 }
-                let parameter = program.state_parameter_by_symbol(state, source.source.root)?;
+                let parameter = program.state_parameter_by_symbol(state, source.source.root).or_else(|| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE slot-exit-source state={} slot={} phase=local-source source={supplied:?}", state.name, slot.local_path);
+                    }
+                    None
+                })?;
                 // Owned input storage dies in the callee. Only a reference
                 // boundary actually crossed by this source survives invocation.
                 if !frames::type_reference_is_reference(program, parameter.type_reference) {

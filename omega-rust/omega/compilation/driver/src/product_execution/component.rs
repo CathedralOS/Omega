@@ -125,7 +125,11 @@ impl ComponentPublication {
             )
             .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
         }
-        crate::execution_settlement::check_task_activations(execution)
+        crate::execution_settlement::check_terminal_task_activations(
+            produced.artifact.view().module(),
+            &execution.selected_provider_plan_facts,
+            execution.selected_target_profile,
+        )
     }
 
     fn publish(

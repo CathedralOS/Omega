@@ -394,6 +394,9 @@ impl<'program> CurrentScalarValues<'program> {
                 }
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
+                    let target_remains_current = frames.is_some_and(|frames| {
+                        frames.assignment_destination_remains_current(machine, statement)
+                    });
                     let actuals = values.capture_call_actuals(assignment.value);
                     let value = values.capture(program, machine, state, assignment.value);
                     let conditions = values.capture_conditions(assignment.value, 0);
@@ -434,8 +437,9 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                         });
                     }
-                    if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
+                    if target_remains_current
+                        && let ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
                         && name.symbol == name.head_symbol
                         && values
@@ -469,8 +473,9 @@ impl<'program> CurrentScalarValues<'program> {
                             binding.value = next_value;
                             binding.alternatives = alternatives;
                         }
-                    } else if let ExpressionNode::Name(name) =
-                        program.expression_table.expression(assignment.target)
+                    } else if target_remains_current
+                        && let ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
                         && name.symbol == name.head_symbol
                         && let Some(length) = values
                             .lengths
@@ -490,7 +495,12 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
-                    if let Some((owner, path)) = field_storage_path(program, assignment.target) {
+                    // The store uses the address captured before operand effects.
+                    // A rebound selector can no longer name that home; publishing
+                    // through its old spelling would manufacture a current rank.
+                    if target_remains_current
+                        && let Some((owner, path)) = field_storage_path(program, assignment.target)
+                    {
                         values.replace_conditions(owner, &path, conditions);
                         values.replace_scalar_fields(owner, &path, scalar_fields);
                         values.replace_record_fields(owner, &path, fields);

@@ -283,6 +283,15 @@ pub fn validate_nominal_callback_placement_bindings(
     facts: &checked_trees::CheckFacts,
     realizations: &[BoundaryCallingPlanRealization],
 ) -> Result<Vec<SelectedCallbackPlacement>, Vec<Diagnostic>> {
+    if facts.nominal_machine_uses.uses.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Callback classification precedes Terminal production and needs exact
+    // source instances: absence must not turn a checked registration into an
+    // unselected declaration and bypass its placement obligations.
+    let selected_instances =
+        crate::project_checked_provider_instances(typed, facts, selected_providers)?;
+    let selected_providers = &selected_instances;
     let mut diagnostics = Vec::new();
     let mut bound = Vec::new();
     for nominal_use in &facts.nominal_machine_uses.uses {

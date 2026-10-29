@@ -30,10 +30,7 @@ fn selected_constant_evaluation_belongs_to_psi() {
     let queries = include_str!(
         "../../../../psi/compilation/compile-time/src/const_evaluation/data_layout_queries.rs"
     );
-    let closure = include_str!(
-        "../../../../psi/compilation/compile-time/src/const_evaluation/retained_constants.rs"
-    );
-    for source in [evaluation, queries, closure] {
+    for source in [evaluation, queries] {
         for forbidden in [
             "provider_planning::",
             "selected_dispatch::",
@@ -49,7 +46,7 @@ fn selected_constant_evaluation_belongs_to_psi() {
 }
 
 #[test]
-fn deferred_constant_custody_and_value_publication_belong_to_psi() {
+fn deferred_constants_use_canonical_entries_without_source_snapshots() {
     let checking = include_str!("checked/checking/source_checking.rs");
     let closure = include_str!("terminal/scalar_completion.rs");
     let product = include_str!("../../products/src/prepared_build.rs");
@@ -66,39 +63,33 @@ fn deferred_constant_custody_and_value_publication_belong_to_psi() {
         }
     }
     assert!(closure.contains("build_time_evaluation::complete_scalar_applications("));
-    assert!(product.contains("RetainedConstantEvaluation"));
     let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
-    assert!(
-        checking
-            .find("RetainedConstantEvaluation::capture(")
-            .unwrap()
-            < checking.find("prepare_source_completion(").unwrap()
-    );
+    assert!(checking.contains("constant_entries::retain_evaluation_entries(&mut program)"));
+    let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
+    for source in [checking, product, selection] {
+        for retired in [
+            "RetainedConstantEvaluation",
+            "ConstantValueClosureRequest",
+            "close_constants(",
+        ] {
+            assert!(
+                !source.contains(retired),
+                "source snapshot path returned: {retired}"
+            );
+        }
+    }
 }
 
 #[test]
-fn reused_product_selection_keeps_current_deferred_work() {
+fn reused_product_selection_shares_the_checked_program() {
     use std::sync::Arc;
 
-    let (syntax, pending) = build_time_evaluation::evaluate_pre_resolution(
-        build_time_evaluation::BuildTimeEvaluationRequest {
-            syntax_trees: Default::default(),
-            source_context: Default::default(),
-        },
-    )
-    .expect("empty elaboration")
-    .into_syntax_and_pre_check();
-    drop(syntax);
     let program = Arc::new(checked_trees::CheckedTrees::default());
-    let constants =
-        build_time_evaluation::RetainedConstantEvaluation::capture(&program.typed, vec![pending])
-            .expect("retained continuation");
     let mut selections = psi_compiler::ProductSelections::default();
     let first = selections
         .select(
             psi_compiler::CheckedSource {
                 program: Arc::clone(&program),
-                constants: None,
                 retained: None,
                 reused: false,
             },
@@ -109,7 +100,6 @@ fn reused_product_selection_keeps_current_deferred_work() {
         .select(
             psi_compiler::CheckedSource {
                 program: Arc::clone(&program),
-                constants: Some(constants.clone()),
                 retained: None,
                 reused: true,
             },
@@ -117,27 +107,10 @@ fn reused_product_selection_keeps_current_deferred_work() {
         )
         .expect("reused root selection");
     assert!(Arc::ptr_eq(&first.program, &second.program));
-    assert!(std::ptr::eq(
-        constants.source(),
-        second.constants.as_ref().expect("current work").source()
-    ));
-    let third = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program,
-                constants: None,
-                retained: None,
-                reused: true,
-            },
-            None,
-        )
-        .expect("no current deferred work");
-    assert!(Arc::ptr_eq(&first.program, &third.program));
-    assert!(third.constants.is_none());
 }
 
 #[test]
-fn constant_proof_closure_belongs_to_psi() {
+fn canonical_proof_completion_has_no_source_rewrite_api() {
     let coordinator = include_str!("terminal/scalar_completion.rs");
     assert!(coordinator.contains("build_time_evaluation::complete_scalar_applications("));
     for forbidden in [
@@ -158,9 +131,26 @@ fn constant_proof_closure_belongs_to_psi() {
         );
     }
     let facade = include_str!("../../../../psi/compilation/driver/src/lib.rs");
-    assert!(!facade.contains("settle_closed_constant_execution"));
-    let proof =
-        include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
+    let stage = include_str!(
+        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/lib.rs"
+    );
+    for source in [facade, stage] {
+        for retired in [
+            "ConstantProofClosure",
+            "ConstantProofApplication",
+            "settle_closed_constant_execution",
+            "pub use facts::declaration_descriptions::retain_declaration_descriptions",
+        ] {
+            assert!(
+                !source.contains(retired),
+                "source rewrite API returned: {retired}"
+            );
+        }
+    }
+    let entries =
+        include_str!("../../../../psi/compilation/driver/src/source_checking/constant_entries.rs");
+    assert!(entries.contains("fn retain_evaluation_entries("));
+    assert!(!entries.contains("CheckedTrees::with_roots("));
     let applications =
         include_str!("../../../../psi/foundation/semantic-vocabulary/src/proof_applications.rs");
     for forbidden in [
@@ -170,8 +160,8 @@ fn constant_proof_closure_belongs_to_psi() {
         "native_production::",
     ] {
         assert!(
-            !proof.contains(forbidden) && !applications.contains(forbidden),
-            "Psi proof closure depends on {forbidden}"
+            !entries.contains(forbidden) && !applications.contains(forbidden),
+            "Psi constant entries or proof applications depend on {forbidden}"
         );
     }
 }

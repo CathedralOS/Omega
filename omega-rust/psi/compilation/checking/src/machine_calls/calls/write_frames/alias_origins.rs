@@ -288,10 +288,10 @@ pub(crate) fn stable_alias_initializer_origins(
                     recast.formation = crate::ReferenceViewFormation::Expression(expression);
                 }
             }
-            origins
+            return Some(origins);
         }
         ExpressionNode::Call(call) => {
-            transparent_call_result_origins(
+            if let Some(origins) = super::transparent_results::captured_call_result_origins(
                 program,
                 call,
                 symbols,
@@ -312,12 +312,15 @@ pub(crate) fn stable_alias_initializer_origins(
                         stored,
                     )
                 },
-            )
+                stored,
+            ) {
+                return Some(origins);
+            }
             // A boundary call has no checked body, but its admitted candidate
             // routes still supply proven referent origins. A resolved
             // requirement call answers the same way through its retained
             // signature identity.
-            .or_else(|| {
+            {
                 macro_rules! boundary_origins {
                     ($candidate:ident) => {
                         super::boundary_calls::$candidate(
@@ -338,7 +341,7 @@ pub(crate) fn stable_alias_initializer_origins(
                 }
                 boundary_origins!(boundary_result_candidate_origins)
                     .or_else(|| boundary_origins!(requirement_result_candidate_origins))
-            })?
+            }?
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index)
@@ -356,25 +359,23 @@ pub(crate) fn stable_alias_initializer_origins(
             {
                 return None;
             }
-            projected_indexed_origins(
+            let receivers = stable_alias_initializer_origins(
                 program,
-                stable_alias_initializer_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    inference,
-                    indexed.collection,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                    stored,
-                )?,
-                expression,
+                current_machine,
+                machine_symbols,
+                inference,
                 indexed.collection,
-            )
+                parameters,
+                isolated_local_roots,
+                aliases,
+                divergent_aliases,
+                symbols,
+                allow_isolated_local,
+                stored,
+            )?;
+            return completed_projection_origins(program, receivers, stored, |receiver| {
+                projected_indexed_origins(program, vec![receiver], expression, indexed.collection)
+            });
         }
         ExpressionNode::Member(member) => {
             let receivers = stable_alias_initializer_origins(
@@ -392,7 +393,9 @@ pub(crate) fn stable_alias_initializer_origins(
                 stored,
             );
             if let Some(receivers) = receivers {
-                projected_member_origins(program, receivers, expression, member)
+                return completed_projection_origins(program, receivers, stored, |receiver| {
+                    projected_member_origins(program, vec![receiver], expression, member)
+                });
             } else {
                 // A member projection off a transparent aggregate call result
                 // has no carrier storage to alias; a reference leaf selected
@@ -429,7 +432,7 @@ pub(crate) fn stable_alias_initializer_origins(
                     push_unique_origin(&mut selected, origin);
                 }
             }
-            selected
+            return (!selected.is_empty()).then_some(selected);
         }
         ExpressionNode::Cast(cast)
             if cast.form.is_recast()
@@ -453,7 +456,7 @@ pub(crate) fn stable_alias_initializer_origins(
                 let formation = crate::reference_formation_source(program, expression)?;
                 origin.source.recast(formation.view_type, expression);
             }
-            origins
+            return Some(origins);
         }
         _ => stable_alias_expression_origins(
             program,
@@ -476,22 +479,40 @@ pub(crate) fn stable_alias_initializer_origins(
                 .then_some(vec![origin])
         })?,
     };
-    // Capture reference contents at formation, while this prefix still owns
-    // the descriptor-to-referent association. Returning a stored leaf must
-    // not leave its container field as the scalar's apparent storage, and
-    // later inventory queries must not resolve a replaced descriptor again.
+    // Fresh leaves load their contents at this prefix. Alias rows have already
+    // captured that boundary: only selectors beyond it can load another slot.
+    // Reloading an alias's old descriptor home here would redirect an earlier
+    // copy after replacement, or turn a finite descriptor swap into unknown.
     let mut captured = Vec::new();
     for origin in origins {
-        for referent in super::stored_origins::canonical_reference_origins(
-            program,
-            &Some(origin),
-            aliases,
-            stored,
+        for referent in reference_subjects::captured_value_origins(
+            program, expression, &origin, aliases, stored,
         ) {
             push_unique_origin(&mut captured, referent?);
         }
     }
     (!captured.is_empty()).then_some(captured)
+}
+
+/// A receiver already denotes a completed pointer. Only this operation's new
+/// selectors may load more slots; its earlier binding cannot be replayed.
+fn completed_projection_origins(
+    program: &dyn crate::CheckingInput,
+    receivers: Vec<FramePlaceOrigin>,
+    stored: &[StoredLocalOrigins],
+    project: impl Fn(FramePlaceOrigin) -> Vec<FramePlaceOrigin>,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut completed = Vec::new();
+    for receiver in receivers {
+        for projected in project(receiver.clone()) {
+            for source in super::stored_origins::captured_reference_projection_origins(
+                program, &receiver, &projected, stored,
+            ) {
+                push_unique_origin(&mut completed, source?);
+            }
+        }
+    }
+    (!completed.is_empty()).then_some(completed)
 }
 
 #[allow(clippy::too_many_arguments)]

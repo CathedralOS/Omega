@@ -488,6 +488,9 @@ profiles bound to the actual binary digests. See
   `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
   Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
   commands to leverage mbx caching automatically.
+- Keep each worktree's Cargo target directory separate, including baseline
+  comparisons. Share objects through `mbx`, never by pointing two worktrees at
+  one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).

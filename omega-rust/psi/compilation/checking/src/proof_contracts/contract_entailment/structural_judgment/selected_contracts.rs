@@ -422,9 +422,14 @@ impl StructuralJudge<'_> {
         application: &StructuralTerm,
         depth: usize,
     ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+        // Establishing these premises can project an integer predicate back
+        // through this same application with a fresh local recursion depth.
+        // Contracts and bodies share one exact question history; recurrence
+        // supplies no equation and never makes the required premise true.
+        let resolving = self.clone().resolving_application(application)?;
         let SelectedApplicationCarrier {
             owner, parameters, ..
-        } = self.selected_application_carrier(application, depth)?;
+        } = resolving.selected_application_carrier(application, depth)?;
         let StructuralTerm::Application { arguments, .. } = application else {
             return None;
         };
@@ -433,7 +438,8 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        self.selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
+        resolving
+            .selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
             .map(|guarantees| guarantees.equations)
     }
 

@@ -35,6 +35,7 @@ pub(crate) struct TerminalProductionView<'a> {
     entry: Option<&'a provider_planning::program_entry::SelectedCompilerProgramEntry>,
     provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     plan_facts: &'a effects::SelectedProviderPlanFacts,
+    native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
     timings: &'a mut CompileTimings,
     native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
@@ -57,6 +58,7 @@ impl<'a> TerminalProductionView<'a> {
             entry: selection.execution.selected_program_entry.as_ref(),
             provenance: &selection.execution.selected_provider_provenance,
             plan_facts: &selection.execution.selected_provider_plan_facts,
+            native_sources: &selection.execution.native_provider_sources,
             callbacks: &selection.execution.callback_placements,
             timings: &mut selection.timings,
             native_components,
@@ -79,6 +81,7 @@ impl<'a> TerminalProductionView<'a> {
             entry: checked.execution().selected_program_entry.as_ref(),
             provenance: &checked.execution().selected_provider_provenance,
             plan_facts: &checked.execution().selected_provider_plan_facts,
+            native_sources: &checked.execution().native_provider_sources,
             callbacks: &checked.execution().callback_placements,
             timings,
             native_components: None,
@@ -109,6 +112,13 @@ pub(crate) enum ProducedTerminalProduct {
 }
 
 impl ProducedTerminalProduct {
+    pub(crate) fn module(&self) -> &terminal_psi::TerminalModule {
+        match self {
+            Self::Descriptive { program, .. } => program.artifact().view().module(),
+            Self::Application(application) => application.artifact.view().module(),
+        }
+    }
+
     pub(crate) fn into_application(self) -> Result<TerminalApplication, Vec<Diagnostic>> {
         match self {
             Self::Application(application) => Ok(application),
@@ -188,6 +198,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
         let policy = TerminalBehaviorExclusions::new(
             view.build.config.behavior_exclusions.as_slice(),
             view.plan_facts,
+            view.native_sources,
             entry.source_signature().target_slot().owner,
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
@@ -625,7 +636,7 @@ fn prepare_target_provider_publication(
 /// an executable product entry. Only the retained conditions demand evaluation.
 pub(crate) fn check_terminal_conditions(
     selection: &mut SelectedProviderCustody,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Option<ProducedTerminalProduct>, Vec<Diagnostic>> {
     if !selection
         .execution
         .program
@@ -633,7 +644,7 @@ pub(crate) fn check_terminal_conditions(
         .proof_applications
         .has_obligations
     {
-        return Ok(());
+        return Ok(None);
     }
     let selections = OptimizationSelections::default();
     let request = TerminalProductRequest {
@@ -648,5 +659,6 @@ pub(crate) fn check_terminal_conditions(
                 "declaration checking lost its production",
             )]
         })??;
-    produced.check_conditions(selection)
+    produced.check_conditions(selection)?;
+    Ok(Some(produced))
 }

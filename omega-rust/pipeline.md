@@ -322,6 +322,16 @@ Preparation retains a refusal as data until the native handoff demands it, so a
 checking-only stop does not acquire native-only obligations. Physical family
 membership and receiving admission still belong to the Terminal consumer.
 
+Ordinary provider binding retains closed intrinsic/syscall applications, but
+does not replay checked-adapter instances. Native realization and unoptimized
+behavior-exclusion admission join those instances from Terminal's canonical
+provider associations and exact prepared declarations. Check/inspection stops,
+nominal callback preparation, checked-reference interpretation and package
+review request their checked-source projection explicitly. Review derives it
+from original compiler custody, never from the supplied semantic candidate.
+The selected plans, Import application custody and exact owner identities stay
+unchanged; each completed instance roster recomputes its aggregate commitment.
+
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider
 binding retains that projection before selection. Package review prepares its
@@ -409,6 +419,15 @@ product representations.
 
 Product scalar completion consumes canonical Terminal applications, declaration
 conditions and exact lexical identities, not a private checked-tree rewrite.
+Source completion records deferred recipes and complete initializer entries in
+the typed program before checking. Product carriers retain neither a second
+authored forest nor source-evaluation continuations for later target closure.
+Early Build evaluation still consumes its pending source work before admitting
+the Build activation; that execution is separate from Product scalar completion.
+Source checking roots complete initializer entries before ordinary preparation.
+It exposes no target-proof closure that rebuilds checked trees or refreshes their
+execution catalog. Callable descriptions are published inside the checking stage,
+not through a second coordinator-callable source settlement operation.
 Psi retains the computations and obligations; its compile-time evaluator executes
 dependency-ready canonical jobs and closes each authored proof scope. The
 application supplies exact provider selections, target families, address semantics
@@ -430,6 +449,12 @@ Build companions; different inspected roots remain distinct. Inspection complete
 declaration scalar and task obligations against that product without a
 ProgramEntry or native installation. External artifact inspection retains only
 the admitted artifact and cannot recreate the source-issued companions.
+Published checking, inspection and component completion consume the artifact's
+complete task-demand bundle and identity table, including declarations outside
+the selected entry's executable reach. They do not lower those obligations from
+checked source again. A checking stop without publication still projects its
+task demands directly; full checked-provider instance coverage remains a
+separate source judgment.
 
 Build-helper production publishes the checked source unchanged. The waiting
 Build activation admits each explicitly named provider slot, discovers its
