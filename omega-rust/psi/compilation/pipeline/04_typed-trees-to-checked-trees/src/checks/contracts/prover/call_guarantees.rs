@@ -1083,6 +1083,13 @@ fn predicates_match(
         return false;
     }
     pending.push((left, right));
+    macro_rules! match_child {
+        ($left:expr, $right:expr $(,)?) => {
+            predicates_match(
+                program, semantic, contexts, required, $left, supplied, $right, pending,
+            )
+        };
+    }
     let matched = match (
         program.expression_table.expression(left),
         program.expression_table.expression(right),
@@ -1103,26 +1110,8 @@ fn predicates_match(
                     &supplied.callable,
                     right_binary.right,
                 )
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_binary.left,
-                    supplied,
-                    right_binary.left,
-                    pending,
-                )
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_binary.right,
-                    supplied,
-                    right_binary.right,
-                    pending,
-                )
+                && match_child!(left_binary.left, right_binary.left)
+                && match_child!(left_binary.right, right_binary.right)
         }
         (ExpressionNode::Unary(left_unary), ExpressionNode::Unary(right_unary)) => {
             left_unary.operator == right_unary.operator
@@ -1133,29 +1122,11 @@ fn predicates_match(
                     &supplied.callable,
                     right_unary.operand,
                 )
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_unary.operand,
-                    supplied,
-                    right_unary.operand,
-                    pending,
-                )
+                && match_child!(left_unary.operand, right_unary.operand)
         }
         (ExpressionNode::Cast(left_cast), ExpressionNode::Cast(right_cast)) => {
             same_scalar_type(program, &required.callable, left, &supplied.callable, right)
-                && predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left_cast.value,
-                    supplied,
-                    right_cast.value,
-                    pending,
-                )
+                && match_child!(left_cast.value, right_cast.value)
         }
         _ => match ((required.literal)(left), (supplied.literal)(right)) {
             (Some(left), Some(right)) => left == right,
@@ -1176,25 +1147,7 @@ fn predicates_match(
             .binary_node(right)
             .filter(|binary| binary.operator == typed_trees::expression::BinaryOperator::And)
             .is_some_and(|binary| {
-                predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left,
-                    supplied,
-                    binary.left,
-                    pending,
-                ) || predicates_match(
-                    program,
-                    semantic,
-                    contexts,
-                    required,
-                    left,
-                    supplied,
-                    binary.right,
-                    pending,
-                )
+                match_child!(left, binary.left) || match_child!(left, binary.right)
             });
     pending.pop();
     matched
