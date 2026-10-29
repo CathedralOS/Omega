@@ -436,18 +436,40 @@ impl SpecificationPremises<'_> {
                 caller.term(program, expression)
             })
         };
-        let asserted = self
+        // One formed condition can carry both a structural case fact and an
+        // arithmetic fact this judge cannot substitute. Preserve each truth-
+        // implied component before filtering, rather than losing the case
+        // along with its unrelated numeric conjunct. False disjunctions have
+        // the same independent components; the other polarities do not.
+        let mut asserted = Vec::new();
+        let mut denied = Vec::new();
+        let mut pending = self
             .asserted
             .iter()
-            .copied()
-            .filter(eligible)
+            .map(|expression| (*expression, true))
+            .chain(self.denied.iter().map(|expression| (*expression, false)))
             .collect::<Vec<_>>();
-        let denied = self
-            .denied
-            .iter()
-            .copied()
-            .filter(eligible)
-            .collect::<Vec<_>>();
+        let mut visited = Vec::new();
+        while let Some((expression, holds)) = pending.pop() {
+            if visited.contains(&(expression, holds)) {
+                continue;
+            }
+            visited.push((expression, holds));
+            if let Some(binary) = program.expression_table.binary_node(expression)
+                && ((holds && binary.operator == BinaryOperator::And)
+                    || (!holds && binary.operator == BinaryOperator::Or))
+            {
+                pending.push((binary.right, holds));
+                pending.push((binary.left, holds));
+            }
+            if eligible(&expression) {
+                if holds {
+                    asserted.push(expression);
+                } else {
+                    denied.push(expression);
+                }
+            }
+        }
         let parameters = caller
             .parameters(program)
             .into_iter()

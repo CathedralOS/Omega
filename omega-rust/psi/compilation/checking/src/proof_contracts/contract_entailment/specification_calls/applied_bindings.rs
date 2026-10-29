@@ -294,6 +294,12 @@ impl AppliedProofBindings {
         if handle.is_valid() {
             let application = program.expression_table.static_machine_application(handle);
             if application.lexical_owner != caller {
+                if super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT application refused caller={caller:?} lexical={:?} handle={handle:?} stage=lexical-owner",
+                        application.lexical_owner
+                    );
+                }
                 return None;
             }
             if !matches!(
@@ -305,10 +311,24 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
+                .inspect_err(|reason| {
+                    if super::super::struct_trace() {
+                        eprintln!("STRUCT application refused caller={caller:?} handle={handle:?} stage=correspondence reason={reason:?}");
+                    }
+                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != declaration.symbol
                 {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT application refused caller={caller:?} handle={handle:?} stage=contract-owner expected={:?}/{:?} actual={:?}/{:?}",
+                            owner_symbol(owner),
+                            declaration.symbol,
+                            correspondence.public_owner,
+                            correspondence.declaration
+                        );
+                    }
                     return None;
                 }
                 // Decode the retained source tuple under its own declaration.
@@ -621,6 +641,19 @@ impl AppliedProofBindings {
             return None;
         }
         let application = program.expression_table.static_machine_application(handle);
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT application intake handle={handle:?} expected={declaration:?} actual={:?} state={:?} parameters={} bounds={} retained={}",
+                application.binding_declaration,
+                application.state,
+                parameters.len(),
+                conformance_bounds.len(),
+                program
+                    .expression_table
+                    .static_machine_application_bindings(handle)
+                    .len()
+            );
+        }
         if application.binding_declaration != declaration {
             return None;
         }
