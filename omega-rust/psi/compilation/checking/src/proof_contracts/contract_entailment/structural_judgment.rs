@@ -3195,7 +3195,7 @@ impl<'program> StructuralJudge<'program> {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
                 }
                 if !self.has_identity_equality_meaning(fact) {
-                    if super::struct_trace() {
+                    if super::struct_trace() || self.published_contract_tracing() {
                         eprintln!(
                             "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
                             self.machine_symbol,
@@ -3205,7 +3205,7 @@ impl<'program> StructuralJudge<'program> {
                     return StructuralJudgment::Unknown;
                 }
                 let Some(terms) = self.declaration_term_pair(binary) else {
-                    if super::struct_trace() {
+                    if super::struct_trace() || self.published_contract_tracing() {
                         eprintln!(
                             "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
                             self.machine_symbol,
@@ -3219,7 +3219,7 @@ impl<'program> StructuralJudge<'program> {
                 // not resolve the result again or memoize by term equality,
                 // which deliberately ignores some observation metadata.
                 let [left, right] = terms.resolved;
-                if super::struct_trace() {
+                if super::struct_trace() || self.published_contract_tracing() {
                     eprintln!(
                         "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",
                         self.machine_symbol, self.rewrites,
