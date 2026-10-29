@@ -486,7 +486,12 @@ fn component_handoff_retains_the_producing_join() {
             "native handoff reconstructs {forbidden}"
         );
     }
-    assert!(components.contains("component.input()"));
+    assert!(
+        components
+            .split_whitespace()
+            .collect::<String>()
+            .contains("component.input()")
+    );
     let terminal = include_str!("terminal/terminal_artifact.rs");
     assert!(!terminal.contains("realizes_selected_plan("));
     let selection = include_str!("execution_settlement.rs");
