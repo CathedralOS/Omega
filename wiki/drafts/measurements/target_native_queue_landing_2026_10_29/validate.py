@@ -5,9 +5,10 @@ ROOT=Path(__file__).resolve().parents[4]
 FOLDER=Path(__file__).resolve().parent
 BASE=ROOT/'build/native-queue-landing'
 steps=[]
-for name in ('qualify.py','controls.py','partial_target.py','compare.py'):
+for name in ('qualify.py','controls.py','partial_target.py','scalar_control.py','compare.py'):
     with (BASE/('validate-'+name+'.stdout')).open('w',encoding='utf-8') as out,(BASE/('validate-'+name+'.stderr')).open('w',encoding='utf-8') as err:
-        result=subprocess.run([sys.executable,str(FOLDER/name)],cwd=ROOT,stdout=out,stderr=err)
+        command=[sys.executable,str(FOLDER/name)]+(['candidate'] if name=='scalar_control.py' else [])
+        result=subprocess.run(command,cwd=ROOT,stdout=out,stderr=err)
     steps.append({'step':name,'exit':result.returncode})
     (BASE/'validation.json').write_text(json.dumps(steps,indent=2)+'\n',encoding='utf-8')
     assert result.returncode==0,(name,result.returncode)

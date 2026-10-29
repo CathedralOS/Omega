@@ -45,3 +45,18 @@ ancestry. No full corpus or foreign-host runtime is claimed.
 
 Build and fresh validation are pending. Data: `build/native-queue-landing`.
 Claim: `2aa09636534c47b7952ec96f565dbd41`.
+
+Additional baseline control: `portable_layout_constant_composition_exit` compiles
+for all four targets and runs0 on Windows; its unchanged reject control refuses
+all four with both authored native scalar-condition diagnostic fragments. Repeat
+that exact control under the candidate and require four queued jobs even when
+native evaluation refuses every target. Scalar evaluation has independent
+per-product fuel/accounting and pure execution; report settlement consumes only
+that product's retained metadata, with no filesystem publication in workers.
+
+An earlier supplemental `target_layout_derived_constant/local/invalid` probe
+correctly refused all four targets with the authored out-of-range bound, but
+lacked the expected phrase `exact arithmetic may overflow under target` on the
+unmodified baseline. Preserve that failed preparation; do not count that oracle
+as passed or change the fixture. This is separate from the nine existing
+authored reject controls and the passing native scalar-condition control.
