@@ -295,6 +295,16 @@ source continuation across Build/generated-source admission, exposing only the
 operation needed to resume with admitted inputs. Sessions retain storage and
 reusable judgments, not alternate compilation paths.
 
+After Product sources join, Psi's source continuation admits provider requests
+as one operation: recover original lexical owners, form every authored recipe,
+prepare reached applications with their captured static arguments, then admit
+the executed selections. The Product coordinator authenticates dependency
+selections before this call and publishes its result; it does not drive typing
+one operand at a time. Whole-provider choice remains Omega-owned. Provider
+admission completes before opaque-representation admission, so an invalid
+provider request may report first when both independent request kinds are
+invalid; both still reject when reached.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.

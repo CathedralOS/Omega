@@ -15,6 +15,7 @@ use activation::SourceContext;
 
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
+mod provider_requests;
 mod storage;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.
@@ -349,31 +350,6 @@ impl SourceContinuation {
             operand,
             author,
             static_environment,
-        )
-    }
-
-    /// Prepare an inert nominal application in the same ordinary typing owner.
-    /// The demand records reached selection separately from source formation.
-    pub fn prepare_product_operand_application(
-        &mut self,
-        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
-        role: language_semantics::declaration_selection::ProductOperandRole,
-        author: symbols::SymbolHandle,
-        static_environment: Option<
-            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
-        >,
-        demand: typed_trees::product_operand::ProductApplicationDemand,
-    ) -> Result<
-        Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
-        Vec<Diagnostic>,
-    > {
-        typed_trees_to_typed_trees::prepare_product_operand_application(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
-            operand,
-            role,
-            author,
-            static_environment,
-            demand,
         )
     }
 

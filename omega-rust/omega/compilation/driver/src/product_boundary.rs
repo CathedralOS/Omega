@@ -2,6 +2,42 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn product_provider_request_admission_belongs_to_psi() {
+    let coordinator = include_str!("checked/checking/product_selections.rs");
+    assert!(coordinator.contains("source.admit_product_provider_requests("));
+    for forbidden in [
+        "prepare_provider_applications(",
+        "prepare_product_operand_application(",
+        "collect_product_provider_selections(",
+        "collect_product_selection_occurrences(",
+        "resolve_build_request_author(",
+        "ProductApplicationDemand",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let continuation = include_str!("../../../../psi/compilation/driver/src/source_compilation.rs");
+    assert!(!continuation.contains("pub fn prepare_product_operand_application("));
+    let admission = include_str!(
+        "../../../../psi/compilation/driver/src/source_compilation/provider_requests.rs"
+    );
+    assert!(admission.contains("pub fn admit_product_provider_requests("));
+    assert!(admission.contains("collect_product_provider_selections("));
+    for forbidden in [
+        "ComputedBuildConfig",
+        "provider_planning::",
+        "provider_selection::",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "Psi admission owns {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn selected_constant_evaluation_belongs_to_psi() {
     let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
     assert!(selection.contains("build_time_evaluation::SelectedConstantEvaluationRequest"));
