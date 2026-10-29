@@ -1,5 +1,16 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Operand-order checker stack overflow - 2026-10-29
+
+The fixed-workbench repair and reduced regression establish that selected-contract
+queries must share the exact-context application recursion guard. Main already
+received the equivalent guard in #784, with a broader boundary around carrier
+selection. This publication retains that implementation and adds the regression
+pair and historical evidence, not duplicate compiler code. The historical
+baseline overflowed; five repaired positives and six reject controls passed.
+Mixed overlapping timing ranges establish no general speedup.
+[Evidence and source identities](operand_order_overflow_2026_10_29/README.md).
+
 Host: Windows `x86_64` (`windows_x86_64`), release profile (`target/release/omega.exe`, `target/release/deps/corpus_runner-*.exe`).
 Base commit: `e44ed43aefa9` (`HEAD`).
 
