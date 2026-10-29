@@ -80,7 +80,25 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
             }
         }
     }
-    super::scalar_predicate_wire::encode(writer, conditions)
+    super::scalar_predicate_wire::encode(writer, conditions)?;
+    writer.len(
+        "scalar completion conditions",
+        conditions.completions().len(),
+    )?;
+    for condition in conditions.completions() {
+        let terminal_psi::ScalarCompletionCondition::Complete {
+            subject,
+            application,
+        } = condition
+        else {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "scalar completion is absent",
+            ));
+        };
+        encode_subject(writer, *subject);
+        writer.id(*application);
+    }
+    Ok(())
 }
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecError> {
@@ -120,6 +138,12 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
     super::scalar_predicate_wire::decode(reader, &mut conditions)?;
+    let count = reader.count()?;
+    for _ in 0..count {
+        let subject = decode_subject(reader)?;
+        let application = reader.id("scalar completion application")?;
+        conditions.retain_completion(subject, application);
+    }
     Ok(conditions)
 }
 
@@ -246,6 +270,7 @@ mod tests {
             ScalarConditionSubject::Declaration(ProofDeclarationId(7)),
             ScalarConditionSubject::Application(application),
         ] {
+            conditions.retain_completion(subject, application);
             for requirement in [
                 ScalarRangeRequirement::AddressModel,
                 ScalarRangeRequirement::Fixed {

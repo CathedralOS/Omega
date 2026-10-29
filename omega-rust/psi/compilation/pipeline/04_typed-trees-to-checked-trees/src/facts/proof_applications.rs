@@ -13,10 +13,31 @@ use symbols::SymbolHandle;
 pub(crate) fn retain(checked: &CheckedTrees) -> ProofApplicationPlan {
     let typed = &checked.typed;
     let facts = &checked.facts;
+    // Contract formation can owe normal completion without a range or a
+    // comparison. Its lexical owner must survive source pruning as well.
+    let completion_owners = typed
+        .constant_recipes
+        .iter()
+        .filter(|(recipe, declaration)| {
+            typed.closed_constant_recipe_value(*recipe).is_none()
+                && matches!(
+                    declaration.position,
+                    typed_trees::constant_recipes::RetainedConstantPosition::ContractExpression(_)
+                )
+        })
+        .flat_map(|(_, declaration)| {
+            typed
+                .constant_expression_contexts
+                .span_or_empty(declaration.contexts)
+        })
+        .filter(|context| typed.machine_by_symbol(context.evaluation_entry).is_some())
+        .map(|context| context.owner)
+        .collect::<Vec<_>>();
     let mut plan = ProofApplicationPlan::default();
     plan.has_obligations = !facts.constant_predicate_obligations.is_empty()
         || !facts.integer_range_obligations.is_empty()
-        || !facts.constant_recipe_obligations.is_empty();
+        || !facts.constant_recipe_obligations.is_empty()
+        || !completion_owners.is_empty();
     if !plan.has_obligations {
         return plan;
     }
@@ -155,6 +176,7 @@ pub(crate) fn retain(checked: &CheckedTrees) -> ProofApplicationPlan {
                 .map(|row| row.owner())
                 .filter(|owner| owner.is_valid()),
         )
+        .chain(completion_owners)
         .collect();
     plan.obligation_owners = plan.symbols.insert_many(owners);
     plan.unscoped_recipe = facts

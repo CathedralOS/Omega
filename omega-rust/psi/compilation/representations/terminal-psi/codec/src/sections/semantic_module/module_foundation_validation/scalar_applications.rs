@@ -121,6 +121,22 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         }
     }
     let conditions = &module.scalar_applications.conditions;
+    for condition in conditions.completions() {
+        let terminal_psi::ScalarCompletionCondition::Complete {
+            subject,
+            application,
+        } = condition
+        else {
+            return malformed("scalar completion is absent");
+        };
+        validate_subject(module, subject)?;
+        if !matches!(
+            module.scalar_applications.declaration(*application),
+            Some(ScalarApplication::Evaluate { .. })
+        ) {
+            return malformed("scalar completion has no complete evaluation entry");
+        }
+    }
     for condition in conditions.ranges() {
         let ScalarRangeCondition::Range { subject, .. } = condition else {
             return malformed("scalar condition is absent");

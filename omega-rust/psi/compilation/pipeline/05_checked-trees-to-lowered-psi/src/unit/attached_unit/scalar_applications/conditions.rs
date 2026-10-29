@@ -30,6 +30,7 @@ pub(super) struct Condition {
 }
 
 enum Requirement {
+    Completion(ScalarApplicationId),
     Range {
         requirement: ScalarRangeRequirement,
         steps: Vec<IntegerBoundStep<Observation>>,
@@ -39,6 +40,28 @@ enum Requirement {
         nodes: Vec<PredicateNode<usize, Observation>>,
         root: usize,
     },
+}
+
+pub(super) fn completion(
+    checked: &CheckedTrees,
+    applications: &mut SourceScalarApplications,
+    owner: SymbolHandle,
+    application: ScalarApplicationId,
+) -> Result<Condition, LoweringError> {
+    let expression = ExpressionHandle::invalid();
+    let subject = subject(checked, applications, owner).map_err(|reason| {
+        LoweringError::UnpublishedScalarCondition {
+            owner,
+            expression,
+            reason,
+        }
+    })?;
+    Ok(Condition {
+        owner,
+        expression,
+        subject,
+        requirement: Requirement::Completion(application),
+    })
 }
 
 enum Subject {
@@ -278,7 +301,21 @@ fn subject(
             .map(|type_root| Subject::Declaration { owner, type_root })
             .ok_or_else(|| "scalar condition's data owner has no exact type identity".to_owned());
     }
-    Err("scalar condition has no retained callable, constant or data owner".to_owned())
+    // Bodyless declarations still owe formation of their contract operands.
+    // The checked producer retained this exact owner; no spelling or missing
+    // lookup can turn it into a module-wide requirement.
+    let plan = &checked.facts.proof_applications;
+    if plan
+        .symbols
+        .span_or_empty(plan.declarations)
+        .contains(&owner)
+    {
+        return Ok(Subject::Declaration {
+            owner,
+            type_root: TypeIdentityId::default(),
+        });
+    }
+    Err("scalar condition has no retained declaration or evaluation owner".to_owned())
 }
 
 fn observation(
@@ -353,6 +390,7 @@ pub(super) fn publish(
             Subject::Application(application) => ScalarConditionSubject::Application(application),
         };
         match &range.requirement {
+            Requirement::Completion(application) => result.retain_completion(subject, *application),
             Requirement::Range { requirement, steps } => {
                 let steps = steps
                     .iter()

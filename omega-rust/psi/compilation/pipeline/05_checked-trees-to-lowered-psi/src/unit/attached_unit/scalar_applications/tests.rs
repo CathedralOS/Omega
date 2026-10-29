@@ -69,10 +69,25 @@ fn shared_root() -> (
     (program, recipe, contexts)
 }
 
+fn checked_with_scope(program: typed_trees::TypedTrees) -> CheckedTrees {
+    let mut facts = checked_trees::CheckFacts::default();
+    for machine in program.machines() {
+        facts
+            .proof_applications
+            .machines
+            .insert(checked_trees::ProofApplicationMachine {
+                machine: machine.symbol,
+                product_selected: true,
+                ..Default::default()
+            });
+    }
+    CheckedTrees::with_roots(program, facts)
+}
+
 #[test]
 fn constant_entries_keep_shared_expression_scopes_distinct() {
     let (program, recipe, contexts) = shared_root();
-    let checked = CheckedTrees::with_roots(program, Default::default());
+    let checked = checked_with_scope(program);
     let applications = SourceScalarApplications::prepare(&checked).expect("scoped applications");
     let first = applications
         .recipe_in(recipe, contexts[0].owner)
@@ -106,7 +121,7 @@ fn constant_entries_do_not_resurrect_a_pruned_context() {
     for machine in retained {
         program.push_machine(machine);
     }
-    let checked = CheckedTrees::with_roots(program, Default::default());
+    let checked = checked_with_scope(program);
     let applications = SourceScalarApplications::prepare(&checked).expect("remaining application");
     assert!(applications.recipe_in(recipe, contexts[0].owner).is_some());
     assert!(applications.recipe_in(recipe, contexts[1].owner).is_none());

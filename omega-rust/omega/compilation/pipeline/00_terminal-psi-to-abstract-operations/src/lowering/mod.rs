@@ -29,6 +29,12 @@ pub(crate) fn lower_selected_module(
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&crate::native_execution_scope::NativeExecutionScope>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
+    // Catalog retention and successful source checking are not target closure.
+    // Native lowering must consume a complete scalar admission before this
+    // conditional program can acquire an executable plan.
+    if !module.scalar_applications.conditions.is_empty() {
+        return Err(LoweringError::UnclosedScalarConditions);
+    }
     // Boundary crash contracts ride through `boundary_machines` unchanged.
     // Terminal verification already covered every caller continuation against
     // them; the realized provider body or builtin settlement commits the trap

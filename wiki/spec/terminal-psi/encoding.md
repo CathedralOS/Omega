@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 209 even when every table
+order below. This layout uses semantic format marker 210 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -145,8 +145,8 @@ constant table. These rows are outstanding requirements, not successful proof
 or execution authority. The migration's unresolved-execution fences remain
 until a receiving target can discharge the complete requirements.
 
-The condition section encodes counted integer-range rows followed by counted
-predicate rows. A predicate row contains its subject, diagnostic description,
+The condition section encodes counted integer-range rows, counted predicate
+rows, then counted completion rows. A predicate row contains its subject, diagnostic description,
 counted graph nodes and root coordinate. Node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
 binary operator (6). Binary operators are `and`, `or`, equality, inequality,
@@ -163,6 +163,14 @@ establish formation by short-circuiting. Recipe equality retains both independen
 application operands; success of one application does not discharge the other.
 An explicitly unscoped recipe requirement retains a module-wide subject; a
 failed lookup for an authored owner never becomes module authority.
+
+A completion row contains its condition subject and exact scalar-application
+identity. The application must name a complete evaluation entry, not a layout
+observation. It records the obligation for that entry to return normally even
+when no comparison consumes its result. Retention alone, a crash, or an absent
+result does not discharge it. Completion neither proves the enclosing predicate
+nor excuses the entry's own formation conditions. Optimizers retain the named
+entry through the ordinary application catalog.
 
 A condition subject is tagged as module-wide (1), a `u32` proof-declaration
 coordinate (2), or a scalar application (4). Tag 3 is retired: a data owner's
@@ -204,7 +212,7 @@ family correspondence, and missing spans. The legacy family rows remain
 migration metadata, not authorization to retain target-prefixed source syntax.
 
 Target-scoped membership selects fixed ranges and predicates by their exact
-recorded owner. Address-model ranges additionally include the selected declaration
+recorded owner. Address-model ranges and completion requirements additionally include the selected declaration
 closure and, in the primary value scope, retained ground declarations. Generated
 entry conditions apply only to demanded scalar applications. Neither a catalog
 entry nor an available provider candidate is itself an execution demand.

@@ -11,7 +11,9 @@ use crate::{AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMac
 use numerics::bignum::BigInt;
 use semantic_vocabulary::IntegerType;
 use terminal_codec::TerminalArtifactView;
-use terminal_psi::{ScalarConditionSubject, ScalarRangeCondition, TerminalPsiIdentity};
+use terminal_psi::{
+    ScalarCompletionCondition, ScalarConditionSubject, ScalarRangeCondition, TerminalPsiIdentity,
+};
 
 /// Exact target-owned model supplied by the application from its selected
 /// profile. Bounds are derived from this carrier, never from the host pointer.
@@ -91,6 +93,7 @@ pub struct ScalarApplicationClosure<'artifact> {
     scopes: Vec<(String, bool)>,
     ranges: Vec<bool>,
     predicates: Vec<bool>,
+    completions: Vec<bool>,
     primary_result: Option<CompletedScalarScope>,
     supplemental: Vec<ScalarScopeInputs>,
 }
@@ -115,7 +118,13 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
                     .predicates()
                     .iter()
                     .map(|condition| condition.subject),
-            );
+            )
+            .chain(catalog.conditions.completions().iter().filter_map(
+                |condition| match condition {
+                    ScalarCompletionCondition::Complete { subject, .. } => Some(*subject),
+                    ScalarCompletionCondition::Missing => None,
+                },
+            ));
         for subject in subjects {
             match subject {
                 ScalarConditionSubject::Module => unscoped = true,
@@ -136,6 +145,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             scopes,
             ranges: vec![false; catalog.conditions.ranges().len()],
             predicates: vec![false; catalog.conditions.predicates().len()],
+            completions: vec![false; catalog.conditions.completions().len()],
             primary_result: None,
             supplemental: Vec::new(),
         }
@@ -170,6 +180,29 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             return Err("scalar closure scope completed more than once".into());
         }
         let catalog = &self.artifact.module().scalar_applications.conditions;
+        for (position, condition) in catalog.completions().iter().enumerate() {
+            if let ScalarCompletionCondition::Complete {
+                subject: ScalarConditionSubject::Application(application),
+                ..
+            } = condition
+                && observations.value(*application)?.is_some()
+                && !conditions.completions().contains(&position)
+            {
+                return Err("completed scalar application has unselected completion debt".into());
+            }
+        }
+        for &position in conditions.completions() {
+            let ScalarCompletionCondition::Complete { application, .. } =
+                catalog.completions()[position]
+            else {
+                return Err("scalar closure has an absent completion condition".into());
+            };
+            if observations.value(application)?.is_none() {
+                return Err(format!(
+                    "scalar application {application} has not completed normally"
+                ));
+            }
+        }
         for (position, condition) in catalog.ranges().iter().enumerate() {
             if let ScalarRangeCondition::Range {
                 subject: ScalarConditionSubject::Application(application),
@@ -236,6 +269,9 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         for &position in conditions.predicates() {
             self.predicates[position] = true;
         }
+        for &position in conditions.completions() {
+            self.completions[position] = true;
+        }
         for &position in conditions.ranges() {
             self.ranges[position] = true;
         }
@@ -263,6 +299,16 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             return Err("scalar closure has an unfinished authored scope".into());
         }
         let conditions = &self.artifact.module().scalar_applications.conditions;
+        for (position, condition) in conditions.completions().iter().enumerate() {
+            let ScalarCompletionCondition::Complete { subject, .. } = condition else {
+                return Err("scalar closure has an absent completion condition".into());
+            };
+            if !matches!(subject, ScalarConditionSubject::Application(_))
+                && !self.completions[position]
+            {
+                return Err("retained scalar completion has no target application".into());
+            }
+        }
         // Generated entry debt exists only when that job is demanded. Every
         // authored or module obligation still needs an actual applicable scope.
         for (position, condition) in conditions.ranges().iter().enumerate() {

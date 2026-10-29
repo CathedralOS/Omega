@@ -56,12 +56,26 @@ pub enum ScalarRangeCondition {
     },
 }
 
+/// Forming a declaration may require a constant entry to return normally even
+/// when no comparison consumes its result. This is work debt, not a proposition
+/// that can justify its own operands or the enclosing contract.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ScalarCompletionCondition {
+    #[default]
+    Missing,
+    Complete {
+        subject: ScalarConditionSubject,
+        application: ScalarApplicationId,
+    },
+}
+
 /// One module-owned arena for condition rows and their captured bounds.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScalarConditions {
     ranges: Arena<ScalarRangeCondition>,
     steps: Arena<IntegerBoundStep<ScalarRangeObservation>>,
     predicates: Arena<ScalarPredicateCondition>,
+    completions: Arena<ScalarCompletionCondition>,
 }
 
 /// A checked Boolean graph. Leaves retain exact scalar observations; the graph
@@ -125,6 +139,22 @@ impl ScalarPredicateCondition {
 }
 
 impl ScalarConditions {
+    pub fn completions(&self) -> &[ScalarCompletionCondition] {
+        self.completions.storage_slice()
+    }
+
+    pub fn retain_completion(
+        &mut self,
+        subject: ScalarConditionSubject,
+        application: ScalarApplicationId,
+    ) {
+        self.completions
+            .insert(ScalarCompletionCondition::Complete {
+                subject,
+                application,
+            });
+    }
+
     pub fn ranges(&self) -> &[ScalarRangeCondition] {
         self.ranges.storage_slice()
     }
@@ -134,7 +164,7 @@ impl ScalarConditions {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.ranges.is_empty() && self.predicates.is_empty()
+        self.ranges.is_empty() && self.predicates.is_empty() && self.completions.is_empty()
     }
 
     pub fn retain_predicate(

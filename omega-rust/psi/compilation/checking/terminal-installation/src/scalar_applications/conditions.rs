@@ -6,8 +6,8 @@ use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::PredicateNode;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarApplicationId};
 use terminal_psi::{
-    ProofApplicationScope, ScalarConditionSubject, ScalarConditions, ScalarRangeCondition,
-    ScalarRangeObservation, ScalarRangeRequirement, TargetMachineCallable,
+    ProofApplicationScope, ScalarCompletionCondition, ScalarConditionSubject, ScalarConditions,
+    ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement, TargetMachineCallable,
 };
 
 /// Invocation-local rows selected from one immutable condition roster.
@@ -18,6 +18,7 @@ pub struct ScalarConditionSelection<'artifact> {
     providers: Vec<(BoundaryMachineId, MachineId)>,
     ranges: Vec<usize>,
     predicates: Vec<usize>,
+    completions: Vec<usize>,
 }
 
 impl<'artifact> ScalarConditionSelection<'artifact> {
@@ -79,6 +80,17 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 applies(condition.subject, false).then_some(position)
             })
             .collect();
+        let mut completions = Vec::new();
+        for (position, condition) in conditions.completions().iter().enumerate() {
+            let ScalarCompletionCondition::Complete { subject, .. } = condition else {
+                return Err("scalar scope contains an absent completion condition".into());
+            };
+            // Constant root completion is declaration formation, including
+            // bodyless signatures, not just a predicate in an executable body.
+            if applies(*subject, true) {
+                completions.push(position);
+            }
+        }
         Ok(Self {
             conditions,
             target: target.to_owned(),
@@ -86,6 +98,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             providers,
             ranges,
             predicates,
+            completions,
         })
     }
 
@@ -94,6 +107,10 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
     }
     pub fn predicates(&self) -> &[usize] {
         &self.predicates
+    }
+
+    pub fn completions(&self) -> &[usize] {
+        &self.completions
     }
 
     /// Selection is bound to the conditions and actual provider edges it read.
@@ -144,6 +161,14 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         }
         self.ranges.sort_unstable();
         self.predicates.sort_unstable();
+        for (position, condition) in self.conditions.completions().iter().enumerate() {
+            if matches!(condition, ScalarCompletionCondition::Complete { subject: ScalarConditionSubject::Application(application), .. } if demanded.contains(application))
+                && !self.completions.contains(&position)
+            {
+                self.completions.push(position);
+            }
+        }
+        self.completions.sort_unstable();
     }
 
     /// Observe only selected debts. These include intermediate entry results,
@@ -169,6 +194,16 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
 
     pub fn applications(&self) -> Result<Vec<ScalarApplicationId>, String> {
         let mut applications = Vec::new();
+        for &position in &self.completions {
+            let ScalarCompletionCondition::Complete { application, .. } =
+                self.conditions.completions()[position]
+            else {
+                return Err("scalar completion condition is absent".into());
+            };
+            if !applications.contains(&application) {
+                applications.push(application);
+            }
+        }
         for observation in self.observations()? {
             let application = match observation {
                 ScalarRangeObservation::Application(application)

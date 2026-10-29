@@ -142,7 +142,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // the source-free application scope graph.
 // Predicate graphs retain both comparison operands, selected builtin Boolean
 // meaning and whole-graph formation independently of selective evaluation.
-pub(crate) const FORMAT_MARKER: u16 = 209;
+pub(crate) const FORMAT_MARKER: u16 = 210;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

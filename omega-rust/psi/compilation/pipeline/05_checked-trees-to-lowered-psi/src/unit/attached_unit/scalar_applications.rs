@@ -94,7 +94,15 @@ impl SourceScalarApplications {
                         .machine_by_symbol(context.evaluation_entry)
                         .is_some()
                     {
-                        applications.retain_recipe_in(checked, recipe, context.owner)?;
+                        let application =
+                            applications.retain_recipe_in(checked, recipe, context.owner)?;
+                        let condition = conditions::completion(
+                            checked,
+                            &mut applications,
+                            context.owner,
+                            application,
+                        )?;
+                        applications.conditions.push(condition);
                     }
                 }
             } else {
@@ -113,7 +121,8 @@ impl SourceScalarApplications {
                 applications.retain_expression(checked, expression)?;
             }
         }
-        applications.conditions = conditions::prepare(checked, &mut applications)?;
+        let conditions = conditions::prepare(checked, &mut applications)?;
+        applications.conditions.extend(conditions);
         Ok(applications)
     }
 
