@@ -490,7 +490,14 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
-                    if let Some((owner, path)) = field_storage_path(program, assignment.target) {
+                    // The store uses the address captured before operand effects.
+                    // A rebound selector can no longer name that home; publishing
+                    // through its old spelling would manufacture a current rank.
+                    if frames.is_some_and(|frames| {
+                        frames.assignment_destination_remains_current(machine, statement)
+                    }) && let Some((owner, path)) =
+                        field_storage_path(program, assignment.target)
+                    {
                         values.replace_conditions(owner, &path, conditions);
                         values.replace_scalar_fields(owner, &path, scalar_fields);
                         values.replace_record_fields(owner, &path, fields);

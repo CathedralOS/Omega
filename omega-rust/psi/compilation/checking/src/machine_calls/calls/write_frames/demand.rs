@@ -1003,6 +1003,7 @@ impl<'program> CallFrameResolver<'program> {
             statement,
             writes.as_deref(),
             None,
+            |root, path| self.assignment_binding_preserved(machine, statement, root, path),
         )
         .is_some()
     }
@@ -1027,8 +1028,30 @@ impl<'program> CallFrameResolver<'program> {
             statement,
             writes.as_deref(),
             Some(destination),
+            |root, path| self.assignment_binding_preserved(machine, statement, root, path),
         )
         .is_some()
+    }
+
+    fn assignment_binding_preserved(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        root: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> bool {
+        let Some((_, _, mut prefix, transfers)) =
+            self.statement_reference_transfer(machine, statement)
+        else {
+            return false;
+        };
+        let transfer = transfers.all_routes();
+        if !transfer.is_complete() {
+            return false;
+        }
+        let before = prefix.stored.clone();
+        super::stored_calls::apply(self.program, &mut prefix.stored, &transfer.effects);
+        super::assignment_addresses::binding_preserved(&before, &prefix.stored, root, path)
     }
 
     /// Performed destinations and reference origins share the captured store
