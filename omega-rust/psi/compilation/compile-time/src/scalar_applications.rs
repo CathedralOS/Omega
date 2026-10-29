@@ -25,6 +25,7 @@ pub struct ScalarScopeEvaluation {
     pub targets: terminal_installation::AdmittedTargetMachineSelections,
     pub providers: terminal_installation::AdmittedProviderSelections,
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,
+    pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
 }
 
 /// Complete all authored proof scopes without changing the shared artifact.
@@ -63,12 +64,14 @@ fn complete_scopes(
             artifact.view(),
             &selected.targets,
             &selected.providers,
-        )?;
+        )?
+        .with_target_carriers(selected.carrier_layout);
         let demand = if scope == primary { requested } else { &[] };
         let input = crate::evaluation_accounting::CanonicalScalarScope::capture(
             artifact,
             &scope,
             &selected.providers,
+            selected.carrier_layout,
         )?;
         let conditions =
             evaluate_scope(&mut observations, primary, demand, |job, observations| {

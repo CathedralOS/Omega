@@ -31,6 +31,7 @@ pub struct ScalarScopeInputs {
     providers: AdmittedProviderSelections,
     layouts: AdmittedTargetLayouts,
     address_model: Option<ScalarAddressModel>,
+    carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
 }
 
 impl ScalarScopeInputs {
@@ -45,6 +46,9 @@ impl ScalarScopeInputs {
     }
     pub fn address_model(&self) -> Option<&ScalarAddressModel> {
         self.address_model.as_ref()
+    }
+    pub fn carrier_layout(&self) -> Option<semantic_vocabulary::TargetCarrierLayout> {
+        self.carrier_layout
     }
 }
 
@@ -280,6 +284,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             providers: observations.providers().clone(),
             layouts: observations.layouts().clone(),
             address_model,
+            carrier_layout: observations.carrier_layout(),
         };
         if target == self.primary {
             self.primary_result = Some(CompletedScalarScope {

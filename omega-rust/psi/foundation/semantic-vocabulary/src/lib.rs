@@ -35,6 +35,8 @@ mod qualified_scalar_type;
 mod reference_origins;
 mod scalar_refinement;
 mod structural_places;
+mod target_carrier_layout;
+pub use target_carrier_layout::TargetCarrierLayout;
 
 pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;

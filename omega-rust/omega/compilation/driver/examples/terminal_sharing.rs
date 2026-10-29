@@ -10,6 +10,7 @@
 //! `--run` also executes the host native product and its reloaded Terminal image.
 //! `--expected-terminal-productions 1` measures a Check requiring shared scalar
 //! evaluation; ordinary debt-free Check defaults to zero productions.
+//! `--compare-single-targets` compares native bytes with independent requests.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -26,6 +27,7 @@ fn main() {
     }
     let mut arguments = std::env::args().skip(1).peekable();
     let mut execute_host = false;
+    let mut compare_single_targets = false;
     let mut product = RequestedCompileProduct::NativeArtifact;
     let mut rejected_target = None;
     let mut expected_terminal_productions = None;
@@ -36,6 +38,7 @@ fn main() {
     {
         match arguments.next().as_deref() {
             Some("--run") => execute_host = true,
+            Some("--compare-single-targets") => compare_single_targets = true,
             Some("--check") => product = RequestedCompileProduct::Check,
             Some("--terminal") => product = RequestedCompileProduct::TerminalArtifact,
             Some("--expected-terminal-productions") => {
@@ -82,13 +85,13 @@ fn main() {
         })
         .collect();
     let mut request = CompileRequest::for_targets(
-        prepared.root_path,
+        prepared.root_path.clone(),
         std::env::temp_dir().join(format!("omega-terminal-sharing-{}", std::process::id())),
         targets,
     )
     .with_requested_product(product);
-    if let Some(inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(inputs);
+    if let Some(inputs) = &prepared.package_inputs {
+        request = request.with_package_inputs(inputs.clone());
     }
     let sources_before = counters::product_source_completion_count();
     let builds_before = counters::build_execution_count();
@@ -184,6 +187,53 @@ fn main() {
         "product={product:?} products={} rejected={rejections} source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals}",
         reports.len()
     );
+    // Measure the shared invocation before these independent compilations.
+    // Allocation identity proves sharing; byte equality separately checks that
+    // sharing has not changed either target's realized program.
+    if compare_single_targets {
+        assert_eq!(product, RequestedCompileProduct::NativeArtifact);
+        let admitted_targets = target_names
+            .iter()
+            .filter(|name| rejected_target.as_ref() != Some(*name));
+        for (name, shared) in admitted_targets.zip(&reports) {
+            let profile = target::TargetProfile::from_omega_target_name(Some(name))
+                .expect("single target profile");
+            let mut request = CompileRequest::for_targets(
+                prepared.root_path.clone(),
+                std::env::temp_dir().join(format!(
+                    "omega-terminal-sharing-{}-{name}-single",
+                    std::process::id()
+                )),
+                vec![Some(profile)],
+            )
+            .with_requested_product(product);
+            if let Some(inputs) = &prepared.package_inputs {
+                request = request.with_package_inputs(inputs.clone());
+            }
+            let single =
+                omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+                    .expect("single target admission")
+                    .into_single_report()
+                    .expect("single target production");
+            let shared = &shared
+                .retained_native_artifact()
+                .expect("shared native")
+                .image()
+                .output()
+                .bytes;
+            let single = &single
+                .retained_native_artifact()
+                .expect("single native")
+                .image()
+                .output()
+                .bytes;
+            assert!(
+                shared == single,
+                "{name}: shared and single-target bytes differ"
+            );
+            println!("target={name} single_target_bytes_agree={}", shared.len());
+        }
+    }
     if execute_host {
         assert_eq!(product, RequestedCompileProduct::NativeArtifact);
         let report = reports.swap_remove(host_report.expect("one successful host target"));

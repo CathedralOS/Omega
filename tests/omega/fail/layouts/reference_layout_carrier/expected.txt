@@ -1,1 +1,1 @@
-constant predicate is false
+scalar predicate is false: requires contract for call require_reference_layout from main: size_of() == 8

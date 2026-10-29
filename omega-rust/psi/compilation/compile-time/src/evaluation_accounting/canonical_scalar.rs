@@ -37,6 +37,7 @@ pub(crate) struct CanonicalScalarScope {
     target: String,
     providers: Vec<ProviderInstallationSelection>,
     assumptions: Vec<AssumedBindingSelection>,
+    carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
 }
 
 impl CanonicalScalarScope {
@@ -44,6 +45,7 @@ impl CanonicalScalarScope {
         artifact: &Arc<CanonicalTerminalArtifact>,
         target: &str,
         providers: &terminal_installation::AdmittedProviderSelections,
+        carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     ) -> Result<Arc<Self>, String> {
         if artifact.view().identity() != providers.terminal_psi() {
             return Err("scalar evaluation accounting has a different artifact".into());
@@ -86,6 +88,7 @@ impl CanonicalScalarScope {
             target: target.to_owned(),
             providers: selections,
             assumptions,
+            carrier_layout,
         }))
     }
 }

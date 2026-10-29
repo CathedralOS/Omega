@@ -2499,6 +2499,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
+ "runtime-abi",
  "semantic-vocabulary",
  "source",
  "symbols",

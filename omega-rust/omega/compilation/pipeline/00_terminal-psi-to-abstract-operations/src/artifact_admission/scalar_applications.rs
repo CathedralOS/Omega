@@ -36,12 +36,22 @@ impl<'request> NativeScalarApplications<'request> {
             );
         }
         for inputs in std::iter::once(primary).chain(completed.supplemental()) {
-            let Some(model) = inputs.address_model() else {
-                continue;
-            };
             let profile =
                 target::TargetProfile::from_canonical_target_name(inputs.targets().target())
                     .map_err(|error| format!("scalar closure address-model target: {error:?}"))?;
+            if inputs.carrier_layout()
+                != profile
+                    .native_realization()
+                    .map(runtime_abi::target_carrier_layout)
+            {
+                return Err(format!(
+                    "scalar closure for {} has different target carrier geometry",
+                    inputs.targets().target()
+                ));
+            }
+            let Some(model) = inputs.address_model() else {
+                continue;
+            };
             let expected = target::TargetSemantics::close_address_model(profile)
                 .ok_or("scalar closure requires an unavailable address model")?;
             if model.target != profile.target_name()

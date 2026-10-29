@@ -46,6 +46,9 @@ pub(crate) fn complete(
                 ),
                 providers,
                 address_model: Ok(address_model),
+                carrier_layout: profile
+                    .native_realization()
+                    .map(runtime_abi::target_carrier_layout),
             })
         },
     )

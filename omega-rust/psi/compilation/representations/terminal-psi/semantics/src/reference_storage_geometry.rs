@@ -5,7 +5,7 @@
 //! describe bytes, never access or lifetime.
 
 use semantic_vocabulary::{
-    AuthoredFieldStorage, ScalarApplicationId, ScalarType, StructuralTypeId,
+    AuthoredFieldStorage, ScalarApplicationId, ScalarType, StructuralTypeId, TargetCarrierLayout,
 };
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralPathSegment, StructuralRecordStorage,
@@ -43,6 +43,7 @@ fn field_geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     field: &StructuralFieldDeclaration,
     active: &mut Vec<StructuralTypeId>,
+    carriers: Option<TargetCarrierLayout>,
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if let Some(scalar) = field.field_type.scalar_type() {
@@ -56,11 +57,14 @@ fn field_geometry<'types>(
         .map(Some)
         .ok_or(StorageGeometryError::UnsupportedScalar(scalar));
     }
+    if let Some(carrier) = field.field_type.byte_sequence_carrier() {
+        return byte_sequence_geometry(carrier, carriers).map(Some);
+    }
     let child = field
         .field_type
         .as_structural()
         .ok_or(StorageGeometryError::UnsupportedField)?;
-    geometry(types, child, active, extents)
+    geometry(types, child, active, carriers, extents)
 }
 
 /// A missing application is a dependency, never a zero element count. The
@@ -74,9 +78,12 @@ pub enum StorageGeometryError {
     UnsupportedType(StructuralTypeId),
     UnsupportedScalar(ScalarType),
     UnsupportedField,
+    UnsupportedByteSequence(terminal_psi::ByteSequenceCarrier),
     UnresolvedExtent(ScalarApplicationId),
     UnresolvedLayout(StructuralTypeId),
     Overflow,
+    MissingCarrierLayout,
+    InvalidCarrierLayout,
 }
 
 impl std::fmt::Display for StorageGeometryError {
@@ -93,6 +100,7 @@ impl std::error::Error for StorageGeometryError {}
 pub struct ReferenceStorageGeometry<Types, Extents> {
     types: Types,
     extents: Extents,
+    carriers: Option<TargetCarrierLayout>,
 }
 
 impl<'types, Types, Extents> ReferenceStorageGeometry<Types, Extents>
@@ -101,7 +109,38 @@ where
     Extents: FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
 {
     pub fn new(types: Types, extents: Extents) -> Self {
-        Self { types, extents }
+        Self {
+            types,
+            extents,
+            carriers: None,
+        }
+    }
+
+    /// Layout observations may supply target carrier geometry. Ordinary
+    /// storage access queries remain model-free and cannot infer pointer bytes.
+    pub fn with_target_carriers(mut self, carriers: Option<TargetCarrierLayout>) -> Self {
+        self.carriers = carriers;
+        self
+    }
+
+    pub fn dependencies(
+        &self,
+        root: StructuralTypeId,
+    ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
+        let mut dependencies = Vec::new();
+        geometry(
+            self.types.clone(),
+            root,
+            &mut Vec::new(),
+            self.carriers,
+            &mut |application| {
+                if !dependencies.contains(&application) {
+                    dependencies.push(application);
+                }
+                Ok(None)
+            },
+        )?;
+        Ok(dependencies)
     }
 
     pub fn layout(&mut self, root: StructuralTypeId) -> Result<(u64, u64), StorageGeometryError> {
@@ -109,6 +148,7 @@ where
             self.types.clone(),
             root,
             &mut Vec::new(),
+            self.carriers,
             &mut |application| (self.extents)(application).map(Some),
         )?
         .ok_or(StorageGeometryError::UnresolvedLayout(root))
@@ -122,20 +162,17 @@ pub fn reference_storage_dependencies<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
-    let mut dependencies = Vec::new();
-    geometry(types, root, &mut Vec::new(), &mut |application| {
-        if !dependencies.contains(&application) {
-            dependencies.push(application);
-        }
-        Ok(None)
-    })?;
-    Ok(dependencies)
+    ReferenceStorageGeometry::new(types, |application| {
+        Err(StorageGeometryError::UnresolvedExtent(application))
+    })
+    .dependencies(root)
 }
 
 fn geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,
+    carriers: Option<TargetCarrierLayout>,
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
     if active.len() >= 128 {
@@ -151,6 +188,23 @@ fn geometry<'types>(
         .shape;
     active.push(root);
     let result = (|| match shape {
+        // A reference stores its carrier, not the referent. In particular an
+        // unavailable or recursive referent layout creates no dependency here.
+        StructuralTypeShape::Reference { .. } => {
+            let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+            carrier_geometry(carriers.pointer_byte_size, carriers.pointer_byte_alignment).map(Some)
+        }
+        StructuralTypeShape::ByteSequence(carrier) => {
+            byte_sequence_geometry(*carrier, carriers).map(Some)
+        }
+        StructuralTypeShape::ElementView { .. } => {
+            let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+            carrier_geometry(
+                carriers.descriptor_byte_size,
+                carriers.descriptor_byte_alignment,
+            )
+            .map(Some)
+        }
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar)
             .map(Some)
             .ok_or(StorageGeometryError::UnsupportedScalar(*scalar)),
@@ -165,7 +219,7 @@ fn geometry<'types>(
             let mut size = Some(0);
             let mut alignment = 1;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let child = field_geometry(types.clone(), field, active, extents)?;
+                let child = field_geometry(types.clone(), field, active, carriers, extents)?;
                 let Some((child_size, child_alignment)) = child else {
                     size = None;
                     continue;
@@ -192,7 +246,7 @@ fn geometry<'types>(
                 terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                 terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
             };
-            let element = geometry(types.clone(), *element, active, extents)?;
+            let element = geometry(types.clone(), *element, active, carriers, extents)?;
             let (Some(length), Some((size, alignment))) = (length, element) else {
                 return Ok(None);
             };
@@ -205,6 +259,35 @@ fn geometry<'types>(
     })();
     active.pop();
     result
+}
+
+fn carrier_geometry(size: u64, alignment: u64) -> Result<(u64, u64), StorageGeometryError> {
+    if size == 0 || !alignment.is_power_of_two() || size % alignment != 0 {
+        return Err(StorageGeometryError::InvalidCarrierLayout);
+    }
+    Ok((size, alignment))
+}
+
+/// A stored byte field and a standalone byte carrier have identical geometry.
+/// Fixed views keep their extent in the declaration, not a second runtime word.
+fn byte_sequence_geometry(
+    carrier: terminal_psi::ByteSequenceCarrier,
+    carriers: Option<TargetCarrierLayout>,
+) -> Result<(u64, u64), StorageGeometryError> {
+    use terminal_psi::ByteSequenceCarrier;
+    let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+    match carrier {
+        ByteSequenceCarrier::BorrowedView { .. } => carrier_geometry(
+            carriers.descriptor_byte_size,
+            carriers.descriptor_byte_alignment,
+        ),
+        ByteSequenceCarrier::BoundedView { .. } => {
+            carrier_geometry(carriers.pointer_byte_size, carriers.pointer_byte_alignment)
+        }
+        ByteSequenceCarrier::BoundedOwned { .. } => {
+            Err(StorageGeometryError::UnsupportedByteSequence(carrier))
+        }
+    }
 }
 
 pub fn reference_storage_size<'types>(
@@ -339,6 +422,7 @@ fn storage_path<'types>(
                                 types.clone(),
                                 candidate,
                                 &mut Vec::new(),
+                                None,
                                 &mut |application| {
                                     Err(StorageGeometryError::UnresolvedExtent(application))
                                 },

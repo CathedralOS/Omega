@@ -53,6 +53,7 @@ pub struct ScalarApplicationObservations<'artifact> {
     targets: &'artifact AdmittedTargetMachineSelections,
     providers: &'artifact AdmittedProviderSelections,
     layouts: AdmittedTargetLayouts,
+    carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
 }
 
@@ -119,12 +120,25 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             targets,
             providers,
             layouts,
+            carrier_layout: None,
             applications: std::sync::Arc::new(applications),
         })
     }
 
     pub fn artifact(&self) -> TerminalArtifactView<'artifact> {
         self.artifact
+    }
+
+    pub fn with_target_carriers(
+        mut self,
+        carriers: Option<semantic_vocabulary::TargetCarrierLayout>,
+    ) -> Self {
+        self.carrier_layout = carriers;
+        self
+    }
+
+    pub fn carrier_layout(&self) -> Option<semantic_vocabulary::TargetCarrierLayout> {
+        self.carrier_layout
     }
     pub fn targets(&self) -> &AdmittedTargetMachineSelections {
         self.targets
@@ -342,8 +356,12 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             .layouts
             .geometry(self.artifact)
             .map_err(|error| error.to_string())?;
-        terminal_semantics::reference_storage_dependencies(geometry.declarations(), *subject)
-            .map_err(|error| error.to_string())
+        ReferenceStorageGeometry::new(geometry.declarations(), |application| {
+            Err(StorageGeometryError::UnresolvedExtent(application))
+        })
+        .with_target_carriers(self.carrier_layout)
+        .dependencies(*subject)
+        .map_err(|error| error.to_string())
     }
 
     /// Resolve through the ordinary byte-geometry owner. An outstanding array
@@ -387,7 +405,8 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                     Err(StorageGeometryError::UnresolvedExtent(dependency))
                 }
             }
-        });
+        })
+        .with_target_carriers(self.carrier_layout);
         let layout = geometry.layout(subject);
         drop(geometry);
         if let Some(reason) = input_error {
@@ -489,7 +508,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             })?;
         if low < *minimum || high > *maximum {
             return Err(format!(
-                "scalar range condition {position} exceeds its required bounds"
+                "scalar range condition {position}: bounds [{low}, {high}] lie outside [{minimum}, {maximum}]"
             ));
         }
         Ok(())

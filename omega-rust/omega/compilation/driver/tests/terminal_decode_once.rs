@@ -176,6 +176,9 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                 let profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    carrier_layout: profile
+                        .native_realization()
+                        .map(runtime_abi::target_carrier_layout),
                     targets: terminal_installation::admit_target_machine_selections(
                         artifact.view(),
                         scope,
