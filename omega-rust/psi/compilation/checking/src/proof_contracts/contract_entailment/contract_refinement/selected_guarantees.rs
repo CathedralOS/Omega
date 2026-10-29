@@ -36,10 +36,10 @@ pub(super) fn entailed(
         })
         .flatten()
     };
-    let normalizer = |scope: &ContractFacts, kind| {
+    let normalizer = |scope: &ContractFacts, kind: &SignatureContractKind| {
         // Only an Ensures term may consume the declaration's original entry
         // premises. A Requires term never assumes itself to form an operand.
-        let requires = if kind == SignatureContractKind::Ensures {
+        let requires = if kind == &SignatureContractKind::Ensures {
             scope
                 .requires
                 .iter()
@@ -52,11 +52,11 @@ pub(super) fn entailed(
         PublishedContractNormalizer::new(program, scope.implementation, &requires)
     };
     let Some(goal) =
-        form(goal_scope, goal).and_then(|term| normalizer(goal_scope, goal.kind).normalize(term))
+        form(goal_scope, goal).and_then(|term| normalizer(goal_scope, &goal.kind).normalize(term))
     else {
         return false;
     };
-    let normalizer = normalizer(premise_scope, first.kind);
+    let normalizer = normalizer(premise_scope, &first.kind);
     premises
         .iter()
         .filter_map(|fact| form(premise_scope, fact))

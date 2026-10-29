@@ -317,7 +317,7 @@ impl ContractFacts {
                         ProofFact::Membership(_) => false,
                     };
                     target.push(Conjunct {
-                        kind: contract.kind,
+                        kind: contract.kind.clone(),
                         identity: correspondence_fact(program, &fact, &binders),
                         float: if source_index_meaning {
                             FloatObservation::collect(program, owner, parameters, &binders, &fact)
