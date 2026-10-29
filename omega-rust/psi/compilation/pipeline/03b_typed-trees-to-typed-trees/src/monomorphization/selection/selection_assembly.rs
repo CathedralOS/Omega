@@ -139,6 +139,14 @@ pub(crate) fn selection_for_call_with_local_prefix(
         scope_limit,
         &mut proposals,
     );
+    // An already formed source path can fix a supplying type parameter.
+    // Retain that exact occurrence's type equation before deciding whether
+    // the callee tuple is closed; the enclosing header need not be closed.
+    if let CallSite::Expression(expression) = site {
+        for (_, _, reference) in &mut proposals.types {
+            *reference = program.statically_refined_type_reference(expression, *reference);
+        }
+    }
     let mut selection = selection_from_proposals(
         program,
         site,
@@ -396,10 +404,7 @@ pub(crate) fn unique_complete_selections(
 ) -> Result<Vec<(SpecializationKey, Vec<usize>)>, diagnostics::Diagnostic> {
     let mut groups: Vec<(SpecializationKey, Vec<usize>)> = Vec::new();
     for (selection_index, selection) in selections.iter().enumerate() {
-        if selection.candidate_index != candidate_index
-            || selection.caller_is_generic
-            || !selection.is_complete()
-        {
+        if selection.candidate_index != candidate_index || !selection.is_complete() {
             continue;
         }
         let key = SpecializationKey {

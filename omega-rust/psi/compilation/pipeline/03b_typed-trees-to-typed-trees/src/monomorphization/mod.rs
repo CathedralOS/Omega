@@ -366,9 +366,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             || inferred_changed
             || generic_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
-            // Open callers keep their symbolic applications. Concrete applications
-            // of the same template are independent tuples, never evidence with
-            // which to consume the declaration or specialize another caller.
+            // Open tuples stay symbolic. A closed tuple is independent of
+            // the enclosing header and can realize this exact occurrence;
+            // it never specializes another caller or consumes the declaration.
             //
             // A conflicted selection that already holds const, machine, or
             // conformance evidence rejects in every pass: two concrete
