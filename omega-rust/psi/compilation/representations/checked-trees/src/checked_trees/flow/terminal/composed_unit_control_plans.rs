@@ -108,6 +108,7 @@ pub struct CheckedStateNaturalRank {
     pub parameter: SymbolHandle,
     pub parameter_position: u32,
     pub measure: CheckedNaturalRankMeasure,
+    pub function: CheckedNaturalRankFunction,
     /// Executable observation in this state's exact formal namespace. The
     /// selected view and its proof metadata do not select another evaluator.
     pub observation: crate::CheckedScalarComputationHandle,
@@ -124,7 +125,30 @@ impl Default for CheckedStateNaturalRank {
             measure: CheckedNaturalRankMeasure::SequenceLength {
                 coordinate: crate::CheckedRankCoordinateHandle::invalid(),
             },
+            function: CheckedNaturalRankFunction::Identity,
             observation: crate::CheckedScalarComputationHandle::invalid(),
+        }
+    }
+}
+
+/// Total normalization of an admitted integer observation into the component's
+/// natural order. The source judgment separately retains view formation and
+/// bound conservation; this function grants neither premise.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedNaturalRankFunction {
+    #[default]
+    Identity,
+    Complement,
+}
+
+impl CheckedNaturalRankFunction {
+    pub fn complement_ceiling(self, primitive: PrimitiveType) -> Option<u64> {
+        match (self, primitive) {
+            (Self::Complement, PrimitiveType::U8) => Some(u64::from(u8::MAX)),
+            (Self::Complement, PrimitiveType::U16) => Some(u64::from(u16::MAX)),
+            (Self::Complement, PrimitiveType::U32) => Some(u64::from(u32::MAX)),
+            (Self::Complement, PrimitiveType::U64) => Some(u64::MAX),
+            _ => None,
         }
     }
 }

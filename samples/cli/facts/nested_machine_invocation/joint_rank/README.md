@@ -144,6 +144,14 @@ Reset, whole-record replacement, alias-write and pointer-reseat controls under
 `controls/borrowed_*/` must still fail the same rank obligation. Saved entry
 coordinates grant no permission to reuse invalidated current observations.
 
+## Paired cursor and bound coordinates
+
+Each place also carries the same private-cycle fact through `bounded_distance/`.
+The [requirement mapping and controls](parameter/bounded_distance/README.md)
+cover exact cursor/slice-bound transport, fixed-width natural normalization,
+independent entry formation, conserved upper coordinates and clamped-view
+counterfactuals. The original counter operation and empty path remain observable.
+
 ## Stored-reference coordinates
 
 The `borrowed_value/stored_reference/` child in every place carries the same

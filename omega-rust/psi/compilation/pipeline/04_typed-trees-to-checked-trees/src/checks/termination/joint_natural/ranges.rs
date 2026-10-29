@@ -9,15 +9,12 @@
 //! and the weak-edge graph must be acyclic. Actual view parameters retain
 //! their separate obligations in their own view owner.
 
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
-use validation::RankPremiseObservation;
 
 pub(super) fn entry(
     program: &dyn validation::CheckingInput,
     machine: &Machine,
-    subject: ExpressionHandle,
-    observation: RankPremiseObservation,
+    measure: validation::RankingRangeMeasure,
 ) -> Result<(), &'static str> {
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return Ok(());
@@ -34,10 +31,6 @@ pub(super) fn entry(
         .machine_states(machine)
         .first()
         .ok_or("a ranged rank has no invocation entry")?;
-    let measure = match observation {
-        RankPremiseObservation::Value => validation::RankingRangeMeasure::Single(subject),
-        RankPremiseObservation::Length => validation::RankingRangeMeasure::SliceLength(subject),
-    };
     if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
         return Err("an authored natural rank range has no independent entry formation");
     }
