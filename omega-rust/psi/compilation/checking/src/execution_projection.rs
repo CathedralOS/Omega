@@ -337,18 +337,26 @@ pub fn project_selected_program(
     if selection.is_all() {
         return original.typed_program().clone();
     }
-    project_declarations(
+    // A selection can precede ordinary specialization. A newly emitted
+    // dependency keeps its template's source span for diagnostics, so absence
+    // of source provenance cannot be the test for retaining its exact use.
+    let instances = instantiated_declarations(original);
+    trace_generated_call_membership(original, "selected_execution.before");
+    let program = project_declarations(
         original,
         |symbol| selection.contains(symbol),
         |symbol| {
-            original
-                .symbols
-                .symbol_provenance_source_span(symbol)
-                .is_none()
+            is_derived_declaration(original, &instances, symbol)
+                || original
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .is_none()
         },
         &[],
         None,
-    )
+    );
+    trace_generated_call_membership(&program, "selected_execution.after");
+    program
 }
 
 fn project_declarations(
