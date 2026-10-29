@@ -138,6 +138,37 @@ pub(crate) fn settle(
             eprintln!("{warning}");
         }
         let completed = value.declaration_value();
+        // The probe collected the whole source call closure before private
+        // specialization. Return those attachments using their original ledger
+        // identities; a private selection cannot become source authority.
+        for root in [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ] {
+            if !root.is_valid() {
+                continue;
+            }
+            for occurrence in probes.expression_table.authored_selection_occurrences(root) {
+                let selection = probes
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        failure("target constant lost its call roster selection".into())
+                    })?;
+                if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call {
+                    continue;
+                }
+                if typed.authored_declaration_selections().get(occurrence) != Some(selection) {
+                    return Err(failure(
+                        "target constant call roster contains a selection outside its source graph"
+                            .into(),
+                    ));
+                }
+                typed
+                    .expression_table
+                    .attach_authored_selection_occurrences(root, [occurrence]);
+            }
+        }
         let materialized = match &value {
             value::ScalarValue::UndeterminedNaN(format) => {
                 typed_trees::expression::ExpressionNode::UndeterminedNaN(*format)
