@@ -1120,61 +1120,6 @@ fn validate_specification_expression_in_scope(
         } else {
             false
         };
-        if !proven && std::env::var_os("OMEGA_TRACE_SPEC_REQUIRES").is_some() {
-            eprintln!(
-                "[spec-requires] owner={owner} callee={} plainly={arguments_select_plainly} judge={} parameters={} arguments={} names={structural_names_unique} substitution={substitution:?}",
-                owner_name(program, &contract_owner),
-                judge.is_some(),
-                parameters.len(),
-                arguments.len()
-            );
-            eprintln!(
-                "[spec-requires] type_map={:?}",
-                application_bindings
-                    .as_ref()
-                    .map(|bindings| &bindings.types)
-            );
-            for prior in prior_facts.asserted {
-                eprintln!(
-                    "[spec-requires] prior={} term={:?}",
-                    program.expression_table.display_name(*prior),
-                    caller.term(program, *prior)
-                );
-            }
-            if let (Some(required), Some(bindings), Some(judge), Some(substitution)) = (
-                requirement.as_expression(),
-                application_bindings.as_ref(),
-                judge.as_ref(),
-                substitution.as_ref(),
-            ) {
-                eprintln!(
-                    "[spec-requires] required={} bound={} exact={} substitutable={} query={:?}",
-                    program.expression_table.display_name(*required),
-                    requirement_parameters_are_bound(program, *required, parameters, bindings),
-                    structural_static_binders_are_exact(program, *required, parameters, bindings),
-                    structurally_substitutable_fact(program, *required, &|expression| {
-                        structural_term(
-                            program,
-                            None,
-                            Some((owner_symbol(&contract_owner), parameters)),
-                            expression,
-                            None,
-                        )
-                    }),
-                    instantiated_selected_fact_judgment(
-                        program,
-                        judge,
-                        owner_symbol(&contract_owner),
-                        parameters,
-                        *required,
-                        substitution,
-                        &bindings.machines,
-                        &bindings.types,
-                        caller.state_scope()
-                    )
-                );
-            }
-        }
         if !proven {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove requires contract for specification call `{}` in {owner}: establish its selected precondition in an independently formed prior requires fact",
