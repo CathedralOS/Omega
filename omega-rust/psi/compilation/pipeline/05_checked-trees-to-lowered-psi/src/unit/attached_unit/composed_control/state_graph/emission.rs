@@ -401,7 +401,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .zip(&admitted.live)
         .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
-        .any(|successor| successor.target_state == plan.states[0].state);
+        .any(|successor| plan.successor_position(successor) == Some(0));
     // Invocation parameters are immutable. Reentering the authored entry
     // therefore uses an ordinary parameterized block behind a one-shot jump.
     let invocation_entry = if entry_reentered {

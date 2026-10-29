@@ -88,6 +88,7 @@ pub(super) fn inspect(
         let decoded = decode_component_description(product.description())
             .map_err(|error| format!("decode native description: {error:?}"))?;
         reject_unrequired_provider(&decoded, &request)?;
+        reject_malformed_provider_claims(&decoded, &request)?;
         let mut missing_identity = decoded.clone();
         missing_identity.realization_identity = None;
         let mut missing_stack = decoded;
@@ -119,6 +120,66 @@ pub(super) fn inspect(
             .map_err(|error| error.to_string())?;
         receipt.revalidate()?;
         std::fs::remove_dir_all(directory).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+// Exercise the independent consumer against real compiled component inventories,
+// not a hand-built approximation of its private derived/sealed tables.
+fn reject_malformed_provider_claims(
+    description: &component_description::component_description::ComponentDescription,
+    request: &ComponentVerificationRequest,
+) -> Result<(), String> {
+    use component_description::ComponentVerificationRejection;
+    for (index, provider) in description.providers.iter().enumerate() {
+        let first = provider
+            .requirement_identities
+            .first()
+            .ok_or("source-produced provider has no component claims")?;
+        for claims in [
+            vec![],
+            vec![first.clone(), first.clone()],
+            vec![String::new()],
+        ] {
+            let mut changed = description.clone();
+            changed.providers[index].requirement_identities = claims;
+            match verify_component(&encode_component_description(&changed), request) {
+                Err(ComponentVerificationRejection::InconsistentProviderClosure(_)) => {}
+                result => return Err(format!("malformed component provider claims: {result:?}")),
+            }
+        }
+        let mut changed = description.clone();
+        // Even an unclaimed plan row remains committed by the complete input.
+        changed.providers[index].plan_input.push(0);
+        match verify_component(&encode_component_description(&changed), request) {
+            Err(ComponentVerificationRejection::InconsistentProviderClosure(_)) => {}
+            result => return Err(format!("altered complete provider input: {result:?}")),
+        }
+        let plan = effects::provider_plan::ProviderPlanInput::read(
+            &provider.plan_input,
+            &provider.plan_digest,
+        )
+        .map_err(|error| format!("source-produced provider plan: {error}"))?;
+        for unclaimed in plan.rows.iter().filter(|row| {
+            !provider
+                .requirement_identities
+                .iter()
+                .any(|claim| claim == row.requirement)
+        }) {
+            let mut changed = description.clone();
+            let claims = &mut changed.providers[index].requirement_identities;
+            claims.push(unclaimed.requirement.to_owned());
+            claims.sort();
+            match verify_component(&encode_component_description(&changed), request) {
+                Err(ComponentVerificationRejection::SmuggledProviderRequirement(identity))
+                    if identity == unclaimed.requirement => {}
+                result => {
+                    return Err(format!(
+                        "unused sibling promoted to component claim: {result:?}"
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }

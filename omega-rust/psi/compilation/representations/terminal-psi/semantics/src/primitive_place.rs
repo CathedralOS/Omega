@@ -400,6 +400,7 @@ pub fn runtime_structural_copy_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: Option<StructuralTypeId>,
 ) -> Option<StructuralTypeId> {
     for (position, segment) in path.iter().enumerate() {
         if matches!(segment, StructuralPathSegment::Referent) {
@@ -417,12 +418,18 @@ pub fn runtime_structural_copy_type<'a>(
         if let StructuralFieldType::Structural(child) = field.field_type {
             return Some(child);
         }
-        // The endpoint is a materialized value, not a geometry-only view of
-        // its storage. In particular, retain a stored byte descriptor's access.
-        let shape = field.field_type.leaf_copy_shape()?;
-        return declarations
-            .clone()
-            .find(|declaration| declaration.shape == shape)
+        // Confirm the checked result against the field's complete copy
+        // contract. An equal-width restricted scalar elsewhere in the catalog
+        // must not select this value's identity or manufacture its predicate.
+        let expected = expected.and_then(|identity| {
+            declarations
+                .clone()
+                .find(|declaration| declaration.id == identity)
+        });
+        return field
+            .field_type
+            .leaf_copy_type(expected)?
+            .leaf_declaration(declarations)
             .map(|declaration| declaration.id);
     }
     runtime_structural_path_tip(declarations, root, path).map(|declaration| declaration.id)

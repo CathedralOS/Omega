@@ -1,4 +1,4 @@
-//! Bounded receiving view of the existing complete v4 plan commitment input.
+//! Bounded receiving view of the existing complete v5 plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -8,7 +8,7 @@
 
 use sha2::{Digest, Sha256};
 
-const DOMAIN: &[u8] = b"omega.provider-plan.sha256.v4\0";
+use super::digest_encoder::PROVIDER_PLAN_DOMAIN as DOMAIN;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
 
@@ -41,11 +41,13 @@ impl<'a> ProviderPlanInput<'a> {
         }
         reader.nonempty_string()?; // selection name
         let provider = reader.string()?;
+        reader.string()?; // complete provider application; empty for a declaration
         let provider_package = reader.package()?;
         let target = reader.string()?;
         reader.nonempty_string()?; // schema identity
         reader.package()?;
         for _ in 0..reader.count()? {
+            reader.string()?; // complete receiver application
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -349,6 +351,45 @@ mod tests {
             input.rows[0].checked_adapter,
             Some(("Provider::consume(opaque)", None))
         );
+    }
+
+    #[test]
+    fn applied_provider_and_receiver_remain_in_the_complete_commitment() {
+        let mut plan = selected_plan();
+        plan.provider_application = plan.identities.intern("Provider<u64>");
+        let application = plan.schema.identities.intern("Boundary<u64>");
+        plan.schema
+            .receiver_applications
+            .push(super::super::ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![plan.schema.identities.intern("u64")],
+                lifetime_argument_identities: vec![],
+                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+            });
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let digest = Sha256::digest(&bytes).into();
+        assert!(ProviderPlanInput::read(&bytes, &digest).is_ok());
+        for spelling in [b"Provider<u64>".as_slice(), b"Boundary<u64>".as_slice()] {
+            let mut changed = bytes.clone();
+            let offset = changed
+                .windows(spelling.len())
+                .position(|part| part == spelling)
+                .unwrap();
+            changed[offset] ^= 1;
+            assert!(ProviderPlanInput::read(&changed, &digest).is_err());
+        }
+        for end in 0..bytes.len() {
+            assert!(
+                read(&bytes[..end]).is_err(),
+                "truncated application prefix {end}"
+            );
+        }
+        let mut old_schema = bytes;
+        old_schema[DOMAIN.len() - 2] = b'4';
+        assert!(read(&old_schema).is_err());
     }
 
     #[test]

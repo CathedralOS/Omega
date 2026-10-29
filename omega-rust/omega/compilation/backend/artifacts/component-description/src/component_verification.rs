@@ -1001,20 +1001,25 @@ fn check_providers(
             &provider.plan_digest,
         )
         .map_err(ComponentVerificationRejection::InconsistentProviderClosure)?;
-        let mut requirements: Vec<_> = plan.rows.iter().map(|row| row.requirement).collect();
-        requirements.sort();
-        if requirements
-            != provider
+        if provider
+            .requirement_identities
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+            || provider
                 .requirement_identities
                 .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
+                .any(|requirement| !plan.rows.iter().any(|row| row.requirement == requirement))
         {
             return Err(ComponentVerificationRejection::InconsistentProviderClosure(
-                "retained requirement roster differs from the complete committed plan",
+                "retained requirement claims are not a canonical subset of the complete committed plan",
             ));
         }
-        for row in &plan.rows {
+        for row in plan.rows.iter().filter(|row| {
+            provider
+                .requirement_identities
+                .iter()
+                .any(|claimed| claimed == row.requirement)
+        }) {
             let requirement = row.requirement;
             if called.contains(requirement) {
                 match sealed.get(requirement) {
