@@ -3740,6 +3740,20 @@ fail/dependent/computed_slice_index_changed_parameter rejected 1645ms expected @
 	cannot prove index `selected` is within unknown slice length of `cells` in invalid::entry
 fail/dependent/computed_slice_index_wrong_descriptor rejected 1724ms expected @a92f16431042
 	cannot prove index `selected` is within unknown slice length of `cells` in invalid::entry
+fail/dependent/data_requires_boundary_opaque rejected 5ms expected @276a24ccda04
+	tests/omega/fail/dependent/data_requires_boundary_opaque/main.omg:1:23: opaque `boundary data` has no visible fields for default-domain predicates
+fail/dependent/data_requires_empty_clause rejected 3ms expected @276a24ccda04
+	tests/omega/fail/dependent/data_requires_empty_clause/main.omg:1:23: expected expression
+fail/dependent/data_requires_future_formation rejected 200ms expected @276a24ccda04
+	cannot prove requires contract for specification call `guarded` in data `Invalid` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+fail/dependent/data_requires_invalid_store rejected 251ms expected @276a24ccda04
+	data `Bounded<10>`'s default domain is still FALSE at state exit: the invariant window opened on `target` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/dependent/data_requires_lower_bound rejected 202ms expected @276a24ccda04
+	data `Bounded<10>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/dependent/data_requires_self_formation rejected 196ms expected @276a24ccda04
+	cannot prove requires contract for specification call `guarded` in data `Invalid` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+fail/dependent/data_requires_upper_bound rejected 204ms expected @276a24ccda04
+	data `Bounded<10>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 677ms expected @a92f16431042
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `main.pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_invariant_window_unclosed_rejected rejected 678ms expected @a92f16431042
@@ -14102,6 +14116,24 @@ fail/facts/runtime_count_index_through_target_body_rejected rejected 2159ms expe
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_computed_result_through_call_result_rejected rejected 240ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_const_name_rejected rejected 210ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_field_rejected rejected 238ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_local_rejected rejected 217ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_match_join_rejected rejected 231ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_other_machine_rejected rejected 230ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_other_state_rejected rejected 235ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_parameter_rejected rejected 213ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_computed_result_through_target_body_rejected rejected 253ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_forwarded_through_call_result_rejected rejected 1611ms expected @036605466510+wt
 	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -14135,6 +14167,69 @@ fail/facts/runtime_index_application_forwarded_through_target_body_rejected reje
 	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_mutating_operator_through_call_result_rejected rejected 232ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_const_name_rejected rejected 237ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_field_rejected rejected 268ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_local_rejected rejected 268ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_match_join_rejected rejected 237ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_other_machine_rejected rejected 254ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_other_state_rejected rejected 254ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_parameter_rejected rejected 247ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_mutating_operator_through_target_body_rejected rejected 249ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_call_result_rejected rejected 444ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_const_name_rejected rejected 481ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_field_rejected rejected 234ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_local_rejected rejected 228ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_match_join_rejected rejected 237ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_other_machine_rejected rejected 236ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_other_state_rejected rejected 267ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_parameter_rejected rejected 235ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_ordinary_call_through_target_body_rejected rejected 262ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_call_result_rejected rejected 259ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_const_name_rejected rejected 239ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_field_rejected rejected 236ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_local_rejected rejected 250ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_match_join_rejected rejected 221ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_other_machine_rejected rejected 257ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_other_state_rejected rejected 229ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_parameter_rejected rejected 246ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_qualified_computed_through_target_body_rejected rejected 245ms expected @276a24ccda04
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_through_call_result_rejected rejected 912ms expected @a92f16431042
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_through_const_name_rejected rejected 918ms expected @a92f16431042
@@ -25331,6 +25426,7 @@ pass/dependent/collection_predicate_proved_element_store rejected 642ms regresse
 	machine `one_bit` cites `cell_is_bit`, but the callee's requires fact `cells_valid(cells) == true` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 pass/dependent/collection_predicate_terminal_rows_exit checked 7162ms check-target:macos_arm64 @a92f16431042
 pass/dependent/collection_predicate_zero_initialized checked 3271ms @a92f16431042
+pass/dependent/data_requires_clauses_exit checked 1245ms check-target:macos_arm64 @276a24ccda04
 pass/dependent/data_where_antisymmetric_fields_compile checked 3229ms @a92f16431042
 pass/dependent/data_where_arithmetic_bound_compile checked 2307ms @a92f16431042
 pass/dependent/data_where_arithmetic_disequality_compile checked 2367ms @a92f16431042
@@ -29410,6 +29506,15 @@ pass/facts/runtime_count_index_through_other_machine_exit checked 3513ms check-t
 pass/facts/runtime_count_index_through_other_state_exit checked 2404ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_count_index_through_parameter_exit checked 3132ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_count_index_through_target_body_exit checked 3111ms check-target:macos_arm64 @a92f16431042
+pass/facts/runtime_index_application_computed_result_through_call_result_exit checked 1275ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_const_name_exit checked 1068ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_field_exit checked 1038ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_local_exit checked 1017ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_match_join_exit checked 1016ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_other_machine_exit checked 1010ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_other_state_exit checked 1010ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_parameter_exit checked 1032ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_computed_result_through_target_body_exit checked 1014ms check-target:macos_arm64 @276a24ccda04
 pass/facts/runtime_index_application_forwarded_through_call_result_exit checked 2143ms check-target:macos_arm64 @036605466510+wt
 pass/facts/runtime_index_application_forwarded_through_const_name_exit checked 2204ms check-target:macos_arm64 @036605466510+wt
 pass/facts/runtime_index_application_forwarded_through_field_exit checked 1985ms check-target:macos_arm64 @036605466510+wt
@@ -29419,6 +29524,33 @@ pass/facts/runtime_index_application_forwarded_through_other_machine_exit checke
 pass/facts/runtime_index_application_forwarded_through_other_state_exit checked 2419ms check-target:macos_arm64 @036605466510+wt
 pass/facts/runtime_index_application_forwarded_through_parameter_exit checked 2423ms check-target:macos_arm64 @036605466510+wt
 pass/facts/runtime_index_application_forwarded_through_target_body_exit checked 2085ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_mutating_operator_through_call_result_exit checked 1031ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_const_name_exit checked 1040ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_field_exit checked 1062ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_local_exit checked 1035ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_match_join_exit checked 1058ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_other_machine_exit checked 1058ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_other_state_exit checked 1062ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_parameter_exit checked 1025ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_mutating_operator_through_target_body_exit checked 1064ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_call_result_exit checked 1022ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_const_name_exit checked 1032ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_field_exit checked 996ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_local_exit checked 1044ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_match_join_exit checked 983ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_other_machine_exit checked 1053ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_other_state_exit checked 981ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_parameter_exit checked 1040ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_ordinary_call_through_target_body_exit checked 1005ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_call_result_exit checked 1013ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_const_name_exit checked 1035ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_field_exit checked 1046ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_local_exit checked 986ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_match_join_exit checked 1050ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_other_machine_exit checked 1016ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_other_state_exit checked 1046ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_parameter_exit checked 1045ms check-target:macos_arm64 @276a24ccda04
+pass/facts/runtime_index_application_qualified_computed_through_target_body_exit checked 1014ms check-target:macos_arm64 @276a24ccda04
 pass/facts/runtime_index_application_through_call_result_exit checked 2863ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_index_application_through_const_name_exit checked 2865ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_index_application_through_field_exit checked 3075ms check-target:macos_arm64 @a92f16431042
