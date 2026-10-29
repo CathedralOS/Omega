@@ -33145,19 +33145,13 @@ pass/slices/runtime_machine_entry_view_requires_index_exit checked 7152ms check-
 pass/slices/runtime_matched_window_coordinate_capture_exit checked 2087ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_matched_window_length checked 1780ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 5888ms check-target:macos_arm64 @a92f16431042
-pass/slices/runtime_mutable_record_slice_result_reborrow_exit rejected 1357ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit checked 6745ms check-target:macos_arm64 interpreter-exit:0 @abace2497e25+wt
 pass/slices/runtime_mutable_slice_element_write_exit checked 5795ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_mutable_slice_result_nested_reborrow_exit rejected 2003ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_reborrow_exit rejected 2127ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_shared_observation_exit rejected 1589ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 1735ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_slice_result_reborrow_exit checked 6717ms check-target:macos_arm64 interpreter-exit:0 @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_shared_observation_exit checked 6634ms check-target:macos_arm64 interpreter-exit:0 @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_whole_forward_exit checked 6489ms check-target:macos_arm64 interpreter-exit:0 @abace2497e25+wt
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 2015ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_namespace_range_contract_exit checked 2285ms check-target:macos_arm64 @a92f16431042
 pass/slices/runtime_nested_descriptor_scalar_store_exit checked 2742ms check-target:macos_arm64 @a92f16431042
