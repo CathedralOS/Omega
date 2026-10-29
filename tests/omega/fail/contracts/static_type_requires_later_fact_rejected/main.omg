@@ -8,7 +8,7 @@ requires partial<T>()
 requires T == u32
 { true }
 machine main() crashes Trap {
-    transition admitted<u32>() {
+    transition partial<u32>() && admitted<u32>() {
         true -> done()
         _ -> wrong()
     }
