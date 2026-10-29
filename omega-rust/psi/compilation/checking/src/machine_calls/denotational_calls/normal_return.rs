@@ -200,9 +200,20 @@ fn closed_expression(
                 && available.contains(&path.symbol)
         }
         ExpressionNode::Binary(binary) => {
-            crate::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
-                && child(binary.left)
-                && child(binary.right)
+            let builtin = crate::has_builtin_bound_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            );
+            let operand_types = [binary.left, binary.right].map(|operand| {
+                crate::expression_result_type_reference(program, machine, state, operand)
+            });
+            let sealed_comparison = crate::proof_contracts::bound_expression_meaning::
+                sealed_float_comparison_declaration_for_operands(
+                    program, machine.symbol, expression, binary.operator, &operand_types,
+                ).is_some();
+            (builtin || sealed_comparison) && child(binary.left) && child(binary.right)
         }
         ExpressionNode::Call(call) => {
             plain_value_call_target(program, call).is_some()
