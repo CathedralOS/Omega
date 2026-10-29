@@ -1,0 +1,7 @@
+# Private ranged-rank execution evidence
+
+Submitted source b8ad4e63f20e260492fe88c50e422de8196a04d9. Observations were captured at15a66acf6a302237a01ef59563bcacacf5915b0a using optimized producer e559ee8edb43ae92e5ce1b31a7ed51a6991f0bf0. Only corpus golden records changed afterward. Warm comparison base bd57535230243699e595f565e84d75fa19be881d has the same compiler/library/build trees as retained baseline producer e3c13ae2455c62f31486b028dab0fd6705ab6c4e. Canonical authority and original fixed base9a4ec4a40c352ea4eb51f49f2d23ee03e3e3a78e remain unchanged.
+
+Archive includes canonical excerpts, actual192-source comparison (no losses,44gains),19native/Terminal agreements (15new0,3existing0,legacy70),16sample agreements, invalid controls, provenance, qualification state and immutable receipts, independent source-scope review, and Git source bundle. Failed setup/admission captures remain distinct from accepted final observations. The32inherited source defects remain defects. Only macOS ARM64 has native execution evidence.
+
+Rebuild with the pinned toolchain and optimized profile. Generate ordinary fresh package acceptance on the replay machine; retained approvals grant no authority elsewhere. Core witnesses are samples/cli/facts/nested_machine_invocation/joint_rank/*/ranged_value/main.omg, plus six same-fact compositions, run with omega run --both. Source bundle and build receipts permit rebuilding; immutable compiler binaries remain in the workbench and are omitted here.
