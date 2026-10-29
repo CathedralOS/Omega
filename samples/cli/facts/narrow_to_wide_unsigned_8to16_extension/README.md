@@ -120,3 +120,16 @@ The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects `ZeroExtendU8`. On `x86_64` that is `movzx r32, r/m8` (REX without W; build bytes `40 0F B6`), where the 32-bit destination implicitly zeroes bits 32..63. On `arm64` that is the 64-bit UBFM zero-extend of bits 0..7, which `otool` prints as `ubfx xN, xN, #0, #8` (the `uxtb` alias with an `X` destination), not `uxtb w, w`. Exact subtraction then runs on the full 64-bit carrier (`subq` / `sub xN`), not a 16-bit `sub ax` / `sub w0`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
 - **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+
+## Build-owned target selection
+
+The target-body place uses ordinary `SelectedProbe` implementations chosen by
+explicit target-keyed Build rows. The original numeric fact, bound, operation,
+probe parameter count and exit oracle remain the same. Each implementation
+checks its distinct tag (17 or 29) through the separately selected `SelectedBodyCheck`;
+entry wrappers check the corresponding expected tag. Selecting the wrong whole
+provider or only the wrong probe body must therefore trap even when the numeric
+bodies compute the same result. All nine places bind the five hosted target
+profiles and their corpus pins request unchanged-artifact target installations.
+The source-prefix migration belongs to `BUILD-OWNED-TARGET-SELECTION`; it does
+not close that task or the numeric capability's other remaining acceptance.
