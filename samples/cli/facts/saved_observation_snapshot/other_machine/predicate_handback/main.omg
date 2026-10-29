@@ -16,6 +16,7 @@ machine store_original(original: &mut [u64; 2]) {
 }
 machine agree(observed: u64, current: u64) -> u64
 requires observed == current && observed == 7
+ensures result == observed
 { observed }
 machine read_kept(holder: &mut Holder) -> u64
 requires kept(&holder.items) == true

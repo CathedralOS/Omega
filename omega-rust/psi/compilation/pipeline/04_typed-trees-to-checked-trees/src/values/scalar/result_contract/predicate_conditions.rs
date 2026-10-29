@@ -14,15 +14,7 @@ impl ContractPredicates<'_, '_> {
             return None;
         }
         let conditions =
-            validation::exact_predicate_conjunction(self.program, self.owner, expression);
-        trace(
-            "conditions",
-            &(
-                self.program.expression_table.display_name(expression),
-                conditions.as_ref().map(Vec::len),
-            ),
-        );
-        let conditions = conditions?;
+            validation::exact_predicate_conjunction(self.program, self.owner, expression)?;
         self.remaining
             .set(self.remaining.get().checked_sub(conditions.len())?);
         let mut predicates = Vec::new();
@@ -122,27 +114,18 @@ impl ContractPredicates<'_, '_> {
             .iter()
             .zip(&read.arguments)
             .map(|(parameter, actual)| {
-                let actual_value = self.predicate_actual_storage(*actual);
-                trace(
-                    "actual",
-                    &(
-                        self.program.expression_table.display_name(*actual),
-                        &actual_value,
-                    ),
-                );
-                let actual = actual_value?;
+                let actual = self.predicate_actual_storage(*actual)?;
                 let declared = validation::field_domains::readable_type_reference(
                     self.program,
                     parameter.type_reference,
                 )?;
                 let supplied =
                     validation::field_domains::readable_type_reference(self.program, actual.2)?;
-                let matched = validation::declared_carriers_match(self.program, declared, supplied);
-                trace("carriers", &(declared, supplied, matched));
-                matched.then_some(actual)
+                validation::declared_carriers_match(self.program, declared, supplied)
+                    .then_some(actual)
             })
             .collect::<Option<Vec<_>>>()?;
-        let projection_value = super::super::scalar_lowering::storage_projection(
+        let mut projection = super::super::scalar_lowering::storage_projection(
             self.program,
             self.operators,
             read.expression,
@@ -156,9 +139,7 @@ impl ContractPredicates<'_, '_> {
                 )?;
                 self.condition_operand(&operand, Some(PrimitiveType::U64), depth + 1)
             },
-        );
-        trace("projection", &projection_value.is_some());
-        let mut projection = projection_value?;
+        )?;
         let position = usize::try_from(projection.root.parameter()?).ok()?;
         let (actual_position, prefix, _) = actuals.get(position)?;
         projection.root = CheckedStorageRoot::Parameter {
@@ -171,26 +152,12 @@ impl ContractPredicates<'_, '_> {
             .collect::<Vec<_>>();
         path.extend(projection.path);
         projection.path = path;
-        let result = super::super::scalar_lowering::scalar_storage_read_projection(
+        super::super::scalar_lowering::scalar_storage_read_projection(
             self.program,
             read.expression,
             self.parameters,
             projection,
         )
-        .map(|value| value.0);
-        trace("read-result", &result);
-        result
-    }
-}
-fn trace(stage: &str, value: &impl std::fmt::Debug) {
-    if let Some(path) = std::env::var_os("OMEGA_STORAGE_PREDICATE_TRACE") {
-        use std::io::Write as _;
-        if let Ok(mut output) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            let _ = output.write_all(format!("ADAPTER {stage} {value:?}\n").as_bytes());
-        }
+        .map(|value| value.0)
     }
 }

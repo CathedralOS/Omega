@@ -228,20 +228,6 @@ impl ExitScalars<'_, '_> {
             }
             predicates.extend(transported.predicates);
         }
-        if let Some(path) = std::env::var_os("OMEGA_STORAGE_PREDICATE_TRACE") {
-            use std::io::Write as _;
-            if let Ok(mut output) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
-                let _ = writeln!(
-                    output,
-                    "EXIT machine={} required={required:?} predicates={predicates:?}",
-                    self.machine.name
-                );
-            }
-        }
         crate::facts::boolean_predicates::truth(&predicates, &required, |place| {
             prover::boolean_value_at_place(
                 self.program,

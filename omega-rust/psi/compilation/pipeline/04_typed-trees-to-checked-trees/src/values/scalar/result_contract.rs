@@ -93,7 +93,7 @@ pub(crate) fn lower_callable_scalar_contract_predicate(
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
     let budget = ContractBudget::new(remaining);
-    let result = ContractPredicates {
+    ContractPredicates {
         program,
         operators,
         owner,
@@ -103,22 +103,7 @@ pub(crate) fn lower_callable_scalar_contract_predicate(
         logical_captures: Vec::new(),
         remaining: &budget.remaining,
     }
-    .boolean(expression, 0);
-    if let Some(path) = std::env::var_os("OMEGA_STORAGE_PREDICATE_TRACE") {
-        use std::io::Write as _;
-        if let Ok(mut output) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            let _ = writeln!(
-                output,
-                "LOWER owner={owner:?} expression={} result_scope={allow_result} value={result:?}",
-                program.expression_table.display_name(expression)
-            );
-        }
-    }
-    result
+    .boolean(expression, 0)
 }
 
 /// Query-owned copy counter. Even an unsuccessful read commits consumption to

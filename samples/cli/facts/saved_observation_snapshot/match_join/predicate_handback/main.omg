@@ -13,6 +13,7 @@ ensures kept(&holder.items) == true
 }
 machine agree(observed: u64, current: u64) -> u64
 requires observed == current && observed == 7
+ensures result == observed
 { observed }
 machine capture(source: u64, marker: &mut u64, event: u64) -> u64
 ensures result == source
