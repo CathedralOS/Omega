@@ -1,6 +1,5 @@
 use optimization_core::{Optimization, OptimizationCatalogDescriptor, OptimizationPhaseMismatch};
 
-use super::super::RegisterAllocationRuleTargetApplicability;
 use super::PreAllocationPolicy;
 use super::execution::{
     PreAllocationCandidateSurface, PreAllocationRuleAdmission, address_fold_candidate,
@@ -11,14 +10,12 @@ use super::execution::{
     redundant_compare_candidate, stored_load_forwarding_candidate,
 };
 
-/// One catalog row's whole declaration: the exact policy a selection enables,
-/// its target applicability, and the admission mechanism — candidate surface
-/// plus site attempt — the ordered frontier and the fixed-point driver read.
-/// A family joins the slice by declaring this row; there is no second
-/// dispatch site to edit.
+/// One catalog row's whole declaration: the exact policy a selection enables
+/// and the admission mechanism — candidate surface plus site attempt — the
+/// ordered frontier and the fixed-point driver read. A family joins the slice
+/// by declaring this row; there is no second dispatch site to edit.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PreAllocationRuleCatalogPayload {
-    target: RegisterAllocationRuleTargetApplicability,
     policy: PreAllocationPolicy,
     admission: PreAllocationRuleAdmission,
 }
@@ -47,11 +44,7 @@ const fn row(
 ) -> PreAllocationRuleCatalogEntry {
     PreAllocationRuleCatalogEntry::new(
         optimization,
-        PreAllocationRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy,
-            admission,
-        },
+        PreAllocationRuleCatalogPayload { policy, admission },
     )
 }
 

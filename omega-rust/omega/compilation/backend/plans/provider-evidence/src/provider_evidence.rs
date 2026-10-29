@@ -450,9 +450,10 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        // This owner has no isolated-scope/opaque-executable admission route.
-        // Preserve the existing digest vocabulary for the actual closure.
-        encoder.byte(0); // CallerAddressSpace
+        // This owner has no isolated-scope/opaque-executable admission route;
+        // the closure's own declared scope is what the encoder frames here, so
+        // the digest grammar's scope byte keeps its single definition.
+        encoder.execution_scope(self.execution_scope());
         encoder.len(0); // no opaque executable admissions
 
         encoder.len(self.installation_reach_resolutions.len());
