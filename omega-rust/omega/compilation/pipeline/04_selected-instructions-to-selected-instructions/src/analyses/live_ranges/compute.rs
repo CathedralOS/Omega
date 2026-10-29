@@ -6,6 +6,7 @@ mod copy_affinities;
 mod edge_transfers;
 mod fragments;
 mod function;
+mod interference;
 
 use std::collections::BTreeSet;
 
@@ -23,10 +24,10 @@ use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use architectural_units::architectural_units;
 pub(crate) use constraints::{derive_early_clobbers, derive_tied_pairs};
 use fragments::{
-    after_point, before_point, block_domain, connector, interference, operand_point,
-    register_fragments,
+    after_point, before_point, block_domain, connector, operand_point, register_fragments,
 };
 pub(crate) use function::compute_function;
+use interference::interference;
 
 pub(crate) fn compute_terminal_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,
