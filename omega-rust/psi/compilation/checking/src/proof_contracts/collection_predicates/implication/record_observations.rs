@@ -13,6 +13,12 @@ pub(super) struct Observation {
 }
 
 impl Implication<'_> {
+    pub(super) fn record_observes_collection(&self, collection: usize) -> bool {
+        self.records.iter().any(|observation| {
+            matches!(&observation.value, Value::Collection { identity, .. } if *identity == collection)
+        })
+    }
+
     pub(super) fn record_observes_integer(
         &mut self,
         identity: usize,

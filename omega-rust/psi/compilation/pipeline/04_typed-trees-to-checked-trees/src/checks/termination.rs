@@ -220,6 +220,7 @@ pub(crate) fn admit_machine_rankings(
                     }
                 };
                 checked_trees::CheckedStateNaturalRank {
+                    function: coordinate.function,
                     state: coordinate.state,
                     parameter: coordinate.parameter,
                     parameter_position: coordinate.parameter_position,

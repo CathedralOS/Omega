@@ -151,6 +151,7 @@ pub(super) fn natural_rank_plans_for_fused(
                 rank.state == state.state
                     && rank.parameter == state.parameter
                     && rank.parameter_position == state.parameter_position
+                    && rank.function == state.function
                     && match (state.observation, rank.measure) {
                         (
                             validation::RankPremiseObservation::Value,

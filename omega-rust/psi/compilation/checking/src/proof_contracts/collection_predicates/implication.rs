@@ -434,8 +434,9 @@ impl Implication<'_> {
             };
             for (mut frame, path) in exits {
                 // Ensures expressions are authored in entry scope even when a
-                // different state returns. Bindings retain exact symbol identity
-                // and current collection versions across the state transfer.
+                // terminal callee returns. Bindings retain exact symbol identity
+                // and current collection versions across explicit arguments.
+                frame.machine = machine_position;
                 frame.state = 0;
                 let Some(goals) = self.expression(&frame, path, goal, 0) else {
                     return false;
@@ -517,7 +518,8 @@ impl Implication<'_> {
     /// recurrent mutating state needs a store invariant; it is not unrolled
     /// here. Predicate recurrence below has its separate checked induction.
     fn body_exits(&mut self, frame: Frame, path: Path) -> Option<Vec<(Frame, Path)>> {
-        let mut pending = vec![(0usize, frame, path, vec![0usize])];
+        let entry = (frame.machine, frame.state);
+        let mut pending = vec![(0usize, frame, path, vec![entry])];
         let mut exits = Vec::new();
         while let Some((position, frame, path, visited)) = pending.pop() {
             self.spend()?;
@@ -538,10 +540,9 @@ impl Implication<'_> {
                 {
                     for (path, value) in self.expression(&frame, path, local.initial_value, 0)? {
                         let mut frame = frame.clone();
-                        frame.bindings.push((
-                            local.symbol,
-                            declared_value(self.program, value, local.type_reference)?,
-                        ));
+                        frame
+                            .bindings
+                            .push((local.symbol, self.body_value(value, local.type_reference)?));
                         pending.push((position + 1, frame, path, visited.clone()));
                     }
                 }
@@ -579,8 +580,35 @@ impl Implication<'_> {
                             {
                                 TransitionTargetNode::Terminal => exits.push((frame.clone(), path)),
                                 TransitionTargetNode::Value(value) => {
-                                    for (path, _) in self.expression(&frame, path, *value, 0)? {
-                                        exits.push((frame.clone(), path));
+                                    // Terminal machine calls have already normalized to
+                                    // ordinary Call values. Execute the exact invocation;
+                                    // evaluating it as a Boolean predicate would lose writes.
+                                    if let ExpressionNode::Call(call) =
+                                        self.program.expression_table.expression(*value)
+                                    {
+                                        if !call.is_ordinary_positional_call() {
+                                            return None;
+                                        }
+                                        for (frame, path) in self.body_invocation(
+                                            &frame,
+                                            path,
+                                            call.target_symbol,
+                                            self.program
+                                                .expression_table
+                                                .expression_handles(call.arguments),
+                                        )? {
+                                            let destination = (frame.machine, frame.state);
+                                            if visited.contains(&destination) {
+                                                return None;
+                                            }
+                                            let mut visited = visited.clone();
+                                            visited.push(destination);
+                                            pending.push((0, frame, path, visited));
+                                        }
+                                    } else {
+                                        for (path, _) in self.expression(&frame, path, *value, 0)? {
+                                            exits.push((frame.clone(), path));
+                                        }
                                     }
                                 }
                                 TransitionTargetNode::Named {
@@ -592,36 +620,15 @@ impl Implication<'_> {
                                 } if !static_machine_parameter.is_valid()
                                     && evidence_arguments.is_empty() =>
                                 {
-                                    let destination = typed_trees::state::state_position(
-                                        self.program.machine_states(machine),
-                                        target.symbol,
-                                    )?;
-                                    if visited.contains(&destination) {
-                                        return None;
-                                    }
-                                    let parameters = self.program.state_parameters(
-                                        &self.program.machine_states(machine)[destination],
-                                    );
-                                    for (path, arguments) in self.arguments(
+                                    for (frame, path) in self.body_invocation(
                                         &frame,
                                         path,
+                                        target.symbol,
                                         self.program.statement_table.expression_handles(*arguments),
-                                        0,
                                     )? {
-                                        if parameters.len() != arguments.len() {
+                                        let destination = (frame.machine, frame.state);
+                                        if visited.contains(&destination) {
                                             return None;
-                                        }
-                                        let mut frame = frame.clone();
-                                        frame.state = destination;
-                                        for (parameter, value) in parameters.iter().zip(arguments) {
-                                            frame.bindings.push((
-                                                parameter.symbol,
-                                                declared_value(
-                                                    self.program,
-                                                    value,
-                                                    parameter.type_reference,
-                                                )?,
-                                            ));
                                         }
                                         let mut visited = visited.clone();
                                         visited.push(destination);
@@ -634,14 +641,137 @@ impl Implication<'_> {
                     }
                 }
                 StatementNode::Expression(expression) if position + 1 == statements.len() => {
-                    for (path, _) in self.expression(&frame, path, *expression, 0)? {
-                        exits.push((frame.clone(), path));
+                    if let ExpressionNode::Call(call) =
+                        self.program.expression_table.expression(*expression)
+                    {
+                        if !call.is_ordinary_positional_call() {
+                            return None;
+                        }
+                        for (frame, path) in self.body_invocation(
+                            &frame,
+                            path,
+                            call.target_symbol,
+                            self.program
+                                .expression_table
+                                .expression_handles(call.arguments),
+                        )? {
+                            let destination = (frame.machine, frame.state);
+                            if visited.contains(&destination) {
+                                return None;
+                            }
+                            let mut visited = visited.clone();
+                            visited.push(destination);
+                            pending.push((0, frame, path, visited));
+                        }
+                    } else {
+                        for (path, _) in self.expression(&frame, path, *expression, 0)? {
+                            exits.push((frame.clone(), path));
+                        }
                     }
                 }
                 _ => return None,
             }
         }
         Some(exits)
+    }
+
+    /// Bind one supported terminal invocation simultaneously. Caller bindings
+    /// remain live aliases so writes update the actual caller-visible version;
+    /// Requires snapshots remain separate antecedents. No callee contract or
+    /// pending postcondition is imported as evidence for its executable body.
+    fn body_invocation(
+        &mut self,
+        frame: &Frame,
+        path: Path,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+    ) -> Option<Vec<(Frame, Path)>> {
+        let caller = &self.program.machines()[frame.machine];
+        let destination = if let Some(state) =
+            typed_trees::state::state_position(self.program.machine_states(caller), target)
+                .filter(|position| *position != 0)
+        {
+            (frame.machine, state)
+        } else {
+            let (position, callee) =
+                self.program
+                    .machines()
+                    .iter()
+                    .enumerate()
+                    .find(|(_, callee)| {
+                        callee.symbol == target
+                            || self
+                                .program
+                                .machine_states(callee)
+                                .first()
+                                .is_some_and(|entry| entry.symbol == target)
+                    })?;
+            // Unknown or incomplete provider bodies cannot acquire preservation
+            // from an empty statement roster. Static applications need their
+            // own exact telescope; lexical ancestry supplies no runtime values.
+            if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !callee.body_is_present
+                || callee.structural_type_equations_pending
+                || callee.suspends
+                || callee.blocks
+                || !callee.type_parameters.is_empty()
+                || !self.program.machine_owned_data(callee).is_empty()
+                || !self
+                    .program
+                    .service_reach_rows
+                    .services(callee.service_reach_row)
+                    .is_empty()
+            {
+                return None;
+            }
+            (position, 0)
+        };
+        let state = &self
+            .program
+            .machine_states(&self.program.machines()[destination.0])[destination.1];
+        let parameters = self.program.state_parameters(state);
+        // These are already captured runtime actuals, including readable
+        // exclusive references (marked is_mutable in the typed signature). Predicate induction's fresh-formal admission
+        // deliberately accepts shared references only; it is not this binder.
+        // declared_value below checks each supported readable carrier without
+        // inventing a new collection identity or granting write authority.
+        if parameters.len() != arguments.len()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.is_const || parameter.relevance.is_erased())
+        {
+            return None;
+        }
+        self.arguments(frame, path, arguments, 0)?
+            .into_iter()
+            .map(|(path, arguments)| {
+                let mut frame = frame.clone();
+                frame.machine = destination.0;
+                frame.state = destination.1;
+                for (parameter, value) in parameters.iter().zip(arguments) {
+                    frame.bindings.push((
+                        parameter.symbol,
+                        self.body_value(value, parameter.type_reference)?,
+                    ));
+                }
+                Some((frame, path))
+            })
+            .collect()
+    }
+
+    /// Mutation tracks existing borrowed storage, not a new owned array home.
+    /// Local and by-value argument bindings both need a fresh storage version
+    /// for an owned collection. Reusing its captured contents identity as an
+    /// alias would let a callee-local repair establish a caller postcondition.
+    /// Readonly predicate activation retains its separate immutable-value rule.
+    fn body_value(&self, value: Value, reference: TypeReferenceHandle) -> Option<Value> {
+        let value = declared_value(self.program, value, reference)?;
+        if matches!(value, Value::Collection { .. })
+            && crate::reference_shell(self.program, reference).is_none()
+        {
+            return None;
+        }
+        Some(value)
     }
 
     fn assignment(
@@ -675,6 +805,15 @@ impl Implication<'_> {
             else {
                 return None;
             };
+            // Record projections are immutable captured values. Updating a
+            // collection binding cannot reseat the enclosing record's cached
+            // field observation, including when a callee receives that field
+            // through an ordinary slice argument. Until this fragment carries
+            // functional record versions, an overlapping store proves nothing;
+            // the old record snapshot must not become a current postcondition.
+            if self.record_observes_collection(previous) {
+                return None;
+            }
             for (path, selector) in self.expression(frame, path, indexed.index, 0)? {
                 let Value::Integer {
                     value: selector, ..

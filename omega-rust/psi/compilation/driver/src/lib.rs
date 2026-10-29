@@ -39,15 +39,16 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    BuildProviderProductionRequest, PreparedExternalProviderDeclarations, ProducedBuildProvider,
-    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
-    PsiCompilationStage, TerminalApplicationCustody, TerminalArtifactProductionError,
-    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
-    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
-    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
-    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
-    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueCase,
-    TerminalBuildValueField, TerminalBuildValueShape, TerminalCompositionAdmission,
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
-    TerminalProgramRoots, UnmeasuredProduction, lower_task_activation_demands,
+    BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
+    ProducedBuildProvider, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
+    PsiCompilationObserver, PsiCompilationStage, TerminalApplicationCustody,
+    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
+    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
+    TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
+    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalCompositionAdmission, TerminalMachineSelection, TerminalProductionCustody,
+    TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
+    lower_task_activation_demands,
 };
