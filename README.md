@@ -20,6 +20,7 @@ design is ahead of its implementation; native support is still being completed.
 [Specification](wiki/README.md#current-specification-subjects) ·
 [Examples](samples) ·
 [VS Code highlighting](tools/vscode-omega/README.md) ·
+[Compiler observatory](tools/dashboard/README.md) ·
 [Contributing](#development)
 
 ## Failures Omega addresses
