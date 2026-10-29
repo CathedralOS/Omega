@@ -441,6 +441,17 @@ crashes Trap
 
     machine finish(parser: &mut Parser, input: &TokenStream) {
         let index: u64 in Trapping = parser.machine_index;
+        transition index < 10240 {
+            true -> finish_bounded(parser, input, index)
+            _ -> invalid_open_machine()
+        }
+    }
+
+    machine invalid_open_machine() { crash Trap; }
+
+    machine finish_bounded(parser: &mut Parser, input: &TokenStream, index: u64 in Trapping)
+    requires index <= 10239
+    {
         let item: MachineItem = SyntaxTrees::machine_item(&parser.output, index);
         parser.output.machines[index].source_span =
             Parser::source_span(parser, item.source_span.span.start, parser.token_end);
