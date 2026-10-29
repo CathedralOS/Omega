@@ -322,38 +322,27 @@ impl From<PreAllocationTransformationIdentity>
     for register_homes::PostAllocationSelectedTransformation
 {
     fn from(identity: PreAllocationTransformationIdentity) -> Self {
-        match identity {
-            PreAllocationTransformationIdentity::CopyRemoval(identity) => {
-                Self::CopyRemoval(identity)
-            }
-            PreAllocationTransformationIdentity::RedundantExtension(identity) => {
-                Self::RedundantExtension(identity)
-            }
-            PreAllocationTransformationIdentity::AddressFold(identity) => {
-                Self::AddressFold(identity)
-            }
-            PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
-                Self::ConstantBoolean(identity)
-            }
-            PreAllocationTransformationIdentity::ConstantBranch(identity) => {
-                Self::ConstantBranch(identity)
-            }
-            PreAllocationTransformationIdentity::DeadCompare(identity) => {
-                Self::DeadCompare(identity)
-            }
-            PreAllocationTransformationIdentity::RedundantCompare(identity) => {
-                Self::RedundantCompare(identity)
-            }
-            PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
-                Self::EquivalentCompare(identity)
-            }
-            PreAllocationTransformationIdentity::CopiedCallOperand(identity) => {
-                Self::CopiedCallOperand(identity)
-            }
-            PreAllocationTransformationIdentity::StoredLoadForwarding(identity) => {
-                Self::StoredLoadForwarding(identity)
-            }
+        macro_rules! forward {
+            ($($variant:ident),* $(,)?) => {
+                match identity {
+                    $(PreAllocationTransformationIdentity::$variant(identity) => {
+                        Self::$variant(identity)
+                    })*
+                }
+            };
         }
+        forward!(
+            CopyRemoval,
+            RedundantExtension,
+            AddressFold,
+            ConstantBoolean,
+            ConstantBranch,
+            DeadCompare,
+            RedundantCompare,
+            EquivalentCompare,
+            CopiedCallOperand,
+            StoredLoadForwarding,
+        )
     }
 }
 
