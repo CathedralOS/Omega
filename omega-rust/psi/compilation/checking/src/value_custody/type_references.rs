@@ -629,7 +629,12 @@ fn validate_type_reference_node(
             referee, lifetime, ..
         } => {
             if let Some(lifetime) = lifetime
-                && !type_parameter_scope.contains_lifetime(program, lifetime.as_str())
+                && !type_parameter_scope.contains_operand_lifetime(
+                    program,
+                    type_reference,
+                    0,
+                    lifetime.as_str(),
+                )
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses undeclared lifetime `'{}'; declare it in the owner's generic parameter list",
@@ -746,8 +751,13 @@ fn validate_type_reference_node(
                 )));
             }
 
-            for lifetime in lifetime_arguments {
-                if !type_parameter_scope.contains_lifetime(program, lifetime.as_str()) {
+            for (slot, lifetime) in lifetime_arguments.iter().enumerate() {
+                if !type_parameter_scope.contains_operand_lifetime(
+                    program,
+                    type_reference,
+                    slot,
+                    lifetime.as_str(),
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses undeclared lifetime argument `'{}' in `{base_name}`; declare it in the owner's generic parameter list",
                         lifetime.as_str()
@@ -1012,6 +1022,44 @@ impl<'program> TypeParameterScope<'program> {
         self.type_parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == name)
+    }
+
+    fn contains_operand_lifetime(
+        self,
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        slot: usize,
+        name: &str,
+    ) -> bool {
+        let retained = program.type_reference_table.operand_lifetimes(reference);
+        if !retained.is_empty() {
+            let expected = match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Generic {
+                    lifetime_arguments, ..
+                } => lifetime_arguments.len(),
+                TypeReferenceNode::Reference {
+                    lifetime: Some(_), ..
+                } => 1,
+                _ => 0,
+            };
+            if retained.len() != expected {
+                return false;
+            }
+            if let Some(region) = retained
+                .get(slot)
+                .filter(|region| region.declaration.is_valid())
+            {
+                // This checks the retained supplier's declaration only, just
+                // as the previous single-owner query did. It grants no loan,
+                // active-frame substitution or outlives relationship.
+                return typed_trees::type_identity::lifetime_parameter_name(
+                    program.typed_program(),
+                    *region,
+                )
+                .is_some_and(|parameter| parameter.as_str() == name);
+            }
+        }
+        self.contains_lifetime(program, name)
     }
 
     fn contains_lifetime(self, program: &dyn crate::CheckingInput, name: &str) -> bool {
