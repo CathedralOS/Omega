@@ -83,6 +83,41 @@ pub(super) fn source(
                 .or_else(|| backings.address(function, structural_types, source))
                 .ok_or_else(invalid)?
         };
+    let (declared_root, multiplicity, access) = backings
+        .homes
+        .get(&source.place)
+        .map(|home| (home.structural_type(), home.multiplicity(), home.access()))
+        .or_else(|| {
+            function.arrival_parameter(source.place).map(|parameter| {
+                (
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.access,
+                )
+            })
+        })
+        .or_else(|| {
+            backings.view_result(function, source.place).map(|result| {
+                (
+                    result.structural_type,
+                    result.multiplicity,
+                    StructuralAccess::Owned,
+                )
+            })
+        })
+        .ok_or_else(invalid)?;
+    if declared_root != root_structural_type
+        || !terminal_semantics::descriptor_source_projection_accessible(
+            structural_types.values().copied(),
+            root_structural_type,
+            multiplicity,
+            access,
+            field_path,
+            source.access,
+        )
+    {
+        return Err(invalid());
+    }
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let regions = crate::lowering::structural_layout::reference_projection_regions(

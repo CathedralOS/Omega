@@ -192,6 +192,12 @@ impl Checker<'_> {
                 *place == source
                     && access(argument.access)
                     && backing
+                    && optimization_unit_semantics::descriptor_argument_accessible(
+                        self.optimized,
+                        argument,
+                        self.types,
+                        argument.access,
+                    )
                     && match (region, expected_region) {
                         (
                             target_operations::TargetElementViewRegion::WholeCollection,
