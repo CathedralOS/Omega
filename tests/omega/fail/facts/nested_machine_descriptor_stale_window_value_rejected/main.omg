@@ -1,0 +1,9 @@
+// Expected rejection: cannot prove requires contract for call consume
+machine alter(view: &mut [u64]) requires view.len > 0; { view[0] = 8; }
+machine consume(view: &[u64]) requires view.len > 0 && view[0] <= 7; {}
+machine main() {
+    let mut original: [u64; 4] = [953, 7, 7, 967];
+    let view: &mut [u64] = &mut original[1..3];
+    alter(view);
+    consume(view);
+}

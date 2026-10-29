@@ -82,6 +82,7 @@ pub fn descriptor_argument_accessible(
         return false;
     };
     requested.admits(argument.access)
+        && source.backing_access(types.iter()).is_some()
         && terminal_semantics::descriptor_source_projection_accessible(
             types.iter(),
             source.structural_type,
@@ -109,6 +110,7 @@ pub fn descriptor_metadata_argument_accessible(
         return false;
     };
     requested.admits(argument.access)
+        && source.backing_access(types.iter()).is_some()
         && terminal_semantics::reference_source_projection_accessible(
             types.iter(),
             source.structural_type,
@@ -139,7 +141,7 @@ pub fn structural_place_backing_access<'types>(
         return terminal_semantics::descriptor_parameter_access(parameter, types);
     }
     unit_validation::operation_contracts::structural_source_contract(function, place)
-        .map(|source| source.backing_access(types))
+        .and_then(|source| source.backing_access(types))
 }
 
 /// Check a write against the current root's complete membership roster. The

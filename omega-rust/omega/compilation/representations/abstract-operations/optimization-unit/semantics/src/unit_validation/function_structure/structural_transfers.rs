@@ -245,7 +245,7 @@ pub(super) fn validate(
                     ) && super::super::operation_contracts::structural_source_contract(
                         function, binding.argument.place,
                     ).is_some_and(|source| {
-                        let access = source.backing_access(types.values().copied());
+                        let Some(access) = source.backing_access(types.values().copied()) else { return false; };
                         (if matches!(
                             parameter.access,terminal_psi::exclusive_borrow_pair_pattern!()) {
                             super::super::operation_contracts::structural_access_can_supply(
