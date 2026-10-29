@@ -18,7 +18,7 @@ use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substit
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
 use crate::rules::control_flow_cleanup::{
-    provenance_realized_at, record_node_provenance, terminal_jump,
+    merge_candidates, provenance_realized_at, record_merged_node_positions, record_node_provenance,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -52,45 +52,40 @@ psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
             .function(function.machine)
             .map(|(_, rows)| rows.as_slice())
             .unwrap_or_default();
-        for (predecessor_position, predecessor) in function.blocks.iter().enumerate() {
-            let Some(jump) = terminal_jump(function, predecessor) else {
-                continue;
-            };
-            let Some((target_position, target)) = function
-                .blocks
-                .iter()
-                .enumerate()
-                .find(|(_, block)| block.id == jump.target)
-            else {
-                continue;
-            };
-            if target.id == function.entry
-                || target_position == predecessor_position.saturating_add(1)
-                || !non_adjacent_merge_target_is_nonempty(target)
-                || !block_dominates(machine_dominators, predecessor.id, target.id)
-                || function
-                    .block_edges()
-                    .filter(|edge| edge.target == target.id)
-                    .count()
-                    != 1
-                || !merge_boundary_ownership_is_identity(
-                    unit, function, frontiers, jump.edge, target.id,
+        for candidate in merge_candidates(function, |candidate| {
+            candidate.target_position != candidate.predecessor_position.saturating_add(1)
+                && non_adjacent_merge_target_is_nonempty(candidate.target)
+                && block_dominates(
+                    machine_dominators,
+                    candidate.jump.block.id,
+                    candidate.target.id,
                 )
-            {
+        }) {
+            let target = candidate.target;
+            if !merge_boundary_ownership_is_identity(
+                unit,
+                function,
+                frontiers,
+                candidate.jump.edge,
+                target.id,
+            ) {
                 continue;
             }
             let Some(substitutions) = merge_substitutions(
                 function.machine,
                 target,
-                jump.bindings,
+                candidate.jump.bindings,
                 machine_dominators,
                 use_definitions,
             ) else {
                 continue;
             };
-            let Some((affected_blocks, provenance)) =
-                non_adjacent_merge_accounting(function, jump.location, target.id, &substitutions)
-            else {
+            let Some((affected_blocks, provenance)) = non_adjacent_merge_accounting(
+                function,
+                candidate.jump.location,
+                target.id,
+                &substitutions,
+            ) else {
                 continue;
             };
             candidates.push(
@@ -102,8 +97,8 @@ psi_rule_impl!(NonAdjacentBlockMergeRule, |unit, analyses| {
                     provenance,
                     -2,
                     NonAdjacentBlockMergeRewrite {
-                        predecessor: jump.location,
-                        incoming_edge: jump.edge,
+                        predecessor: candidate.jump.location,
+                        incoming_edge: candidate.jump.edge,
                         target: target.id,
                     },
                 )
@@ -166,29 +161,7 @@ pub(super) fn non_adjacent_merge_accounting(
             .collect()
     };
 
-    for (node_index, node) in target_block.nodes.iter().enumerate() {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let input = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: target,
-            node: u32::try_from(node_index).ok()?,
-        });
-        let output = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: predecessor.block,
-            node: predecessor
-                .node
-                .checked_add(u32::try_from(node_index).ok()?)?,
-        });
-        realized.push(provenance_realized_at(
-            input,
-            output,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
+    record_merged_node_positions(function, predecessor, target, target_block, &mut realized)?;
 
     let mut input_effect = 0u64;
     let mut input_starts = BTreeMap::new();

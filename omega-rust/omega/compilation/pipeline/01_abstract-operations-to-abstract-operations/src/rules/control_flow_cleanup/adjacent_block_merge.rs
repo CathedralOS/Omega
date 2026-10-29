@@ -17,7 +17,7 @@ use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substit
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
 use crate::rules::control_flow_cleanup::{
-    provenance_realized_at, record_node_provenance, terminal_jump,
+    merge_candidates, provenance_realized_at, record_merged_node_positions, record_node_provenance,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -50,55 +50,47 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
             .function(function.machine)
             .map(|(_, rows)| rows.as_slice())
             .unwrap_or_default();
-        for adjacent in function.blocks.windows(2) {
-            let [predecessor, target] = adjacent else {
-                unreachable!("two-block window")
-            };
-            let eligible_first = target.nodes.first().is_some_and(|node| {
-                (node.successors.is_empty()
-                    && (matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
-                        || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
-                            && matches!(
-                                node.operation,
-                                abstract_operations::return_or_return_unit_pattern!()
-                                    | abstract_operations::return_structural_or_crash_pattern!()
-                            ))))
-                    || (matches!(node.operation, O::Conditional { .. })
-                        && node.successors.len() == 2
-                        && node.provenance.is_empty())
-            });
-            if target.id == function.entry || !eligible_first {
-                continue;
-            }
-            let Some(jump) = terminal_jump(function, predecessor) else {
-                continue;
-            };
-            if jump.target != target.id
-                || function
-                    .block_edges()
-                    .filter(|edge| edge.target == target.id)
-                    .count()
-                    != 1
-            {
-                continue;
-            }
-            let Some(ownership_witness) =
-                merge_boundary_ownership_witness(unit, function, frontiers, jump.edge, target.id)
-            else {
+        for candidate in merge_candidates(function, |candidate| {
+            candidate.target_position == candidate.predecessor_position + 1
+                && candidate.target.nodes.first().is_some_and(|node| {
+                    (node.successors.is_empty()
+                        && (matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+                            || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
+                                && matches!(
+                                    node.operation,
+                                    abstract_operations::return_or_return_unit_pattern!()
+                                        | abstract_operations::return_structural_or_crash_pattern!()
+                                ))))
+                        || (matches!(node.operation, O::Conditional { .. })
+                            && node.successors.len() == 2
+                            && node.provenance.is_empty())
+                })
+        }) {
+            let target = candidate.target;
+            let Some(ownership_witness) = merge_boundary_ownership_witness(
+                unit,
+                function,
+                frontiers,
+                candidate.jump.edge,
+                target.id,
+            ) else {
                 continue;
             };
             let Some(substitutions) = merge_substitutions(
                 function.machine,
                 target,
-                jump.bindings,
+                candidate.jump.bindings,
                 machine_dominators,
                 use_definitions,
             ) else {
                 continue;
             };
-            let Some((affected_blocks, provenance)) =
-                adjacent_merge_accounting(function, jump.location, target.id, &substitutions)
-            else {
+            let Some((affected_blocks, provenance)) = adjacent_merge_accounting(
+                function,
+                candidate.jump.location,
+                target.id,
+                &substitutions,
+            ) else {
                 continue;
             };
             candidates.push(
@@ -111,8 +103,8 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
                     ownership_witness,
                     -2,
                     AdjacentBlockMergeRewrite {
-                        predecessor: jump.location,
-                        incoming_edge: jump.edge,
+                        predecessor: candidate.jump.location,
+                        incoming_edge: candidate.jump.edge,
                         target: target.id,
                     },
                 )
@@ -175,29 +167,7 @@ pub(super) fn adjacent_merge_accounting(
     } else {
         return None;
     };
-    for (node_index, node) in target_block.nodes.iter().enumerate() {
-        if node.provenance.is_empty() {
-            continue;
-        }
-        let input = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: target,
-            node: u32::try_from(node_index).ok()?,
-        });
-        let output = PsiRealizationSite::Node(NodeLocation {
-            machine: function.machine,
-            block: predecessor.block,
-            node: predecessor
-                .node
-                .checked_add(u32::try_from(node_index).ok()?)?,
-        });
-        realized.push(provenance_realized_at(
-            input,
-            output,
-            &node.provenance,
-            &node.fuel,
-        ));
-    }
+    record_merged_node_positions(function, predecessor, target, target_block, &mut realized)?;
     for block in function.blocks.iter().skip(target_position + 1) {
         affected.insert(block.id);
         record_node_provenance(
