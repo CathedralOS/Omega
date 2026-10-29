@@ -167,3 +167,8 @@ while access, lineage and original backing remain independent obligations.
 The frozen local source refuses on `54fa5d06d77` before this repair. Further
 reference loads without independently retained evidence, indexed/case private
 coordinates and the parent's other accepted requirements remain unfinished.
+
+[Effectful decrement operands](local/borrowed_value/stored_reference/operand_effects/README.md)
+carry that same fact across all nine places while temporarily replacing and
+restoring stored references. The operand result, caller-visible audit and
+unchanged spare distinguish completed captures from reloaded descriptor homes.
