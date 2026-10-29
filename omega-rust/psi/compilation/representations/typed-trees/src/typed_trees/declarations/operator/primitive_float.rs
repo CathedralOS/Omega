@@ -10,8 +10,14 @@ pub fn canonical_primitive_operator_meanings<'program>(
     typed: &'program TypedTrees,
     spelling: language_core::operator_spelling::OperatorSpelling,
     operand_types: &[Option<crate::types::TypeReferenceHandle>],
+    use_site: source::SourceSpan,
 ) -> Vec<super::ScopedTraitOperatorMeaning<'program>> {
     typed.traits().iter().filter(|owner| {
+        // Core can be loaded independently for Build and Product. Exact
+        // catalogue bytes establish meaning, but do not let an occurrence
+        // select a declaration from another checked source context.
+        typed.symbols.source_reference_can_see_symbol(use_site, owner.symbol)
+    }).filter(|owner| {
         typed.trait_machine_signatures(owner).iter().any(|requirement| {
             requirement.spelling == Some(spelling)
                 && matches!(typed.sealed_numeric_requirement(owner, requirement),

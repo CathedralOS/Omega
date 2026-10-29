@@ -243,6 +243,7 @@ pub fn scoped_operator_application<'program>(
         program,
         spelling,
         operand_types,
+        program.expression_table.source_span(expression),
     );
     let builtin = canonical.is_empty()
         && carriers
