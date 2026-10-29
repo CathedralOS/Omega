@@ -404,12 +404,6 @@ impl Implication<'_> {
         ) {
             let mut next = Vec::new();
             for (path, predicates) in candidates {
-                if std::env::var_os("OMEGA_COLLECTION_BODY_TRACE").is_some() {
-                    eprintln!(
-                        "BODY root={} predicates={predicates:?} bindings={:?}",
-                        machine.name, frame.bindings
-                    );
-                }
                 let Some(values) = self.expression(&frame, path, premise, 0) else {
                     continue;
                 };
@@ -539,12 +533,6 @@ impl Implication<'_> {
                 exits.push((frame, path));
                 continue;
             };
-            if std::env::var_os("OMEGA_COLLECTION_BODY_TRACE").is_some() {
-                eprintln!(
-                    "BODY machine={} state={} position={position} node={statement:?}",
-                    machine.name, frame.state
-                );
-            }
             match statement {
                 StatementNode::LocalData(local)
                     if local.ordinary_value_initializer().is_some()
@@ -599,13 +587,6 @@ impl Implication<'_> {
                                     if let ExpressionNode::Call(call) =
                                         self.program.expression_table.expression(*value)
                                     {
-                                        if std::env::var_os("OMEGA_COLLECTION_BODY_TRACE").is_some()
-                                        {
-                                            eprintln!(
-                                                "BODY call={call:?} ordinary={}",
-                                                call.is_ordinary_positional_call()
-                                            );
-                                        }
                                         if !call.is_ordinary_positional_call() {
                                             return None;
                                         }
@@ -726,22 +707,6 @@ impl Implication<'_> {
                                 .first()
                                 .is_some_and(|entry| entry.symbol == target)
                     })?;
-            if std::env::var_os("OMEGA_COLLECTION_BODY_TRACE").is_some() {
-                eprintln!(
-                    "BODY target={} supply={:?} present={} pending={} suspends={} blocks={} types={:?} owned={:?} services={:?}",
-                    callee.name,
-                    callee.supply_mode,
-                    callee.body_is_present,
-                    callee.structural_type_equations_pending,
-                    callee.suspends,
-                    callee.blocks,
-                    callee.type_parameters,
-                    self.program.machine_owned_data(callee),
-                    self.program
-                        .service_reach_rows
-                        .services(callee.service_reach_row)
-                );
-            }
             // Unknown or incomplete provider bodies cannot acquire preservation
             // from an empty statement roster. Static applications need their
             // own exact telescope; lexical ancestry supplies no runtime values.
@@ -766,18 +731,15 @@ impl Implication<'_> {
             .program
             .machine_states(&self.program.machines()[destination.0])[destination.1];
         let parameters = self.program.state_parameters(state);
-        if std::env::var_os("OMEGA_COLLECTION_BODY_TRACE").is_some() {
-            eprintln!("BODY parameters={parameters:?} actuals={arguments:?}");
-        }
         // These are already captured runtime actuals, including readable
-        // exclusive references. Predicate induction's fresh-formal admission
+        // exclusive references (marked is_mutable in the typed signature). Predicate induction's fresh-formal admission
         // deliberately accepts shared references only; it is not this binder.
         // declared_value below checks each supported readable carrier without
         // inventing a new collection identity or granting write authority.
         if parameters.len() != arguments.len()
-            || parameters.iter().any(|parameter| {
-                parameter.is_mutable || parameter.is_const || parameter.relevance.is_erased()
-            })
+            || parameters
+                .iter()
+                .any(|parameter| parameter.is_const || parameter.relevance.is_erased())
         {
             return None;
         }
