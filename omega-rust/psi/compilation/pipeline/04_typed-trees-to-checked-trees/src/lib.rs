@@ -17,9 +17,7 @@ mod borrow;
 mod checking;
 mod checks;
 mod execution;
-pub use execution::finalize_execution::settle_closed_constant_execution;
 mod facts;
-pub use facts::declaration_descriptions::retain_declaration_descriptions;
 mod flow;
 #[cfg(test)]
 mod immutable_checking_input;

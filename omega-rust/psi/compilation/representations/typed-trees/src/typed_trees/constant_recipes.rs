@@ -9,14 +9,11 @@
 //! declaration it applies. Checking judges the shared program once against
 //! the symbolic nodes and records what it needs from each recipe.
 //!
-//! Closure happens under one target capsule: realization evaluates every
-//! recipe under its selected rows and publishes the values here, beside the
-//! realization receipts that make two closures distinct even when their
-//! values agree. A closed copy of the program carries the closure; the
-//! shared program carries none. Numeric consumers ask
-//! `TypedTrees::closed_fixed_array_length` and the sibling queries instead
-//! of matching the literal node, so one query answers the shared program
-//! (unknown) and every closed copy (its own value) alike.
+//! Product completion evaluates canonical Terminal applications under selected
+//! providers and target geometry; it does not rewrite a private typed forest.
+//! The source representation still retains closure metadata and numeric queries
+//! for its checking/lowering readers. Those carriers do not expose a second
+//! source evaluator or a target-specific checked-program publication API.
 
 use crate::expression::ExpressionHandle;
 use crate::name::Identifier;
@@ -324,82 +321,6 @@ impl crate::TypedTrees {
         }
     }
 
-    /// Read every retained recipe's value from `evaluated`, a copy of this
-    /// program whose deferred continuation folded under selected rows. A
-    /// position the fold left symbolic names the recipe that did not close.
-    pub fn read_constant_recipe_closure(
-        &self,
-        evaluated: &crate::TypedTrees,
-        receipts: Vec<ConstantRecipeDependencyReceipt>,
-    ) -> Result<ConstantRecipeClosure, Vec<diagnostics::Diagnostic>> {
-        let mut values = Vec::with_capacity(self.constant_recipes.len());
-        let mut unclosed = Vec::new();
-        for (handle, recipe) in self.constant_recipes.iter() {
-            let value = match recipe.position {
-                RetainedConstantPosition::None => continue,
-                RetainedConstantPosition::ArrayLength(type_reference) => {
-                    match evaluated
-                        .type_reference_table
-                        .type_reference(type_reference)
-                    {
-                        TypeReferenceNode::FixedArray {
-                            length: FixedArrayLength::Literal(length),
-                            ..
-                        } => u64::try_from(*length).ok().map(BigInt::from_u64),
-                        _ => None,
-                    }
-                }
-                RetainedConstantPosition::RangeEndpoint(expression) => evaluated
-                    .expression_table
-                    .constant_integer_value(expression)
-                    .map(BigInt::from_i64),
-                RetainedConstantPosition::ContractExpression(expression) => {
-                    evaluated.closed_integer_expression_value(expression)
-                }
-                // The fold rewrites the argument node to the literal's
-                // canonical spelling; the authored root expression stays.
-                RetainedConstantPosition::ConstApplication { site, root } => {
-                    match evaluated.type_reference_table.type_reference(site) {
-                        TypeReferenceNode::Named { name, .. } => {
-                            BigInt::from_str_radix(name.as_str(), 10)
-                        }
-                        TypeReferenceNode::ConstExpression(expression) => evaluated
-                            .expression_table
-                            .constant_integer_value(*expression)
-                            .map(BigInt::from_i64),
-                        _ => evaluated
-                            .expression_table
-                            .constant_integer_value(root)
-                            .map(BigInt::from_i64),
-                    }
-                }
-            };
-            match value {
-                Some(value) => values.push(ClosedConstantRecipe {
-                    recipe: handle,
-                    value,
-                }),
-                None => unclosed.push(
-                    diagnostics::Diagnostic::error(format!(
-                        "constant recipe `{}` did not close under the selected target realization",
-                        recipe.name.as_str()
-                    ))
-                    .with_source_span(recipe.source_span),
-                ),
-            }
-        }
-        if unclosed.is_empty() {
-            Ok(ConstantRecipeClosure {
-                target_bodies: Vec::new(),
-                values,
-                receipts,
-                ..Default::default()
-            })
-        } else {
-            Err(unclosed)
-        }
-    }
-
     /// Drop every roster entry whose position has since folded to a literal.
     /// An admitted Build evaluates its own recipes in place; the roster then
     /// names only what is still symbolic, so a shared program with no live
@@ -431,13 +352,6 @@ impl crate::TypedTrees {
         for handle in folded {
             self.constant_recipes.free(handle);
         }
-    }
-
-    /// This program with `closure` installed: the closed copy a target's
-    /// Terminal production and realization consume.
-    pub fn with_constant_recipe_closure(mut self, closure: ConstantRecipeClosure) -> Self {
-        self.constant_recipe_closure = closure;
-        self
     }
 }
 

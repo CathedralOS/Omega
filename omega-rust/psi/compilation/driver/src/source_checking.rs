@@ -10,8 +10,7 @@ use diagnostics::Diagnostic;
 use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
-mod constant_closure;
-pub use constant_closure::{ConstantProofApplication, ConstantProofClosure};
+mod constant_entries;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
@@ -63,7 +62,7 @@ impl CheckRequest<'_> {
                 self.admission.completion,
             )
         })?;
-        constant_closure::retain_evaluation_entries(&mut program)?;
+        constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(self.admission.opaque_properties)
             .with_opaque_representation_selections(self.admission.opaque_representations)
