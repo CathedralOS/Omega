@@ -800,6 +800,12 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
     }
 }
 
+macro_rules! row {
+    ($a:expr => $b:expr) => {
+        ($a, $b)
+    };
+}
+
 /// Expected tags ported verbatim from the eighty-one-arm copy of this table
 /// that `machine_code::layout::identity` carried before the copies were
 /// removed, expanded over every family in
@@ -882,144 +888,42 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 137] = [
     (MachineAlternativeFamily::MaterializeBooleanEqual, 41),
     (MachineAlternativeFamily::MaterializeBooleanU64LessThan, 42),
     (MachineAlternativeFamily::MaterializeBooleanI64LessThan, 43),
-    (
-        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
-        44,
-    ),
-    (
-        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
-        45,
-    ),
+    row!(MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44),
+    row!(MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45),
     (MachineAlternativeFamily::WrappingRemainderI64, 57),
     (MachineAlternativeFamily::WrappingAddI64, 58),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I8),
-        63,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I16),
-        64,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I32),
-        60,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I64),
-        66,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U8),
-        67,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U16),
-        68,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U32),
-        69,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-        55,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I8),
-        71,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I16),
-        72,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I32),
-        61,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I64),
-        74,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U8),
-        75,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U16),
-        76,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U32),
-        77,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-        54,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I8),
-        79,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I16),
-        80,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I32),
-        62,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I64),
-        82,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U8),
-        83,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U16),
-        84,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U32),
-        85,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U64),
-        86,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I8),
-        95,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I16),
-        96,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I32),
-        97,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I64),
-        98,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U8),
-        99,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U16),
-        100,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U32),
-        101,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U64),
-        102,
-    ),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I8) => 63),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I16) => 64),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I32) => 60),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I64) => 66),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U8) => 67),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U16) => 68),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U32) => 69),
+    row!(MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64) => 55),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I8) => 71),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I16) => 72),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I32) => 61),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I64) => 74),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U8) => 75),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U16) => 76),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U32) => 77),
+    row!(MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64) => 54),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I8) => 79),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I16) => 80),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I32) => 62),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I64) => 82),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U8) => 83),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U16) => 84),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U32) => 85),
+    row!(MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U64) => 86),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I8) => 95),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I16) => 96),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I32) => 97),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I64) => 98),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U8) => 99),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U16) => 100),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U32) => 101),
+    row!(MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U64) => 102),
     (MachineAlternativeFamily::NormalizedForeignCall, 87),
     (MachineAlternativeFamily::ExactMultiplyI64, 88),
     (MachineAlternativeFamily::ExactRemainderU64, 89),
@@ -1038,38 +942,14 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u16); 137] = [
     (MachineAlternativeFamily::ExactShiftRightU64, 110),
     (MachineAlternativeFamily::ExactDivideI64, 112),
     (MachineAlternativeFamily::ExactRemainderI64, 113),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I8),
-        114,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I16),
-        115,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I32),
-        116,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I64),
-        117,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U8),
-        118,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U16),
-        119,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U32),
-        120,
-    ),
-    (
-        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U64),
-        121,
-    ),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I8) => 114),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I16) => 115),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I32) => 116),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I64) => 117),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U8) => 118),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U16) => 119),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U32) => 120),
+    row!(MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U64) => 121),
 ];
 
 #[test]
@@ -1414,14 +1294,8 @@ fn encoded_trap_behavior_identity_bytes_are_pinned() {
 fn encoded_control_effect_identity_bytes_are_pinned() {
     let cases: [(MachineEncodedControlEffect, &[u8]); 13] = [
         (MachineEncodedControlEffect::FallThroughV1, &[0]),
-        (
-            MachineEncodedControlEffect::ConditionalRelativeBranchV1,
-            &[1],
-        ),
-        (
-            MachineEncodedControlEffect::ReturnFromActivationStackV1,
-            &[2],
-        ),
+        row!(MachineEncodedControlEffect::ConditionalRelativeBranchV1 => &[1]),
+        row!(MachineEncodedControlEffect::ReturnFromActivationStackV1 => &[2]),
         (
             MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
                 target: RegisterViewId(0x0201),
@@ -1429,10 +1303,7 @@ fn encoded_control_effect_identity_bytes_are_pinned() {
             &[3, 0x01, 0x02],
         ),
         (MachineEncodedControlEffect::DirectRelativeCallV1, &[4]),
-        (
-            MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
-            &[5],
-        ),
+        row!(MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => &[5]),
         (MachineEncodedControlEffect::HostedWriteReturnOrTrapV1, &[6]),
         (MachineEncodedControlEffect::HostedExitOrTrapV1, &[7]),
         (MachineEncodedControlEffect::HostedReadReturnOrTrapV1, &[8]),
