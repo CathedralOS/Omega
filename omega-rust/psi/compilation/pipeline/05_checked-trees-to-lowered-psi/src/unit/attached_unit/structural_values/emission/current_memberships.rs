@@ -130,13 +130,24 @@ impl Emission<'_, '_, '_> {
         .ok_or(LoweringError::Unsupported(
             "resident membership source has no canonical observation",
         ))?;
-        let prefix = if let Some(local) = self
+        let (prefix, covered) = if let Some(local) = self
             .evaluation
             .structural_locals
             .iter()
             .find(|local| local.argument.place == source_root && local.root == subject.root)
         {
-            local.argument.path.as_slice()
+            (local.argument.path.as_slice(), 0)
+        } else if let Some(pair) = self
+            .evaluation
+            .structural_locals
+            .iter()
+            .filter(|local| local.argument.place == source_root)
+            .find_map(|local| {
+                self.saved_subject_prefix(local.root, &subject)
+                    .map(|covered| (local.argument.path.as_slice(), covered))
+            })
+        {
+            pair
         } else {
             let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
             self.evaluation
@@ -152,14 +163,14 @@ impl Emission<'_, '_, '_> {
                                 subject.root == facts::PlaceRoot::Symbol(parameter.symbol)
                             })
                 })
-                .then_some(&[][..])
+                .then_some((&[][..], 0))
                 .ok_or(LoweringError::Unsupported(
                     "resident membership home has no exact source projection",
                 ))?
         };
         if projection.is_none()
             && !source.path.strip_prefix(prefix).is_some_and(|suffix| {
-                self.membership_path_matches(identities, suffix, &subject.segments)
+                self.membership_path_matches(identities, suffix, &subject.segments[covered..])
             })
         {
             return Err(LoweringError::Unsupported(
@@ -304,6 +315,31 @@ impl Emission<'_, '_, '_> {
             }
         }
         Ok((whole, retained))
+    }
+
+    /// A saved transition subject keeps its scrutinee projection as its
+    /// initializer: a structural local rooted at that local symbol is the
+    /// physical home of `subject`'s corresponding prefix, so the membership's
+    /// source path resumes below the covered segments the local denotes.
+    fn saved_subject_prefix(
+        &self,
+        root: facts::PlaceRoot,
+        subject: &validation::CanonicalPlace,
+    ) -> Option<usize> {
+        let symbol = root.as_symbol()?;
+        let (_, state) = crate::declarations::state_declaration(self.checked, self.state).ok()?;
+        let (_, local) = self.checked.state_local_declaration(state, symbol)?;
+        if local.is_mutable || !local.initial_value.is_valid() {
+            return None;
+        }
+        let bound = validation::canonical_place_from_expression_in_state(
+            &self.checked.typed,
+            self.state,
+            self.statement as usize,
+            local.initial_value,
+        )?;
+        (bound.root == subject.root && subject.segments.starts_with(&bound.segments))
+            .then(|| bound.segments.len())
     }
 
     fn membership_source_path(

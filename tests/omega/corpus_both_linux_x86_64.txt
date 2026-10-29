@@ -1172,7 +1172,7 @@ pass/control_flow/owned_array_state_transfer_exit built 14035ms exit:70 interpre
 pass/control_flow/projected_case_subject_root_forwarding_exit built 14038ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 12203ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/projected_loan_state_argument_exit built 12112ms exit:11 interpreter-exit:11 interpreter:agrees @a92f16431042
-pass/control_flow/qualified_case_payload_copy_exit built 4265ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/control_flow/qualified_case_payload_copy_exit built 2145ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 1317ms @a92f16431042
 pass/control_flow/record_pattern_arm_rename_guard_exit built 7195ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/record_result_dispatch_compile checked 1551ms @a92f16431042
@@ -1454,7 +1454,9 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 1617ms @a92f16431
 pass/domains/call_requires_domain_intersection_preserved checked 1913ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1796ms @a92f16431042
 pass/domains/captured_predicate_readonly_call_exit built 2050ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/domains/carried_indexed_payload_qualification built 2140ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/domains/carried_nested_payload_qualification built 1981ms exit:0 interpreter-exit:0 interpreter:agrees @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification built 2154ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/domains/case_payload_call_restore_exit built 5768ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/domains/case_payload_guarded_domain_exit built 2059ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/case_payload_predicate_domain_member_exit built 5797ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
