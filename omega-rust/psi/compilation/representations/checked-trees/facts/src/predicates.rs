@@ -49,6 +49,15 @@ impl CheckedStorageRoot {
     }
 }
 
+/// A source selector or a closed coordinate. Closed slice coordinates still
+/// require an observation of their own descriptor extent; they are not static
+/// array geometry and never borrow an unrelated authored indexing occurrence.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedEntryIndexSelector {
+    Expression(typed_trees::expression::ExpressionHandle),
+    Constant(u64),
+}
+
 /// An indexed entry observation whose formation was proved in its own
 /// invocation telescope. Geometry-only queries never produce this record.
 /// The exact selector and collection are retained through rank publication;
@@ -58,10 +67,12 @@ pub struct CheckedEntryIndexBound {
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub path_step: u32,
-    pub selector: typed_trees::expression::ExpressionHandle,
+    pub selector: CheckedEntryIndexSelector,
+    pub collection_path: Vec<crate::PlaceSegment>,
     pub collection_type: typed_trees::types::TypeReferenceHandle,
     pub element_type: typed_trees::types::TypeReferenceHandle,
-    pub extent: u64,
+    /// None denotes the exact collection_path descriptor's checked entry length.
+    pub extent: Option<u64>,
     pub primitive_type: typed_trees::types::PrimitiveType,
 }
 
@@ -71,10 +82,13 @@ impl Default for CheckedEntryIndexBound {
             state: SymbolHandle::invalid(),
             parameter: SymbolHandle::invalid(),
             path_step: 0,
-            selector: typed_trees::expression::ExpressionHandle::invalid(),
+            selector: CheckedEntryIndexSelector::Expression(
+                typed_trees::expression::ExpressionHandle::invalid(),
+            ),
+            collection_path: Vec::new(),
             collection_type: typed_trees::types::TypeReferenceHandle::invalid(),
             element_type: typed_trees::types::TypeReferenceHandle::invalid(),
-            extent: 0,
+            extent: Some(0),
             primitive_type: typed_trees::types::PrimitiveType::U64,
         }
     }

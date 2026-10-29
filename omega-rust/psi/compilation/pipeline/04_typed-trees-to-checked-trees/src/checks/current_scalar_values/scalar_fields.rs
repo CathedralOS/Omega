@@ -2,6 +2,7 @@
 //! A stored value is captured before invalidation. Later reads use that value,
 //! never the field initializer or a new observation of overwritten storage.
 use super::{Binding, CurrentScalarValues, ScopedOccurrence, integer_carrier};
+mod collection_values;
 mod coordinates;
 pub(super) use coordinates::{
     ScalarProjection, capture_path, entry_selector_value, projection_has_prefix, same_projection,
@@ -22,11 +23,13 @@ pub(super) struct ScalarField {
     pub(super) read_dependencies: Vec<String>,
 }
 
+#[derive(Clone)]
 pub(super) struct CapturedScalarField {
     pub(super) path: Vec<ScalarProjection>,
     pub(super) carrier: PrimitiveType,
     pub(super) value: ScopedArithmeticValue,
     pub(super) read_dependencies: Vec<String>,
+    pub(super) sources: Vec<String>,
 }
 
 impl ScalarField {
@@ -67,15 +70,7 @@ pub(super) fn scalar_field_occurrence(
     let reference =
         validation::expression_result_type_reference(program, machine, state, expression)?;
     let carrier = integer_carrier(program, reference)?;
-    fields
-        .iter()
-        .find(|field| {
-            field.owner == owner
-                && same_projection(occurrence, &field.path, &path)
-                && field.carrier == carrier
-        })?
-        .value
-        .clone()
+    collection_values::selected_value(occurrence, owner, &path, carrier, fields)
 }
 
 impl CurrentScalarValues<'_> {
@@ -153,26 +148,30 @@ impl CurrentScalarValues<'_> {
             field.owner,
             &source_path(&field.path),
         )?;
-        let mut selectors = field.path.iter().filter_map(|step| match step {
-            ScalarProjection::Element {
-                source: facts::PlaceSegment::Index { .. },
-                selector,
-            } => Some(selector),
-            _ => None,
-        });
         let mut indexes = Vec::new();
         for (path_step, step) in geometry.projections.iter().enumerate() {
             let validation::ScalarCoordinateProjection::Element {
                 selector: expression,
                 collection_type,
                 element_type,
+                collection_path,
+                source_step,
                 extent,
             } = step
             else {
                 continue;
             };
-            let selector = selectors.next()?;
-            let extent = u64::try_from(*extent).ok()?;
+            let ScalarProjection::Element { selector, .. } = field.path.get(*source_step)? else {
+                return None;
+            };
+            let extent = extent.map(u64::try_from).transpose().ok()?;
+            let length = if let Some(extent) = extent {
+                ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(extent))
+            } else {
+                // The retained roster names this exact descriptor binding,
+                // never its backing capacity or a same-typed sibling's count.
+                self.coordinate_collection_length(field.owner, collection_path)?
+            };
             if !self.proves_values_relation(
                 self.program,
                 self.machine,
@@ -184,22 +183,28 @@ impl CurrentScalarValues<'_> {
                 self.machine,
                 typed_trees::expression::BinaryOperator::Less,
                 selector,
-                &ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(extent)),
+                &length,
             ) {
                 return None;
             }
-            let reference = validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
-                *expression,
-            )?;
-            let primitive_type = integer_carrier(self.program, reference)?;
+            let primitive_type = match expression {
+                checked_trees::CheckedEntryIndexSelector::Expression(expression) => {
+                    let reference = validation::expression_result_type_reference(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        *expression,
+                    )?;
+                    integer_carrier(self.program, reference)?
+                }
+                checked_trees::CheckedEntryIndexSelector::Constant(_) => PrimitiveType::U64,
+            };
             indexes.push(checked_trees::CheckedEntryIndexBound {
                 state: self.state.symbol,
                 parameter: field.owner,
                 path_step: u32::try_from(path_step).ok()?,
-                selector: *expression,
+                selector: expression.clone(),
+                collection_path: collection_path.clone(),
                 collection_type: *collection_type,
                 element_type: *element_type,
                 extent,
@@ -259,30 +264,125 @@ impl CurrentScalarValues<'_> {
         expression: ExpressionHandle,
         depth: usize,
     ) -> Vec<CapturedScalarField> {
+        let reference = validation::expression_result_type_reference(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+        )
+        .unwrap_or_default();
+        self.captured_scalar_fields_of_type(expression, reference, depth)
+    }
+
+    /// The producing declaration supplies constructor element/field carriers;
+    /// anonymous literals need no standalone type guess. This context grants
+    /// no qualification: values still come only from completed source capture.
+    pub(super) fn captured_scalar_fields_of_type(
+        &self,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+        depth: usize,
+    ) -> Vec<CapturedScalarField> {
         if depth >= 64 {
             return Vec::new();
         }
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Borrow(borrow) => self.captured_scalar_fields(borrow.target, depth + 1),
+        let mut captured = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => {
+                let referee =
+                    validation::reference_shell(self.program, reference).map(|shell| shell.referee);
+                if let Some(referee) = referee {
+                    self.captured_scalar_fields_of_type(borrow.target, referee, depth + 1)
+                } else {
+                    self.captured_scalar_fields(borrow.target, depth + 1)
+                }
+            }
+            ExpressionNode::Call(_) => {
+                let mut fields: Vec<CapturedScalarField> = Vec::new();
+                for observation in validation::scoped_call_result_observations(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                ) {
+                    let Some(path) = capture_path(&observation.path, |_| None) else {
+                        continue;
+                    };
+                    // All source occurrences remain bound on the guarantee;
+                    // its one result coordinate appears once in the roster.
+                    if !fields
+                        .iter()
+                        .any(|field| same_projection(self.occurrence(), &field.path, &path))
+                    {
+                        fields.push(CapturedScalarField {
+                            path,
+                            carrier: observation.primitive_type,
+                            value: observation.value,
+                            read_dependencies: Vec::new(),
+                            sources: Vec::new(),
+                        });
+                    }
+                }
+                fields
+            }
+            ExpressionNode::Match(dispatch) => {
+                self.capture_join_fields(expression, dispatch, depth)
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                self.capture_array_elements(*elements, reference, depth)
+            }
+            ExpressionNode::Indexed(indexed)
+                if validation::has_builtin_subslice_meaning(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    expression,
+                ) =>
+            {
+                self.capture_window_elements(expression, indexed, depth)
+                    .unwrap_or_default()
+            }
             ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
                 let mut captured = Vec::new();
                 for field in self.program.expression_table.struct_fields(literal.fields) {
                     if !field.field_symbol.is_valid() {
                         continue;
                     }
-                    for mut nested in self.captured_scalar_fields(field.value, depth + 1) {
+                    let declared_field = self
+                        .program
+                        .data_application_definition(reference)
+                        .or_else(|| self.program.closed_data_definition(reference))
+                        .and_then(|data| {
+                            self.program
+                                .data_members(data)
+                                .iter()
+                                .filter_map(|member| {
+                                    if let typed_trees::data::DataMember::Field(field) = member {
+                                        Some(field)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .find(|candidate| candidate.symbol == field.field_symbol)
+                        })
+                        .map(|field| field.type_reference)
+                        .or_else(|| {
+                            validation::expression_result_type_reference(
+                                self.program,
+                                self.machine,
+                                self.state,
+                                field.value,
+                            )
+                        })
+                        .unwrap_or_default();
+                    for mut nested in
+                        self.captured_scalar_fields_of_type(field.value, declared_field, depth + 1)
+                    {
                         nested
                             .path
                             .insert(0, ScalarProjection::Field(field.field_symbol));
                         captured.push(nested);
                     }
-                    let carrier = validation::expression_result_type_reference(
-                        self.program,
-                        self.machine,
-                        self.state,
-                        field.value,
-                    )
-                    .and_then(|reference| integer_carrier(self.program, reference));
+                    let carrier = integer_carrier(self.program, declared_field);
                     if let Some(carrier) = carrier
                         && let Some(value) =
                             self.capture(self.program, self.machine, self.state, field.value)
@@ -292,6 +392,7 @@ impl CurrentScalarValues<'_> {
                             carrier,
                             value,
                             read_dependencies: Vec::new(),
+                            sources: Vec::new(),
                         });
                     }
                 }
@@ -315,12 +416,35 @@ impl CurrentScalarValues<'_> {
                             carrier: field.carrier,
                             value: field.value.clone()?,
                             read_dependencies: field.read_dependencies.clone(),
+                            sources: vec![field.name.clone()],
                         })
                     })
                     .collect()
             }
             _ => Vec::new(),
+        };
+        let borrowed = matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Borrow(_)
+        ) || validation::expression_result_type_reference(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+        )
+        .and_then(|reference| validation::reference_shell(self.program, reference))
+        .is_some();
+        if borrowed {
+            for field in &mut captured {
+                // Copies of owned values become independent snapshots; a
+                // descriptor only copies a binding to live backing. Retain
+                // that original coordinate before window paths are rebased.
+                for source in &field.sources {
+                    crate::collections::push_unique(&mut field.read_dependencies, source.clone());
+                }
+            }
         }
+        captured
     }
 
     pub(super) fn replace_scalar_fields(

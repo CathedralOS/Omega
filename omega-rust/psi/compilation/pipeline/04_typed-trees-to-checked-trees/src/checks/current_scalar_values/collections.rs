@@ -163,6 +163,28 @@ impl CurrentScalarValues<'_> {
             .clone()
     }
 
+    /// The current frame owns exact descriptor observations. Missing retained
+    /// geometry is not an unknown capacity that can authorize an entry read.
+    pub(super) fn coordinate_collection_length(
+        &self,
+        owner: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        let subject = if path.is_empty() {
+            LengthSubject::Storage(owner)
+        } else {
+            LengthSubject::Field {
+                owner,
+                path: super::declaration_field_path(path)?,
+            }
+        };
+        self.lengths
+            .iter()
+            .find(|length| length.subject == subject)?
+            .value
+            .clone()
+    }
+
     pub(crate) fn current_collection_length(
         &self,
         expression: ExpressionHandle,
@@ -399,7 +421,10 @@ impl CurrentScalarValues<'_> {
         ))
     }
 
-    fn exact_length(&self, value: &ScopedArithmeticValue) -> Option<numerics::bignum::BigInt> {
+    pub(super) fn exact_length(
+        &self,
+        value: &ScopedArithmeticValue,
+    ) -> Option<numerics::bignum::BigInt> {
         let interval = validation::scoped_arithmetic_value_bounds(
             self.program,
             self.machine,
@@ -642,6 +667,24 @@ impl CurrentScalarValues<'_> {
         subject: Option<&ScopedArithmeticValue>,
         replacement: Option<&ScopedArithmeticValue>,
     ) -> Option<ScopedArithmeticValue> {
+        let (start, end) = self.window_bounds(expression, indexed, depth, subject, replacement)?;
+        Some(ScopedArithmeticValue::IntegerOperation {
+            operator: BinaryOperator::Subtract,
+            left: Box::new(end),
+            right: Box::new(start),
+        })
+    }
+
+    /// The same formation decision supplies both descriptor length and exact
+    /// retained element coordinates; neither consumer grants its own bounds.
+    pub(super) fn window_bounds(
+        &self,
+        expression: ExpressionHandle,
+        indexed: &typed_trees::expression::TableIndexedExpression,
+        depth: usize,
+        subject: Option<&ScopedArithmeticValue>,
+        replacement: Option<&ScopedArithmeticValue>,
+    ) -> Option<(ScopedArithmeticValue, ScopedArithmeticValue)> {
         let range = self.program.expression_table.range_node(indexed.index)?;
         let source = self.collection_length(indexed.collection, depth + 1)?;
         let zero = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::zero());
@@ -688,11 +731,7 @@ impl CurrentScalarValues<'_> {
                 }
             }
         }
-        Some(ScopedArithmeticValue::IntegerOperation {
-            operator: BinaryOperator::Subtract,
-            left: Box::new(end),
-            right: Box::new(start),
-        })
+        Some((start, end))
     }
 
     fn replaced_endpoint(

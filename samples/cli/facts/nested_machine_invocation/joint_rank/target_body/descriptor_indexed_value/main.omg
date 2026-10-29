@@ -1,0 +1,57 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Remaining { canary: u64; values: [u64; 4]; }
+machine count(counter: &mut u64, remaining: &mut [u64], slot: u64) crashes Trap
+terminates;
+terminates by remaining[slot];
+requires slot < remaining.len && remaining[slot] <= 7;
+{
+    transition remaining[slot] > 0 {
+        true -> forward(remaining, slot, counter)
+        false -> done()
+    }
+    machine forward(pending: &mut [u64], selected: u64, counter: &mut u64) crashes Trap
+    requires selected < pending.len && pending[selected] > 0 && pending[selected] <= 7;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        pending[selected] = pending[selected] - 1;
+        transition { _ -> count(counter, pending, selected) }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+boundary trait HostedIndexed {
+    machine perform(counter: &mut u64, active: bool, second: bool) reaches crashes Trap;
+}
+HostedIndexedBody satisfies HostedIndexed {
+    machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
+        let amount: u64 = match active { true -> 7 false -> 0 };
+        let slot: u64 = match second { true -> 1 false -> 0 };
+        let mut remaining: Remaining = Remaining { canary: 641, values: [953, amount, amount, 967] };
+        count(counter, &mut remaining.values[1..3], slot);
+        let preserved: bool = match second {
+            true -> remaining.values[1] == amount && remaining.values[2] == 0
+            false -> remaining.values[1] == 0 && remaining.values[2] == amount
+        };
+        transition preserved && remaining.canary == 641 && remaining.values[0] == 953 && remaining.values[3] == 967 {
+            true -> done() false -> bad()
+        }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+machine main() crashes Trap {
+    let mut first_count: u64 = 3;
+    HostedIndexed::perform(&mut first_count, true, false);
+    let first: bool = first_count == 10;
+    HostedIndexed::perform(&mut first_count, false, false);
+    let mut second_count: u64 = 3;
+    HostedIndexed::perform(&mut second_count, true, true);
+    let second: bool = second_count == 10;
+    HostedIndexed::perform(&mut second_count, false, true);
+    transition first && second && first_count == 10 && second_count == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
