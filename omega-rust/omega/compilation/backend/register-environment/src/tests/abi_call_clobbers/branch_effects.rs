@@ -311,6 +311,17 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             named_view(model, case.target, "rip", "pc", "target names no such view");
         for (key, semantic) in selected_branch_rules(&environment) {
             let contract = branch_contract(semantic);
+            macro_rules! reject_encoded {
+                ($corrupted:expr, $message:literal $(, $arg:expr)*) => {
+                    assert_eq!(
+                        validate_effects(case, environment.constraints(), $corrupted),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
+                        $message $(, $arg)*
+                    );
+                };
+            }
 
             // A branch cannot borrow a sibling control shape inside the
             // control-flow barrier class: the conditional forms reject the
@@ -323,11 +334,8 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             } else {
                 MachineEncodedControlEffect::ConditionalRelativeBranchV1
             };
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
+            reject_encoded!(
+                corrupted,
                 "{key:?} borrowed sibling control shape must reject"
             );
 
@@ -337,11 +345,8 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .control = MachineEncodedControlEffect::ReturnFromActivationStackV1;
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
+            reject_encoded!(
+                corrupted,
                 "{key:?} borrowed return control shape must reject"
             );
 
@@ -356,11 +361,8 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .control = control;
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
+                reject_encoded!(
+                    corrupted,
                     "{key:?} foreign control shape {control:?} must reject"
                 );
             }
@@ -382,13 +384,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} hosted trap shape must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} hosted trap shape must reject");
 
             // A branch cannot grow a memory footprint or a stack lifecycle.
             let mut corrupted = catalog.clone();
@@ -398,13 +394,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 pointer_operand: 0,
                 byte_count: 8,
             };
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged memory footprint must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged memory footprint must reject");
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
@@ -412,13 +402,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 stack_pointer: stack_pointer.id,
                 byte_count: 8,
             };
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged stack lifecycle must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
             // The operand-free row admits no encoded operand custody.
             let mut corrupted = catalog.clone();
@@ -426,25 +410,13 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .encoded
                 .external_operand_reads
                 .push(0);
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged operand read must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged operand read must reject");
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .external_operand_writes
                 .push(0);
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged operand write must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged operand write must reject");
 
             // Losing a contracted implicit unit understates the row's
             // custody and fails structural admission: the condition-code
@@ -456,36 +428,21 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                     .encoded
                     .implicit_unit_uses
                     .retain(|unit| !flags.units.contains(unit));
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} lost condition-code use must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} lost condition-code use must reject");
             }
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_uses
                 .retain(|unit| !program_counter.units.contains(unit));
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} lost program-counter use must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} lost program-counter use must reject");
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_defs
                 .retain(|unit| !program_counter.units.contains(unit));
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
+            reject_encoded!(
+                corrupted,
                 "{key:?} lost program-counter definition must reject"
             );
 
@@ -497,23 +454,14 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .encoded
                 .implicit_unit_uses
                 .push(stack_pointer.units[0]);
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged stack-pointer use must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged stack-pointer use must reject");
             let mut corrupted = catalog.clone();
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_defs
                 .push(stack_pointer.units[0]);
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
+            reject_encoded!(
+                corrupted,
                 "{key:?} forged stack-pointer definition must reject"
             );
             let mut corrupted = catalog.clone();
@@ -521,13 +469,7 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
                 .encoded
                 .implicit_unit_clobbers
                 .push(flags.units[0]);
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged clobber must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged clobber must reject");
 
             // The single alternative cannot change family, borrow an
             // operand-shaped applicability, or empty out; drifting its
