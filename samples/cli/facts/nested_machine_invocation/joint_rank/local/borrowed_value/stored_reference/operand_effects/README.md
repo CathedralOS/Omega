@@ -16,6 +16,18 @@ returned value from one to zero. Descriptor writes and restoration are identical
 the resulting preserving cycle must reject its rank obligation. The corresponding
 fixtures are `tests/omega/{pass,fail}/facts/nested_machine_joint_rank_operand_effects_*`.
 
+| Place | Positive | Zero-result twin |
+| --- | --- | --- |
+| local | [source](main.omg) | [source](invalid/main.omg) |
+| field | [source](../../../../field/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../field/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| parameter | [source](../../../../parameter/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../parameter/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| call_result | [source](../../../../call_result/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../call_result/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| match_join | [source](../../../../match_join/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../match_join/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| const_name | [source](../../../../const_name/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../const_name/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| other_state | [source](../../../../other_state/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../other_state/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| other_machine | [source](../../../../other_machine/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../other_machine/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+| target_body | [source](../../../../target_body/borrowed_value/stored_reference/operand_effects/main.omg) | [source](../../../../target_body/borrowed_value/stored_reference/operand_effects/invalid/main.omg) |
+
 The fixed baseline is `c2e8bc13ca91f0181762f058596439091ff602d4`. The unchanged
 local program refuses because `step` has no complete normal-exit backing
 relation. Inspection identifies a second load of a saved reference through its
@@ -57,3 +69,12 @@ Keep exact producer digests and engine observations in the qualification record.
 The broader parent remains open for indexed/case private coordinates, further
 independent reference loads, other callee obligations, portable resource
 qualification, source migration and the product compiler.
+
+Measured with the optimized `de40d87b442` producer on macOS ARM64: all nine
+positives exit 0 in native and Terminal execution; all nine zero-result twins
+reject cycle descent. A deliberately wrong spare-guard oracle traps in both
+engines. Focused checking satisfies all 116 authored source oracles. The
+independent corpus receiver satisfies 56 of 57 runtime oracles; its unrelated
+`borrows/nested_reference_call_checked_index_exit` arrival-parent refusal is
+identical under fresh `c2e8bc13ca9` and `de40d87b442` auditors. Both CLIs execute
+that program successfully; this does not close its independent-audit gap.
