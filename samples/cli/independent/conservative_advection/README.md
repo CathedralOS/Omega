@@ -60,7 +60,7 @@ omega update --project samples/cli/independent/conservative_advection --target l
 omega run --keep samples/cli/independent/conservative_advection/main.omg < samples/cli/independent/conservative_advection/input.txt
 python3 samples/cli/independent/conservative_advection/validate.py --native-binary /absolute/path/to/retained/executable
 python3 samples/cli/independent/conservative_advection/validate.py --omega /absolute/path/to/omega --output /absolute/batch/capture/directory
-CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release -p advection-terminal-validation -- /absolute/sample/directory /absolute/capture/directory
+CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release -p advection-terminal-validation -- /absolute/sample/directory/main.omg /absolute/capture/directory
 python3 samples/cli/independent/conservative_advection/validate.py --captured /absolute/capture/directory
 omega --check samples/cli/independent/conservative_advection/controls/stencil_bound/main.omg < /dev/null
 ```
