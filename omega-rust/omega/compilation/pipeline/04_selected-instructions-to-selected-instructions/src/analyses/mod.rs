@@ -153,6 +153,8 @@ impl UnsealedRecoveryFacts {
     ) -> Result<Self, RecoveryReanalysisError> {
         let prev_plan = previous.selected_plan();
         let next_plan = selected.selected_plan();
+        storage_census::selected_caches("previous", prev_plan);
+        storage_census::selected_caches("next-before", next_plan);
         storage_census::roster(
             "prior-facts",
             &self.liveness_functions,
@@ -276,6 +278,7 @@ impl UnsealedRecoveryFacts {
             &legality_functions,
         );
         storage_census::sharing("legality", &self.legality_functions, &legality_functions);
+        storage_census::selected_caches("next-after", next_plan);
         Ok(Self {
             liveness_functions,
             liveness_materialized,

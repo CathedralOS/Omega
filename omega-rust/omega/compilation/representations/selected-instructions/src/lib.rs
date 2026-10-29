@@ -66,5 +66,7 @@ pub use selected_instructions::{
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
     PlacedScalarForm, ieee_float_arithmetic_is_trapping,
 };
-pub use selected_instructions::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
+pub use selected_instructions::{
+    BlockSlotEvent, BlockSlotSummary, InitializedBlockCacheStorage, SelectedBlocks,
+};
 pub use terminal_psi::ByteSequencePredicate;

@@ -202,3 +202,38 @@ pub(super) fn sharing<T>(phase: &str, original: &[Arc<T>], current: &[Arc<T>]) {
         current.len().saturating_sub(shared)
     );
 }
+
+/// Visit only existing memo allocations. Profile gating avoids all default-off
+/// walks; no `lookup()`/`slot_summary()` builder is called by this observation.
+pub(super) fn selected_caches(phase: &str, plan: &selected_instructions::SelectedInstructionPlan) {
+    if !phase_profile::enabled() {
+        return;
+    }
+    let mut total = selected_instructions::InitializedBlockCacheStorage::default();
+    for (index, function) in plan.functions.iter().enumerate() {
+        let row = function.blocks.initialized_cache_storage();
+        if row
+            .lookup_vector_capacity_bytes
+            .saturating_add(row.slot_vector_capacity_bytes)
+            >= 1024 * 1024
+        {
+            eprintln!(
+                "storage-census initialized-cache-function phase={phase} function={index} machine={:?} storage={row:?}",
+                function.machine
+            );
+        }
+        total.accumulate(row);
+    }
+    let holes = total
+        .span_len
+        .saturating_sub(total.span_used)
+        .saturating_mul(8);
+    let slack = total
+        .span_capacity
+        .saturating_sub(total.span_len)
+        .saturating_mul(8);
+    eprintln!(
+        "storage-census initialized-cache-roster phase={phase} functions={} storage={total:?} span_hole_payload_bytes={holes} span_capacity_slack_bytes={slack} scope=referenced-capacity-not-unique-RSS",
+        plan.functions.len()
+    );
+}
