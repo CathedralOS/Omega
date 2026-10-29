@@ -82,12 +82,26 @@ pub(crate) fn prepare_plan(plan_path: &Path) -> Result<(Plan, PathBuf, String), 
     }
     if let Measurement::Compiler {
         source,
+        candidate_source,
         library_root,
         target,
         ..
     } = &mut plan.measurement
     {
         *source = resolve(&plan.working_directory, source)?;
+        if let Some(candidate) = candidate_source {
+            *candidate = resolve(&plan.working_directory, candidate)?;
+            if file_digest(source)? != file_digest(candidate)? {
+                return Err("compiler source copies must contain identical entry bytes".into());
+            }
+            if !plan
+                .inputs
+                .iter()
+                .any(|input| input == candidate || (input.is_dir() && candidate.starts_with(input)))
+            {
+                return Err("declared inputs must include the candidate compiler source".into());
+            }
+        }
         *library_root = resolve(&plan.working_directory, library_root)?;
         if !library_root.is_dir() {
             return Err("library_root must be a directory".into());
@@ -424,7 +438,11 @@ pub(crate) fn measure(
 ) -> Result<(), String> {
     let mut arguments = command.arguments.clone();
     let build_dir = output.join("build");
-    if let Measurement::Compiler { source, target, .. } = &plan.measurement {
+    if let Measurement::Compiler { target, .. } = &plan.measurement {
+        let source = plan
+            .measurement
+            .compiler_source(&sample.role)
+            .ok_or("missing compiler source")?;
         fs::create_dir(&build_dir).map_err(|error| error.to_string())?;
         arguments.extend([
             "--timings".into(),

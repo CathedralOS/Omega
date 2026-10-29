@@ -234,6 +234,40 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         "{}",
         String::from_utf8_lossy(&validation.stderr)
     );
+    // Different producers need their own accepted project locks. Their copied
+    // entries stay byte-identical and native evidence must name the chosen copy.
+    std::fs::copy(
+        directory.path().join("input.txt"),
+        directory.path().join("candidate.txt"),
+    )
+    .unwrap();
+    plan["measurement"]["candidate_source"] = json!("candidate.txt");
+    plan["inputs"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("candidate.txt"));
+    let copies = TestDirectory::new();
+    let comparison = execute(copies.path(), &plan);
+    assert!(
+        comparison.status.success(),
+        "{}",
+        String::from_utf8_lossy(&comparison.stderr)
+    );
+    let validation = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("validate")
+        .arg(copies.path().join("result"))
+        .output()
+        .unwrap();
+    assert!(
+        validation.status.success(),
+        "{}",
+        String::from_utf8_lossy(&validation.stderr)
+    );
+    std::fs::write(directory.path().join("candidate.txt"), "different source").unwrap();
+    let mismatched = TestDirectory::new();
+    let refusal = execute(mismatched.path(), &plan);
+    assert!(!refusal.status.success());
+    assert!(String::from_utf8_lossy(&refusal.stderr).contains("identical entry bytes"));
 }
 
 #[test]

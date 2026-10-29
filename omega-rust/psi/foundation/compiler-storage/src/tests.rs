@@ -79,3 +79,82 @@ fn bounds_both_encoding_and_decoding_depth() {
     let bytes = encode(&value, RecordLimits::default()).unwrap();
     assert!(decode::<Link>(&bytes, limits).is_err());
 }
+
+#[test]
+fn fixed_width_sequences_keep_little_endian_bits_and_shared_array_identity() {
+    let values = [0_u32, 1, u32::MAX, 0x10203040];
+    let mut bytes = 4_u64.to_le_bytes().to_vec();
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    assert_eq!(
+        decode::<Vec<u32>>(&bytes, RecordLimits::default()).unwrap(),
+        values
+    );
+    assert_eq!(
+        decode::<[u32; 4]>(&bytes, RecordLimits::default()).unwrap(),
+        values
+    );
+    assert_eq!(encode(&values, RecordLimits::default()).unwrap(), bytes);
+    let shared = Arc::new([0_u8, 7, 128, 255]);
+    let original = (shared.clone(), shared);
+    let restored: (Arc<[u8; 4]>, Arc<[u8; 4]>) = decode(
+        &encode(&original, RecordLimits::default()).unwrap(),
+        RecordLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(*restored.0, [0, 7, 128, 255]);
+    assert!(Arc::ptr_eq(&restored.0, &restored.1));
+    let bits = [
+        0x7ff8000000000001_u64,
+        0x8000000000000000,
+        0xfff0000000000000,
+    ];
+    let floats = bits.map(f64::from_bits);
+    let restored: [f64; 3] = decode(
+        &encode(&floats, RecordLimits::default()).unwrap(),
+        RecordLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(restored.map(f64::to_bits), bits);
+    let signed = [i16::MIN, -1, 0, i16::MAX];
+    assert_eq!(
+        decode::<[i16; 4]>(
+            &encode(&signed, RecordLimits::default()).unwrap(),
+            RecordLimits::default()
+        )
+        .unwrap(),
+        signed
+    );
+}
+
+#[test]
+fn fixed_width_sequences_keep_size_budget_and_value_refusals() {
+    let bytes = encode(&[1_u32, 2, 3], RecordLimits::default()).unwrap();
+    for length in 0..bytes.len() {
+        assert!(decode::<[u32; 3]>(&bytes[..length], RecordLimits::default()).is_err());
+        assert!(decode::<Vec<u32>>(&bytes[..length], RecordLimits::default()).is_err());
+    }
+    assert!(decode::<[u32; 2]>(&bytes, RecordLimits::default()).is_err());
+    for limits in [
+        RecordLimits {
+            allocation: 11,
+            ..RecordLimits::default()
+        },
+        RecordLimits {
+            elements: 2,
+            ..RecordLimits::default()
+        },
+    ] {
+        assert!(decode::<[u32; 3]>(&bytes, limits).is_err());
+        assert!(decode::<Vec<u32>>(&bytes, limits).is_err());
+    }
+    let mut invalid_bool = 2_u64.to_le_bytes().to_vec();
+    invalid_bool.extend_from_slice(&[0, 2]);
+    assert!(decode::<Vec<bool>>(&invalid_bool, RecordLimits::default()).is_err());
+    assert!(decode::<[bool; 2]>(&invalid_bool, RecordLimits::default()).is_err());
+    assert_eq!(
+        decode::<[u32; 0]>(&0_u64.to_le_bytes(), RecordLimits::default()).unwrap(),
+        []
+    );
+}

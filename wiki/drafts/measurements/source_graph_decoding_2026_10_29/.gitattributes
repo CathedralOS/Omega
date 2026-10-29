@@ -1,0 +1,2 @@
+# Preserve the rejected candidate exactly, including blank patch context.
+*.patch -text -whitespace

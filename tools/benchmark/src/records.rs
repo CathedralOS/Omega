@@ -215,10 +215,13 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                     Measurement::Compiler {
                         expected,
                         require_identical_artifacts,
-                        source,
                         target,
                         ..
                     } => {
+                        let source = plan
+                            .measurement
+                            .compiler_source(role)
+                            .ok_or("missing compiler source")?;
                         if subject.exit_code != Some(0) {
                             return Err("compiler observation failed".into());
                         }

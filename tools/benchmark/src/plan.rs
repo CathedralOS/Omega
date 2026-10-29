@@ -34,6 +34,8 @@ pub struct CommandSpec {
 pub enum Measurement {
     Compiler {
         source: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        candidate_source: Option<PathBuf>,
         library_root: PathBuf,
         target: String,
         expected: ExpectedOutput,
@@ -48,6 +50,23 @@ pub enum Measurement {
         work_units: u64,
         checksum: String,
     },
+}
+
+impl Measurement {
+    pub fn compiler_source(&self, role: &str) -> Option<&std::path::Path> {
+        match self {
+            Self::Compiler {
+                source,
+                candidate_source,
+                ..
+            } => Some(if role == "candidate" {
+                candidate_source.as_ref().unwrap_or(source)
+            } else {
+                source
+            }),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]

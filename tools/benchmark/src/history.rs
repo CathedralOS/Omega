@@ -46,7 +46,7 @@ pub fn compare(before: &Path, after: &Path) -> Result<Value, String> {
 fn logical_plan(plan: &Plan) -> Result<Value, String> {
     let mut measurement =
         serde_json::to_value(&plan.measurement).map_err(|error| error.to_string())?;
-    for name in ["source", "library_root"] {
+    for name in ["source", "candidate_source", "library_root"] {
         if let Some(path) = measurement.get_mut(name) {
             let original = std::path::Path::new(path.as_str().ok_or("invalid measurement path")?);
             *path = json!(

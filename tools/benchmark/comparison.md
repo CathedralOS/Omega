@@ -40,6 +40,14 @@ Prepare any required review/lock state beforehand through the existing workflow.
 Include those lock inputs and every consumed library/dependency path in `inputs`.
 The working checkout's revision is not treated as the producer's revision.
 
+Accepted project locks are compiler-specific. For different compiler builds,
+prepare two private copies of the same authored project and review each with its
+own producer. Set optional `measurement.candidate_source` to the second entry;
+baseline uses `source`. Both entry files must have identical bytes and appear in
+`inputs`. Declare both accepted locks and the complete authored/dependency input
+closures. Check their corresponding authored files match; distinct locks retain
+each producer's admission rather than bypassing compiler identity validation.
+
 Each sample compiles into its own empty output directory with `--timings`,
 requires successful publication inside that directory, hashes the native image,
 and executes it against the exact authored exit/stdout/stderr oracle. Native
