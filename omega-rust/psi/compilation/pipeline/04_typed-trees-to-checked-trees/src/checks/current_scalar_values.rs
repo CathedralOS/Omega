@@ -51,6 +51,7 @@ mod collections;
 mod conditions;
 mod entry_fields;
 pub(crate) use entry_fields::parameter_projection_paths;
+mod joins;
 mod scalar_fields;
 mod scalar_storage;
 use conditions::ConditionBinding;
@@ -914,78 +915,11 @@ impl<'program> CurrentScalarValues<'program> {
                 )?),
             });
         }
-        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
-            let arms = program.expression_table.match_arms(dispatch.arms);
-            if !arms.is_empty() {
-                let mut captured = Vec::with_capacity(arms.len());
-                for arm in arms {
-                    if let Some(value) =
-                        self.capture_at_depth(program, machine, state, arm.value, depth + 1)
-                    {
-                        captured.push(value);
-                    } else {
-                        captured.clear();
-                        break;
-                    }
-                }
-                if !captured.is_empty()
-                    && captured.iter().skip(1).all(|value| {
-                        value == &captured[0]
-                            || self.proves_values_relation(
-                                program,
-                                machine,
-                                BinaryOperator::Equal,
-                                value,
-                                &captured[0],
-                            )
-                    })
-                {
-                    return Some(captured.swap_remove(0));
-                }
-                if !captured.is_empty() {
-                    // A completed join has one value. Retain the union of
-                    // independently captured arm bounds, without choosing an
-                    // arm or assuming the match subject's current value.
-                    let bounds = captured
-                        .iter()
-                        .map(|value| {
-                            validation::scoped_arithmetic_value_bounds(
-                                program,
-                                machine,
-                                &self.hypotheses,
-                                value,
-                            )
-                        })
-                        .collect::<Option<Vec<_>>>()?;
-                    let minimum = bounds
-                        .iter()
-                        .map(|bound| bound.low.clone())
-                        .collect::<Option<Vec<_>>>()?
-                        .into_iter()
-                        .min()?;
-                    let maximum = bounds
-                        .iter()
-                        .map(|bound| bound.high.clone())
-                        .collect::<Option<Vec<_>>>()?
-                        .into_iter()
-                        .max()?;
-                    let reference = validation::expression_result_type_reference(
-                        program, machine, state, expression,
-                    )?;
-                    let primitive = integer_carrier(program, reference)?;
-                    return Some(ScopedArithmeticValue::BoundedInteger {
-                        value: Box::new(ScopedArithmeticValue::Atom {
-                            identity: format!(
-                                "state:{:?}:join-result:{expression:?}",
-                                state.symbol
-                            ),
-                            unsigned: unsigned(primitive),
-                        }),
-                        minimum: Some(minimum),
-                        maximum: Some(maximum),
-                    });
-                }
-            }
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+            && let Some(value) =
+                self.capture_join(program, machine, state, expression, dispatch, depth)
+        {
+            return Some(value);
         }
         // Resolve the captured term under this occurrence's exact callable;
         // admission alone does not supply the completed scalar value.
