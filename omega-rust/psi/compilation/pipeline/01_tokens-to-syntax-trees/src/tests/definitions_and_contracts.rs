@@ -177,11 +177,7 @@ fn rejects_unknown_or_duplicate_domain_classifications() {
             "at most one compiler-owned classification",
         ),
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "classification must reject",
-        );
+        let error = super::parse_tokenized_error(source, "classification must reject");
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -194,11 +190,7 @@ fn rejects_domain_classification_after_requires() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         "#;
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "classification order must reject",
-    );
+    let error = super::parse_tokenized_error(source, "classification order must reject");
     super::expect_error(
         &error,
         "classification must appear immediately after the domain head",
@@ -213,11 +205,7 @@ fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
         }
         "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "route bodies must be retired",
-    );
+    let error = super::parse_tokenized_error(source, "route bodies must be retired");
     super::expect_error(&error, "domain route bodies are retired");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
@@ -230,11 +218,7 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
         }
         "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "body predicates must be retired",
-    );
+    let error = super::parse_tokenized_error(source, "body predicates must be retired");
     super::expect_error(&error, "domain predicates must be written in `requires`");
     assert!(error.message.contains("`established by Trait::requirement"));
 }
@@ -247,11 +231,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
         }
         "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "nested operators must be retired",
-    );
+    let error = super::parse_tokenized_error(source, "nested operators must be retired");
     super::expect_error(
         &error,
         "domain operators must be ordinary top-level declarations",
@@ -860,11 +840,7 @@ fn rejects_malformed_nominal_machine_parameter_requirements() {
 
     for (contract, expected) in cases {
         let source = format!("machine register<machine Selected>() {contract} {{ Selected() }}");
-        let error = super::parse_source_error(
-            &source,
-            "tokenize should succeed",
-            "malformed nominal binder must reject",
-        );
+        let error = super::parse_tokenized_error(&source, "malformed nominal binder must reject");
         super::expect_error(&error, expected);
     }
 }
@@ -936,11 +912,7 @@ fn rejects_higher_order_parameter_without_nested_contract() {
         {
         }
         "#;
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "missing nested contract must fail",
-    );
+    let error = super::parse_tokenized_error(source, "missing nested contract must fail");
     super::expect_error(
         &error,
         "machine parameter `Inner` requires an authored declaration-site contract",
@@ -954,11 +926,7 @@ fn rejects_machine_parameter_without_authored_contract() {
             0
         }
         "#;
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "missing contract must fail",
-    );
+    let error = super::parse_tokenized_error(source, "missing contract must fail");
     super::expect_error(&error, "requires an authored declaration-site contract");
 }
 
