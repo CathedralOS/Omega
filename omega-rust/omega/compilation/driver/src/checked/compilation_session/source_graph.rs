@@ -18,7 +18,6 @@ const MAX_BYTES: usize = 512 * 1024 * 1024;
 const HEADER_BYTES: usize = 80;
 static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
 
-#[derive(compiler_storage::Record)]
 pub(super) struct SourceGraph {
     pub preparation: SourcePreparation,
     pub sources: Vec<PreparedSource>,
@@ -114,9 +113,34 @@ impl SourceGraphCache {
             );
         }
         let graph = phase_profile::scope("source.graph.load.decode", || {
-            compiler_storage::decode(&bytes[HEADER_BYTES..], limits())
-                .map_err(|reason| format!("decode retained source graph: {reason}"))
-        })?;
+            let mut input =
+                compiler_storage::RecordReader::<()>::new(&bytes[HEADER_BYTES..], limits())?;
+            let graph = input.record(|input| {
+                Ok(SourceGraph {
+                    preparation: phase_profile::scope("source.graph.decode.preparation", || {
+                        SourcePreparation::read(input)
+                    })?,
+                    sources: phase_profile::scope("source.graph.decode.sources", || {
+                        Vec::<PreparedSource>::read(input)
+                    })?,
+                    checks: phase_profile::scope("source.graph.decode.checks", || {
+                        RetainedCompilationChecks::read(input)
+                    })?,
+                })
+            })?;
+            phase_profile::scope("source.graph.decode.finish", || input.finish())?;
+            phase_profile::count("source.graph.sources", graph.sources.len() as u64);
+            phase_profile::count(
+                "source.graph.sibling_build_checks",
+                graph.checks.sibling_build_checks.len() as u64,
+            );
+            phase_profile::count(
+                "source.graph.sibling_product_checks",
+                graph.checks.sibling_product_checks.len() as u64,
+            );
+            Ok::<_, compiler_storage::RecordError>(graph)
+        })
+        .map_err(|reason| format!("decode retained source graph: {reason}"))?;
         phase_profile::scope("source.graph.load.require_after", || self.require_current())?;
         Ok(Some(graph))
     }

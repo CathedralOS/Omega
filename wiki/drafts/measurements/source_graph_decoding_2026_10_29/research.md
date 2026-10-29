@@ -85,3 +85,23 @@ sequential medians particularly misleading; neither experiment supports a win.
 
 Next: instrument the four actual decode owners (preparation, sources, retained
 checks, reader cleanup) before selecting another implementation change.
+
+## Ownership attribution
+
+`attribution/` binds an instrumented producer and three native-valid observations.
+The last warm run decoded preparation in 60.173 ms, prepared sources in 32.356 ms,
+retained checks in 203.292 ms and cleaned up the reader in 0.306 ms. It retained
+two source entries, two Build checks and two Product checks. All three native
+images were identical and exited zero. This is attribution, not a speedup claim.
+
+Every nonzero `Handle<T>` consults `RecordReader::generation<T>`. The existing
+outer HashMap hashes a Rust TypeId for every such handle, including semantic
+arena types whose generations are deliberately preserved. The current source
+graph registers only the retained-syntax-text remapping domain; the type key is
+static decoder metadata, not an untrusted serialized key. A compact registry
+can compare the few registered TypeIds directly while preserving each domain's
+existing generation map, payload-conflict checks, and failure behavior.
+
+Next hypothesis: remove the repeated outer type hash, retaining explicit generic
+domain registration and unchanged inner generation correspondence checks. Use
+the newly instrumented producer as the matched baseline for that single change.
