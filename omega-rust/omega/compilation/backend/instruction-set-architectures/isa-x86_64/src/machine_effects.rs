@@ -35,13 +35,10 @@ pub enum X86_64MachineEffectCatalogValidationError {
     TargetSemanticMismatch,
 }
 
-impl std::fmt::Display for X86_64MachineEffectCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid x86-64 machine effects: {self:?}")
-    }
-}
-
-impl std::error::Error for X86_64MachineEffectCatalogValidationError {}
+optimization_core::invalid_error_display!(
+    X86_64MachineEffectCatalogValidationError,
+    "x86-64 machine effects"
+);
 
 pub fn x86_64_machine_effect_catalog(
     target: NativeTarget,

@@ -132,16 +132,10 @@ pub enum X86_64NormalizedForeignCallTemplateError {
     FixupMismatch,
 }
 
-impl std::fmt::Display for X86_64NormalizedForeignCallTemplateError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid x86-64 normalized-foreign-call template: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for X86_64NormalizedForeignCallTemplateError {}
+optimization_core::invalid_error_display!(
+    X86_64NormalizedForeignCallTemplateError,
+    "x86-64 normalized-foreign-call template"
+);
 
 /// Produce `E8 + zero rel32` with an explicit unresolved import-field fixup.
 /// `callback_destinations` names each private callback destination in the

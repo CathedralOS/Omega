@@ -1156,16 +1156,10 @@ pub enum X86_64RegisterConstraintCatalogValidationError {
     TargetSemanticMismatch(RegisterConstraintKey),
 }
 
-impl std::fmt::Display for X86_64RegisterConstraintCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid x86-64 register constraint catalog: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for X86_64RegisterConstraintCatalogValidationError {}
+optimization_core::invalid_error_display!(
+    X86_64RegisterConstraintCatalogValidationError,
+    "x86-64 register constraint catalog"
+);
 
 /// Validate generic catalog structure, then independently require every row
 /// to equal the x86-64 target owner's canonical semantics for that exact key.
