@@ -11,6 +11,13 @@ use crate::optimization_unit::identity::structural_encoding::{
 use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
+    macro_rules! tag {
+        ($bytes:expr, $tag:expr, $operation:expr) => {
+            $bytes.u8($tag);
+            $bytes.id(*$operation);
+        };
+    }
+
     match operation {
         O::EstablishActivationClaim {
             psi_operation,
@@ -21,8 +28,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             established_case,
             rejected_case,
         } => {
-            bytes.u8(253);
-            bytes.id(*psi_operation);
+            tag!(bytes, 253, psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.u64(*bound);
             bytes.id(*committed);
@@ -35,8 +41,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             source,
             claim,
         } => {
-            bytes.u8(254);
-            bytes.id(*psi_operation);
+            tag!(bytes, 254, psi_operation);
             encode_structural_argument(bytes, source);
             bytes.id(*claim);
         }
@@ -50,8 +55,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             covered_case,
             rejected_case,
         } => {
-            bytes.u8(251);
-            bytes.id(*psi_operation);
+            tag!(bytes, 251, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
             bytes.id(*claim);
@@ -70,8 +74,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             covered_case,
             rejected_case,
         } => {
-            bytes.u8(252);
-            bytes.id(*psi_operation);
+            tag!(bytes, 252, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, lower);
             encode_structural_argument(bytes, upper);
@@ -86,8 +89,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             result,
             machine,
         } => {
-            bytes.u8(255);
-            bytes.id(*psi_operation);
+            tag!(bytes, 255, psi_operation);
             bytes.id(*machine);
             encode_structural_operation_result(bytes, result);
         }
@@ -97,8 +99,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             source,
             path,
         } => {
-            bytes.u8(122);
-            bytes.id(*psi_operation);
+            tag!(bytes, 122, psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
             bytes.slice(path, encode_structural_path_segment);
@@ -110,8 +111,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             right,
             capacity_obligation,
         } => {
-            bytes.u8(92);
-            bytes.id(*psi_operation);
+            tag!(bytes, 92, psi_operation);
             encode_structural_operation_result(bytes, result);
             for operand in [left, right] {
                 match operand {
@@ -139,8 +139,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             result,
             elements,
         } => {
-            bytes.u8(105);
-            bytes.id(*psi_operation);
+            tag!(bytes, 105, psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.slice(elements, encode_structural_argument);
         }
@@ -149,8 +148,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             result,
             elements,
         } => {
-            bytes.u8(69);
-            bytes.id(*psi_operation);
+            tag!(bytes, 69, psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.slice(elements, |bytes, value| bytes.id(*value));
         }
@@ -160,8 +158,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             value,
             range_obligation,
         } => {
-            bytes.u8(65);
-            bytes.id(*psi_operation);
+            tag!(bytes, 65, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_abstract_result(bytes, *value);
             match range_obligation {
@@ -177,8 +174,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             destination,
             value,
         } => {
-            bytes.u8(66);
-            bytes.id(*psi_operation);
+            tag!(bytes, 66, psi_operation);
             bytes.id(*destination);
             encode_abstract_result(bytes, *value);
         }
@@ -189,8 +185,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             path,
             case,
         } => {
-            bytes.u8(71);
-            bytes.id(*psi_operation);
+            tag!(bytes, 71, psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
             bytes.slice(path, encode_structural_path_segment);
@@ -205,8 +200,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             // Existing whole-root identities stay stable; projected subjects
             // have a distinct tag and retain every spelled step, including
             // each runtime element's selector and obligation.
-            bytes.u8(if path.is_empty() { 67 } else { 73 });
-            bytes.id(*psi_operation);
+            tag!(bytes, if path.is_empty() { 67 } else { 73 }, psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
             if !path.is_empty() {
@@ -222,8 +216,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             length,
             obligation,
         } => {
-            bytes.u8(64);
-            bytes.id(*psi_operation);
+            tag!(bytes, 64, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
             bytes.id(*start);
@@ -240,8 +233,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             length,
             obligation,
         } => {
-            bytes.u8(84);
-            bytes.id(*psi_operation);
+            tag!(bytes, 84, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
             bytes.id(*start);
@@ -257,8 +249,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             element,
             region,
         } => {
-            bytes.u8(85);
-            bytes.id(*psi_operation);
+            tag!(bytes, 85, psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*destination);
             encode_structural_argument(bytes, source);
@@ -325,8 +316,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             result_case,
             fields,
         } => {
-            bytes.u8(48);
-            bytes.id(*psi_operation);
+            tag!(bytes, 48, psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*result_case);
             bytes.slice(fields, encode_record_initializer);
@@ -338,8 +328,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes: literal,
             qualifications,
         } => {
-            bytes.u8(1);
-            bytes.id(*psi_operation);
+            tag!(bytes, 1, psi_operation);
             encode_place_declaration(bytes, *place);
             encode_structural_type(bytes, structural_type);
             bytes.len(literal.len());
@@ -351,8 +340,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             place,
             structural_type,
         } => {
-            bytes.u8(2);
-            bytes.id(*psi_operation);
+            tag!(bytes, 2, psi_operation);
             encode_place_declaration(bytes, *place);
             encode_structural_type(bytes, structural_type);
         }
@@ -360,16 +348,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_operation,
             result,
         } => {
-            bytes.u8(90);
-            bytes.id(*psi_operation);
+            tag!(bytes, 90, psi_operation);
             encode_structural_operation_result(bytes, result);
         }
         O::EstablishStructuralLocal {
             psi_operation,
             result,
         } => {
-            bytes.u8(103);
-            bytes.id(*psi_operation);
+            tag!(bytes, 103, psi_operation);
             encode_structural_operation_result(bytes, result);
         }
         O::EstablishRecord {
@@ -377,8 +363,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             result,
             fields,
         } => {
-            bytes.u8(56);
-            bytes.id(*psi_operation);
+            tag!(bytes, 56, psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.slice(fields, encode_record_initializer);
         }
@@ -388,8 +373,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             source,
             correspondence,
         } => {
-            bytes.u8(113);
-            bytes.id(*psi_operation);
+            tag!(bytes, 113, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
             match correspondence {
@@ -461,8 +445,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             source,
             path,
         } => {
-            bytes.u8(80);
-            bytes.id(*psi_operation);
+            tag!(bytes, 80, psi_operation);
             bytes.id(*source);
             bytes.slice(path, encode_structural_path_segment);
         }
@@ -473,8 +456,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             path,
             field,
         } => {
-            bytes.u8(81);
-            bytes.id(*psi_operation);
+            tag!(bytes, 81, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_window_root(bytes, source);
             bytes.slice(path, encode_structural_path_segment);
@@ -505,8 +487,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             parents,
             derivations,
         } => {
-            bytes.u8(124);
-            bytes.id(*psi_operation);
+            tag!(bytes, 124, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
             bytes.slice(parents, encode_structural_argument);
@@ -520,8 +501,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             result,
             source,
         } => {
-            bytes.u8(123);
-            bytes.id(*psi_operation);
+            tag!(bytes, 123, psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_structural_argument(bytes, source);
         }
