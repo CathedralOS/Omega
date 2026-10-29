@@ -540,10 +540,9 @@ impl Implication<'_> {
                 {
                     for (path, value) in self.expression(&frame, path, local.initial_value, 0)? {
                         let mut frame = frame.clone();
-                        frame.bindings.push((
-                            local.symbol,
-                            declared_value(self.program, value, local.type_reference)?,
-                        ));
+                        frame
+                            .bindings
+                            .push((local.symbol, self.body_value(value, local.type_reference)?));
                         pending.push((position + 1, frame, path, visited.clone()));
                     }
                 }
@@ -752,12 +751,27 @@ impl Implication<'_> {
                 for (parameter, value) in parameters.iter().zip(arguments) {
                     frame.bindings.push((
                         parameter.symbol,
-                        declared_value(self.program, value, parameter.type_reference)?,
+                        self.body_value(value, parameter.type_reference)?,
                     ));
                 }
                 Some((frame, path))
             })
             .collect()
+    }
+
+    /// Mutation tracks existing borrowed storage, not a new owned array home.
+    /// Local and by-value argument bindings both need a fresh storage version
+    /// for an owned collection. Reusing its captured contents identity as an
+    /// alias would let a callee-local repair establish a caller postcondition.
+    /// Readonly predicate activation retains its separate immutable-value rule.
+    fn body_value(&self, value: Value, reference: TypeReferenceHandle) -> Option<Value> {
+        let value = declared_value(self.program, value, reference)?;
+        if matches!(value, Value::Collection { .. })
+            && crate::reference_shell(self.program, reference).is_none()
+        {
+            return None;
+        }
+        Some(value)
     }
 
     fn assignment(
