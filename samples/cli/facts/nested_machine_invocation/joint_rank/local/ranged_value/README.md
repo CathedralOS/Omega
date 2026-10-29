@@ -41,6 +41,11 @@ retains that view's separate obligations.
 
 The former whole-component optional-endpoint conservation pass was removed.
 That pass rejected valid changed-bound programs; it was not a language rule.
+Four old reject fixtures that required invariant optional endpoints were retired:
+`measure_field_limit_changed`, `mixed_endpoint_stored_length_write`,
+`shift_result_rank_replaced_count`, and `stored_reference_endpoint_referent_write`.
+Their selected scalar ranks still descend and every new interval has membership;
+none changes a parameter belonging to a selected view.
 The old `mixed_call_member_endpoint_foreign` control remains invalid because its
 caller fails an ordinary helper requirement, not because an optional ceiling
 changed. Its rejection oracle now names that actual obligation.

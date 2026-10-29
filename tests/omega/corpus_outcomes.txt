@@ -22980,14 +22980,9 @@ fail/termination/measure_field_arrival_contract rejected 2707ms expected @a92f16
 fail/termination/measure_field_computed_limit_overflow rejected 1528ms expected @a92f16431042
 	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/measure_field_limit_changed rejected 1873ms expected @a92f16431042
-	terminating machine walk: cannot prove rank range `0..=countdown.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/mixed_call_member_endpoint_foreign rejected 1761ms expected @a92f16431042
 	cannot prove requires contract for call inner from outer: remaining <= limits.cap && remaining <= constructor:80:package:07149a1bc37311ee43c48eec64aa5f9b3735ae35f543e496d63c3695daaa42a7::Limits6:record15:common:name:cap1:5.cap (needs fact `n <= bounds.cap && n <= spare.cap` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	machine call cycle: `outer`, `inner` -- dependent rank endpoints are not conserved through every mixed-component call; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/mixed_endpoint_stored_length_write rejected 2643ms expected @a92f16431042
-	machine call cycle: `ranged`, `unranged` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/nat_descending_lookalike_grants_no_primitive rejected 52ms expected @a92f16431042
 	`Nat::Descending` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Nat::Descending` grants no primitive implementation or proof authority
 fail/termination/native_layout_family_circular rejected 902ms expected @a92f16431042
@@ -23130,9 +23125,6 @@ fail/termination/self_call_rank_reset_before_descent rejected 1391ms expected @a
 fail/termination/shift_result_rank_mask_preserves rejected 1424ms expected @a92f16431042
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/shift_result_rank_replaced_count rejected 1384ms expected @a92f16431042
-	terminating machine countdown: cannot prove rank range `0..=16 >> count` for the rank produced by the selected view
-	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/shift_result_rank_zero_count rejected 1392ms expected @a92f16431042
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -23143,9 +23135,6 @@ fail/termination/signed_rank_without_nonnegative_premise rejected 1338ms expecte
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stale_state_rank_premise_rejected rejected 1202ms expected @a92f16431042
 	machine call cycle: `Main::count`, `Main::next` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/stored_reference_endpoint_referent_write rejected 1330ms expected @a92f16431042
-	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stored_reference_endpoint_reseat rejected 1856ms expected @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/subordinate_state_cycle_weak_edge rejected 1469ms expected @a92f16431042
