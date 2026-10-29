@@ -1,0 +1,11 @@
+use omega::language::core::float_operations;
+public boundary trait Input { machine load() -> u64 reaches; }
+CheckedNan satisfies F32IsNan {
+ machine is_nan(value: f32) -> bool reaches invokes Input;
+ ensures result == FloatSemantics::is_nan(F32::meaning(value))
+ { let ignored: u64 = Input::load(); value != value }
+}
+machine main() crashes Trap {
+ transition F32IsNan::is_nan(0.0f32) { false -> done() _ -> bad() }
+ machine done() {} machine bad() { crash Trap; }
+}

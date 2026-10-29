@@ -1,0 +1,10 @@
+public boundary trait Echo { machine echo(value: u64) -> u64 reaches requires value > 0 ensures result == value; }
+machine view(value: u64) -> u64 requires value > 0 ensures result == value  { value }
+EchoProvider satisfies Echo {
+ machine echo(value: u64) -> u64 requires value > 0 ensures result == view(value) { value }
+}
+// Expected exit: 0
+machine main() crashes Trap {
+ transition Echo::echo(7u64) == 7u64 { true -> done() _ -> bad() }
+ machine done() {} machine bad() { crash Trap; }
+}

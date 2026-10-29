@@ -1,0 +1,19 @@
+use omega::language::core::float_operations;
+
+// Expected exit: 0
+CheckedNan satisfies F32IsNan {
+    machine is_nan(value: f32) -> bool reaches
+    ensures result == FloatSemantics::is_nan(F32::meaning(value))
+    { value != value }
+}
+
+machine main() crashes Trap {
+    let finite: bool = F32IsNan::is_nan(0.0f32);
+    let unordered: bool = F32IsNan::is_nan(0.0f32 / 0.0f32);
+    transition !finite && unordered {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

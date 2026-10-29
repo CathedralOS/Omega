@@ -1,0 +1,13 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "proof_alias_partial_helper_own_goal");
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
+ Build::select_provider<Echo, EchoProvider>(builder, windows_x86_64);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::select_provider<Echo, EchoProvider>(builder, linux_x86_64);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ Build::select_provider<Echo, EchoProvider>(builder, macos_arm64);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+ Build::select_provider<Echo, EchoProvider>(builder, linux_arm64);
+ Build::bind(builder, macos_x86_64::ProgramEntry, main);
+ Build::select_provider<Echo, EchoProvider>(builder, macos_x86_64);
+}
