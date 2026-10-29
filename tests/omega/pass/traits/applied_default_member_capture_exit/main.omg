@@ -1,0 +1,21 @@
+// Expected exit: 0
+// A member invocation composes with, and does not replace, its map capture.
+trait Stage<const Phase: u64> {
+    machine value() -> u64;
+    machine read<const Marker: u64>() -> u64 { Stage<Phase>::value() }
+}
+
+Selected<const Phase: u64, const Answer: u64> satisfies Stage<Phase> {
+    machine value() -> u64 { Answer }
+}
+
+machine main() crashes Trap {
+    let first: u64 = Selected<1u64, 73u64>::read<3u64>();
+    let second: u64 = Selected<1u64, 91u64>::read<5u64>();
+    transition first == 73 && second == 91 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

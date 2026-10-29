@@ -8,7 +8,9 @@ mod proof_applications;
 pub mod service_reach;
 
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
-pub use invocations::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
+pub use invocations::{
+    InvocationInferencePlan, InvocationTarget, MachineInvocationInference, RealizedInvocationTarget,
+};
 pub use operational::{
     CallOperational, CleanupDependency, MachineOperational, OperationalPlan, StateOperational,
     StaticMachineCallBinding,

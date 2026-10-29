@@ -1,0 +1,7 @@
+trait Values<T> {
+    machine identity<T>(value: T) -> T { value }
+}
+Selected satisfies Values<u64> {}
+machine main() {
+    let value: bool = Selected::identity<bool>(73u64);
+}

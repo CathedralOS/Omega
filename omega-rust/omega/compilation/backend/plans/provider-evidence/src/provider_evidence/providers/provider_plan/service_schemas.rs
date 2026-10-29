@@ -313,6 +313,24 @@ impl PartialEq for ServiceSchema {
 impl Eq for ServiceSchema {}
 
 impl ServiceSchema {
+    /// One selected static slot includes the complete root application. A
+    /// trait declaration alone conflates distinct phantom arguments/regions.
+    /// Non-trait schemas retain their declaration coordinate without inventing
+    /// an applied receiver.
+    pub fn selection_slot_identity(
+        &self,
+    ) -> (
+        Option<semantic_vocabulary::PackageKeyIdentity>,
+        &str,
+        Option<&str>,
+    ) {
+        (
+            self.trait_package_identity,
+            self.identity_text(self.trait_name),
+            self.root_application_identity(),
+        )
+    }
+
     pub fn root_application_identity(&self) -> Option<&str> {
         let root = self.receiver_applications.first()?;
         let identity = self.identity_text(root.application);

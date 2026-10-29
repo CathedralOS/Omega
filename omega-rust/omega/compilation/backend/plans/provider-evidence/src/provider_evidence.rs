@@ -227,10 +227,7 @@ impl SelectedProviderPlanFacts {
                     plan.name
                 ));
             }
-            let slot = (
-                plan.schema.trait_package_identity,
-                plan.schema.identity_text(plan.schema.trait_name),
-            );
+            let slot = plan.schema.selection_slot_identity();
             if !boundary_slots.insert(slot) {
                 return Err(format!(
                     "boundary slot `{}` has more than one selected provider plan",
@@ -311,9 +308,7 @@ impl SelectedProviderPlanFacts {
             ));
         }
         if self.plans.iter().any(|existing| {
-            existing.schema.trait_package_identity == plan.schema.trait_package_identity
-                && existing.schema.identity_text(existing.schema.trait_name)
-                    == plan.schema.identity_text(plan.schema.trait_name)
+            existing.schema.selection_slot_identity() == plan.schema.selection_slot_identity()
         }) {
             return Err(format!(
                 "boundary slot `{}` has more than one selected provider plan",

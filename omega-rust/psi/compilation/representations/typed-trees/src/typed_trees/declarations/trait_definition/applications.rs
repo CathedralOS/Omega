@@ -24,6 +24,40 @@ pub(crate) use retention::RetainedTraitApplicationFrame;
 pub use retention::{RetainedTraitScope, TraitApplicationEnvironment};
 
 impl TypedTrees {
+    /// The caller's own named implementation, with its exact capture scope.
+    /// Referenced realizers have no lexical map. Executable copies must retain
+    /// their instantiation path; receiving trait arguments cannot reconstruct
+    /// the supplying map's independent (possibly phantom) telescope.
+    pub fn lexical_conformance_scope(
+        &self,
+        caller: SymbolHandle,
+    ) -> Option<(&super::Conformance, AppliedTraitScope<'_>)> {
+        let authored = self.lifetime_declaration_owner(caller);
+        let selecting = self.conformance_by_symbol(self.declaration_scope_parent(caller))?;
+        if !selecting
+            .rows
+            .iter()
+            .any(|row| row.source.owns_realization() && row.realization_machine == authored)
+        {
+            return None;
+        }
+        let scope = if let Some(capture) =
+            self.implementation_capture(caller, authored, selecting.symbol)
+        {
+            capture.conformance_application.trait_scope.scope(self)?
+        } else {
+            self.machine_instantiation_path(caller, authored)?;
+            if caller != authored
+                && (!self.conformance_type_parameters(selecting).is_empty()
+                    || !selecting.lifetime_parameters.is_empty())
+            {
+                return None;
+            }
+            AppliedTraitScope::from_conformance(self, selecting)?
+        };
+        Some((selecting, scope))
+    }
+
     /// Source-owned application roots shared by logical signature preparation
     /// and executable requirement preparation. Keeping the complete supplying
     /// scope prevents either consumer from rebuilding an application from an
