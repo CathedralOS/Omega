@@ -23,7 +23,7 @@ pub(super) fn source(
     LoweringError,
 > {
     let invalid = || {
-        super::descriptor_operands::refusal(
+        crate::lowering::scalar::descriptor_operands::refusal(
             function,
             &(
                 source,
