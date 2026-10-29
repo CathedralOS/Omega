@@ -71,7 +71,8 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   invented between records.
 - **Fact observation chart:** categorical bars aggregate the grid's selected
   target into recorded pass, historical/qualified pass, recorded failure and
-  unmeasured places. Selecting a bar exposes its count and denominator; this
+  unmeasured places. All four counts are directly labeled in a full-width chart
+  above the grid. Selecting a bar exposes its denominator; this
   does not convert historical observations into current acceptance.
 - **Fact grid:** exact standard place paths in `samples/cli/facts/<fact>/`;
   positives require `main.omg`, rejects require `invalid/main.omg` or an existing
@@ -80,13 +81,17 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   substring matches or one aggregate run. Different revisions, dirty runs,
   stale CLIs, missing compiler profiles and unmeasured rejects remain qualified.
   No automatic claim is made that retained evidence applies to current source.
+  A separate Source column counts positive/reject pairs out of nine; those
+  coverage bars do not establish acceptance. Search accepts readable names or IDs.
 - **Native results:** reuse `corpus_records` and `corpus_scoreboard` parsing and
   exit-oracle matching, including target-specific exit oracles. Denominators
   contain valid `pass/` and `run/` rows actually in that host's golden; hosts
   can have different cohorts. Exit matches do not establish stdout correctness
   or Terminal/native agreement. Per-row revision stamps remain available.
 - **Active claims:** `python tools/claims.py status`, using its existing bounded
-  acquisition path. Notes are owner-reported, not independent acceptance.
+  acquisition path. Work shows active and unresolved lease counts. Owner, full
+  progress note, scope and expiry remain visible on each card; Details retains
+  exact claim and ticket IDs. Notes are owner-reported, not independent acceptance.
 
 The dashboard does not audit fixture pins, rejection diagnostic relevance,
 producer digest applicability, runtime falsifiability or task acceptance. Those

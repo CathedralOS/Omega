@@ -84,3 +84,45 @@ for(const chart of ['history','cohort','growth']){
 assert.ok(!html.includes('id="overview-chart"'));
 assert.ok(!html.includes('function selectChart('));
 console.log('Overview checks passed: all three charts visible, no chart-switching dropdown.');
+
+const plainNodes=ids=>Object.fromEntries(ids.map(id=>[id,{value:'',innerHTML:'',textContent:'',querySelectorAll:()=>[]}]));
+const resultNodes=plainNodes(['target','outcome-plot','outcome-metric','outcome-readout',...['good','retained','failed','unmeasured'].flatMap(key=>['bar-'+key,'bar-label-'+key])]);
+for(const node of Object.values(resultNodes))node.classList={toggle(){}};
+resultNodes.target.value='windows_x86_64';
+const resultContext=vm.createContext({data:{facts:[{places:['good','retained','failed',...Array(6).fill('unmeasured')]}]},cellState:state=>[state],outcomeSelection:'retained',$:id=>resultNodes[id],hosts:{windows_x86_64:['Windows','x86_64']},escapeHTML:String,number:String});
+vm.runInContext(html.slice(html.indexOf('function renderOutcomes()'),html.indexOf('function showDetail('))+';renderOutcomes();',resultContext);
+assert.match(resultNodes['outcome-plot'].innerHTML,/Historical or qualified pass: 1 of 9 fact places/);
+assert.match(resultNodes['outcome-plot'].innerHTML,/Unmeasured \/ source absent: 6 of 9 fact places/);
+assert.equal((resultNodes['outcome-plot'].innerHTML.match(/class="result-row"/g)||[]).length,4);
+
+const factNodes=plainNodes(['fact-search','fact-head','fact-body','fact-shown']);
+const places=Array.from({length:9},(_,i)=>({name:'place'+i,program:true,twins:i===0?[]:['invalid']}));
+const factContext=vm.createContext({data:{facts:[{name:'long_fact-name',places}],places:places.map(p=>p.name)},filter:'all',selection:null,$:id=>factNodes[id],names:{},escapeHTML:String,number:String,cellState:()=>['unmeasured','·','No record']});
+vm.runInContext(html.match(/const readableName = .*;/)[0],factContext);
+factNodes['fact-search'].value='long fact name';
+vm.runInContext(html.slice(html.indexOf('function renderFacts()'),html.indexOf('function renderNative()'))+';renderFacts();',factContext);
+assert.match(factNodes['fact-head'].innerHTML,/>Source<\/th>/);
+assert.match(factNodes['fact-body'].innerHTML,/>8<small>\/9<\/small>/);
+assert.match(factNodes['fact-body'].innerHTML,/>long fact name<\/button>/);
+assert.ok(!factNodes['fact-body'].innerHTML.includes('source places'));
+factNodes['fact-search'].value='absent';vm.runInContext('renderFacts()',factContext);
+assert.match(factNodes['fact-body'].innerHTML,/colspan="11"/);
+
+const workNodes=plainNodes(['claim-search','claim-list','claim-shown','registry','work-stats']);
+const claim={item:'EXACT-OUTCOME',owner:'Agent one',note:'The current progress note.',paths:['source/psi'],ticket:'ticket1',expires_utc:'2099-01-01T00:00:00Z'};
+const workData={claims:{available:true,active:[claim],expired:[{...claim,ticket:'ticket2',expires_utc:'2000-01-01T00:00:00Z'}],version:'abc'}};
+const workContext=vm.createContext({data:workData,claimFilter:'active',$:id=>workNodes[id],escapeHTML:String,number:String,date:String,short:String});
+vm.runInContext(html.match(/const readableName = .*;/)[0],workContext);
+workNodes['claim-search'].value='exact outcome';
+vm.runInContext(html.slice(html.indexOf('function claimRows()'),html.indexOf('function render(){'))+';renderClaims();',workContext);
+const workHTML=workNodes['claim-list'].innerHTML;
+assert.ok(workHTML.indexOf(claim.note)<workHTML.indexOf('<details>'));
+assert.ok(workHTML.indexOf('source/psi')<workHTML.indexOf('<details>'));
+assert.ok(workHTML.includes(claim.owner)&&workHTML.includes(claim.expires_utc));
+assert.ok(workHTML.includes('EXACT-OUTCOME')&&workHTML.includes('ticket1'));
+vm.runInContext("claimFilter='expired';renderClaims()",workContext);
+assert.match(workNodes['claim-list'].innerHTML,/Unresolved/);
+workData.claims.available=false;workData.claims.error='Registry unavailable';vm.runInContext('renderClaims()',workContext);
+assert.equal((workNodes['work-stats'].innerHTML.match(/>—</g)||[]).length,2);
+assert.match(workNodes['claim-list'].innerHTML,/Registry unavailable/);
+console.log('Facts/Work checks passed: visible result counts, source coverage, notes/scope/owner/expiry, exact metadata, lease filters and unknown registry.');
