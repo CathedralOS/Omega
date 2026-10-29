@@ -232,7 +232,11 @@ impl BlockEntry {
                         }
                     }
                 }
-                for &unit in instruction.implicit_defs.iter().chain(&instruction.clobbers) {
+                for &unit in instruction
+                    .implicit_defs
+                    .iter()
+                    .chain(&instruction.clobbers)
+                {
                     if (unit.0 as usize) < 64 {
                         unit_kills_mask |= 1u64 << unit.0;
                     } else if !unit_kills.contains(&unit) {
@@ -390,10 +394,7 @@ impl BlockEntry {
                 }
                 for binding in &successor.structural_bindings {
                     match binding.transport {
-                        super::SelectedStructuralTransport::WholeValue {
-                            argument,
-                            ..
-                        } => {
+                        super::SelectedStructuralTransport::WholeValue { argument, .. } => {
                             set_register_bit(&mut referenced_register_bits, argument);
                         }
                         super::SelectedStructuralTransport::ScalarReference {
@@ -518,9 +519,10 @@ impl BlockEntry {
                                 .events
                                 .push(BlockSlotEvent::Invalidate { slot: target });
                         } else {
-                            slot_summary
-                                .events
-                                .push(BlockSlotEvent::Store { slot: target, index });
+                            slot_summary.events.push(BlockSlotEvent::Store {
+                                slot: target,
+                                index,
+                            });
                         }
                         for operand in &instruction.operands {
                             set_register_bit(
@@ -661,9 +663,7 @@ impl BlockEntry {
                             ..
                         }
                         | super::SelectedStructuralTransport::Address {
-                            base,
-                            destination,
-                            ..
+                            base, destination, ..
                         } => {
                             slot_summary
                                 .events
@@ -695,10 +695,7 @@ impl BlockEntry {
                         if let super::SelectedCasePayloadTransport::Registers { argument, .. } =
                             payload.transport
                         {
-                            set_register_bit(
-                                &mut slot_summary.non_load_register_bits,
-                                argument,
-                            );
+                            set_register_bit(&mut slot_summary.non_load_register_bits, argument);
                         }
                     }
                 }
@@ -911,7 +908,10 @@ impl SelectedBlocks {
     pub fn block_implicit_units_and_fixed_views(
         &self,
         block_index: usize,
-    ) -> Option<(&[register_model::RegisterUnitId], &[register_model::RegisterViewId])> {
+    ) -> Option<(
+        &[register_model::RegisterUnitId],
+        &[register_model::RegisterViewId],
+    )> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.implicit_use_units, &lookup.fixed_views))
     }
@@ -938,7 +938,10 @@ impl SelectedBlocks {
     pub fn block_unit_transfer(
         &self,
         block_index: usize,
-    ) -> Option<(&[register_model::RegisterUnitId], &[register_model::RegisterUnitId])> {
+    ) -> Option<(
+        &[register_model::RegisterUnitId],
+        &[register_model::RegisterUnitId],
+    )> {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.upward_unit_uses, &lookup.unit_kills))
     }
@@ -962,7 +965,11 @@ impl SelectedBlocks {
         Some(self.0.get(block_index)?.slot_summary())
     }
     /// Whether `block_index` references `register` in any instruction, terminator, or edge transport.
-    pub fn block_references_register(&self, block_index: usize, register: VirtualRegisterId) -> bool {
+    pub fn block_references_register(
+        &self,
+        block_index: usize,
+        register: VirtualRegisterId,
+    ) -> bool {
         self.0.get(block_index).is_some_and(|entry| {
             let bits = &entry.lookup().referenced_register_bits;
             let word = (register.0 as usize) >> 6;

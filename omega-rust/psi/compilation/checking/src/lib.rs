@@ -223,10 +223,10 @@ pub use value_custody::places::{
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
     saved_dispatch_subject, structural_atomic_field, structural_scalar_field,
-    structural_scalar_field_at_coordinate,
-    structural_scalar_field_at_element_coordinate, structural_scalar_field_in_parameters,
-    structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
-    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
+    structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source, subslice_expression, value_element_has_builtin_coordinate,
+    value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -401,10 +401,10 @@ pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
-    ScalarArrayElement, ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
-    closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
-    is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
-    scalar_array_preserves_memberships,
+    ScalarArrayElement, ScalarArrayElements, closed_array_store_type,
+    closed_constant_array_elements, closed_literal_array_elements, closed_record_scalar_projection,
+    closed_scalar_place_projection, is_closed_primitive_array_type, peel_arithmetic_policy,
+    scalar_array_elements, scalar_array_preserves_memberships,
 };
 pub use value_custody::logical_matches::{
     LogicalMatchBinding, LogicalRecordCapture, expression_has_closed_value_captures,
