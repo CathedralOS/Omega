@@ -1753,18 +1753,21 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         callback_function: MachineFunctionIdentity::default(),
         relocation: callback_relocation(23),
     });
-    let expected = child_identity(foreign(
-        [9; 32],
-        [11; 32],
-        ObjectSymbolHandle::from_arena_index(3),
-        origin(7),
-        13,
-        4,
-        -4,
-        RelocationKind::X86_64Relative32,
-        callback,
-        [29; 32],
-    ));
+    let with_callback = |callback| {
+        foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin(7),
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            [29; 32],
+        )
+    };
+    let expected = child_identity(with_callback(callback));
 
     for mutation in 0..15 {
         let changed = match mutation {
@@ -1914,44 +1917,16 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
             ),
             // Callback custody: dropped, swapped encoding, a different
             // callback function, or a different callback relocation.
-            11 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                None,
-                [29; 32],
-            ),
-            12 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                Some(NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+            11 => with_callback(None),
+            12 => with_callback(Some(
+                NormalizedForeignCallbackRelocations::Aarch64PageAddress {
                     callback_function: MachineFunctionIdentity::default(),
                     page: callback_relocation(23),
                     page_offset: callback_relocation(23),
-                }),
-                [29; 32],
-            ),
-            13 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                },
+            )),
+            13 => with_callback(Some(
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
                     callback_function: MachineFunctionIdentity::callback_thunk(
                         terminal_psi::TerminalPsiIdentity {
                             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
@@ -1963,24 +1938,14 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                     )
                     .unwrap(),
                     relocation: callback_relocation(23),
-                }),
-                [29; 32],
-            ),
-            _ => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                },
+            )),
+            _ => with_callback(Some(
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
                     callback_function: MachineFunctionIdentity::default(),
                     relocation: callback_relocation(24),
-                }),
-                [29; 32],
-            ),
+                },
+            )),
         };
         let changed = child_identity(changed);
         assert_ne!(changed, expected, "relocation custody mutation {mutation}");
