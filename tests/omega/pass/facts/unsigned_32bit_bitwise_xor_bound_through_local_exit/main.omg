@@ -7,7 +7,12 @@ machine verify_xored(v: u32) -> i32
     let headroom: u32 = 63u32 - v;
     let margin: u32 = v - 40u32;
     let sum: i32 = (headroom + margin) as i32;
-    sum - 23i32
+    let checked: i32 = sum - 23i32;
+    // Observe the transported value after the original bound-dependent operations.
+    transition v == 52u32 {
+        true -> checked
+        false -> 1i32
+    }
 }
 
 machine probe(raw: u32) -> i32

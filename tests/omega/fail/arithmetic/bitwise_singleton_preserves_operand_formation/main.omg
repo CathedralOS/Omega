@@ -1,0 +1,7 @@
+machine probe(value: u32)
+    requires value >= 0u32 && value <= 0u32
+{
+    // A known outer result does not form the two partial operands.
+    let invalid: u32 = (1u32 / value) ^ (1u32 / value);
+}
+machine main() { probe(0u32); }
