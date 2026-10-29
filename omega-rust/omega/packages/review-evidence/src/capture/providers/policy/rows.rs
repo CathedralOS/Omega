@@ -17,6 +17,7 @@ pub(super) fn project(
     target: TargetProfile,
     retained: &SelectedProviderReviewProvenance,
     toolchain_settled: bool,
+    selected_instances: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<PackagePolicyProviderRow>, Vec<Diagnostic>> {
     let plan = &retained.plan;
     plan.rows
@@ -84,7 +85,7 @@ pub(super) fn project(
             // installation-relative reach. Retain its independent requirement
             // judgment; do not borrow the Build producer's effects.
             let installation_reach = match realization_symbol {
-                Some(realization) => project_selected_installation_reach(compilation, plan, declaring_schema,
+                Some(realization) => project_selected_installation_reach(compilation, selected_instances, plan, declaring_schema,
                     requirement_symbol, realization, &requirement)?,
                 None if origin.native().is_some() => {
                     let (_, signature) = compilation.typed.trait_machine_signature(requirement_symbol)

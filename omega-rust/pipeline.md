@@ -322,6 +322,16 @@ Preparation retains a refusal as data until the native handoff demands it, so a
 checking-only stop does not acquire native-only obligations. Physical family
 membership and receiving admission still belong to the Terminal consumer.
 
+Ordinary provider binding retains closed intrinsic/syscall applications, but
+does not replay checked-adapter instances. Native realization and unoptimized
+behavior-exclusion admission join those instances from Terminal's canonical
+provider associations and exact prepared declarations. Check/inspection stops,
+nominal callback preparation, checked-reference interpretation and package
+review request their checked-source projection explicitly. Review derives it
+from original compiler custody, never from the supplied semantic candidate.
+The selected plans, Import application custody and exact owner identities stay
+unchanged; each completed instance roster recomputes its aggregate commitment.
+
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider
 binding retains that projection before selection. Package review prepares its

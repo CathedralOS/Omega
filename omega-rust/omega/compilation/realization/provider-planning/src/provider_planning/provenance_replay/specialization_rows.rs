@@ -19,6 +19,62 @@ use crate::provider_planning::ProviderBinding;
 
 mod trait_requirements;
 
+/// Physical leaves have no checked body instance. Keep their closed application
+/// coordinates in selection; native checked adapters instead join Terminal's
+/// canonical provider associations at realization.
+pub(crate) fn derive_leaf_requirement_specializations(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<
+    (
+        Vec<effects::SelectedRequirementSpecialization>,
+        terminal_psi::TerminalIdentityTable,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
+    let mut rows = Vec::new();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let mut diagnostics = Vec::new();
+    for plan in selected.plans() {
+        for row in &plan.rows {
+            if matches!(
+                row.binding,
+                ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. }
+            ) {
+                trait_requirements::append_leaf_rows(
+                    typed,
+                    plan,
+                    row,
+                    &mut rows,
+                    &mut identities,
+                    &mut diagnostics,
+                );
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok((rows, identities.build()))
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Source-only consumers request this projection at their boundary. Ordinary
+/// native production must not reconstruct checked instances just to discard
+/// them when it joins the canonical Terminal provider roster.
+pub fn project_checked_provider_instances(
+    typed: &checked_trees::typed_trees::TypedTrees,
+    check_facts: &checked_trees::CheckFacts,
+    selected: &effects::SelectedProviderPlanFacts,
+) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
+    let (rows, identities) =
+        derive_selected_requirement_specializations(typed, check_facts, selected)?;
+    selected
+        .clone()
+        .with_specialized_requirement_rows(rows, &identities)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+}
+
 pub(crate) fn derive_selected_requirement_specializations(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
