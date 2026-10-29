@@ -186,3 +186,5 @@ Follow-up: [borrowed fact handles](borrowed_handles/README.md) defers ownership 
 Follow-up: [remaining scans and joins](scans_joins/README.md) attributes retirement, intersections, publication and repeated shared-fact searches with exact visit counts and explicit profiler limits. No compiler change is retained.
 
 Follow-up: [shared predicate membership hoist](shared_membership/README.md) removes 93.4% of shared comparisons and preserves exact payload maps, but six paired whole-compile observations remain mixed. The compiler change is parked.
+
+Follow-up: [snapshot intersection fusion](snapshot_fusion/README.md) removes 14.76% of membership-row visits while preserving exact intersections and COW counts. Six paired observations reject promotion: replay is slower in 5/6 and whole compile in 4/6. The candidate is preserved as a patch.
