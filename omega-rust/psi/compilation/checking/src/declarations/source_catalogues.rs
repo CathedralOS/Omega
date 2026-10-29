@@ -31,6 +31,14 @@ pub fn prepare_source_catalogues(
     typed: &mut TypedTrees,
     admission: &SourceCatalogueAdmission<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let trace = std::env::var_os("OMEGA_SOURCE_CATALOGUE_TRACE").is_some();
+    if trace {
+        eprintln!(
+            "SOURCE_CATALOGUES discover={:?} accepted={}",
+            admission.discover_package,
+            admission.bindings.len()
+        );
+    }
     // No restored or sibling source checkpoint can donate a prior role.
     typed.boundary_catalogue_declarations.clear();
     for (ordinal, binding) in admission.bindings.iter().enumerate() {
@@ -55,6 +63,22 @@ pub fn prepare_source_catalogues(
         let Some(source) = typed.symbols.source_file(span) else {
             continue;
         };
+        if trace
+            && matches!(
+                machine.name.as_str(),
+                "console_read_byte"
+                    | "console_write_byte"
+                    | "console_exit_process"
+                    | "process_exit"
+                    | "uefi_transfer_to_entry"
+                    | "uefi_firmware_return"
+            )
+        {
+            eprintln!(
+                "SOURCE_CATALOGUES source={} package={:?} purpose={:?}",
+                machine.name, source.package_identity, source.dependency_scope
+            );
+        }
         if source.dependency_scope != source::DependencyScope::Product {
             continue;
         }
@@ -86,6 +110,15 @@ pub fn prepare_source_catalogues(
         let Some((role, owner, requirement)) = candidate else {
             continue;
         };
+        if trace {
+            eprintln!(
+                "SOURCE_CATALOGUES candidate={} package={:?} role={:?} owner={}",
+                machine.name,
+                package,
+                role,
+                typed.symbols.display_path(owner, "::")
+            );
+        }
         let (issuer, accepted_schema) = if admission.discover_package == Some(package) {
             (BoundaryCatalogueIssuer::Proposed, [0; 32])
         } else {
@@ -95,6 +128,9 @@ pub fn prepare_source_catalogues(
                     && typed.symbols.display_path(owner, "::") == binding.declaration_path
             });
             let Some(binding) = bindings.next() else {
+                if trace {
+                    eprintln!("SOURCE_CATALOGUES no accepted role for {}", machine.name);
+                }
                 continue;
             };
             if bindings.next().is_some() {
@@ -114,6 +150,12 @@ pub fn prepare_source_catalogues(
     }
     for row in rows {
         let _ = typed.boundary_catalogue_declarations.append(row);
+    }
+    if trace {
+        eprintln!(
+            "SOURCE_CATALOGUES retained={}",
+            typed.boundary_catalogue_declarations.len()
+        );
     }
     Ok(())
 }
