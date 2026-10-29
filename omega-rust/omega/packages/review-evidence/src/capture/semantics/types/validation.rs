@@ -272,6 +272,11 @@ fn validate_package_index_expression(
     builtin_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::expression::ExpressionNode;
+    macro_rules! index_expr {
+        ($value:expr => $exposure:expr) => {
+            validate_package_index_expression(compilation, program, $value, binders, $exposure)
+        };
+    }
 
     // Declaration selection alone does not freeze arithmetic or call arguments.
     // Retained array recipes must preserve their exact original node and edges;
@@ -313,13 +318,7 @@ fn validate_package_index_expression(
             }
         }
         ExpressionNode::Integer(_) => Ok(()),
-        ExpressionNode::Unary(unary) => validate_package_index_expression(
-            compilation,
-            program,
-            unary.operand,
-            binders,
-            builtin_exposure,
-        ),
+        ExpressionNode::Unary(unary) => index_expr!(unary.operand => builtin_exposure),
         ExpressionNode::Binary(binary) => {
             if let Some(selection) = program.expression_table.open_index_operation(expression) {
                 if !selection.operator.is_valid()
@@ -354,20 +353,8 @@ fn validate_package_index_expression(
                 // Builtin selection licenses this exact operation only. No
                 // conformance laws or algebraic rewriting are manufactured.
             }
-            validate_package_index_expression(
-                compilation,
-                program,
-                binary.left,
-                binders,
-                builtin_exposure,
-            )?;
-            validate_package_index_expression(
-                compilation,
-                program,
-                binary.right,
-                binders,
-                builtin_exposure,
-            )
+            index_expr!(binary.left => builtin_exposure)?;
+            index_expr!(binary.right => builtin_exposure)
         }
         ExpressionNode::Call(call) if builtin_exposure.is_some() => {
             use language_semantics::declaration_selection::{
@@ -416,13 +403,7 @@ fn validate_package_index_expression(
                 )]);
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
-                validate_package_index_expression(
-                    compilation,
-                    program,
-                    *argument,
-                    binders,
-                    builtin_exposure,
-                )?;
+                index_expr!(*argument => builtin_exposure)?;
             }
             Ok(())
         }
@@ -448,13 +429,7 @@ fn validate_package_index_expression(
                 false,
                 builtin_exposure,
             )?;
-            validate_package_index_expression(
-                compilation,
-                program,
-                cast.value,
-                binders,
-                builtin_exposure,
-            )
+            index_expr!(cast.value => builtin_exposure)
         }
         ExpressionNode::SavedSubject(_)
         | ExpressionNode::Match(_)
