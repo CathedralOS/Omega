@@ -3,8 +3,9 @@
 This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
 identity; Omega does not own this source tree. The parser/typing inventory below
-describes current implementation, including retired target prefixes and `via`
-binding clauses. Those are migration debt, not accepted alternative syntax.
+describes current implementation, including retired `via` binding clauses.
+Those clauses are migration debt, not accepted alternative syntax. Target
+prefixes reject, and machine syntax carries no target selector or body family.
 Package-local `Build::bind<Requirement>(builder, target, locator)` replaces the
 per-symbol native forwarding declaration, with locator lengths inferred;
 `BUILD-OWNED-NATIVE-BINDINGS` and `BUILD-OWNED-TARGET-SELECTION` in
@@ -19,10 +20,9 @@ members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `case [#N] Name;` or structured
 `case [#N] Name([#N] field: Type, ...);` members that may carry their own
 `where` facts (`#N` is a stable schema identity), and
-`[pub] [target] [boundary] machine [token] [Owner::]name [<generic
+`[pub] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
-declarations, where a target name before `machine` scopes one body of a
-family keyed by target, `boundary` marks a crossing, and a fixed operator
+declarations, where `boundary` marks a crossing, and a fixed operator
 token from the closed vocabulary `+ - * / % == != < <= > >= [] [..]` binds
 operator syntax to the declaration (a conformance member binds none). Each
 `where machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
@@ -110,16 +110,15 @@ and a named mathematical definition `[pub] let Name [<generic parameters>]
 Type;` without a term ([`parse/definition.omg`](parse/definition.omg)).
 Generic parameter lists also take `proposition Name` binders, whose
 signatures come from `where proposition` contracts, and conformance evidence
-binders `Name satisfies Trait<arguments>`. The current parser's legacy name-led
-target prefix path recognizes a machine when `machine` or `boundary` follows
-the name and a conformance when `satisfies` or `<` does; after a bodyless
-declaration's `;`, `Name<...> satisfies` likewise begins a conformance. Trait and conformance
+binders `Name satisfies Trait<arguments>`. A name-led root begins a
+conformance when `satisfies` or `<` follows; after a bodyless declaration's
+`;`, `Name<...> satisfies` likewise begins a conformance. A name followed by
+`machine` or `boundary` rejects the retired target prefix at that name. Trait and conformance
 members are machine rows marked with their container, held as one contiguous
 range per declaration; a trait member without a body is a requirement, and a
-conformance member must have one. Target-prefixed machines are retired language
-syntax; `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route)
-tracks removing that parser path and using ordinary implementations selected by
-target-keyed Build rows. `::` name paths (domain routes and
+conformance member must have one. Ordinary implementations are selected by
+target-keyed Build rows under `BUILD-OWNED-TARGET-SELECTION` in
+[the task board](../../TASKS.md#pipeline-route). `::` name paths (domain routes and
 constituents, both sides of a reference row) share one table
 ([`parse/path.omg`](parse/path.omg)). The retired `boundary requirement` and
 `operator` introducers reject at their word: a boundary operation is a
@@ -238,10 +237,9 @@ it rejects duplicate parameter names within a signature, duplicate state names
 within a machine, and a machine that repeats an earlier one of its module's
 path (owner and name, a member's owner being its container), generic parameter
 kinds and parameter types, compared run by run with generic parameters by
-position (machines may otherwise overload). Legacy target-prefixed bodies still
-form one family under one path in this implementation, while a second body for
-one target or an untargeted body beside them repeats it; that grouping is removal
-work, not the accepted declaration model. A bodyless machine binds only its
+position (machines may otherwise overload). Distinct implementations retain
+distinct conformance owners; no target-specific duplicate exception exists.
+A bodyless machine binds only its
 signature; whether it has a supply is checking's question. The binding tables
 are indexed by the syntax table's type-reference handles. Name paths bind
 next: a reference row's left side to a trait requirement (`NotARequirement`
@@ -381,7 +379,7 @@ implementation in a type or const slot, or the wrong number of arguments
 rejects. A type-only trait does not take this check. A call
 selects among the callee's family by machine path; a trait requirement (which
 runs only through a selected conformance), a generic conformance's member, a
-legacy target-family body, a conformance named as
+conformance named as
 a call's static argument and a case domain qualifier reject as unsupported. A
 declared domain qualifies its carrier (through a reference, `&[u8] in
 Path` qualifies the slice): a value of the carrier meets a qualified

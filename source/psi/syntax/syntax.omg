@@ -483,9 +483,8 @@ public data OperatorToken [copy] {
 // statements precede them in the body. A bodyless declaration ends at `;`
 // and owns no statements or states. Every expression of the declaration,
 // in its clauses and its bodies, lies in the contiguous range from
-// `first_expression`. A target-scoped declaration (`linux_arm64 machine
-// ...`) names its target, one body of the family the path keys by target;
-// `boundary machine` marks a crossing.
+// `first_expression`. `boundary machine` marks a crossing. Target selection
+// belongs to evaluated Build rows, never to a machine declaration.
 public data MachineItem [copy] {
     has_owner: bool;
     owner: IdentifierSpan;
@@ -505,8 +504,6 @@ public data MachineItem [copy] {
     has_body: bool;
     first_expression: u64 in Trapping;
     expression_count: u64 in Trapping;
-    has_target: bool;
-    target: IdentifierSpan;
     is_boundary: bool;
     container: MachineContainer;
     is_public: bool;
@@ -829,7 +826,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedBoundaryDeclaration;
     case RetiredBoundaryRequirement;
     case RetiredOperatorDeclaration;
-    case ExpectedTargetScopedMachine;
+    case RetiredTargetPrefix;
     case ExpectedBoundaryDataEnd;
     case ExpectedTraitName;
     case ExpectedTraitParent;

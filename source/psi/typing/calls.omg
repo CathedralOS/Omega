@@ -21,10 +21,9 @@ use psi::typing::typer;
 // shared-reference parameter may lend its argument implicitly; every other
 // loan is explicit. A trait requirement or default runs only through a
 // selected conformance, a member of a generic conformance needs that
-// conformance's arguments, and a target-scoped family's body is chosen by
-// realization: each rejects as unsupported here. A proposition application
-// selects nothing: it is a Boolean statement whose arguments meet the
-// proposition's parameters.
+// conformance's arguments: each rejects as unsupported here. A proposition
+// application selects nothing: it is a Boolean statement whose arguments meet
+// the proposition's parameters.
 // The explicit static arguments of a call `path<arguments>(...)`: a run of
 // `SyntaxTrees::type_arguments`. A plain call has none.
 public data StaticArguments [copy] {
@@ -391,16 +390,14 @@ crashes Trap
 
 // Whether a call of machine `handle` needs what typing does not supply: its
 // container's generic arguments (a generic conformance's member), a selected
-// conformance (a trait requirement or default), or a realization's choice
-// among target-scoped bodies.
+// conformance (a trait requirement or default).
 machine Typer::unsupplied_callee(syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
     let owner: MachineOwner = NameResolution::machine_owner(resolution, handle);
     let container: TypeScope = Resolver::container_scope(syntax, owner);
     container.generic_parameter_count > 0 || owner.container == MachineContainer::Trait
-        || owner.container == MachineContainer::Refinement || item.has_target
+        || owner.container == MachineContainer::Refinement
 }
 
 // Bind a signature's generic parameters `first..first + count`, lifetimes

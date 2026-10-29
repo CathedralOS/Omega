@@ -1818,32 +1818,31 @@ def main() -> None:
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u32"), builtin("u64")),
     )
 
-    # Target-scoped machines: bodies for distinct targets form one family
-    # under one path; a second body for one target, or an untargeted body
-    # beside them, repeats the family's declaration.
+    # Distinct ordinary implementations own distinct members of the same
+    # requirement. Equal signatures under one owner still duplicate.
     accepted(
         program,
-        "target-scoped-family",
-        b"linux_arm64 machine Clock::now() -> u64 { 1 }\nmacos_arm64 machine Clock::now() -> u64 { 2 }\n"
-        b"machine read() -> u64 { Clock::now() }\nboundary machine entry(code: u8);",
-        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u8")),
-        (NOT_A_NAME, NOT_A_NAME, machine(0), NOT_A_NAME),
+        "ordinary-implementation-members",
+        b"trait Clock { machine now() -> u64; }\n"
+        b"LinuxClock satisfies Clock { machine now() -> u64 { 1 } }\n"
+        b"MacosClock satisfies Clock { machine now() -> u64 { 2 } }\n"
+        b"machine read() -> u64 { LinuxClock::now() }",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (NOT_A_NAME, NOT_A_NAME, machine(1), NOT_A_NAME),
     )
     rejected(
         program,
-        "second-body-for-one-target",
-        b"linux_arm64 machine Clock::now() -> u64 { 1 }\nlinux_arm64 machine Clock::now() -> u64 { 2 }",
+        "second-body-for-one-owner",
+        b"machine Clock::now() -> u64 { 1 }\nmachine Clock::now() -> u64 { 2 }",
         DUPLICATE_MACHINE,
         b"now",
         2,
     )
-    rejected(
+    phase_rejected(
         program,
-        "untargeted-body-beside-a-family",
-        b"machine Clock::now() -> u64 { 1 }\nlinux_arm64 machine Clock::now() -> u64 { 2 }",
-        DUPLICATE_MACHINE,
-        b"now",
-        2,
+        "target-prefix-rejects-before-resolution",
+        b"linux_arm64 machine Clock::now() -> u64 { 1 }",
+        250,
     )
 
     # Domains: an `in Name` qualifier selects the visible domain of that name

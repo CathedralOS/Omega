@@ -399,7 +399,7 @@ crashes Trap
 
 // Whether the current token begins a declaration rather than an expression:
 // a declaration keyword (`use`, `data`, `machine`, `public`), two adjacent
-// names (`boundary trait`, `linux_arm64 machine`, `const N`), a domain
+// names (`boundary trait`, `const N`), a domain
 // family's `domain<` or a bracketed carrier's `domain [u8]::Path`, or a
 // generic conformance `Name<...> satisfies`. No expression begins with two
 // names except a cast `x as T`, a membership `x in D` and an acknowledged

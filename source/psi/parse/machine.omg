@@ -8,21 +8,17 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // What precedes a machine declaration's `machine` keyword: where the
-// declaration starts, `public`, a target name (`linux_arm64 machine ...`),
-// `boundary`, and whether it stands at the root or inside a trait or a
-// conformance.
+// declaration starts, `public`, `boundary`, and whether it stands at the root
+// or inside a trait or a conformance.
 public data MachineHead [copy] {
     start: u64 in Trapping;
     is_public: bool;
-    has_target: bool;
-    target_start: u64 in Trapping;
-    target_end: u64 in Trapping;
     is_boundary: bool;
     container: MachineContainer;
 }
 
 // Machine-declaration grammar attached to the parser owner:
-// `[public] [target] [boundary] machine [token] [Owner::]name [<generic
+// `[public] [boundary] machine [token] [Owner::]name [<generic
 // parameters>] [(parameters)] [-> Type] contracts clauses ({ statements
 // state* } | ;)`, entered at the `machine` keyword with its head. A fixed
 // operator token (`+`, `==`, `[]`, `[..]`, ...) binds operator syntax to the
@@ -40,9 +36,6 @@ crashes Trap
 {
     parser.machine_start = head.start;
     parser.machine_is_public = head.is_public;
-    parser.machine_has_target = head.has_target;
-    parser.machine_target_start = head.target_start;
-    parser.machine_target_end = head.target_end;
     parser.machine_is_boundary = head.is_boundary;
     parser.machine_container = head.container;
     transition parser.output.machine_count < 2048 {
@@ -394,8 +387,6 @@ crashes Trap
             has_body: has_body,
             first_expression: parser.machine_first_expression,
             expression_count: (parser.output.expression_count as u64 in Trapping) - parser.machine_first_expression,
-            has_target: parser.machine_has_target,
-            target: Parser::identifier_span(parser, parser.machine_target_start, parser.machine_target_end),
             is_boundary: parser.machine_is_boundary,
             container: parser.machine_container,
             is_public: parser.machine_is_public,

@@ -1482,9 +1482,8 @@ def main() -> None:
 
     # A conformance member of a non-generic conformance is an ordinary
     # machine; a trait requirement needs a selected conformance, a generic
-    # conformance's member its arguments, a target-scoped family a
-    # realization, and a declared domain's theory checking: each rejects as
-    # unsupported rather than typing partially.
+    # conformance's member its arguments, and a declared domain's theory
+    # checking: each rejects as unsupported rather than typing partially.
     accepted(
         program,
         "conformance-member-call",
@@ -1509,13 +1508,12 @@ def main() -> None:
         "UnsupportedExpression",
         b"Same::wrap(7)",
     )
-    rejected(
+    phase_rejected(
         program,
-        "target-scoped-family-call",
-        b"linux_arm64 machine Clock::now() -> u64 { 1 }\nmacos_arm64 machine Clock::now() -> u64 { 2 }\n"
+        "target-prefix-rejects-before-typing",
+        b"linux_arm64 machine Clock::now() -> u64 { 1 }\n"
         b"machine read() -> u64 { Clock::now() }",
-        "UnsupportedExpression",
-        b"Clock::now()!3",
+        250,
     )
     accepted(
         program,
