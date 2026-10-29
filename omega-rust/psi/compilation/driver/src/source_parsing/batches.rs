@@ -23,10 +23,8 @@ pub(super) fn parse(
     let desired_pages = if independent_units {
         count.max(1)
     } else {
-        let parse_worker_count =
-            tokens_to_syntax_trees::parser::with_parse_workers(rayon::current_num_threads);
         count
-            .min(parse_worker_count.max(1).saturating_mul(4))
+            .min(rayon::current_num_threads().max(1).saturating_mul(4))
             .max(1)
     };
     let chunk_size = count.max(1).div_ceil(desired_pages);

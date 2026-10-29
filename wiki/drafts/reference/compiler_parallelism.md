@@ -343,3 +343,7 @@ The [worker-count measurement](../measurements/compiler_parallelism_2026_10_28/R
 separates retained-graph and empty-private-cache compiles. It verifies actual
 thread creation before interpreting scaling, retains source/producer identities
 and all observations, and records why no default change is established.
+
+The [parser-pool experiment](../measurements/parser_pool_2026_10_28/README.md)
+then avoided the extra global pool. It reduced observed threads without a
+reliable time or memory benefit, so the candidate was rejected and reverted.

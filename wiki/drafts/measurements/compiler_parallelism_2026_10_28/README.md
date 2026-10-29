@@ -219,3 +219,7 @@ engine outcomes, negative diagnostics and native bytes. Retain a change only
 when its benefit is measured; do not promise an absolute maximum or replace the
 default from this noisy curve. Batch throughput remains a separate unmeasured
 question.
+
+The proposed parser-pool change was subsequently
+[tested and rejected](../parser_pool_2026_10_28/README.md): fewer threads did not
+establish a reliable latency or committed-memory improvement.
