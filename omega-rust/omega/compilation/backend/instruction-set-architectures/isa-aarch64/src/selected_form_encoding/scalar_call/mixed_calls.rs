@@ -7,6 +7,12 @@ use super::{
 use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
 use register_model::validate_physical_register_model;
 
+macro_rules! a {
+    ($cond:expr => $msg:expr) => {
+        assert!($cond, $msg);
+    };
+}
+
 #[test]
 fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
@@ -74,32 +80,20 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
             );
             let mut changed = operands.clone();
             changed[arity] = physical.model().view_named("d0").unwrap().id;
-            assert!(
-                encode(&changed, &effects).is_err(),
-                "result bank substitution"
-            );
+            a!(encode(&changed, &effects).is_err() => "result bank substitution");
             let mut changed = operands.clone();
             changed[general_count] = physical.model().view_named("x2").unwrap().id;
-            assert!(
-                encode(&changed, &effects).is_err(),
-                "IEEE input bank substitution"
-            );
+            a!(encode(&changed, &effects).is_err() => "IEEE input bank substitution");
             assert!(
                 encode(&operands[..operands.len() - 1], &effects).is_err(),
                 "missing result definition"
             );
             let mut changed = effects.clone();
             changed.external_operand_writes.clear();
-            assert!(
-                encode(&operands, &changed).is_err(),
-                "missing result effect"
-            );
+            a!(encode(&operands, &changed).is_err() => "missing result effect");
             let mut changed = effects.clone();
             changed.implicit_unit_clobbers = unit.clobbers.clone();
-            assert!(
-                encode(&operands, &changed).is_err(),
-                "result cannot remain an unknown clobber"
-            );
+            a!(encode(&operands, &changed).is_err() => "result cannot remain an unknown clobber");
             let mut changed = effects.clone();
             changed.implicit_unit_clobbers.retain(|unit| {
                 !physical
@@ -109,10 +103,7 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
                     .write_units
                     .contains(unit)
             });
-            assert!(
-                encode(&operands, &changed).is_err(),
-                "other caller clobbers remain required"
-            );
+            a!(encode(&operands, &changed).is_err() => "other caller clobbers remain required");
         }
     }
 }
@@ -169,16 +160,10 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
             );
             let mut wrong = operands.clone();
             wrong.push(operands[0]);
-            assert!(
-                encode(&wrong, &effects).is_err(),
-                "duplicate operand rejects"
-            );
+            a!(encode(&wrong, &effects).is_err() => "duplicate operand rejects");
             let mut wrong = operands.clone();
             wrong[0] = physical.model().view_named("sp").unwrap().id;
-            assert!(
-                encode(&wrong, &effects).is_err(),
-                "substituted operand rejects"
-            );
+            a!(encode(&wrong, &effects).is_err() => "substituted operand rejects");
             assert!(
                 encode(&operands[..operands.len() - 1], &effects).is_err(),
                 "missing operand rejects"
@@ -186,23 +171,14 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
             if operands.len() > 1 {
                 let mut wrong = operands.clone();
                 wrong.swap(0, operands.len() - 1);
-                assert!(
-                    encode(&wrong, &effects).is_err(),
-                    "reordered banks or slots reject"
-                );
+                a!(encode(&wrong, &effects).is_err() => "reordered banks or slots reject");
             }
             let mut wrong = effects.clone();
             wrong.implicit_unit_clobbers.clear();
-            assert!(
-                encode(&operands, &wrong).is_err(),
-                "missing caller clobbers reject"
-            );
+            a!(encode(&operands, &wrong).is_err() => "missing caller clobbers reject");
             let mut wrong = effects.clone();
             wrong.external_operand_writes.push(0);
-            assert!(
-                encode(&operands, &wrong).is_err(),
-                "Unit call cannot define a result"
-            );
+            a!(encode(&operands, &wrong).is_err() => "Unit call cannot define a result");
         }
     }
 }
