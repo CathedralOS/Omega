@@ -731,7 +731,16 @@ impl Implication<'_> {
             .program
             .machine_states(&self.program.machines()[destination.0])[destination.1];
         let parameters = self.program.state_parameters(state);
-        if !admitted_activation_parameters(self.program, parameters, arguments.len()) {
+        // These are already captured runtime actuals, including readable
+        // exclusive references. Predicate induction's fresh-formal admission
+        // deliberately accepts shared references only; it is not this binder.
+        // declared_value below checks each supported readable carrier without
+        // inventing a new collection identity or granting write authority.
+        if parameters.len() != arguments.len()
+            || parameters.iter().any(|parameter| {
+                parameter.is_mutable || parameter.is_const || parameter.relevance.is_erased()
+            })
+        {
             return None;
         }
         self.arguments(frame, path, arguments, 0)?
