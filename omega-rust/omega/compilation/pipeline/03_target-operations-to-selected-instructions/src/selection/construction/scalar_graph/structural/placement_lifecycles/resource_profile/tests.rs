@@ -111,7 +111,7 @@ impl Types {
     ) -> StructuralTypeId {
         let array = self.add(StructuralTypeShape::FixedArray {
             element,
-            length: capacity,
+            length: terminal_psi::ArrayExtent::Literal(capacity),
         });
         self.record(&[array, count])
     }

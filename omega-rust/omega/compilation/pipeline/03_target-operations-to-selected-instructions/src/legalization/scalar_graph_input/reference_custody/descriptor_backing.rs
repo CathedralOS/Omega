@@ -27,7 +27,7 @@ pub(super) enum Backing {
 type Observation = (OperationId, PlaceId, Vec<StructuralPathSegment>);
 #[derive(Default)]
 pub(super) struct Observations {
-    pub(super) borrowed_live: Option<BTreeMap<DescriptorPosition, BTreeSet<PlaceId>>>,
+    pub(super) borrowed_live: Option<BTreeMap<BlockId, BTreeSet<PlaceId>>>,
     pub(super) flow:
         BTreeMap<DescriptorPosition, terminal_semantics::descriptor_results::FlowFeasibility>,
     pub(super) edges: BTreeMap<
@@ -108,7 +108,7 @@ pub(super) fn prepare(
         return Ok(observations);
     };
     let current = descriptor_machine(&graph, function.machine).ok_or_else(|| invalid())?;
-    observations.borrowed_live = borrowed_arrivals::live_coordinates(&current.flow);
+    observations.borrowed_live = borrowed_arrivals::live_coordinates(function);
     // Record actual case queries at every program point, including empty
     // forwarding blocks where an inactive payload is never read. The roster
     // comes from evaluated case conditions, not guessed descriptor absence.

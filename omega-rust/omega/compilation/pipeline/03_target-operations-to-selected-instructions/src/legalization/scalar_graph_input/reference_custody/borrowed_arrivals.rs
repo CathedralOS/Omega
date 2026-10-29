@@ -355,7 +355,7 @@ mod tests {
         let live = PlaceId::new(4).unwrap();
         let parent = occurrence(5);
         let mut observations = descriptor_backing::Observations::default();
-        observations.borrowed_live = Some(BTreeMap::from([((target, 0), BTreeSet::from([live]))]));
+        observations.borrowed_live = Some(BTreeMap::from([(target, BTreeSet::from([live]))]));
         let mut custody = Custody {
             descriptor_backing: std::sync::Arc::new(observations),
             borrowed_sources: std::sync::Arc::new(BTreeMap::from([

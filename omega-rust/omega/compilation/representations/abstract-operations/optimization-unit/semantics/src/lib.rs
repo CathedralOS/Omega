@@ -47,6 +47,15 @@ pub use unit_validation::structural_catalog::{
     structural_storage_projection,
 };
 
+/// Every structural place consumed by an operation, including its ordered
+/// cleanup operands. Current-graph analyses share the exhaustive inventory;
+/// this query establishes no availability, custody, or permission.
+pub fn operation_place_inputs(
+    operation: &abstract_operations::AbstractOperation,
+) -> Vec<semantic_vocabulary::PlaceId> {
+    unit_validation::function_structure::operation_place_inputs(operation)
+}
+
 /// Current declaration and producer authority for one structural place.
 /// Availability, the selected projection and use-site loan compatibility are
 /// separate judgments; this query does not bypass their receiving validators.
