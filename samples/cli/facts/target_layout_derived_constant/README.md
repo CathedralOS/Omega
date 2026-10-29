@@ -77,8 +77,9 @@ The specification and consuming layers are covered as follows:
 - **Soundness boundaries:** an overflowing intermediate rejects even when later
   subtraction would cancel it. An unused carrier mismatch rejects. A skipped
   pure crashing call remains unexecuted; its demanded twin rejects for the
-  unhandled Trap route. Qualified destinations refuse their unsupported late
-  admission path. A cyclic target-constant graph rejects without provisional
+  unhandled Trap route. The former interval-qualified destination control now
+  calls `bounded_layout` with the derived value and rejects its actual `value <= 3`
+  obligation; the equivalent valid bound is 9. A cyclic target-constant graph rejects without provisional
   values. Same-product native `code_layout` remains forbidden. Existing
   declared-operator and unselected-provider controls remain rejecting.
 - **Psi 05–07:** the same authored programs reach canonical Terminal Psi and

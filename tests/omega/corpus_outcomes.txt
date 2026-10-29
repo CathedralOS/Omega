@@ -20359,8 +20359,6 @@ fail/generics/runtime_value_recipe_forged_descriptor rejected 311ms expected @a9
 	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/generics/runtime_value_recipe_provider_wrong_projection rejected 459ms expected @a9e0628deefe+wt
 	machine `Direct::snapshot` state `snapshot` does not satisfy trait `Counting` machine `snapshot`: expected return `Counted<const source.bytes.len>`, got `Counted<const source.sibling.len>`
-fail/generics/runtime_value_recipe_refined_carrier rejected 278ms expected @a9e0628deefe+wt
-	value parameter `Count` of `Index` requires `u64[1..=4]`, but its expression has a different or unresolved carrier
 fail/generics/runtime_value_recipe_typed_narrow_overflow rejected 264ms expected @a9e0628deefe+wt
 	exact arithmetic in value argument `Count` of `Index` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_unused_overflow rejected 260ms expected @a9e0628deefe+wt

@@ -604,3 +604,40 @@ case. The regression also separates resolved field identities from same-named
 module constants and carries an applied generic command through parameters,
 results and ordinary local storage. Mathematical contract arithmetic never
 saturates to fit the checker's finite interval endpoints.
+
+## Remaining scalar customers after the runtime-index cohort
+
+Audit base: `82512cd792cbdab6abd3da32ba6987362e0b1f50`. Its primitive-scalar
+census found 30 positions in 15 files. This batch accounts for 29 positions;
+`fail/proofs/mathematical_constrained_scalar_formal` remains a suffix customer
+until parser retirement. The count is not the history-derived audit or parent
+acceptance.
+
+| Customer and original declaration | Canonical replacement |
+| --- | --- |
+| `static_callback_reach/field` positive/twin and their exact corpus pins: `Carrier.value: u64[0..=37]` (4 positions) | Bare field; data `requires value >= 0 && value <= 37`. The selected callback must establish the construction bound. Extra reach remains the twin's only difference. |
+| `pass/build/native_component_case_cycle/producer`: `Decision::Ready.index`, `observe.index`, `poll.index`, `step.index`, `waited.index` (5) | Guarded complete-data `requires` for Ready; identical 1..16 machine requirements. |
+| `pass/build/native_component_case_loan_cycle/producer`: `Decision::Ready.index`, `observe.index`, `poll.index`, `forwarded.index/result`, `step.index`, `advance.index`, `waited.index` (8) | Same guarded data and input requirements; `forwarded` publishes 1..16 with `ensures`. Independent component verification, payload loan, pause and 16-iteration oracles remain. |
+| `fail/borrows/returned_reference_exposed_integer_local`: `install_one.value`, `choose.position`, `selected_position` (3) | Bare carriers, `install_one` requires value <= 1, existing `choose` position < 2, and initializer facts. The returned loan must still reject the conflicting write. |
+| `pass/generics/runtime_computed_direct_result_exit`: `create.total`, `probe.total` (2) | Ordinary 0..100 input requirements; retain `Index<(total+1)>` and observed result 4. |
+| `pass/generics/runtime_value_recipe_bounded_declaration`: `Contract::unused.total` (1) | Bare input and complete 0..100 requirement; retain computed result declaration. |
+| `fail/generics/runtime_value_recipe_range_after_write`: `invalid.input` (1) | 0..100 input requirement. Overwriting with the same maximum, now `0xffff_ffff`, must still make exact +1 reject. |
+| `target_layout_derived_constant/controls/qualified` and `fail/constants/target_layout_derived_qualified_reject`: `BAD: u64[0..=3]` (2) | Bare constant through `bounded_layout(value)` requiring value <= 3. The selected geometry still produces 5 or 9 and rejects that actual false bound. A bound of 9 supplies the valid counterpart; no nominal interval domain is introduced. |
+| `fail/generics/runtime_value_recipe_refined_carrier`: `Index.Count` (1) | Retired test. Mentioning unused, unconstructed `Index<0>` has no canonical carrier-mismatch obligation. Keep actual wrong-carrier and establishment controls. |
+| `fail/generics/runtime_value_recipe_range_self_cast`: local and cast target (2) | Retired range-shell test. Keep the intentional named-domain `qualified_unproved`, exact `unused_overflow`, and stale `range_after_write` controls. |
+
+The two retired obligations exist only in the removed scalar suffix surface
+([declaration and membership](../../spec/language/domains.md#declaration-and-membership)).
+Their fixture files and any recorded outcome blocks are removed together;
+existing independent controls retain the surviving obligations. Neither an
+unsupported qualified constant nor an arbitrary nominal interval replaces them.
+
+The canonical component customers expose the same general fact transports:
+formed conjunctions retain their independently justified case guard; closed
+callbacks read their retained invocation contract scope; completed shared
+bindings retain the exact current observation after an earlier write. Later
+writes still retire observations. These are repairs of existing owners, not
+new range-specific inference routes. The existing nine-place
+`case_where_equality/data_predicate` row also carries an equivalent `u64`
+`lo >= 0` conjunct before its equality call, retaining the same equality and
+`hi - lo` operation without creating another row.
