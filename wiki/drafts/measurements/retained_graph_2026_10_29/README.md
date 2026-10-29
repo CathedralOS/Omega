@@ -76,3 +76,88 @@ It reexports the relevant implementation from alloc; this is not evidence for
 the pinned nightly's exact growth policy. The bounded capacity hypothesis
 comes from the local empty-Vec/read-to-end route and is tested empirically.
 Do not infer a speedup or an exact allocation count from that reference.
+
+## Result: retained locally for lower private commit
+
+Candidate `a1a8538f5a2` was freshly built in release opt-level 3 with checksum
+freshness. The comparison baseline is the frozen attribution producer
+`07039e0748e`, so both sides have the same opt-in scopes. The causal change
+is the capacity hint in the existing bounded graph reader; the byte protocol,
+graph lifetime and admission rules are unchanged. No new source change from
+this experiment has been pushed or landed.
+
+Six interleaved pairs per subject/cache regime and four additional ABBA/BAAB
+blocks per warm subject preserve all valid slow runs. The repeatable benefit
+is **15–19% lower peak job private committed memory** when restoring the
+three-root graph. These are Windows `PeakJobMemoryUsed` observations, not RSS,
+physical RAM, stack reservation, allocation counts or aggregate throughput.
+
+| Warm subject | Baseline wall median ms | Candidate wall median ms | Baseline private commit MiB | Candidate private commit MiB | Saved MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| length | 766.9 | 790.4 | 637.8 | 521.7 | 116.2 |
+| dispatch | 795.1 | 770.5 | 638.3 | 519.2 | 119.1 |
+| 32-argument forwarding | 1,119.3 | 1,147.4 | 637.8 | 541.2 | 96.7 |
+
+The 48-run follow-up reproduced the commit savings (116.1, 119.1 and
+96.6 MiB). Its wall medians were 754.7 -> 749.8 ms, 785.6 -> 763.0 ms,
+and 1,138.6 -> 1,150.3 ms respectively. The first comparison and follow-up
+have mixed small timing differences, so **no reliable latency benefit or
+regression is established**. Cold-cache measurements also have mixed signs;
+there is no demonstrated cold memory win. Cold baseline/candidate wall
+medians were 1,793.1/1,832.2 ms, 1,680.2/1,758.6 ms and 3,299.3/3,151.8 ms.
+No cold speedup is claimed.
+
+The reader's opt-in `read` scope surrounds `read_to_end`; the candidate's
+explicit metadata/reservation work precedes that scope. Comparing that scope
+alone would therefore omit candidate work. The decision uses complete process
+wall/CPU/private-commit measurements, not a misleading local read-time ratio.
+
+### Quality
+
+- **18 native/Terminal agreement invocations**, nine source programs through
+  both producers, explicitly returned native exit 0 and interpreter exit 0.
+  **18 invalid twins** still rejected with identical diagnostics.
+- **84 qualification images** (72 measured and 12 warmups), **54 follow-up
+  images** (48 measured and six profiles) and **16 cache-control images**
+  all exited 0. Each timed subject has one identical native hash across
+  baseline and candidate, cache regimes, warmups and follow-up.
+- Four malformed-cache categories were exercised through each producer:
+  truncation, foreign compiler identity, checksum corruption and a file one
+  byte above the allowed record size. **All eight cases refused the record**
+  and compiled the unchanged source to its original native image and exit 0.
+  Metadata did not grant trust or bypass fallback/admission.
+- Scoped release Clippy for `compiler` and `omega-build` completed with
+  inherited warnings. Touched-file formatting, script compilation and diff
+  checks passed. No full-corpus, other-host runtime, resident-memory or
+  maximum-concurrency qualification was run for this candidate.
+
+### Evidence and replay
+
+[profile.py](profile.py) captures attribution. [candidate.py](candidate.py)
+builds the frozen candidate and reuses the prior experiment's nine-program
+qualification runner. [controls.py](controls.py) preserves and mutates only
+task-owned private records, then verifies refusal and fresh source execution.
+The existing `small_followup.py` accepts the comparison directory and explicit
+subjects while retaining its original defaults. Each local chain ran in a
+shared build-slot hold; the attribution chain waited 277 seconds for a slot.
+No other session was interrupted or slot policy bypassed.
+
+[summary.json](summary.json) contains all-run statistics and ranges;
+[evidence.json.gz](evidence.json.gz) contains producer/build receipts, source
+hashes, profiles, observations, diagnostics, controls, lint output and logs.
+[report.py](report.py) regenerates these from ignored
+`build/retained-graph-experiment`. Frozen producers remain in that workbench.
+Scripts resume retained qualification observations; use a fresh experiment
+output directory when collecting a new run, preserving historical results.
+
+[publication.json](publication.json) closes the preceding allocator landing.
+Its exact published smoke was canceled while pending as main advanced; a newer
+main commit containing it (`975705175c7d`) passed
+[Linux post-merge smoke](https://github.com/CathedralOS/Omega/actions/runs/40831730950).
+That is descendant-main runtime evidence, not a relabeling of the original
+Windows benchmark producer or of the canceled run.
+
+This next bounded experiment is complete: retain the small memory reduction,
+without advertising another compiler-speed win. The next measured opportunity
+is graph decoding (about 175–220 ms here), which must preserve complete arena
+and shared-object lineage rather than split coupled records opportunistically.
