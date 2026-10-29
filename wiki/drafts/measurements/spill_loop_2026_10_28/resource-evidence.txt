@@ -1,0 +1,43 @@
+Baseline: stack32, published PE SHA256 55adb749405f33a9dcefcadb5a0c3f165452d1a8f05993f11f30ce8114aeb8b8
+objdump -d build/spill-loop/baseline-profile/build/omega-program.exe
+Large function: 0x288 = 648 bytes reserved
+   14000847c:	48 81 ec 88 02 00 00 	sub    $0x288,%rsp
+   140008483:	48 89 9c 24 58 02 00 	mov    %rbx,0x258(%rsp)
+   14000848a:	00
+   14000848b:	48 89 b4 24 60 02 00 	mov    %rsi,0x260(%rsp)
+   140008492:	00
+   140008493:	48 89 bc 24 68 02 00 	mov    %rdi,0x268(%rsp)
+   14000849a:	00
+   14000849b:	4c 89 a4 24 70 02 00 	mov    %r12,0x270(%rsp)
+   1400084a2:	00
+   1400084a3:	4c 89 ac 24 78 02 00 	mov    %r13,0x278(%rsp)
+   1400084aa:	00
+   1400084ab:	48 89 c9             	mov    %rcx,%rcx
+
+Private-slot ablation: published PE SHA256 d50e22ad84371e6410e33fcc15a0b1f14db1cb0f04dd763f4ebbc7ec8d368cef
+objdump -d build/spill-loop/comparison/01-B/build/omega-program.exe
+Large function: four page decrements plus 0xde8 = 19944 bytes reserved
+   14000848b:	48 81 ec 00 10 00 00 	sub    $0x1000,%rsp
+   140008492:	80 3c 24 00          	cmpb   $0x0,(%rsp)
+   140008496:	48 81 ec 00 10 00 00 	sub    $0x1000,%rsp
+   14000849d:	80 3c 24 00          	cmpb   $0x0,(%rsp)
+   1400084a1:	48 81 ec 00 10 00 00 	sub    $0x1000,%rsp
+   1400084a8:	80 3c 24 00          	cmpb   $0x0,(%rsp)
+   1400084ac:	48 81 ec 00 10 00 00 	sub    $0x1000,%rsp
+   1400084b3:	80 3c 24 00          	cmpb   $0x0,(%rsp)
+   1400084b7:	48 81 ec e8 0d 00 00 	sub    $0xde8,%rsp
+   1400084be:	80 3c 24 00          	cmpb   $0x0,(%rsp)
+   1400084c2:	48 89 9c 24 c0 4d 00 	mov    %rbx,0x4dc0(%rsp)
+   1400084c9:	00
+   1400084ca:	48 89 b4 24 c8 4d 00 	mov    %rsi,0x4dc8(%rsp)
+   1400084d1:	00
+   1400084d2:	48 89 bc 24 d0 4d 00 	mov    %rdi,0x4dd0(%rsp)
+   1400084d9:	00
+   1400084da:	4c 89 a4 24 d8 4d 00 	mov    %r12,0x4dd8(%rsp)
+   1400084e1:	00
+   1400084e2:	4c 89 ac 24 e0 4d 00 	mov    %r13,0x4de0(%rsp)
+   1400084e9:	00
+   1400084ea:	48 89 c9             	mov    %rcx,%rcx
+   1400084ed:	48 8d 84 24 00 01 00 	lea    0x100(%rsp),%rax
+   1400084f4:	00
+   1400084f5:	48 89 88 00 00 00 00 	mov    %rcx,0x0(%rax)

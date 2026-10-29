@@ -1,6 +1,7 @@
 """Check the unchanged stack-call fact row and focused arithmetic controls."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -55,6 +56,9 @@ def main():
                     assert previous["build_sha256"] == benchmark.sha256_file(source.with_name("build.omg"))
                 case_rows.append(previous)
                 continue
+            cache = output / "cache" / variant
+            cache.mkdir(parents=True, exist_ok=True)
+            os.environ["LOCALAPPDATA"] = str(cache)
             # Invalid controls must reach their authored checking refusal;
             # package review cannot succeed for an intentionally invalid root.
             if not invalid and source.with_name("build.omg").is_file():
