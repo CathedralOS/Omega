@@ -118,7 +118,7 @@ boundary trait WindowProcedure: Calling<User32PolicyCalling> {
  invokes ContextApi;
 }
 data ClassLayout { }
-ProcedureSlot satisfies PrivateCallbackSlot<ClassLayout, WindowProcedure::call> { }
+ProcedureSlot satisfies PrivateCallbackSlot<ClassHeader, ClassLayout, WindowProcedure::call> { }
 machine ClassLayout::plan(schema: Schema) -> Plan {
  let mut entries: [FieldEntry; 64];
  entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };

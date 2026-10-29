@@ -21,7 +21,7 @@ pub use typed_trees::constant_recipes;
 pub use typed_trees::control_flow::{machine, state, statement};
 pub use typed_trees::declaration_index;
 pub use typed_trees::declarations::{
-    boundary_completions, calling_vocabulary, constant, data, domain, invocations, measure,
+    boundary_completions, calling_vocabulary, constant, data, domain, invocations, layout_storage, measure,
     numeric_intrinsics, operator, product_operand, trait_definition, visibility, wire,
 };
 pub use typed_trees::evidence::{

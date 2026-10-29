@@ -10,6 +10,7 @@ pub mod domain;
 pub mod hosted_intrinsics;
 pub mod intrinsic_requirements;
 pub mod invocations;
+pub mod layout_storage;
 pub mod measure;
 pub mod numeric_intrinsics;
 pub mod operator;

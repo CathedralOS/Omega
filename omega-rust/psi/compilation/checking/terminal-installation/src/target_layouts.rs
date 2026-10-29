@@ -11,20 +11,19 @@
 //! consumers must resolve those markers before using geometry; ordinary packing
 //! is never a replacement for an unavailable member. Pure logical field values
 //! need no physical geometry, so this is not a blanket interpreter type gate.
-use crate::{AdmittedTargetMachineSelections, TargetMachineSelectionError};
-use semantic_vocabulary::{MachineId, StructuralTypeId};
+use crate::AdmittedTargetMachineSelections;
+use semantic_vocabulary::StructuralTypeId;
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::{
     LayoutApplicationId, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
-    TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity,
+    TerminalIdentityIndex, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutClosure {
     application: LayoutApplicationId,
     record: StructuralTypeId,
-    head: TargetMachineCallable,
-    member: MachineId,
+    policy: TerminalIdentityIndex,
 }
 impl TargetLayoutClosure {
     pub const fn application(&self) -> LayoutApplicationId {
@@ -33,11 +32,8 @@ impl TargetLayoutClosure {
     pub const fn record(&self) -> StructuralTypeId {
         self.record
     }
-    pub const fn head(&self) -> TargetMachineCallable {
-        self.head
-    }
-    pub const fn member(&self) -> MachineId {
-        self.member
+    pub const fn policy(&self) -> TerminalIdentityIndex {
+        self.policy
     }
 }
 
@@ -152,24 +148,12 @@ pub fn admit_target_layouts(
             target: selections.target().to_owned(),
         };
         let stale = || TargetLayoutSelectionError::StaleApplication(application.id);
-        let selected = match selections.member(application.family) {
-            Ok(selected) => selected,
-            // Like callable-family selection, retain unrelated alternatives
-            // without turning every catalog row into an execution demand.
-            Err(TargetMachineSelectionError::MissingMember { .. }) => continue,
-            Err(_) => return Err(missing()),
-        };
         let realization = application
             .realizations
             .binary_search_by(|row| row.target.as_str().cmp(selections.target()))
             .ok()
             .map(|position| &application.realizations[position])
             .ok_or_else(missing)?;
-        if selected.callable() != TargetMachineCallable::Machine(realization.member)
-            || selected.supply() != TargetMachineSupply::CheckedBody
-        {
-            return Err(stale());
-        }
         let mut record = artifact
             .module()
             .structural_type(application.record)
@@ -197,8 +181,7 @@ pub fn admit_target_layouts(
         closures.push(TargetLayoutClosure {
             application: application.id,
             record: application.record,
-            head: application.family,
-            member: realization.member,
+            policy: application.policy_identity,
         });
         records.push(record);
     }

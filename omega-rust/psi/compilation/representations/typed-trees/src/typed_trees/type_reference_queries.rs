@@ -334,6 +334,9 @@ impl TypedTrees {
         if !type_reference.is_valid() {
             return Multiplicity::Affine;
         }
+        if let Some(storage) = self.layout_storage_arguments(type_reference) {
+            return self.type_multiplicity(storage.semantic_type);
+        }
         match self.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::ConstExpression(_)

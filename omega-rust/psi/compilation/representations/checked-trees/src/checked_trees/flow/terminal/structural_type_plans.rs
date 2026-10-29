@@ -90,7 +90,7 @@ pub enum CheckedUnitRecordStorage {
     PlacedAccessor(semantic_vocabulary::AuthoredRecordStorage),
     Authored(semantic_vocabulary::AuthoredRecordStorage),
     TargetLayout {
-        application: SymbolHandle,
+        application: typed_trees::types::TypeReferenceHandle,
         schema_type_identity: TypeIdentityId,
     },
 }

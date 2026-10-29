@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 206 even when every table
+order below. This layout uses semantic format marker 208 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 206 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 208 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1346,9 +1346,9 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
-Marker 206 retains a counted module-level numeric-realization roster after
+Marker 208 retains a counted module-level numeric-realization roster after
 boundary machines and before checked provider candidates. It replaces the retired
-external-binding conformance payload; markers 201 through 205 are not decoded as
+external-binding conformance payload; markers 201 through 207 are not decoded as
 this layout. Each row contains the requirement nominal declaration and callable
 identity indices, optional requirement package digest, requirement-schema presence
 Boolean and its three indices (provider schema, method name, requirement owner),

@@ -471,6 +471,9 @@ fn frontier_type_multiplicity(
     if !type_reference.is_valid() {
         return Multiplicity::Affine;
     }
+    if let Some(storage) = program.layout_storage_arguments(type_reference) {
+        return frontier_type_multiplicity(program, storage.semantic_type);
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::ConstExpression(_)

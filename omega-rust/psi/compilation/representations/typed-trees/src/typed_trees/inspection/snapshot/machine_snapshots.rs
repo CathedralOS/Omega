@@ -578,7 +578,7 @@ pub(crate) fn state_parameter_snapshot(
     }
 }
 
-fn conformance_bound_snapshot(
+pub(super) fn conformance_bound_snapshot(
     program: &TypedTrees,
     bound: &crate::machine::GenericConformanceBound,
 ) -> GenericConformanceBoundSnapshot {

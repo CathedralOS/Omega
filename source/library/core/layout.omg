@@ -122,7 +122,7 @@ public data FieldEntry {
 // size/alignment before anything trusts the plan. Native layout evaluation
 // retains a compiler-private demand catalog beside this semantic value; each
 // entry comes from an executed `Plan::place_private` call citing one exact
-// named `PrivateCallbackSlot<Layout, Requirement>` implementation. Neither raw
+// named `PrivateCallbackSlot<T, Layout, Requirement>` implementation. Neither raw
 // slot identities nor callback addresses enter this record.
 public data Plan {
     entries: [FieldEntry; 64];
@@ -133,16 +133,16 @@ public data Plan {
 }
 
 // Compiler-known relationship for one semantic-field-free native slot.
-// `Layout` is the layout policy type whose `Layout::plan` may place the slot;
+// `Layout` is the selected fixed-layout implementation whose plan may place the slot;
 // the machine argument is an exact signature-free callback requirement. A
 // named implementation such as
-// `CallbackSlot satisfies PrivateCallbackSlot<Spread, Callback::call> { }` is
+// `CallbackSlot satisfies PrivateCallbackSlot<Record, Spread, Callback::call> { }` is
 // inert until that layout policy explicitly cites it through
 // `Plan::place_private<Implementation>`; another policy cannot place it. A
 // callback occupying a whole foreign ABI parameter is instead declared once in
 // its registrar requirement's native telescope; it is not a layout slot and
 // does not use this relationship.
-public trait PrivateCallbackSlot<Layout, machine Requirement> {
+public trait PrivateCallbackSlot<T, Layout satisfies FixedLayout<T>, machine Requirement> {
 }
 
 // The ordinary value signature is an identity operation so helpers can compose

@@ -39,6 +39,14 @@ struct CallWork {
     declared: Vec<InvocationTarget>,
 }
 
+/// The resolved receiver keeps declaration role independently of a runtime
+/// binding's invocation origin, which can collapse to the same service trait.
+#[derive(Clone, Copy)]
+struct InvocationReceiver {
+    binding: Option<InvocationTarget>,
+    declaration: Option<SymbolHandle>,
+}
+
 pub fn infer_synchronous_invocations(
     program: &dyn crate::CheckingInput,
 ) -> InvocationInferencePlan {
@@ -293,7 +301,10 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         self.resolved_call(
             call.target_symbol,
             call.static_machine_parameter,
-            receiver,
+            InvocationReceiver {
+                binding: receiver,
+                declaration: static_trait_receiver(self.program, call.receiver_symbol),
+            },
             self.program
                 .statement_table
                 .expression_handles(call.arguments),
@@ -323,7 +334,10 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         self.resolved_call(
             call.target_symbol,
             call.static_machine_parameter,
-            receiver,
+            InvocationReceiver {
+                binding: receiver,
+                declaration: expression_static_trait_receiver(self.program, call.receiver),
+            },
             self.program
                 .expression_table
                 .expression_handles(call.arguments),
@@ -373,7 +387,10 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             self.program,
             target,
             static_machine_parameter,
-            receiver,
+            InvocationReceiver {
+                binding: receiver,
+                declaration: static_trait_receiver(self.program, path.receiver_symbol),
+            },
             arguments,
             direct,
             calls,
@@ -390,7 +407,7 @@ impl InvocationCallSites<'_> {
         &mut self,
         target_symbol: SymbolHandle,
         static_machine_parameter: SymbolHandle,
-        receiver: Option<InvocationTarget>,
+        receiver: InvocationReceiver,
         argument_handles: &[ExpressionHandle],
     ) {
         let arguments = argument_handles
@@ -412,6 +429,31 @@ impl InvocationCallSites<'_> {
             self.state_to_machine,
         );
     }
+}
+
+// Resolution owns declaration role. A binding value's type may name this
+// same trait, but its local/parameter/field symbol is never the trait symbol.
+// Do not reconstruct this fact from a collapsed InvocationTarget::Service.
+fn static_trait_receiver(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    program
+        .trait_definition_by_symbol(symbol)
+        .map(|owner| owner.symbol)
+}
+
+fn expression_static_trait_receiver(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    if !expression.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    static_trait_receiver(program, path.symbol)
 }
 
 fn origin_for_statement_receiver(
@@ -501,7 +543,7 @@ fn push_call(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,
     static_machine_parameter: SymbolHandle,
-    receiver: Option<InvocationTarget>,
+    receiver: InvocationReceiver,
     arguments: Vec<Option<InvocationTarget>>,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
@@ -517,17 +559,17 @@ fn push_call(
         && program
             .trait_machine_signature(target)
             .is_some_and(|(owner, signature)| {
-                let directly_named = match receiver {
-                    None => true,
-                    Some(InvocationTarget::Service(service)) => service == owner.symbol,
-                    Some(InvocationTarget::Parameter(_)) => false,
-                };
+                let directly_named = receiver.declaration == Some(owner.symbol);
                 directly_named
                     && program
                         .sealed_numeric_requirement(owner, signature)
                         .is_some()
             });
-    let receiver = if catalogue_primitive { None } else { receiver };
+    let receiver = if catalogue_primitive {
+        None
+    } else {
+        receiver.binding
+    };
     let boundary_signature = (!catalogue_primitive)
         .then(|| boundary_trait_for_signature(program, target))
         .flatten();

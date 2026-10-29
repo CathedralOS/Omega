@@ -694,11 +694,13 @@ impl<'program> Evaluator<'program> {
                 .type_reference(type_reference)
             {
                 let program = self.program;
-                let definition = validation::field_domains::data_definition_by_symbol_or_name(
-                    program,
-                    *base_symbol,
-                    base_name,
-                );
+                let definition = program.closed_data_definition(type_reference).or_else(|| {
+                    validation::field_domains::data_definition_by_symbol_or_name(
+                        program,
+                        *base_symbol,
+                        base_name,
+                    )
+                });
                 if let Some(definition) = definition
                     && matches!(
                         DataDefinition::shape_kind_from_members(

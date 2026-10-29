@@ -45,6 +45,7 @@ mod cleanup_applications;
 mod contextual_calls;
 mod domain_applications;
 mod explicit_arguments;
+mod layout_storage_policies;
 mod native_query_lifetimes;
 mod placed_primitives;
 mod provider_tuple_closure;
@@ -284,6 +285,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
+        layout_storage_policies::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;

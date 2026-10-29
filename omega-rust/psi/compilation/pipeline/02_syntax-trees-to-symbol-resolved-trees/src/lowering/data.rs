@@ -262,6 +262,11 @@ fn lower_data_definition_with_argument_origins(
                 .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
                 .collect(),
             type_parameters,
+            conformance_bounds: crate::lowering::machine::lower_generic_conformance_bounds(
+                lowerer,
+                syntax_trees,
+                &data_definition.conformance_bounds,
+            )?,
             generic_instance: data_definition
                 .generic_instance
                 .map(|origin| {

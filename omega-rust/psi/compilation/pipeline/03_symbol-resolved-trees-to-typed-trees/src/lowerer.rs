@@ -716,6 +716,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         captured_machine_applications: _,
         captured_machine_states: _,
         trait_implementation_applications: _,
+        data_implementation_applications: _,
         // Checking instantiates selector slots after specialization.
         dynamic_slots: _,
         // Family records are produced after all typed bodies settle.

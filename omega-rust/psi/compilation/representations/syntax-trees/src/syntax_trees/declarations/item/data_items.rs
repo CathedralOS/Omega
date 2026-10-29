@@ -11,6 +11,8 @@ pub struct DataDefinition {
     /// Exact structural origin for a concrete generic instance synthesized by
     /// normalization. Authored data declarations never populate this field.
     pub generic_instance: Option<crate::types::TypeReferenceHandle>,
+    /// Exact contracts for implementation operands in this data telescope.
+    pub conformance_bounds: Vec<crate::item::GenericConformanceBound>,
     pub properties: DataProperties,
     /// N6: a proof-only quotient declaration (`data Q = Carrier % relation;`).
     /// Quotients have no authored members: their values are equivalence classes

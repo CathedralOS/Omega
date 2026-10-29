@@ -7,7 +7,7 @@ use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
     StructuralRecordStorage, StructuralTypeShape, TargetLayoutSchemaFieldKind,
-    TargetMachineCallable, TargetMachineSupply, TerminalIdentityIndex, TerminalModule,
+    TerminalIdentityIndex, TerminalModule,
 };
 
 pub(super) fn validate(
@@ -26,6 +26,7 @@ pub(super) fn validate(
     for application in &module.target_layout_applications {
         if application.id.0 == 0
             || application.policy_identity == TerminalIdentityIndex::ABSENT
+            || application.plan_identity == TerminalIdentityIndex::ABSENT
             || !records.insert(application.record)
         {
             return malformed("layout application has absent or duplicate identity");
@@ -118,32 +119,16 @@ pub(super) fn validate(
                 return malformed("layout schema argument differs from invariant field geometry");
             }
         }
-        let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == application.family)
-        else {
-            return malformed("layout application has no exact target family");
-        };
-        let TargetMachineCallable::Boundary(head) = application.family else {
-            return malformed("layout application has no independent policy contract head");
-        };
-        let Some(policy) = terminal_psi::find_boundary_machine(&module.boundary_machines, head)
-        else {
-            return malformed("layout application has no policy contract declaration");
-        };
-        if policy.identity != application.policy_identity {
-            return malformed("layout application policy identity differs from its exact head");
+        if application.realizations.is_empty() {
+            return malformed("fixed representation omits its target inputs");
         }
-        if application.realizations.len() != family.members.len()
-            || application.realizations.is_empty()
-        {
-            return malformed("layout application omits family alternatives");
-        }
-        for (realization, member) in application.realizations.iter().zip(&family.members) {
-            if realization.target != member.target
-                || TargetMachineCallable::Machine(realization.member) != member.callable
-                || member.supply != TargetMachineSupply::CheckedBody
+        let mut targets = BTreeSet::new();
+        for realization in &application.realizations {
+            if realization.target.is_empty()
+                || !targets.insert(&realization.target)
+                || realization.pointer_size == 0
+                || !realization.pointer_alignment.is_power_of_two()
+                || realization.pointer_size % realization.pointer_alignment != 0
                 || realization.fields.len() != live_fields.len()
                 || realization
                     .fields
@@ -152,7 +137,7 @@ pub(super) fn validate(
                     .any(|(stored, field)| stored.field != field.id)
             {
                 return malformed(
-                    "layout alternative differs from its exact checked family member or fields",
+                    "fixed representation changed its target input or exact semantic fields",
                 );
             }
             let mut resolved = record.clone();
