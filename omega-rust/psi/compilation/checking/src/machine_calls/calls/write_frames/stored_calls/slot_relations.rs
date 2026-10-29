@@ -1,7 +1,6 @@
 //! Reference-slot relations retain binding, backing and outstanding call obligations.
 //! Completed operands retain their exact source cuts and carrier/backing association.
 
-use super::super as frames;
 use super::*;
 
 /// One exact destination leaf after an ordinary call. All sources must remain

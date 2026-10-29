@@ -12,7 +12,6 @@ mod local_data_statements;
 pub(super) use local_data_statements::validate_type_reference as validate_local_type_reference;
 mod transition_statements;
 
-use crate::declarations::symbols::MachineSymbols;
 use crate::value_custody::locals::WritableRoots;
 use crate::{
     TopLevelSymbols, ValidatedBoundaryOperatorApplication, declarations::transitions,
@@ -31,7 +30,6 @@ pub(super) struct StatementScope<'a> {
     pub(super) state_name: &'a str,
     pub(super) current_state: Option<&'a typed_trees::state::State>,
     pub(super) statement_index: usize,
-    pub(super) machine_symbols: &'a MachineSymbols<'a>,
     pub(super) symbols: &'a TopLevelSymbols<'a>,
     pub(super) writable_roots: &'a WritableRoots<'a, 'a>,
     pub(super) local_write_origins: Option<&'a [crate::LocalWriteOrigin]>,
@@ -53,9 +51,9 @@ impl<'a> StatementScope<'a> {
     /// The read-side fields every statement kind's entry binds: the program,
     /// the machine and state under validation, and the caller's symbol,
     /// writable-root and transition environments. A module chooses the binding
-    /// name for each position, and the kinds that need `machine_symbols`,
-    /// `statement_index` or the write-origin tables read them off the scope
-    /// instead of re-spelling this list.
+    /// name for each position, and the kinds that need `statement_index` or
+    /// the write-origin tables read them off the scope instead of re-spelling
+    /// this list.
     pub(super) fn reads(
         &self,
     ) -> (
@@ -82,7 +80,6 @@ pub(super) fn validate_state_statement_node<'p>(
     machine: &typed_trees::machine::Machine,
     state_name: &str,
     current_state: Option<&typed_trees::state::State>,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     statement_handle: typed_trees::statement::StatementHandle,
@@ -112,7 +109,6 @@ pub(super) fn validate_state_statement_node<'p>(
         state_name,
         current_state,
         statement_index,
-        machine_symbols,
         symbols,
         writable_roots,
         transition_values,

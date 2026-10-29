@@ -900,10 +900,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         // seal (the receiver entry points at the original invocation
         // storage).
         let view_roster = &state_contract_rosters[position];
-        let element_views = crate::expression_preparation::bindings::element_views(
-            view_roster,
-            &catalogs.structural_types,
-        );
         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
             identities,
             &projected_requires,
@@ -914,7 +910,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
                 parameters: view_roster,
                 structural_types: &catalogs.structural_types,
-                element_views: &element_views,
             },
         )?
         else {

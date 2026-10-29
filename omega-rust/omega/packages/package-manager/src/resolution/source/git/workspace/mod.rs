@@ -106,14 +106,6 @@ impl BuildDeclarationEvidence {
             commitment: BuildDeclarationCommitment::derive(bytes),
         }
     }
-
-    pub const fn byte_count(&self) -> usize {
-        self.byte_count
-    }
-
-    pub const fn commitment(&self) -> &BuildDeclarationCommitment {
-        &self.commitment
-    }
 }
 
 /// One declared workspace member after role and static dependency validation.
@@ -147,10 +139,6 @@ impl GitWorkspaceMemberPlan {
     pub const fn package_name(&self) -> &ProjectName {
         &self.package_name
     }
-
-    pub const fn declaration(&self) -> &BuildDeclarationEvidence {
-        &self.declaration
-    }
 }
 
 /// Complete declaration evidence for one Git workspace, independent of which
@@ -174,19 +162,6 @@ impl GitWorkspaceEvidence {
 
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {
         &self.members
-    }
-
-    pub(crate) fn select_declared_member(
-        &self,
-        member_path: &WorkspaceMemberPath,
-    ) -> Option<GitWorkspaceSelectionPlan> {
-        self.members
-            .iter()
-            .any(|member| member.member_path() == member_path)
-            .then(|| GitWorkspaceSelectionPlan {
-                selected_member_path: member_path.clone(),
-                workspace: self.clone(),
-            })
     }
 }
 
@@ -219,10 +194,6 @@ impl GitWorkspaceSelectionPlan {
             .iter()
             .find(|member| member.member_path() == self.selected_member_path())
             .expect("selection plan retains its selected declared member")
-    }
-
-    pub const fn workspace_evidence(&self) -> &GitWorkspaceEvidence {
-        &self.workspace
     }
 
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {

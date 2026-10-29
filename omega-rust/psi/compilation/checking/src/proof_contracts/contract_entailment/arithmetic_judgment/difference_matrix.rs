@@ -42,25 +42,6 @@ impl<'program> Engine<'program> {
         super::LowerBoundQueries::direct(self).prove_at_least(polynomial, bound)
     }
 
-    pub(super) fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
-        super::LowerBoundQueries::direct(self).prove_base_lower_bound(polynomial, bound)
-    }
-
-    pub(super) fn prove_scaled_lower_bound(
-        &self,
-        goal: &Polynomial,
-        bound: &BigInt,
-        stored: &Polynomial,
-        stored_bound: &BigInt,
-    ) -> bool {
-        super::LowerBoundQueries::direct(self).prove_scaled_lower_bound(
-            goal,
-            bound,
-            stored,
-            stored_bound,
-        )
-    }
-
     /// P >= b contradicts -P >= 1-b over integers. Apply the same standalone,
     /// residual and scaled judgments as `prove_at_least`, without asking the
     /// identical residual question twice. No new combinations are searched.

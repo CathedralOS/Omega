@@ -143,7 +143,6 @@ pub(crate) struct CompilerIssuedPackageReviewSet {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackageSourceVerificationPhase {
-    BeforeCompilation,
     AfterCompilation,
 }
 

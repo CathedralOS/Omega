@@ -54,37 +54,6 @@ pub(super) fn content_conservation_plan<'plans>(
         .map(|source| &source.plan)
 }
 
-/// A statement call to a unit-returning checked machine whose every state
-/// body is empty computes nothing and writes nothing: core `drop(value)` is
-/// the ordinary case. The captured term environment is unchanged by it, so
-/// the sole-arm and unfolding walks step over it like a citation.
-pub(super) fn is_empty_body_statement_call(
-    program: &dyn crate::CheckingInput,
-    call: &typed_trees::statement::TableCall,
-) -> bool {
-    if !call.receiver.is_empty() || call.discards_result {
-        return false;
-    }
-    let Some(machine) = program.machines().iter().find(|machine| {
-        machine.symbol == call.target_symbol
-            || program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == call.target_symbol)
-    }) else {
-        return false;
-    };
-    machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-        && machine.body_is_present
-        && program.machine_states(machine).iter().all(|state| {
-            !state.return_type.is_valid()
-                && program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .is_empty()
-        })
-}
-
 pub(super) fn judge_content_conservation_with_dependencies(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'_>,

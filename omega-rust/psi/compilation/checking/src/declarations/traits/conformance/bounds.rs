@@ -6,7 +6,7 @@ use crate::declarations::traits::conformance::trait_applications::validate_trait
 use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
-use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
+use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::TypeReferenceHandle;
 
 pub use typed_trees::trait_definition::GenericBoundRequirement;

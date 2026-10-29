@@ -93,18 +93,8 @@ impl BuildDependencyManualPatch {
         }
     }
 
-    pub fn expected_sha256(&self) -> &[u8; 32] {
-        &self.expected_sha256
-    }
-
     pub fn reason(&self) -> BuildDependencyManualReason {
         self.reason
-    }
-
-    /// Canonical, compiler-generated text for the accepted row, when this is a
-    /// replacement. This is never copied from package source.
-    pub(crate) fn current_statement(&self) -> Option<&str> {
-        self.current_statement.as_deref()
     }
 
     /// Canonical, compiler-generated text for the requested row. Every
@@ -159,20 +149,12 @@ impl fmt::Display for BuildDependencyManualReason {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BuildDependencyEditError {
-    ReadBuildFile { path: PathBuf, message: String },
-    InvalidBuildFileEncoding { path: PathBuf },
     InvalidBuild(DependencyProjectionError),
 }
 
 impl fmt::Display for BuildDependencyEditError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ReadBuildFile { path, message } => {
-                write!(formatter, "cannot read {}: {message}", path.display())
-            }
-            Self::InvalidBuildFileEncoding { path } => {
-                write!(formatter, "{} is not UTF-8 Omega source", path.display())
-            }
             Self::InvalidBuild(error) => {
                 write!(formatter, "cannot edit invalid package build: {error}")
             }
