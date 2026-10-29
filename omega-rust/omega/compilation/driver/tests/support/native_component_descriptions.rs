@@ -148,6 +148,7 @@ fn reject_malformed_provider_claims(
             result => return Err(format!("missing component provider claims: {result:?}")),
         }
         for extra in [first.clone(), String::new()] {
+            let duplicate = !extra.is_empty();
             let mut changed = description.clone();
             // Retain every real claim so this reaches roster validation rather
             // than failing an unrelated missing-call check first.
@@ -155,7 +156,12 @@ fn reject_malformed_provider_claims(
             claims.push(extra);
             claims.sort();
             match verify_component(&encode_component_description(&changed), request) {
-                Err(ComponentVerificationRejection::InconsistentProviderClosure(_)) => {}
+                Err(ComponentVerificationRejection::Corrupt(
+                    component_description::component_description::DescriptionDecodeRejection::NonCanonicalOrder("provider requirement"),
+                )) if duplicate => {}
+                Err(ComponentVerificationRejection::InconsistentProviderClosure(
+                    "retained requirement claims are not a canonical subset of the complete committed plan",
+                )) if !duplicate => {}
                 result => return Err(format!("malformed component provider claims: {result:?}")),
             }
         }
