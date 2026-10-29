@@ -50,8 +50,8 @@ use validation::{CallSite, find_call_site_in_state};
 
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{
-    WritePlaceNamespace, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
-    instantiate_call_relative_places, local_jump_data_argument,
+    WritePlaceNamespace, call_data_argument, call_receiver_mutated_place,
+    canonical_receiver_place_for_call_site, instantiate_call_relative_places,
 };
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -197,21 +197,21 @@ fn build_state_receiver_reads(
                 complete = false;
                 continue;
             };
-            let data_argument = local_jump_data_argument(program, machine.symbol, &site);
-            if data_argument.is_none() {
+            if crate::flow::local_jump(program, machine.symbol, state.symbol, call).is_none() {
                 continue;
             }
+            let Some(data_argument) = call_data_argument(program, machine.symbol, &site) else {
+                continue;
+            };
             match site {
                 CallSite::Statement(_) => delegated.statements.push(call.statement_index),
                 CallSite::Expression { expression, .. } => {
-                    delegated.expressions.push(expression);
+                    delegated.expressions.push((expression, data_argument));
                 }
                 CallSite::TransitionNamed { .. } => {
-                    if let Some(argument) = data_argument {
-                        delegated
-                            .transition_arguments
-                            .push((call.statement_index, argument));
-                    }
+                    delegated
+                        .transition_arguments
+                        .push((call.statement_index, data_argument));
                 }
             }
             let Some(receiver) = canonical_receiver_place_for_call_site(
@@ -392,12 +392,12 @@ impl FootprintOwner<'_> {
             return false;
         };
         root == self.machine_symbol
-            || program
-                .machine_by_symbol(self.machine_symbol)
-                .and_then(|machine| {
-                    program.data_binding_parameter(machine, program.state_parameters(self.state))
-                })
-                .is_some_and(|parameter| parameter.symbol == root)
+            || crate::flow::family_data_binding_parameter(
+                program,
+                self.machine_symbol,
+                program.state_parameters(self.state),
+            )
+            .is_some_and(|parameter| parameter.symbol == root)
     }
 }
 
@@ -405,7 +405,7 @@ impl FootprintOwner<'_> {
 /// receiver operand itself.
 #[derive(Default)]
 struct DelegatedReceivers {
-    expressions: Vec<ExpressionHandle>,
+    expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
     statements: Vec<usize>,
     transition_arguments: Vec<(usize, ExpressionHandle)>,
 }
@@ -488,12 +488,24 @@ impl DirectReads<'_, '_> {
             ExpressionNode::Borrow(inner) => self.place(inner.target, true),
             ExpressionNode::Cast(cast) => self.value(cast.value),
             ExpressionNode::Call(call) => {
-                if call.receiver.is_valid() {
-                    let delegated = self.delegated.expressions.contains(&expression);
-                    self.place(call.receiver, !delegated);
+                let forwarded = self
+                    .delegated
+                    .expressions
+                    .iter()
+                    .find_map(|(call, argument)| (*call == expression).then_some(*argument));
+                if call.receiver.is_valid()
+                    && !program.call_has_no_runtime_receiver_for_target(call)
+                {
+                    self.place(call.receiver, forwarded.is_none());
                 }
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    self.value(*argument);
+                    if forwarded == Some(*argument) {
+                        // Forwarding delegates referent reads to the exact
+                        // successor footprint. Place selectors still execute.
+                        self.place(*argument, false);
+                    } else {
+                        self.value(*argument);
+                    }
                 }
             }
             ExpressionNode::Match(dispatch) => {

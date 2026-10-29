@@ -29,7 +29,7 @@ use crate::value_custody::places::collection_length_receiver;
 use symbols::SymbolHandle;
 
 mod congruence;
-pub(super) use congruence::{ValueComparison, same_value};
+pub(super) use congruence::ValueComparison;
 mod match_joins;
 mod requirements;
 mod storage;
@@ -371,32 +371,6 @@ impl Operand {
 }
 
 impl Relation {
-    /// A constant comparison on the exact observed operand. Display paths are
-    /// invalidation metadata, never enough to match a relation to a read.
-    fn literal_comparisons(
-        &self,
-        subject: &Operand,
-        comparison: &mut ValueComparison<'_>,
-    ) -> [Option<(i64, RelationConstraint, bool)>; 2] {
-        [
-            (&self.left, &self.right, true),
-            (&self.right, &self.left, false),
-        ]
-        .map(|(candidate, opposite, subject_on_left)| {
-            let Operand::Integer(literal, _) = opposite else {
-                return None;
-            };
-            let constant = literal.value_i64()?;
-            // Only a representable literal can contribute a bound here. Do
-            // not build an equality graph for a relation this query cannot use.
-            comparison.same_value(subject, candidate).then_some((
-                constant,
-                self.constraint,
-                subject_on_left,
-            ))
-        })
-    }
-
     pub(super) fn minimum_difference(&self) -> Option<i64> {
         match self.constraint {
             RelationConstraint::MinimumDifference(floor) => Some(floor),
@@ -1233,7 +1207,8 @@ pub(super) fn refine_place_interval(
     else {
         return interval;
     };
-    let mut comparison: Option<ValueComparison<'_>> = None;
+    // Every candidate is a relation endpoint, already in this subject's closure.
+    let mut comparison: Option<congruence::EqualityQuery<'_>> = None;
     for exact_only in [true, false] {
         for relation in &environment.ordered_values {
             let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
@@ -1273,7 +1248,11 @@ pub(super) fn refine_place_interval(
                     &subject != candidate
                         && comparison
                             .get_or_insert_with(|| {
-                                ValueComparison::new(&environment.ordered_values)
+                                congruence::EqualityQuery::new(
+                                    &environment.ordered_values,
+                                    &subject,
+                                    &subject,
+                                )
                             })
                             .same_value(&subject, candidate)
                 };

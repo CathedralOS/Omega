@@ -902,7 +902,6 @@ fn validate<'program>(
                         machine,
                         &state.name,
                         Some(state),
-                        &machine_symbols,
                         &symbols,
                         &writable_roots,
                         statement_handle,

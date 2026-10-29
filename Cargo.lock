@@ -183,7 +183,6 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
- "checked-interpreter",
  "compilation-products",
  "diagnostics",
  "effects",
@@ -971,6 +970,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -994,6 +994,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -1353,6 +1354,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalized-foreign-call-plan"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "legalized-operations",
+ "optimization-unit",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
+]
+
+[[package]]
 name = "numerics"
 version = "0.1.0"
 dependencies = [
@@ -1483,7 +1500,6 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "checked-interpreter",
  "checked-trees",
  "compiler-storage",
  "diagnostics",
@@ -1551,7 +1567,6 @@ dependencies = [
  "build-output",
  "cap-fs-ext",
  "cap-std",
- "checked-interpreter",
  "compilation-products",
  "compiler",
  "diagnostics",

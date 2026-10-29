@@ -35,6 +35,7 @@ pub struct ValidatedRuntimeNaturalState {
     pub coordinate: crate::RankSubjectCoordinate,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
+    pub observation: crate::RankPremiseObservation,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -183,7 +184,6 @@ pub(super) fn project_component(
     witnesses: &[RuntimeRankBodyWitness<'_>],
     frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Result<Option<ValidatedRuntimeNaturalComponent>, &'static str> {
-    let dispatched = dispatched_implementations(program);
     let Some(ranks) = component
         .iter()
         .map(|index| RankProjection::resolve(program, &program.machines()[*index]))

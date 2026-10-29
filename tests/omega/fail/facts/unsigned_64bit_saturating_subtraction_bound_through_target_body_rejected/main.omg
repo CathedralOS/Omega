@@ -9,51 +9,78 @@ machine verify_diff(value: u64) -> u64
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine compute_target_body(lhs: u64, rhs: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(lhs: u64, rhs: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: u64 in Saturating = lhs as u64 in Saturating;
+        let b: u64 in Saturating = rhs as u64 in Saturating;
+        let sat: u64 in Saturating = a - b;
+        let diff: u64 = sat as u64;
+        verify_diff(diff)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(lhs: u64, rhs: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: u64 in Saturating = lhs as u64 in Saturating;
+        let b: u64 in Saturating = rhs as u64 in Saturating;
+        let sat: u64 in Saturating = a - b;
+        let diff: u64 = sat as u64;
+        verify_diff(diff)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> u64
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
+    SelectedProbe::compute_target_body(100, 30)
 }
 
-linux_arm64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
-}
-
-macos_arm64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
-}
-
-windows_x86_64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
-}
-
-machine evaluate() -> u64 {
-    compute_target_body(100, 30)
-}
-
-machine main() crashes Trap {
     let res: u64 = evaluate();
     transition res == 60 {
         true -> done()
@@ -61,4 +88,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -10,6 +10,107 @@ fail/arithmetic/affine_difference_unpaired_term rejected 2122ms expected @a92f16
 	cannot prove ensures contract for exit from incomplete at statement 0: embed(first) + embed(third) >= embed(second) + embed(fourth)
 fail/arithmetic/affine_difference_wrong_coefficients rejected 2056ms expected @a92f16431042
 	cannot prove ensures contract for exit from weighted at statement 0: 2 * embed(first) + 3 * embed(third) >= 3 * embed(second) + 2 * embed(fourth)
+fail/arithmetic/anonymous_comparison_imported_zero_divisor rejected 795ms expected @b628a1e8d3ec
+	anonymous division by zero has no exact numeric value
+fail/borrows/nested_array_call_unrestored_field rejected 700ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from Builder::clear at statement 5: cell.parts[0].storage requires [u8; N]::Ascii
+fail/borrows/nested_parent_forwarding_overlapping_child rejected 798ms expected @90c334a2c095
+	state `observe` receives `counter.count` as mutable while its mutable receiver reads `counter.count`
+fail/borrows/returned_shared_reference_case_write rejected 330ms expected @90c334a2c095
+	machine `fill` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/calls/indexed_case_successor_unproved_bound rejected 722ms expected @90c334a2c095
+	cannot prove index `index` is within unknown slice length of `cells` in read::entry
+fail/calls/projected_call_domain_unproved rejected 693ms expected @90c334a2c095
+	cannot prove ensures contract for exit from update at statement 1: cell.storage in [u8; N]::Utf8
+fail/calls/qualified_literal_return_invalid rejected 694ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from label, state entry, at statement 1: "\\xc3\\xa9" requires [u8]::Ascii
+fail/facts/borrowed_result_field_domains_call_result rejected 721ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_const_name rejected 733ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_field rejected 708ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_local rejected 710ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_match_join rejected 758ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_other_machine rejected 715ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_other_state rejected 731ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_parameter rejected 724ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_target_body rejected 727ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/nested_machine_joint_rank_structural_missing_bound_rejected rejected 707ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_restored_descriptor_rejected rejected 695ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_call_result_rejected rejected 692ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_const_name_rejected rejected 717ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_field_rejected rejected 713ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_local_rejected rejected 719ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_match_join_rejected rejected 713ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_other_machine_rejected rejected 733ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_other_state_rejected rejected 739ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_parameter_rejected rejected 733ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structural_view_target_body_rejected rejected 732ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/borrows/nested_array_call_restores_memberships_exit checked 1016ms check-target:macos_arm64 @90c334a2c095
+pass/borrows/nested_parent_forwarding_independent_object_exit checked 1033ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_call_result checked 1042ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_const_name checked 995ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_field checked 982ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_local checked 958ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_match_join checked 977ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_other_machine checked 970ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_other_state checked 1013ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_parameter checked 950ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_target_body checked 1003ms check-target:macos_arm64 @90c334a2c095
+pass/facts/nested_machine_joint_rank_structural_view_call_result_exit checked 945ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_const_name_exit checked 1138ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_field_exit checked 953ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_local_exit checked 968ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_match_join_exit checked 967ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_other_machine_exit checked 975ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_other_state_exit checked 985ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_parameter_exit checked 993ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+pass/facts/nested_machine_joint_rank_structural_view_target_body_exit checked 977ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+run/arithmetic/anonymous_comparison_with_typed_operators checked 4340ms check-target:macos_arm64 @b628a1e8d3ec
+run/calls/indexed_case_successor_exit checked 949ms check-target:macos_arm64 @90c334a2c095
+run/calls/nested_case_terminal_process_exit checked 4351ms check-target:macos_arm64 @90c334a2c095
+run/calls/projected_call_domain_exit checked 943ms check-target:macos_arm64 @90c334a2c095
+run/calls/projected_call_domain_plain_exit checked 979ms check-target:macos_arm64 @90c334a2c095
+run/calls/qualified_ancestor_reference_forwarding_exit checked 900ms check-target:macos_arm64 @90c334a2c095
+run/calls/qualified_literal_return_exit checked 934ms check-target:macos_arm64 @90c334a2c095
+run/calls/returned_reference_case_write_then_view_exit checked 937ms check-target:macos_arm64 @90c334a2c095
+
 fail/arithmetic/anonymous_decimal_zero_division_rejected rejected 1870ms expected @a92f16431042
 	anonymous division by zero has no exact numeric value
 fail/arithmetic/anonymous_large_literal_requires_representable_destination rejected 922ms expected @a92f16431042
@@ -22,6 +123,11 @@ fail/arithmetic/anonymous_large_literal_requires_representable_destination rejec
 	anonymous integer value `18446744073709551615` does not fit destination `u32` in array literal element of type `u32`
 fail/arithmetic/anonymous_remainder_rejected rejected 724ms expected @a92f16431042
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
+fail/arithmetic/bitwise_non_singleton_endpoint_bounds rejected 657ms expected @1746a501acac
+	cannot prove requires contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact `value >= 1 && value <= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/arithmetic/bitwise_singleton_preserves_operand_formation rejected 313ms expected @1746a501acac
+	division by zero in machine `probe` state `entry` local `invalid`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+	division by zero in machine `probe` state `entry` local `invalid`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/borrows/nested_machine_unit_output_live_old_descendant_rejected rejected 5141ms expected @1e18830ea024+wt
 	statement 5 mutates `old.value` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/borrows/nested_machine_unit_output_local_escape_rejected rejected 3651ms expected @1e18830ea024+wt
@@ -38,6 +144,10 @@ fail/build/provider_nested_type_application_conflict rejected 305ms expected @ba
 	build selects two provider types for slot `Reading`: `SecondReading` and `SecondReading`
 fail/build/provider_product_call_unavailable_in_build rejected 226ms expected @bad69cc2a485
 	designated static operand `value` has no exact visible source declaration
+fail/build/provider_structural_type_application_conflict rejected 391ms expected @b86bab8d85ef
+	build selects two provider types for slot `Reading`: `SecondReading` and `SecondReading`
+fail/build/provider_structural_type_partial_extent rejected 19ms expected @b86bab8d85ef
+	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/build/provider_unused_const_divisor_rejected rejected 438ms expected @bad69cc2a485
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 	partial exact division in closed const argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
@@ -159,12 +269,14 @@ fail/machines/private_trapping_reversed_prior_guard rejected 714ms expected @e12
 	call from `locate` to `payload` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/machines/private_trapping_signed_pair_missing rejected 652ms expected @e12c034a9fc8
 	call from `divide` to `quotient` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit checked 1313ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
 pass/borrows/nested_machine_unit_output_completed_operand_exit checked 5718ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_local_destination_exit checked 5669ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit checked 4135ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 4085ms check-target:macos_arm64 @1e18830ea024+wt
 pass/build/provider_applied_const29_exit checked 2345ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @bad69cc2a485
 pass/build/provider_nested_type_application_exit checked 2654ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @bad69cc2a485
+pass/build/provider_structural_type_application_exit checked 3111ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @b86bab8d85ef
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 1128ms check-target:macos_arm64 @e12c034a9fc8
 pass/calls/static_machine_required_input_crash_refinement_exit checked 1140ms check-target:macos_arm64 @e12c034a9fc8
 pass/domains/semicolon_predicate_presence_exit checked 950ms check-target:macos_arm64 @4599cdf306fb
@@ -4360,7 +4472,7 @@ fail/domains/routed_qualification_invalidated_field rejected 1361ms expected @a9
 	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/routed_qualification_predicate_cannot_authorize rejected 1361ms expected @a92f16431042
 	`as ... in Ticket::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/domains/routed_qualification_reference_recast rejected 481ms expected @a92f16431042
+fail/domains/routed_qualification_reference_recast rejected 565ms expected @5722ff9ddde2
 	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/domains/routed_record_capture_after_sibling_mutation rejected 1361ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from capture, state entry, at statement 1: Pair.ticket requires Ticket::Issued
@@ -7996,8 +8108,8 @@ fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected rejected 1
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected rejected 1032ms expected @a92f16431042
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected rejected 1034ms expected @a92f16431042
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected rejected 806ms expected @c3e8a3559d5e+wt
+	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected rejected 1037ms expected @a92f16431042
 	exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected rejected 1034ms expected @a92f16431042
@@ -13710,6 +13822,25 @@ fail/facts/reference_arrival_handoff_through_parameter_rejected rejected 2400ms 
 	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/reference_arrival_handoff_through_target_body_rejected rejected 2514ms expected @a92f16431042
 	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/reference_recast_backing_footprint_through_call_result_live_backing_write rejected 2865ms expected @5722ff9ddde2
+	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_const_name_live_backing_write rejected 2693ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_field_live_backing_write rejected 2337ms expected @5722ff9ddde2
+	statement 4 mutates `bytes[2]` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_local_live_backing_write rejected 1772ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_match_join_live_backing_write rejected 1799ms expected @5722ff9ddde2
+	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_other_machine_live_backing_write rejected 1773ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_other_state_live_backing_write rejected 1860ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_parameter_live_backing_write rejected 1675ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/facts/reference_recast_backing_footprint_through_target_body_live_backing_write rejected 1714ms expected @5722ff9ddde2
+	statement 3 mutates `bytes[2]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/facts/register_stack_arg_calling_plan_through_call_result_rejected rejected 1012ms expected @a92f16431042
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/register_stack_arg_calling_plan_through_const_name_rejected rejected 1013ms expected @a92f16431042
@@ -14135,6 +14266,31 @@ fail/facts/saved_symbolic_observation_wrong_primitive_delivery_rejected rejected
 	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
 fail/facts/saved_symbolic_observation_wrong_reference_delivery_rejected rejected 446ms expected @b800c26bd214
 	machine `invalid` state `entry` terminal expression expects `&mut u64`, got `match expression`
+fail/facts/scalar_array_row_construction_through_call_result_rejected rejected 1306ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_const_name_rejected rejected 1903ms expected @5722ff9ddde2+wt
+	constant array destination conflicts with its declared dimensions or element carrier
+	literal `3` is suffixed `u32` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	literal `5` is suffixed `u32` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	array literal element has type `u32`, expected `u64`; use an explicit conversion
+	array literal element has type `u32`, expected `u64`; use an explicit conversion
+fail/facts/scalar_array_row_construction_through_field_rejected rejected 1617ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_local_rejected rejected 1198ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_match_join_rejected rejected 939ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_other_machine_rejected rejected 1259ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	argument `second` for state `entry` expects `[u32; 2]`, got `named value`
+fail/facts/scalar_array_row_construction_through_other_state_rejected rejected 929ms expected @5722ff9ddde2+wt
+	machine `combine` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_parameter_rejected rejected 880ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_target_body_rejected rejected 816ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
 fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 780ms expected @a92f16431042
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
@@ -22275,7 +22431,7 @@ fail/recast/shared_recast_cannot_restore_mutable_access rejected 755ms expected 
 	machine `inspect` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/recast/shared_record_to_atomic rejected 643ms expected @a92f16431042
 	machine `view` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Atomic` are not representation-compatible
-fail/recast/shared_reference_recast_cannot_lend_mutable rejected 524ms expected @a92f16431042
+fail/recast/shared_reference_recast_cannot_lend_mutable rejected 466ms expected @5722ff9ddde2
 	machine `inspect` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/recast/slice_view_non_tiling_rejected rejected 1579ms expected @a92f16431042
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
@@ -28068,7 +28224,7 @@ pass/facts/narrow_to_wide_signed_8to64_extension_through_match_join_exit checked
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit checked 2265ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit checked 2299ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit checked 2510ms check-target:macos_arm64 @a92f16431042
-pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit checked 2324ms check-target:macos_arm64 @a92f16431042
+pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit checked 1683ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_call_result_exit checked 2285ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_const_name_exit checked 2303ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_field_exit checked 2296ms check-target:macos_arm64 @a92f16431042
@@ -29054,6 +29210,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit checked 6580ms c
 pass/facts/reference_arrival_handoff_through_other_state_exit checked 5264ms check-target:macos_arm64 @a92f16431042
 pass/facts/reference_arrival_handoff_through_parameter_exit checked 5146ms check-target:macos_arm64 @a92f16431042
 pass/facts/reference_arrival_handoff_through_target_body_exit checked 3322ms check-target:macos_arm64 @a92f16431042
+pass/facts/reference_recast_backing_footprint_through_call_result_exit checked 3203ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_const_name_exit checked 3805ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_field_exit checked 3842ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_local_exit checked 3267ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_match_join_exit checked 3174ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_other_machine_exit checked 3358ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_other_state_exit checked 3225ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_parameter_exit checked 3414ms check-target:macos_arm64 @5722ff9ddde2
+pass/facts/reference_recast_backing_footprint_through_target_body_exit checked 3854ms check-target:macos_arm64 @5722ff9ddde2
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit checked 3325ms check-target:macos_arm64 @a92f16431042
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit checked 3752ms check-target:macos_arm64 @a92f16431042
 pass/facts/register_stack_arg_calling_plan_through_field_exit checked 3076ms check-target:macos_arm64 @a92f16431042
@@ -29222,6 +29387,15 @@ pass/facts/saved_symbolic_observation_through_other_machine_exit checked 2036ms 
 pass/facts/saved_symbolic_observation_through_other_state_exit checked 2049ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_parameter_exit checked 2003ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_target_body_exit checked 2198ms check-target:macos_arm64 @b800c26bd214
+pass/facts/scalar_array_row_construction_through_call_result_exit checked 3634ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_const_name_exit checked 3550ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_field_exit checked 3463ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_local_exit checked 3482ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_match_join_exit checked 3140ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_machine_exit checked 3627ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_state_exit checked 3311ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_parameter_exit checked 3473ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_target_body_exit checked 3334ms check-target:macos_arm64 @5722ff9ddde2+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit checked 5953ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_const_name_exit checked 5620ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_field_exit checked 3873ms check-target:macos_arm64 @a92f16431042
@@ -29476,7 +29650,7 @@ pass/facts/signed_16bit_saturating_subtraction_bound_through_match_join_exit che
 pass/facts/signed_16bit_saturating_subtraction_bound_through_other_machine_exit checked 3310ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_saturating_subtraction_bound_through_other_state_exit checked 2664ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_saturating_subtraction_bound_through_parameter_exit checked 2441ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_16bit_saturating_subtraction_bound_through_target_body_exit checked 2382ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_16bit_saturating_subtraction_bound_through_target_body_exit checked 1431ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_16bit_shift_left_bound_through_call_result_exit checked 2333ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_left_bound_through_const_name_exit checked 2886ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_left_bound_through_field_exit checked 2940ms check-target:macos_arm64 @a92f16431042
@@ -29494,7 +29668,7 @@ pass/facts/signed_16bit_shift_right_bound_through_match_join_exit checked 3726ms
 pass/facts/signed_16bit_shift_right_bound_through_other_machine_exit checked 4630ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_right_bound_through_other_state_exit checked 4155ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_right_bound_through_parameter_exit checked 3237ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_16bit_shift_right_bound_through_target_body_exit checked 3773ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_16bit_shift_right_bound_through_target_body_exit checked 1369ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_exit checked 3754ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_exit checked 3233ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_field_exit checked 3683ms check-target:macos_arm64 @a92f16431042
@@ -29503,7 +29677,7 @@ pass/facts/signed_16bit_wrapping_arithmetic_bound_through_match_join_exit checke
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_other_machine_exit checked 3253ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_other_state_exit checked 4251ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_parameter_exit checked 3314ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_16bit_wrapping_arithmetic_bound_through_target_body_exit checked 3149ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_16bit_wrapping_arithmetic_bound_through_target_body_exit checked 1458ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_call_result_exit checked 4088ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_const_name_exit checked 3939ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_field_exit checked 3882ms check-target:macos_arm64 @a92f16431042
@@ -29540,15 +29714,15 @@ pass/facts/signed_32bit_bitwise_or_bound_through_other_machine_exit checked 2942
 pass/facts/signed_32bit_bitwise_or_bound_through_other_state_exit checked 4162ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_bitwise_or_bound_through_parameter_exit checked 2840ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_bitwise_or_bound_through_target_body_exit checked 3017ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit checked 3978ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit checked 3526ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit checked 3055ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit checked 2888ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit checked 2917ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit checked 3522ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit checked 3381ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit checked 3102ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit checked 2389ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit checked 1197ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit checked 1194ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit checked 1198ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit checked 1331ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit checked 1199ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit checked 1213ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit checked 1238ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit checked 1211ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit checked 1240ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
 pass/facts/signed_32bit_division_quotient_bound_through_call_result_exit checked 2378ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_division_quotient_bound_through_const_name_exit checked 2376ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_division_quotient_bound_through_field_exit checked 2380ms check-target:macos_arm64 @a92f16431042
@@ -29593,7 +29767,7 @@ pass/facts/signed_32bit_exact_subtraction_bound_through_match_join_exit checked 
 pass/facts/signed_32bit_exact_subtraction_bound_through_other_machine_exit checked 2460ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_exact_subtraction_bound_through_other_state_exit checked 2434ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_exact_subtraction_bound_through_parameter_exit checked 2383ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_exact_subtraction_bound_through_target_body_exit checked 2472ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_32bit_exact_subtraction_bound_through_target_body_exit checked 1521ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_32bit_saturating_arithmetic_bound_through_call_result_exit checked 2457ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_saturating_arithmetic_bound_through_const_name_exit checked 2431ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_saturating_arithmetic_bound_through_field_exit checked 2821ms check-target:macos_arm64 @a92f16431042
@@ -29638,7 +29812,7 @@ pass/facts/signed_32bit_shift_left_bound_through_match_join_exit checked 1853ms 
 pass/facts/signed_32bit_shift_left_bound_through_other_machine_exit checked 2433ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_left_bound_through_other_state_exit checked 2427ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_left_bound_through_parameter_exit checked 1934ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_shift_left_bound_through_target_body_exit checked 1927ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_32bit_shift_left_bound_through_target_body_exit checked 1437ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_32bit_shift_right_bound_through_call_result_exit checked 2836ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_right_bound_through_const_name_exit checked 2341ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_right_bound_through_field_exit checked 2334ms check-target:macos_arm64 @a92f16431042
@@ -29683,7 +29857,7 @@ pass/facts/signed_64bit_bitwise_or_bound_through_match_join_exit checked 3820ms 
 pass/facts/signed_64bit_bitwise_or_bound_through_other_machine_exit checked 3323ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_or_bound_through_other_state_exit checked 3182ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_or_bound_through_parameter_exit checked 3858ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_64bit_bitwise_or_bound_through_target_body_exit checked 3782ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_64bit_bitwise_or_bound_through_target_body_exit checked 1456ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_64bit_bitwise_xor_bound_through_call_result_exit checked 4725ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_const_name_exit checked 6099ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_field_exit checked 5555ms check-target:macos_arm64 @a92f16431042
@@ -29692,7 +29866,7 @@ pass/facts/signed_64bit_bitwise_xor_bound_through_match_join_exit checked 4052ms
 pass/facts/signed_64bit_bitwise_xor_bound_through_other_machine_exit checked 4184ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_other_state_exit checked 4320ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_parameter_exit checked 5275ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit checked 3520ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit checked 1503ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_64bit_saturating_multiplication_bound_through_call_result_exit checked 3285ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_const_name_exit checked 3115ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_field_exit checked 3502ms check-target:macos_arm64 @a92f16431042
@@ -29701,7 +29875,7 @@ pass/facts/signed_64bit_saturating_multiplication_bound_through_match_join_exit 
 pass/facts/signed_64bit_saturating_multiplication_bound_through_other_machine_exit checked 2920ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_other_state_exit checked 3451ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_parameter_exit checked 3955ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_64bit_saturating_multiplication_bound_through_target_body_exit checked 3108ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_64bit_saturating_multiplication_bound_through_target_body_exit checked 1465ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_64bit_saturating_subtraction_bound_through_call_result_exit checked 3681ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_subtraction_bound_through_const_name_exit checked 3419ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_subtraction_bound_through_field_exit checked 2679ms check-target:macos_arm64 @a92f16431042
@@ -29764,7 +29938,7 @@ pass/facts/signed_8bit_bitwise_xor_bound_through_match_join_exit checked 5003ms 
 pass/facts/signed_8bit_bitwise_xor_bound_through_other_machine_exit checked 5012ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_bitwise_xor_bound_through_other_state_exit checked 4217ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_bitwise_xor_bound_through_parameter_exit checked 4706ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_bitwise_xor_bound_through_target_body_exit checked 3598ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_bitwise_xor_bound_through_target_body_exit checked 1369ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_division_quotient_bound_through_call_result_exit checked 3698ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_quotient_bound_through_const_name_exit checked 4591ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_quotient_bound_through_field_exit checked 4582ms check-target:macos_arm64 @a92f16431042
@@ -29782,7 +29956,7 @@ pass/facts/signed_8bit_division_remainder_bound_through_match_join_exit checked 
 pass/facts/signed_8bit_division_remainder_bound_through_other_machine_exit checked 3730ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_remainder_bound_through_other_state_exit checked 3699ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_remainder_bound_through_parameter_exit checked 2344ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_division_remainder_bound_through_target_body_exit checked 2514ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_division_remainder_bound_through_target_body_exit checked 1427ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_exact_arithmetic_bound_through_call_result_exit checked 2473ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_const_name_exit checked 2435ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_field_exit checked 2441ms check-target:macos_arm64 @a92f16431042
@@ -29791,7 +29965,7 @@ pass/facts/signed_8bit_exact_arithmetic_bound_through_match_join_exit checked 22
 pass/facts/signed_8bit_exact_arithmetic_bound_through_other_machine_exit checked 3954ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_other_state_exit checked 3950ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_parameter_exit checked 3973ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_exact_arithmetic_bound_through_target_body_exit checked 4203ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_exact_arithmetic_bound_through_target_body_exit checked 1375ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_exact_multiplication_bound_through_call_result_exit checked 3985ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_const_name_exit checked 4121ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_field_exit checked 4057ms check-target:macos_arm64 @a92f16431042
@@ -29800,7 +29974,7 @@ pass/facts/signed_8bit_exact_multiplication_bound_through_match_join_exit checke
 pass/facts/signed_8bit_exact_multiplication_bound_through_other_machine_exit checked 4335ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_other_state_exit checked 4693ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_parameter_exit checked 4677ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_exact_multiplication_bound_through_target_body_exit checked 4656ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_exact_multiplication_bound_through_target_body_exit checked 1407ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_exact_subtraction_bound_through_call_result_exit checked 4525ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_subtraction_bound_through_const_name_exit checked 4437ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_subtraction_bound_through_field_exit checked 4433ms check-target:macos_arm64 @a92f16431042
@@ -29872,7 +30046,7 @@ pass/facts/signed_8bit_wrapping_multiplication_bound_through_match_join_exit che
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_other_machine_exit checked 2824ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_other_state_exit checked 3318ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_parameter_exit checked 3361ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_wrapping_multiplication_bound_through_target_body_exit checked 2944ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_wrapping_multiplication_bound_through_target_body_exit checked 1385ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_wrapping_subtraction_bound_through_call_result_exit checked 3652ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_subtraction_bound_through_const_name_exit checked 3299ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_subtraction_bound_through_field_exit checked 4403ms check-target:macos_arm64 @a92f16431042
@@ -30184,7 +30358,7 @@ pass/facts/ten_arg_stack_calling_plan_through_match_join_exit checked 2530ms che
 pass/facts/ten_arg_stack_calling_plan_through_other_machine_exit checked 2401ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_arg_stack_calling_plan_through_other_state_exit checked 2068ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_arg_stack_calling_plan_through_parameter_exit checked 1818ms check-target:macos_arm64 @a92f16431042
-pass/facts/ten_arg_stack_calling_plan_through_target_body_exit checked 2418ms check-target:macos_arm64 @a92f16431042
+pass/facts/ten_arg_stack_calling_plan_through_target_body_exit checked 1423ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/ten_variant_enum_payload_bound_through_call_result_exit checked 2418ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_variant_enum_payload_bound_through_const_name_exit checked 2437ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_variant_enum_payload_bound_through_field_exit checked 2315ms check-target:macos_arm64 @a92f16431042
@@ -30733,7 +30907,7 @@ pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_match_join_exit che
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_other_machine_exit checked 3390ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_other_state_exit checked 3370ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_parameter_exit checked 3405ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_target_body_exit checked 3391ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_target_body_exit checked 1349ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_exit checked 3043ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_exit checked 3037ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_field_exit checked 2996ms check-target:macos_arm64 @a92f16431042
@@ -30751,16 +30925,16 @@ pass/facts/unsigned_32bit_bitwise_or_bound_through_match_join_exit checked 2550m
 pass/facts/unsigned_32bit_bitwise_or_bound_through_other_machine_exit checked 2545ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_or_bound_through_other_state_exit checked 2526ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_or_bound_through_parameter_exit checked 2479ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_or_bound_through_target_body_exit checked 2445ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_call_result_exit checked 2450ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_const_name_exit checked 2449ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_field_exit checked 2460ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_local_exit checked 2440ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_match_join_exit checked 2460ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_machine_exit checked 2445ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_exit checked 2567ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_exit checked 2586ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_exit checked 2579ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_32bit_bitwise_or_bound_through_target_body_exit checked 1402ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_call_result_exit checked 1198ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_const_name_exit checked 1193ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_field_exit checked 1459ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_local_exit checked 1542ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_match_join_exit checked 1411ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_machine_exit checked 1256ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_exit checked 1273ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_exit checked 1203ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
+pass/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_exit checked 1253ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
 pass/facts/unsigned_32bit_division_quotient_bound_through_call_result_exit checked 2575ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_division_quotient_bound_through_const_name_exit checked 2546ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_division_quotient_bound_through_field_exit checked 2549ms check-target:macos_arm64 @a92f16431042
@@ -30932,7 +31106,7 @@ pass/facts/unsigned_64bit_saturating_subtraction_bound_through_match_join_exit c
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_machine_exit checked 2929ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_state_exit checked 2895ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_exit checked 2912ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit checked 2855ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit checked 1401ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_64bit_shift_left_bound_through_call_result_exit checked 2967ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_const_name_exit checked 2943ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_field_exit checked 2393ms check-target:macos_arm64 @a92f16431042
@@ -30941,7 +31115,7 @@ pass/facts/unsigned_64bit_shift_left_bound_through_match_join_exit checked 2159m
 pass/facts/unsigned_64bit_shift_left_bound_through_other_machine_exit checked 2088ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_other_state_exit checked 2059ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_parameter_exit checked 2095ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit checked 2074ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit checked 1364ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_exit checked 2084ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_exit checked 2071ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_field_exit checked 2150ms check-target:macos_arm64 @a92f16431042
@@ -30986,7 +31160,7 @@ pass/facts/unsigned_8bit_bitwise_xor_bound_through_match_join_exit checked 2388m
 pass/facts/unsigned_8bit_bitwise_xor_bound_through_other_machine_exit checked 2556ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_bitwise_xor_bound_through_other_state_exit checked 2550ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_bitwise_xor_bound_through_parameter_exit checked 2608ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_8bit_bitwise_xor_bound_through_target_body_exit checked 2551ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_8bit_bitwise_xor_bound_through_target_body_exit checked 1407ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_8bit_division_quotient_bound_through_call_result_exit checked 2567ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_division_quotient_bound_through_const_name_exit checked 2536ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_division_quotient_bound_through_field_exit checked 2721ms check-target:macos_arm64 @a92f16431042
@@ -31195,24 +31369,24 @@ pass/facts/wrapping_integer_arithmetic_through_other_machine_exit checked 2155ms
 pass/facts/wrapping_integer_arithmetic_through_other_state_exit checked 2413ms check-target:macos_arm64 @a92f16431042
 pass/facts/wrapping_integer_arithmetic_through_parameter_exit checked 2467ms check-target:macos_arm64 @a92f16431042
 pass/facts/wrapping_integer_arithmetic_through_target_body_exit checked 2535ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_call_result_exit checked 2492ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_const_name_exit checked 2250ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_field_exit checked 2242ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_local_exit checked 1926ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_match_join_exit checked 1847ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_other_machine_exit checked 2714ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_other_state_exit checked 2151ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_parameter_exit checked 3289ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_target_body_exit checked 3258ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_call_result_exit checked 2155ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_const_name_exit checked 2096ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_field_exit checked 1845ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_local_exit checked 1852ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_match_join_exit checked 2921ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_other_machine_exit checked 2838ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_other_state_exit checked 2889ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_parameter_exit checked 2826ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_target_body_exit checked 2889ms check-target:macos_arm64 @a92f16431042
+pass/facts/write_only_borrow_initialization_through_call_result_exit checked 1319ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_const_name_exit checked 1230ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_field_exit checked 1241ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_local_exit checked 1278ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_match_join_exit checked 1260ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_other_machine_exit checked 1240ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_other_state_exit checked 1268ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_parameter_exit checked 1388ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_target_body_exit checked 1275ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_call_result_exit checked 1188ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_const_name_exit checked 1191ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_field_exit checked 1228ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_local_exit checked 1220ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_match_join_exit checked 1240ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_other_machine_exit checked 1197ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_other_state_exit checked 1206ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_parameter_exit checked 1187ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_target_body_exit checked 1241ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
 pass/facts/write_only_checked_adapter_exit checked 2839ms check-target:macos_arm64 @a92f16431042
 pass/facts/write_only_indexed_reborrow_cast_selector_exit checked 2596ms check-target:macos_arm64 @8eca68666797
 pass/facts/write_only_indexed_reborrow_selector_expression_exit checked 2580ms check-target:macos_arm64 @8eca68666797
@@ -33538,6 +33712,7 @@ pass/traits/prepared_callable_nested_borrow_paths_exit incomplete 1940ms check-t
 	`check_byte_views` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `check_byte_views::inspect`
 pass/traits/public_nested_machine_contract_scopes checked 2308ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/traits/renamed_invocation_contract_binders checked 1519ms @a92f16431042
+pass/traits/repeated_structural_capture_exit checked 2435ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @b86bab8d85ef
 pass/traits/ring_requirement_satisfies_exit checked 6391ms check-target:macos_arm64 @a92f16431042
 pass/traits/runtime_dyn_array_assignments_establishment_exit checked 614ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/traits/runtime_dyn_array_literal_establishment_exit checked 616ms check-target:macos_arm64 @0360a23ad5f5+wt

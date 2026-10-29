@@ -585,7 +585,6 @@ pub(super) fn capture(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
     statement_index: usize,

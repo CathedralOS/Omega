@@ -4,7 +4,7 @@ use build_output::BuildStagedOutputTree;
 
 // Filesystem facts retain the evaluator's vocabulary and logical identities.
 // Only root meaning and successful-run custody are build-specific below.
-pub use checked_interpreter::BuildEvaluationUsage;
+pub use evaluation_accounting::BuildEvaluationUsage;
 pub use filesystem_authority::{
     FilesystemGrantAccess as BuildFilesystemGrantAccess,
     FilesystemGrantRefusal as BuildFilesystemGrantRefusal,

@@ -9,12 +9,11 @@ use optimization_unit::{
     LinearEmptyBlockRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
+use optimization_unit_semantics::reconstruct_linear_thread_bindings;
 use semantic_vocabulary::BlockId;
 
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
-use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
-    compose_linear_thread_bindings, linear_thread_ownership_is_identity,
-};
+use crate::rules::control_flow_cleanup::empty_block_thread_ownership::linear_thread_ownership_is_identity;
 use crate::rules::control_flow_cleanup::{provenance_realized_at, record_block_effect_drift};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -110,7 +109,7 @@ psi_rule_impl!(LinearEmptyBlockThreadRule, |unit, analyses| {
             {
                 continue;
             }
-            let Some(_) = compose_linear_thread_bindings(
+            let Some(_) = reconstruct_linear_thread_bindings(
                 &empty.parameters,
                 incoming_bindings,
                 outgoing_bindings,

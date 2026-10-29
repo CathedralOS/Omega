@@ -242,7 +242,10 @@ fn realize_capture(
         .iter()
         .filter(|(_, captured)| {
             captured.template == realization_machine
-                && captured.conformance_application == *application
+                && program.closed_conformance_applications_match(
+                    &captured.conformance_application,
+                    application,
+                )
                 && program
                     .expression_table
                     .static_machine_application(captured.supplying_application)
@@ -496,7 +499,10 @@ fn realize_capture(
                 .iter()
                 .find(|(_, capture)| {
                     capture.template == realization_machine
-                        && capture.conformance_application == *application
+                        && program.closed_conformance_applications_match(
+                            &capture.conformance_application,
+                            application,
+                        )
                         && program
                             .expression_table
                             .static_machine_application(capture.supplying_application)

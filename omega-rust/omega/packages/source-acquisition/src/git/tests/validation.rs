@@ -2,6 +2,37 @@ use super::{
     LocalSourceLimits, SourceResolveError, parse_git_tree_entries, temp_root,
     validate_git_symlink_target,
 };
+
+#[test]
+fn git_entry_paths_use_native_separators_without_changing_identity_bytes() {
+    let repository = temp_root("git-native-entry-paths");
+    let oid = "0123456789012345678901234567890123456789";
+    let paths = [".agents", ".agents/skills", ".agents/skills/example"];
+    let listing = paths
+        .iter()
+        .map(|path| format!("040000 tree {oid} -\t{path}\0"))
+        .collect::<String>();
+    let entries = parse_git_tree_entries(
+        listing.as_bytes(),
+        &repository,
+        LocalSourceLimits::default(),
+    )
+    .unwrap();
+    for (entry, spelling) in entries.iter().zip(paths) {
+        let native: std::path::PathBuf = spelling.split('/').collect();
+        assert_eq!(entry.relative_path.as_os_str(), native.as_os_str());
+        assert_eq!(entry.relative_bytes, spelling.as_bytes());
+    }
+    let tree = source::CapturedSourceTree::new(
+        entries
+            .into_iter()
+            .map(|entry| (entry.relative_path, source::CapturedSourceNode::Directory)),
+    )
+    .unwrap();
+    assert!(tree.is_dir(std::path::Path::new(".agents/skills/example")));
+    assert!(!repository.exists());
+}
+
 #[test]
 fn git_tree_rejects_traversal_metadata_and_nonportable_paths_before_materialization() {
     let repository = temp_root("git-tree-path-validation");

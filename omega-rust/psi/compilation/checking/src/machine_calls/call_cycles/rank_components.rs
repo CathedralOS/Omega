@@ -10,7 +10,6 @@ use checked_trees::{
     CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeNaturalState,
     CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
 };
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 /// Invocation-local call topology, prepared once before source admission. It
@@ -154,6 +153,7 @@ pub fn retain_runtime_rank_component(
                     coordinate,
                     parameter_position: state.parameter_position,
                     primitive_type: state.primitive_type,
+                    observation: state.observation,
                 }
             })
             .collect::<Vec<_>>();
@@ -226,6 +226,7 @@ pub fn retained_runtime_natural_components(
                         },
                         parameter_position: state.parameter_position,
                         primitive_type: state.primitive_type,
+                        observation: state.observation,
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;

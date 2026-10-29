@@ -1,10 +1,12 @@
 # Compile-time admission and elaboration
 
 This compiler service admits evaluation and installs its results into source
-and typed programs. It uses the independently owned
-[checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs)
-for execution. It does not implement a second evaluator or own the product's
-Build configuration, package acquisition or target realization.
+and typed programs. Checked fixed-array-length jobs execute through the shared
+Terminal producer and interpreter; remaining pure value and policy jobs still
+use the [checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs).
+Build activation executes only through Omega's
+[Terminal Build host](../../../omega/compilation/build-evaluation/src/build_evaluation.rs).
+This service owns neither Build configuration nor package acquisition or target realization.
 
 Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its
 `evaluate_pre_resolution` operation takes one `BuildTimeEvaluationRequest`,

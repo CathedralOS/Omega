@@ -439,10 +439,13 @@ impl OperationBuffer {
         }
         if let Some(result) = operation.result.structural() {
             self.structural_establishments.push(result.place);
-        } else if let OperationKind::EstablishTrivialAffineLocal { destination } = &operation.kind {
-            // This owner has no operation result, but its actual establishment
-            // still belongs to the same cleanup chronology. Checked completion
-            // supplies its disposal authority independently.
+        } else if let OperationKind::EstablishTrivialAffineLocal { destination }
+        | OperationKind::EstablishByteSequenceLiteral { destination, .. } =
+            &operation.kind
+        {
+            // Unit-result producers still establish physical storage. Keep
+            // that chronology independent of their result encoding; checked
+            // completion supplies membership and disposal authority separately.
             self.retain_structural_establishment(*destination);
         }
         self.operations.push(operation);

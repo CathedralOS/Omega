@@ -389,7 +389,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // but after guard memoization so one guard subject observes one byte.
         if self.exact_console_intrinsic_host_method(call.target_symbol) == Some("read_byte") {
             self.host_boundary_touched = true;
-            self.non_fs_host_boundary_touched = true;
             let value = self.read_stdin_byte_value(call.target_symbol)?;
             return Ok(self.guard_subject_value(handle, frame, value));
         }
@@ -448,10 +447,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 ) {
                     // Value-position host fallbacks are host-boundary calls too
                     // (the build-time purity backstop must see them); none of
-                    // these are filesystem ops, so the granted-build backstop
-                    // sees them as well.
+                    // these are filesystem ops; pure evaluation rejects them.
                     self.host_boundary_touched = true;
-                    self.non_fs_host_boundary_touched = true;
                 }
                 if target == "read_byte" {
                     // The next raw stdin byte as `ByteRead::Byte { value }`,
@@ -461,13 +458,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     // try_host_call, but read_byte is value-position by
                     // nature (`let r = self.console.read_byte()`).
                     self.host_boundary_touched = true;
-                    self.non_fs_host_boundary_touched = true;
                     let value = self.read_stdin_byte_value(call.target_symbol)?;
                     return Ok(self.guard_subject_value(handle, frame, value));
                 }
                 if let Some(value) = self.virtual_time_host_value(target) {
                     self.host_boundary_touched = true;
-                    self.non_fs_host_boundary_touched = true;
                     return Ok(value);
                 }
                 if target == "tick_count" {
@@ -827,7 +822,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // must trip the dynamic build-time purity backstop.
         if compatibility_call {
             self.host_boundary_touched = true;
-            self.non_fs_host_boundary_touched = true;
         }
         Ok(Some(value))
     }

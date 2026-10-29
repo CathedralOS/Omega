@@ -11,7 +11,7 @@
 use crate::selection::place_declaration::declares_block_parameter;
 
 use legalized_operations::LegalizedScalarFunction;
-use semantic_vocabulary::{BlockId, StructuralPlaceKind};
+use semantic_vocabulary::BlockId;
 use terminal_psi::StructuralParameterDeclaration;
 
 /// Whether `expected` is the owned arrival whose block home a field store

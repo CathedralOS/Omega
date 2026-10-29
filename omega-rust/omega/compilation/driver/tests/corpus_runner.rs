@@ -678,7 +678,9 @@ fn native_target() -> Option<&'static str> {
 
 /// The command prefix that executes a `target` product on this host, or
 /// `None` when this host cannot run it. The host's own target runs directly;
-/// an Apple-silicon macOS host runs `macos_x86_64` images through Rosetta.
+/// an Apple-silicon macOS host runs `macos_x86_64` images through Rosetta,
+/// and a Linux x86-64 host runs `linux_arm64` images through qemu-aarch64
+/// user-mode emulation.
 fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
     let host = target::TargetProfile::host_if_supported().map(|profile| profile.target_name());
     if host == Some(target) {
@@ -686,6 +688,9 @@ fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
     }
     if host == Some("macos_arm64") && target == "macos_x86_64" {
         return Some(vec!["arch", "-x86_64"]);
+    }
+    if host == Some("linux_x86_64") && target == "linux_arm64" {
+        return Some(vec!["qemu-aarch64"]);
     }
     None
 }

@@ -81,13 +81,13 @@ blocks;
 crashes Trap
 {
     game.health = 10;
-    transition { _ -> prompt(game) }
+    transition { _ -> block prompt(game) }
 
 
     machine prompt(game: &mut Game) {
         transition game.health == 0 {
             true -> dead(game)
-            false -> read_command(game)
+            false -> block read_command(game)
         }
     }
 
@@ -97,9 +97,9 @@ crashes Trap
         game.command = resolve(line);
 
         transition game.command {
-            Command::Look -> look(game)
+            Command::Look -> block look(game)
             Command::Quit -> finished()
-            Command::Invalid -> invalid(game)
+            Command::Invalid -> block invalid(game)
         }
     }
 
@@ -110,12 +110,12 @@ crashes Trap
 
     machine look(game: &mut Game) {
         Console::write_line("look");
-        transition { _ -> prompt(game) }
+        transition { _ -> block prompt(game) }
     }
 
     machine invalid(game: &mut Game) {
         Console::write_line("invalid");
-        transition { _ -> prompt(game) }
+        transition { _ -> block prompt(game) }
     }
 
     machine finished() {
@@ -130,7 +130,7 @@ machine Main::main(main: &mut Main) reaches Console
 blocks;
 crashes Trap
 {
-    transition { _ -> running(main) }
+    transition { _ -> block running(main) }
 
 
     machine running(main: &mut Main) {
@@ -169,7 +169,7 @@ requires start <= 16; bytes.len <= 16 - start {
             _ -> done()
         }
     }
-    state writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
+    machine writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
     requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }

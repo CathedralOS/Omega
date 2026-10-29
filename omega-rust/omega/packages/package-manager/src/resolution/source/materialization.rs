@@ -26,8 +26,4 @@ impl PackageSourceMaterialization {
     pub const fn content(&self) -> &SourceContentDigest {
         &self.content
     }
-
-    pub const fn byte_count(&self) -> u64 {
-        self.byte_count
-    }
 }

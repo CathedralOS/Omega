@@ -29,7 +29,6 @@ representation-planning = { path = "../../../psi/compilation/checking/representa
 target = { path = "../backend/target" }
 trust-model = { path = "../realization/trust-model" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

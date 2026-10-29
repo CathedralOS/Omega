@@ -223,7 +223,8 @@ pub use value_custody::places::{
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
     saved_dispatch_subject, structural_atomic_field, structural_scalar_field,
-    structural_scalar_field_at_coordinate, structural_scalar_field_in_parameters,
+    structural_scalar_field_at_coordinate,
+    structural_scalar_field_at_element_coordinate, structural_scalar_field_in_parameters,
     structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
     value_element_has_builtin_coordinate, value_has_builtin_coordinates,
 };
@@ -400,7 +401,7 @@ pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
-    ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
+    ScalarArrayElement, ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
     is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
     scalar_array_preserves_memberships,
@@ -590,11 +591,11 @@ pub use value_custody::places::{
     StorageObservationTypePathError, canonical_owned_place_type_reference,
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, contextual_canonical_place_from_expression,
-    data_member_symbol_by_name, declared_data_type, effective_member_symbol,
-    expression_place_type_reference, expression_root_symbol, expression_type_reference_in_state,
-    expression_type_symbol, first_valid_name_path_symbol, index_place_segment,
-    loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    canonical_qualification_path, collection_element_type_reference,
+    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    effective_member_symbol, expression_place_type_reference, expression_root_symbol,
+    expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
+    index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
     nearest_scoped_local, observed_storage_type_references, owned_projection_type_reference,
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,

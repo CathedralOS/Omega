@@ -122,7 +122,7 @@ impl Default for CheckedStateNaturalRank {
             parameter: SymbolHandle::invalid(),
             parameter_position: 0,
             measure: CheckedNaturalRankMeasure::SequenceLength {
-                subject: typed_trees::expression::ExpressionHandle::invalid(),
+                coordinate: crate::CheckedRankCoordinateHandle::invalid(),
             },
             observation: crate::CheckedScalarComputationHandle::invalid(),
         }
@@ -140,10 +140,10 @@ pub enum CheckedNaturalRankMeasure {
         measure: SymbolHandle,
         primitive_type: PrimitiveType,
     },
-    /// `Slice::Length`: exact source subject identity; its element or byte
-    /// count and arrival projection live in the shared computation root.
+    /// `Slice::Length`: exact admitted arrival coordinate. Private participants
+    /// need no fabricated source occurrence to read their descriptor extent.
     SequenceLength {
-        subject: typed_trees::expression::ExpressionHandle,
+        coordinate: crate::CheckedRankCoordinateHandle,
     },
     /// `Nat::Descending`: the fixed-width integer subject itself, signed or
     /// unsigned. The checker proves it descends on every cyclic edge.

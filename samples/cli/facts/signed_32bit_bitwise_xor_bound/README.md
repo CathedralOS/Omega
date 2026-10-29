@@ -87,3 +87,36 @@ The compiler strictly fails closed at compile time:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA bitwise XOR instructions (`xor eax, 15` on `x86_64` and `eor w0, w0, #15` on `arm64`) alongside integer comparisons and exact subtractions, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
 - **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+
+## Singleton-bound repair and Build selection
+
+`BUILD-OWNED-TARGET-SELECTION` requires migrating this row without rewriting
+its numeric premises, operation or oracle. The original producer wrongly
+rejected eight positive places because `raw >= 59 && raw <= 59` did not supply
+exact known bits; the call-result place already passed and remains coverage.
+Known-bit checking now reads an established singleton interval as one exact
+integer, retaining carrier range, signed conversion and operand formation.
+Non-singleton intervals are never evaluated only at their endpoints.
+
+All original exact subtractions and the final sum subtraction execute before
+an additional runtime check for the transported value 52. This makes a wrong
+join arm or wrong in-range value observable without a caller guard supplying
+the proof. Reject twins retain their original XOR mask 127, producing 68; the call-result
+twin also omits the helper’s upper-bound guarantee. Each rejects the original
+40..63 bound obligation before that runtime check.
+The target-body place uses ordinary X86/ARM implementations selected by explicit
+Build rows and separate 17/29 entry/body guards; all nine places bind five hosted
+profiles and request same-artifact Terminal installations. Fresh execution and
+rejection evidence is retained in the qualification record; historical claims
+above do not establish other-host native execution or parent-task closure.
+
+Fresh scoped comparison uses identical source and oracle bytes for 39 fixtures:
+16 original positive refusals become checked, three existing positive checks
+remain accepted, and all 20 intended rejects remain rejects. All nine places and
+root witnesses exit 0 in native execution and Terminal Psi on the observed host;
+the 19-positive corpus cohort also exits 0 natively on macOS ARM and X86 and runs
+all five Terminal installations against each unchanged artifact. Four wrong-join
+or wrong-field counterfactuals produce typed Terminal Trap. Native Trap
+termination is unverified because macOS leaves the negative processes exiting;
+those incomplete attempts are retained separately. Windows/Linux native runs
+and full parent migration acceptance remain open.

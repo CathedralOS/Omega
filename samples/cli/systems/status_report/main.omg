@@ -10,18 +10,21 @@ data TextBuffer where used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 32; bytes.len <= 32 - start
+ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
     machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index <= 32
+    ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 32 {
             true -> writing(buffer, bytes, start, index)
             _ -> done()
         }
     }
-    state writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
     requires start <= 32; index < 32; index < bytes.len; start + index < 32
+    ensures buffer in Ascii
     {
         buffer[start + index] = bytes[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
@@ -44,8 +47,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.reading = 95;
 
     transition main.reading > 90 {
-        true -> high(main)
-        _ -> normal(main)
+        true -> block high(main)
+        _ -> block normal(main)
     }
 
     machine high(main: &mut Main) {
@@ -53,7 +56,7 @@ machine Main::main(main: &mut Main) reaches Console {
         copy(&mut main.message.storage, &main.label, 6);
         main.message.used = 10;
         Console::write_line(live(&main.message));
-        transition live(&main.message) == "ALERT temp" { true -> ok(main) _ -> bad(main) }
+        transition live(&main.message) == "ALERT temp" { true -> block ok(main) _ -> block bad(main) }
     }
 
     machine normal(main: &mut Main) {
@@ -61,7 +64,7 @@ machine Main::main(main: &mut Main) reaches Console {
         copy(&mut main.message.storage, &main.label, 3);
         main.message.used = 7;
         Console::write_line(live(&main.message));
-        transition live(&main.message) == "ok temp" { true -> ok(main) _ -> bad(main) }
+        transition live(&main.message) == "ok temp" { true -> block ok(main) _ -> block bad(main) }
     }
 
     machine ok(main: &mut Main) {

@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Control-flow cleanup: the
 //! pass's exact rule order, one file per graph transformation beneath it --
 //! constant-conditional folding, linear and path-qualified empty-block
-//! threading (sharing `empty_block_thread_bindings`), adjacent and
+//! threading (sharing `empty_block_thread_ownership`), adjacent and
 //! non-adjacent block merges (sharing `block_merge_substitutions` and
 //! `merge_boundary_ownership` with shared-jump fusion), and unreachable
 //! private-machine pruning.
@@ -22,7 +22,7 @@ use std::collections::BTreeSet;
 mod adjacent_block_merge;
 mod block_merge_substitutions;
 mod constant_conditional_fold;
-mod empty_block_thread_bindings;
+mod empty_block_thread_ownership;
 mod linear_empty_block_thread;
 mod merge_boundary_ownership;
 mod non_adjacent_block_merge;

@@ -556,7 +556,10 @@ impl TypedTrees {
                 continue;
             }
             if let [capture] = captures.as_slice() {
-                if &capture.conformance_application != application {
+                if !self.closed_conformance_applications_match(
+                    &capture.conformance_application,
+                    application,
+                ) {
                     return None;
                 }
                 let selecting = self.conformance_by_symbol(application.declaration)?;

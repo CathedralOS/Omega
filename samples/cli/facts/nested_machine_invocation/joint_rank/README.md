@@ -103,3 +103,11 @@ cover the complete row, normal output-loan timing, lineage controls and the
 `facts/nested_machine_joint_rank_carried_restoration_*`; composition and safety
 controls are `borrows/nested_machine_carried_*`. These are macOS ARM64 execution
 observations; the broader parent acceptance remains open.
+
+## Descriptor length coordinates
+
+The same fact also has a `structural_view/` production in each of the nine
+places. An authored `Slice::Length` rank transports its descriptor through a
+private helper with reordered arguments and no separate ranking clause.
+[Requirements, witnesses and controls](local/structural_view/README.md) describe
+the exact admitted coordinate and current-versus-entry descriptor observations.

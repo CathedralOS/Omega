@@ -1,8 +1,6 @@
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::read::{
-    DependencyProjections, DependencyPurpose, DependencySourceRequest,
-};
+use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
 use crate::resolution::source::PackageSourceNavigation;
@@ -59,12 +57,6 @@ impl<S> ResolvedPackageSource<S> {
             dependency_projections: projected_dependencies.into(),
             source,
         }
-    }
-
-    crate::resolution::source::package_source_surface_accessors!();
-
-    pub fn source(&self) -> &S {
-        &self.source
     }
 
     /// Erase the transport-specific resolver payload while retaining the

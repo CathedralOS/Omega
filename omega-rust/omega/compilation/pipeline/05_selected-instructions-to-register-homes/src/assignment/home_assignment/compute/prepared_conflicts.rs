@@ -644,24 +644,6 @@ impl PreparedConflicts {
         row.binary_search_by_key(&right_u32, |entry| entry.neighbor())
             .map_or_else(|_| DomainPair::default(), |position| row[position].pair())
     }
-
-    /// Candidates have already been admitted by construction. Both IDs come
-    /// from a domain's original candidates or its monotonically shrinking set.
-    pub(super) fn conflicts_between(
-        &self,
-        domain: usize,
-        view: RegisterViewId,
-        other_domain: usize,
-        other_view: RegisterViewId,
-    ) -> bool {
-        let physical_mask =
-            self.physical_matrix[usize::from(view.0) * self.view_count + usize::from(other_view.0)];
-        if physical_mask == 0 {
-            return false;
-        }
-        let pair = self.pair(domain, other_domain);
-        (physical_mask & pair.to_mask()) != 0
-    }
 }
 
 fn definition_overwrites_use(definition: &RegisterView, used: &RegisterView) -> bool {

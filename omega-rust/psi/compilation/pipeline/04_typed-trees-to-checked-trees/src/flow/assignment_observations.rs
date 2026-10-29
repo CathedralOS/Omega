@@ -104,20 +104,6 @@ impl AssignmentObservations {
             self.payloads(program, semantic, contexts, subject),
         )
     }
-
-    fn integer_bounds(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-        semantic: &FactPlan,
-        contexts: &[FlowSemanticContextRef],
-        subject: &CanonicalPlace,
-    ) -> Option<facts::IntegerRange> {
-        crate::values::integer_bounds_from_payloads(
-            program,
-            semantic,
-            self.payloads(program, semantic, contexts, subject),
-        )
-    }
 }
 
 impl FlowBuildContext<'_> {
@@ -129,21 +115,6 @@ impl FlowBuildContext<'_> {
         subject: &CanonicalPlace,
     ) -> Option<ScalarValue> {
         self.assignment_observations.scalar_value(
-            program,
-            semantic,
-            self.contexts.semantic_context_refs.span_or_empty(contexts),
-            subject,
-        )
-    }
-
-    pub(super) fn integer_bounds_at_place(
-        &mut self,
-        program: &dyn ::validation::CheckingInput,
-        semantic: &FactPlan,
-        contexts: HandleSpan<FlowSemanticContextRef>,
-        subject: &CanonicalPlace,
-    ) -> Option<facts::IntegerRange> {
-        self.assignment_observations.integer_bounds(
             program,
             semantic,
             self.contexts.semantic_context_refs.span_or_empty(contexts),
