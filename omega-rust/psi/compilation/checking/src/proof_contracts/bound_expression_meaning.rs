@@ -636,7 +636,7 @@ pub fn applied_case_membership_variant(
 /// callable owner. A global declaration lookup supplies neither identity.
 pub fn has_exact_declaration_case_membership_meaning(
     program: &dyn crate::CheckingInput,
-    owner: symbols::SymbolHandle,
+    declaration_owner: symbols::SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
@@ -648,7 +648,7 @@ pub fn has_exact_declaration_case_membership_meaning(
             )
             .or_else(|| {
                 crate::reserved_result_place(program, subject)
-                    .filter(|result| result.machine_symbol == owner)
+                    .filter(|result| result.machine_symbol == declaration_owner)
                     .map(|result| result.type_reference)
             })
         })
