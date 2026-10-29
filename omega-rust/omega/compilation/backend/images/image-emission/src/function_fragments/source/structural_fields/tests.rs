@@ -1772,7 +1772,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(26),
-                shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: 2 },
+                shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(2) },
             },
             terminal_psi::StructuralTypeDeclaration {
                 quotient_carrier: None,
