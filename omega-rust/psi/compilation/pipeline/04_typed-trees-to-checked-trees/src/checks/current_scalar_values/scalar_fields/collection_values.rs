@@ -23,8 +23,14 @@ impl CurrentScalarValues<'_> {
     pub(super) fn capture_array_elements(
         &self,
         elements: arena::HandleSpan<ExpressionHandle>,
+        reference: typed_trees::types::TypeReferenceHandle,
         depth: usize,
     ) -> Vec<CapturedScalarField> {
+        let Some((element_type, _)) =
+            validation::readable_fixed_array_elements(self.program, reference)
+        else {
+            return Vec::new();
+        };
         let mut fields = Vec::new();
         for (index, expression) in self
             .program
@@ -36,17 +42,13 @@ impl CurrentScalarValues<'_> {
             let Some(index) = u64::try_from(index).ok().and_then(element) else {
                 return Vec::new();
             };
-            for mut field in self.captured_scalar_fields(*expression, depth + 1) {
+            for mut field in
+                self.captured_scalar_fields_of_type(*expression, element_type, depth + 1)
+            {
                 field.path.insert(0, index.clone());
                 fields.push(field);
             }
-            let carrier = validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
-                *expression,
-            )
-            .and_then(|reference| integer_carrier(self.program, reference));
+            let carrier = integer_carrier(self.program, element_type);
             if let Some(carrier) = carrier
                 && let Some(value) =
                     self.capture(self.program, self.machine, self.state, *expression)
@@ -61,6 +63,62 @@ impl CurrentScalarValues<'_> {
             }
         }
         fields
+    }
+
+    pub(super) fn capture_join_fields(
+        &self,
+        expression: ExpressionHandle,
+        dispatch: &typed_trees::expression::TableMatchExpression,
+        depth: usize,
+    ) -> Vec<CapturedScalarField> {
+        let arms = self.program.expression_table.match_arms(dispatch.arms);
+        let alternatives = arms
+            .iter()
+            .map(|arm| self.captured_scalar_fields(arm.value, depth + 1))
+            .collect::<Vec<_>>();
+        let Some(first) = alternatives.first() else {
+            return Vec::new();
+        };
+        first
+            .iter()
+            .filter_map(|field| {
+                let selected = alternatives
+                    .iter()
+                    .map(|fields| {
+                        fields.iter().find(|candidate| {
+                            candidate.carrier == field.carrier
+                                && same_projection(self.occurrence(), &candidate.path, &field.path)
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let value = super::super::joins::joined_values(
+                    self.program,
+                    self.machine,
+                    &self.hypotheses,
+                    format!(
+                        "state:{:?}:join-result:{expression:?}:field:{:?}",
+                        self.state.symbol, field.path
+                    ),
+                    selected.iter().map(|field| field.value.clone()).collect(),
+                )?;
+                let mut read_dependencies = Vec::new();
+                for candidate in selected {
+                    for dependency in &candidate.read_dependencies {
+                        crate::collections::push_unique(&mut read_dependencies, dependency.clone());
+                    }
+                    if let Some(source) = &candidate.source {
+                        crate::collections::push_unique(&mut read_dependencies, source.clone());
+                    }
+                }
+                Some(CapturedScalarField {
+                    path: field.path.clone(),
+                    carrier: field.carrier,
+                    value,
+                    read_dependencies,
+                    source: None,
+                })
+            })
+            .collect()
     }
 
     pub(super) fn capture_window_elements(
@@ -171,6 +229,28 @@ pub(super) fn selected_value(
             return Some(elements[start].1.clone());
         }
         start = end + 1;
+    }
+    // Distinct elements need not be equal to share an independently proved
+    // bound. A complete contiguous partition supplies one captured read whose
+    // interval is the union of every possible element's interval.
+    if let (Some(first), Some(last)) = (elements.first(), elements.last())
+        && elements
+            .windows(2)
+            .all(|pair| pair[0].0.checked_add(1) == Some(pair[1].0))
+    {
+        let low = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(first.0));
+        let high = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(last.0));
+        if proves(occurrence, BinaryOperator::GreaterOrEqual, selector, &low)
+            && proves(occurrence, BinaryOperator::LessOrEqual, selector, &high)
+        {
+            return super::super::joins::joined_values(
+                occurrence.program,
+                occurrence.machine,
+                occurrence.hypotheses,
+                format!("selected:{owner:?}:{path:?}:{elements:?}"),
+                elements.iter().map(|(_, value)| (*value).clone()).collect(),
+            );
+        }
     }
     None
 }

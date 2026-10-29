@@ -83,12 +83,17 @@ pub fn structural_scalar_coordinate(
     if inputs.next().is_some() {
         return None;
     }
-    read_coordinate(program, parameter, input.type_reference, coordinate)
+    structural_scalar_coordinate_in_type(
+        program,
+        facts::PlaceRoot::Symbol(parameter),
+        input.type_reference,
+        coordinate,
+    )
 }
 
-fn read_coordinate(
+pub fn structural_scalar_coordinate_in_type(
     program: &dyn crate::CheckingInput,
-    parameter: SymbolHandle,
+    root: facts::PlaceRoot,
     source_type: TypeReferenceHandle,
     coordinate: &[facts::PlaceSegment],
 ) -> Option<StructuralScalarCoordinate> {
@@ -283,7 +288,7 @@ fn read_coordinate(
             .map(ScalarCoordinateProjection::Storage),
     );
     Some(StructuralScalarCoordinate {
-        root: facts::PlaceRoot::Symbol(parameter),
+        root,
         type_reference: source_type,
         result_type_reference,
         primitive_type,
@@ -359,7 +364,12 @@ pub fn structural_scalar_field_at_element_coordinate(
                 .find(|local| local.symbol == parameter)
                 .map(|local| local.type_reference)
         })?;
-    let selected = read_coordinate(program, parameter, reference, coordinate)?;
+    let selected = structural_scalar_coordinate_in_type(
+        program,
+        facts::PlaceRoot::Symbol(parameter),
+        reference,
+        coordinate,
+    )?;
     let Endpoint::Element { carrier, position } = selected.endpoint else {
         return None;
     };

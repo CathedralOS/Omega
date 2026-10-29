@@ -341,9 +341,20 @@ impl<'program> CurrentScalarValues<'program> {
                         local.initial_value,
                         ordinal,
                     );
-                    let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
+                    let scalar_fields = values.captured_scalar_fields_of_type(
+                        local.initial_value,
+                        local.type_reference,
+                        0,
+                    );
                     values.replace_scalar_fields(local.symbol, &[], scalar_fields);
                     values.capture_record_fields(local.symbol, &[], local.initial_value);
+                    if integer_carrier(program, local.type_reference).is_none() {
+                        values.assume_aggregate_call_ensures(
+                            local.initial_value,
+                            &actuals,
+                            ordinal,
+                        );
+                    }
                     let reference_scalar =
                         validation::reference_shell(program, local.type_reference).and_then(
                             |shell| {
@@ -405,7 +416,16 @@ impl<'program> CurrentScalarValues<'program> {
                     let actuals = values.capture_call_actuals(assignment.value);
                     let value = values.capture(program, machine, state, assignment.value);
                     let conditions = values.capture_conditions(assignment.value, 0);
-                    let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
+                    let mut scalar_fields = validation::expression_result_type_reference(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                    .map(|reference| {
+                        values.captured_scalar_fields_of_type(assignment.value, reference, 0)
+                    })
+                    .unwrap_or_else(|| values.captured_scalar_fields(assignment.value, 0));
                     let scalar_store =
                         values.captured_scalar_store(assignment.target, value.clone(), ordinal);
                     let store_aliases = scalar_store.as_ref().map_or_else(Vec::new, |field| {

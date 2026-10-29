@@ -1,0 +1,118 @@
+//! Public result coordinates are observations, not inferred bounds. The
+//! selected return declaration supplies geometry; the existing call-completion
+//! owner independently transports only its checked public guarantees.
+use super::super::ScopedCallResultObservation;
+use super::*;
+
+pub(super) fn result_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Vec<ScopedCallResultObservation> {
+    let Some(call) = program.expression_table.call_node(expression) else {
+        return Vec::new();
+    };
+    let Some(owner) = selected_call_site_contract(
+        program,
+        machine.symbol,
+        crate::CallSite::Expression { expression, call },
+    ) else {
+        return Vec::new();
+    };
+    if matches!(owner, SelectedCallContract::DynamicSlot { .. }) {
+        return Vec::new();
+    }
+    let reference =
+        crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
+    if program.primitive_type_reference(reference).is_some() {
+        return Vec::new();
+    }
+    let mut pending = owner_contracts(program, &owner)
+        .filter(|contract| {
+            contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| fact.as_expression().copied())
+        .collect::<Vec<_>>();
+    let mut observations: Vec<ScopedCallResultObservation> = Vec::new();
+    let mut visited = Vec::new();
+    while let Some(selected) = pending.pop() {
+        if visited.contains(&selected) {
+            continue;
+        }
+        visited.push(selected);
+        if let Some(place) = crate::reserved_result_place(program, selected)
+            && place.machine_symbol == owner_symbol(&owner)
+            && !place.segments.is_empty()
+            && let Some(geometry) = crate::structural_scalar_coordinate_in_type(
+                program,
+                facts::PlaceRoot::Expression(expression),
+                reference,
+                &place.segments,
+            )
+            && geometry.primitive_type.is_fixed_integer()
+            && geometry.projections.iter().all(|step| {
+                matches!(
+                    step,
+                    crate::ScalarCoordinateProjection::Storage(
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    )
+                )
+            })
+        {
+            let value = observations
+                .iter()
+                .find(|existing| existing.path == place.segments)
+                .map(|existing| existing.value.clone())
+                .unwrap_or_else(|| ScopedArithmeticValue::Atom {
+                    identity: format!(
+                        "state:{:?}:call-result:{expression:?}:field:{:?}",
+                        state.symbol, place.segments
+                    ),
+                    unsigned: matches!(
+                        geometry.primitive_type,
+                        typed_trees::unsigned_integer_primitive_pattern!()
+                    ),
+                });
+            observations.push(ScopedCallResultObservation {
+                expression: selected,
+                path: place.segments,
+                primitive_type: geometry.primitive_type,
+                value,
+            });
+        }
+        children(
+            program,
+            program.expression_table.expression(selected),
+            |child| pending.push(child),
+        );
+    }
+    observations
+}
+
+pub(super) fn result_uses_are_bound(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    bindings: &[ScopedArithmeticBinding],
+) -> bool {
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        if bindings
+            .iter()
+            .any(|binding| binding.binder == ScopedArithmeticBinder::Occurrence(expression))
+        {
+            continue;
+        }
+        if program.expression_table.names_reserved_result(expression) {
+            return false;
+        }
+        children(
+            program,
+            program.expression_table.expression(expression),
+            |child| pending.push(child),
+        );
+    }
+    true
+}

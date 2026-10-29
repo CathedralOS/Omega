@@ -224,10 +224,11 @@ pub use value_custody::places::{
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
     saved_dispatch_subject, structural_atomic_field, structural_scalar_coordinate,
-    structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_at_element_coordinate, structural_scalar_field_in_parameters,
-    structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
-    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
+    structural_scalar_coordinate_in_type, structural_scalar_field,
+    structural_scalar_field_at_coordinate, structural_scalar_field_at_element_coordinate,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source, subslice_expression, value_element_has_builtin_coordinate,
+    value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -498,9 +499,10 @@ pub use proof_contracts::contract_entailment::refuted_requires::instantiated_val
 pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
     ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    ScopedCallCompletion, scoped_arithmetic_comparisons_unsatisfiable,
+    ScopedCallCompletion, ScopedCallResultObservation, scoped_arithmetic_comparisons_unsatisfiable,
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
-    scoped_arithmetic_values_relation, scoped_completed_call_guarantees,
+    scoped_arithmetic_values_relation, scoped_call_result_observations,
+    scoped_completed_call_guarantees,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
