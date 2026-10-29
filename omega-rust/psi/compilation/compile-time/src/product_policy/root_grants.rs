@@ -4,7 +4,7 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+    AuthoredRootGrant, BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -15,7 +15,7 @@ pub fn collect_product_root_grants(
     activation: Option<SymbolHandle>,
     declared: &[std::sync::Arc<ProductDeclarationRequest>],
     executed: &[ExecutedProductSelection],
-) -> Result<Vec<crate::AuthoredRootGrant>, Vec<Diagnostic>> {
+) -> Result<Vec<AuthoredRootGrant>, Vec<Diagnostic>> {
     for request in declared
         .iter()
         .filter(|request| request.operation == BuildOperation::BoundaryAcceptance)
@@ -45,7 +45,7 @@ pub fn collect_product_root_grants(
                 typed_trees::product_operand::resolve_build_request_author(typed, machine_span)
                     .map_err(Diagnostic::error)?;
             let selected = subject(typed, &event.request)?;
-            Ok(crate::AuthoredRootGrant {
+            Ok(AuthoredRootGrant {
                 selector: typed
                     .product_declarations()
                     .symbols

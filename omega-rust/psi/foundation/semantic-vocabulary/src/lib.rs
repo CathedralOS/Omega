@@ -23,6 +23,8 @@
 pub(crate) use optimization::codec_bytes;
 
 mod authored_storage;
+mod behavior_policy;
+pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
 mod bounded_integer_type;
 pub mod byte_predicates;
 mod content;

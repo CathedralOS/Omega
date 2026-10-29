@@ -123,11 +123,7 @@ pub enum Terminator {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CrashCause {
-    Trap,
-    Abort,
-}
+pub use semantic_vocabulary::CrashCause;
 
 impl Terminator {
     /// Runtime storage operands in edge order, including ordered cleanup.
