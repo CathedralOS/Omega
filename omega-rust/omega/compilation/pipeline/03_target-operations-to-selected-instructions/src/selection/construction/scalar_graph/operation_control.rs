@@ -138,6 +138,39 @@ fn jump(
     )
 }
 
+/// Both control shapes start with the same test-then-branch step: compare the
+/// operation predicate against zero and branch to the blocks each shape chose.
+fn branch_on_nonzero(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    source: BlockId,
+    predicate: VirtualRegisterId,
+    when_nonzero: SelectedBlockId,
+    when_zero: SelectedBlockId,
+) -> Result<(), SelectedInstructionError> {
+    builder.emit(
+        SelectedInstructionKind::CompareI64Zero,
+        builder.constraints.keys.compare_i64_zero,
+        &[predicate],
+        super::structural::provenance(row),
+    )?;
+    builder.emit(
+        SelectedInstructionKind::ConditionalBranchNonZero,
+        builder.constraints.keys.conditional_branch,
+        &[],
+        super::structural::provenance(row),
+    )?;
+    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
+    finish(
+        builder,
+        SelectedTerminator::ConditionalBranch {
+            instruction,
+            when_nonzero: successor(source, row.operation, when_nonzero),
+            when_zero: successor(source, row.operation, when_zero),
+        },
+    )
+}
+
 /// Execute an operation-owned region conditionally. Inactive sum payloads must
 /// not be read merely because their overlaid storage exists. Like a loop, this
 /// branch refines an operation and creates no semantic edge or custody event.
@@ -195,34 +228,13 @@ fn conditional_body(
     settle_preceding_operations(builder)?;
     let selected = allocate(builder)?;
     let continuation = allocate(builder)?;
-    builder.emit(
-        SelectedInstructionKind::CompareI64Zero,
-        builder.constraints.keys.compare_i64_zero,
-        &[predicate],
-        super::structural::provenance(row),
-    )?;
-    builder.emit(
-        SelectedInstructionKind::ConditionalBranchNonZero,
-        builder.constraints.keys.conditional_branch,
-        &[],
-        super::structural::provenance(row),
-    )?;
-    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
-    finish(
+    branch_on_nonzero(
         builder,
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero: successor(
-                source,
-                row.operation,
-                if on_nonzero { selected } else { continuation },
-            ),
-            when_zero: successor(
-                source,
-                row.operation,
-                if on_nonzero { continuation } else { selected },
-            ),
-        },
+        row,
+        source,
+        predicate,
+        if on_nonzero { selected } else { continuation },
+        if on_nonzero { continuation } else { selected },
     )?;
     let origin = SelectedBlockOrigin::Operation {
         source,
@@ -282,27 +294,7 @@ pub(super) fn while_nonzero(
         start: builder.instructions.len(),
     });
     let predicate = condition(builder)?;
-    builder.emit(
-        SelectedInstructionKind::CompareI64Zero,
-        builder.constraints.keys.compare_i64_zero,
-        &[predicate],
-        super::structural::provenance(row),
-    )?;
-    builder.emit(
-        SelectedInstructionKind::ConditionalBranchNonZero,
-        builder.constraints.keys.conditional_branch,
-        &[],
-        super::structural::provenance(row),
-    )?;
-    let instruction = builder.instructions.last().cloned().ok_or_else(failure)?;
-    finish(
-        builder,
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero: successor(source, row.operation, repeated),
-            when_zero: successor(source, row.operation, continuation),
-        },
-    )?;
+    branch_on_nonzero(builder, row, source, predicate, repeated, continuation)?;
     builder.open_block = Some(OpenBlock {
         id: repeated,
         origin,

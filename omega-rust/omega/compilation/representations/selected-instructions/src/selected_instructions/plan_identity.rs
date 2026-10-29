@@ -13,7 +13,6 @@
 //! of such a plan hashes changed metadata, edited blocks and digest rosters.
 
 use optimization_unit::{FuelSettlement, PsiProvenance};
-use register_model::RegisterOperandAccess;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
 use crate::{
@@ -26,6 +25,8 @@ mod contracts;
 mod function_digest_tests;
 mod ordinary;
 mod register;
+
+pub use contracts::encode_memory_access;
 
 use crate::effects::program::identity::{encode_ids, encode_kind};
 use register_model::encode_constraint_key;

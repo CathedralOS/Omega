@@ -1,0 +1,7 @@
+// Expected exit: 0
+machine main() crashes Trap {
+ let value: i64 in Trapping = divide(12, 3);
+ transition value == 4 { true -> {} false -> bad() }
+ machine divide(a: i64 in Trapping, b: i64 in Trapping) -> i64 in Trapping requires b != 0 { a / b }
+ machine bad() crashes Trap { crash Trap; }
+}

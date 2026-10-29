@@ -170,6 +170,15 @@ pub(super) fn retained_target(
         CallSite::Expression { call, .. } => call.target_symbol,
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
+    callable_entry(program, target)
+}
+
+/// The exact callable coordinate of one declaration, without projecting an
+/// executable instance to its template or changing a nonentry state.
+pub(super) fn callable_entry(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Result<SymbolHandle, String> {
     if program.symbols.get(target).kind != SymbolKind::Machine {
         return Ok(target);
     }

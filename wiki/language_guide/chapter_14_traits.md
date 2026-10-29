@@ -312,8 +312,8 @@ for the accepted form and its remaining implementation work.
 
 A local generic requirement may need only one exact machine signature rather
 than a reusable trait name. A static machine binder states that structural
-contract, for example `where machine Key(card: &Card) -> u64`. This is distinct
-from an anonymous member requirement such as `where machine T::member(...)`,
+contract, for example `requires machine Key(card: &Card) -> u64`. This is distinct
+from an anonymous member requirement such as `requires machine T::member(...)`,
 which is not a supported source form. See
 [static machine binders](../spec/language/generics.md#static-machine-binder-categories).
 
@@ -760,7 +760,7 @@ declared laws, exact substitutions, validity scopes, and admitted assumptions.
 Implementation-private proofs cannot introduce undeclared public guarantees.
 
 Value-wide facts belong to the carrier's default domain: field constraints and
-the data signature's `where` facts. Algebraic laws remain resultless theorem
+the data signature's `requires` facts. Algebraic laws remain resultless theorem
 requirements with `ensures`. Invariant windows remain compiler-derived proof
 debt opened by writes and closed at consumption points; they do not imply an
 authored `invariant` keyword.

@@ -26,7 +26,7 @@ is total cannot remove a selected call's `requires`.
 
 Named decision: `proof-fact-data-equality`, settled 2026-10-13.
 
-Within `requires`, `ensures`, `where` facts, and expressions expected to form a
+Within `requires` and `ensures` clauses, and expressions expected to form a
 proposition, `left == right` elaborates to the foundation's proof-relevant
 `Id T left right` when both operands have the same non-primitive data type `T`.
 This is contextual mathematical elaboration, not an equality-machine call. It

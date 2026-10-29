@@ -1,9 +1,11 @@
 //! The validated dynamic load layout and its error.
 
+#[cfg(test)]
+use crate::dynamic_executable::load_placement::load_layout::ElfPlacedDynamicSectionKind;
 use crate::dynamic_executable::load_placement::load_layout::abi_validation::retained_image;
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadImageMemoryPlacement, ElfLoadProgramHeader, ElfPlacedDynamicSection,
-    ElfPlacedDynamicSectionKind, ElfResolvedSectionHeaderPlacement,
+    ElfResolvedSectionHeaderPlacement,
 };
 use crate::dynamic_executable::section_headers::relative_section_layout::ValidatedElfRelativeSectionPayloadLayout;
 use diagnostics::Diagnostic;
@@ -78,10 +80,12 @@ impl ValidatedElfDynamicLoadLayout {
         self.section_header_table_file_offset
     }
 
+    #[cfg(test)]
     pub(crate) fn section_header_table_byte_size(&self) -> usize {
         self.relative.payloads().section_headers().byte_count()
     }
 
+    #[cfg(test)]
     pub(crate) fn dynamic_section(&self) -> &ElfPlacedDynamicSection {
         &self.sections[ElfPlacedDynamicSectionKind::DynamicTable as usize]
     }

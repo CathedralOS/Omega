@@ -17,8 +17,6 @@ pub(super) fn project_call<'a, 'g>(
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &'a PsiOptimizationUnit,
     targeted: &target_operations::TargetUnitOperation,
-    native: &'a TargetOperationPlan,
-    plan: &'a AbstractOperationPlan,
     call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError>
 where

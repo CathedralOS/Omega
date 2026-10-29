@@ -529,6 +529,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     ));
                 }
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {
+                    static_environment: call.static_environment.clone(),
                     request: request.clone(),
                     selecting_machine: call.selecting_machine,
                     target,

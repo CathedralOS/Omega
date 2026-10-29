@@ -73,6 +73,7 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
         self.contents.descriptors.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn section_name_seed_byte_count(&self) -> usize {
         self.contents.section_name_table_seed.len()
     }

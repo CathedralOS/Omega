@@ -1,0 +1,49 @@
+[
+  {
+    "command": [
+      "python",
+      "wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py",
+      "build/checking-simplification/baseline/omega.exe",
+      "build/pass-producer/debug/omega.exe",
+      "build\\checking-simplification\\closure-comparison"
+    ],
+    "exit": 0
+  },
+  {
+    "command": [
+      "C:\\Users\\User\\.cargo\\bin\\mbx.EXE",
+      "nextest",
+      "run",
+      "-p",
+      "validation",
+      "--lib",
+      "--target-dir",
+      "build/pass-producer",
+      "ordered_values::congruence::difference_graph::tests"
+    ],
+    "exit": 0
+  },
+  {
+    "command": [
+      "C:\\Users\\User\\.cargo\\bin\\mbx.EXE",
+      "clippy",
+      "-p",
+      "validation",
+      "--locked",
+      "--no-deps",
+      "--target-dir",
+      "build/pass-producer"
+    ],
+    "exit": 0
+  },
+  {
+    "command": [
+      "python",
+      "wiki/drafts/measurements/checking_simplification_2026_10_28/validate.py",
+      "build/checking-simplification/baseline/omega.exe",
+      "build/pass-producer/debug/omega.exe",
+      "build\\checking-simplification\\closure-validation"
+    ],
+    "exit": 1
+  }
+]

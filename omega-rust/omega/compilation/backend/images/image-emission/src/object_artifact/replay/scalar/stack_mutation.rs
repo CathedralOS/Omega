@@ -1,13 +1,21 @@
 //! Exact scalar stack-mutation byte validation and depth replay.
 //!
 //! This module recognizes only the target instructions admitted by retained
-//! scalar stack evidence and recomputes their depth effects. It does not emit
-//! instructions or select stack layouts.
+//! scalar stack evidence and recomputes their depth effects, and it owns the
+//! one call-site replay step the linear, division, and conditional walks
+//! share. It does not emit instructions or select stack layouts.
 
-use machine_code::{ScalarStackEvidence, ScalarStackMutation, ScalarStackMutationKind};
+use std::collections::BTreeMap;
+
+use machine_code::{
+    InternalCallRelocation, ScalarStackEvidence, ScalarStackMutation, ScalarStackMutationKind,
+    UnitAffineCleanupRecord,
+};
 use semantic_vocabulary::MachineId;
+use target_operations::CallSiteOwner;
 
 use super::super::unit::stack::{x86_64_stack_adjustment, x86_64_stack_release_preserving_flags};
+use super::call_stack::scalar_call_stack_at;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 use target::Architecture;
 
@@ -144,8 +152,8 @@ pub(crate) fn claimed_mutations_and_call_sites(
     calls: &[machine_code::InternalCallRelocation],
 ) -> Result<
     (
-        std::collections::BTreeMap<usize, ScalarStackMutation>,
-        std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+        BTreeMap<usize, ScalarStackMutation>,
+        BTreeMap<usize, InternalCallRelocation>,
     ),
     ObjectError,
 > {
@@ -153,11 +161,11 @@ pub(crate) fn claimed_mutations_and_call_sites(
         .mutations
         .iter()
         .map(|mutation| (mutation.offset, *mutation))
-        .collect::<std::collections::BTreeMap<_, _>>();
+        .collect::<BTreeMap<_, _>>();
     if claimed.len() != evidence.mutations.len() {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
-    let mut call_sites = std::collections::BTreeMap::new();
+    let mut call_sites = BTreeMap::new();
     for call in calls {
         crate::object_artifact::call_sites::validate_internal_call_site(
             architecture,
@@ -174,6 +182,116 @@ pub(crate) fn claimed_mutations_and_call_sites(
     Ok((claimed, call_sites))
 }
 
+/// The one scalar stack replay ledger: the fixed frame each walk replays
+/// against, the claimed mutations and call sites it drains, and the validated
+/// calls it produces. The linear, division, and conditional walks claim
+/// mutations and replay call sites only through this owner, so the arm policy
+/// and the caller-live-byte fold are spelled once and the walks differ only in
+/// instruction recognition.
+pub(crate) struct ScalarReplay<'a> {
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &'a [u8],
+    evidence: &'a ScalarStackEvidence,
+    claimed: BTreeMap<usize, ScalarStackMutation>,
+    call_sites: BTreeMap<usize, InternalCallRelocation>,
+    calls: Vec<ObjectScalarCallStack>,
+}
+
+impl<'a> ScalarReplay<'a> {
+    pub(crate) fn new(
+        architecture: Architecture,
+        machine: MachineId,
+        bytes: &'a [u8],
+        evidence: &'a ScalarStackEvidence,
+        calls: &[InternalCallRelocation],
+    ) -> Result<Self, ObjectError> {
+        let (claimed, call_sites) =
+            claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
+        Ok(Self {
+            architecture,
+            machine,
+            bytes,
+            evidence,
+            claimed,
+            call_sites,
+            calls: Vec::with_capacity(calls.len()),
+        })
+    }
+
+    /// Claims the mutation evidence at `offset`; every stack-mutating
+    /// instruction removes exactly one row.
+    pub(crate) fn claim(&mut self, offset: usize) -> Result<ScalarStackMutation, ObjectError> {
+        self.claimed
+            .remove(&offset)
+            .ok_or(ObjectError::UnclaimedScalarStackMutation {
+                machine: self.machine,
+                offset,
+            })
+    }
+
+    /// Replays the call site at `offset` against the enclosing arm's policy:
+    /// the relocation must be claimed, admitted by the arm, and its measured
+    /// caller-live bytes raise `peak`.
+    pub(crate) fn call(
+        &mut self,
+        offset: usize,
+        allow_calls: bool,
+        cleanup: Option<&UnitAffineCleanupRecord>,
+        depth: u32,
+        peak: &mut u32,
+    ) -> Result<(), ObjectError> {
+        let machine = self.machine;
+        let call = self
+            .call_sites
+            .remove(&offset)
+            .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
+        match call.owner {
+            CallSiteOwner::Operation(operation) if !allow_calls => {
+                return Err(ObjectError::ScalarConditionalCallOutsideArm {
+                    machine,
+                    operation,
+                    offset,
+                });
+            }
+            CallSiteOwner::Operation(_) if allow_calls => {}
+            CallSiteOwner::CleanupAction { edge, .. }
+                if allow_calls && cleanup.is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
+            _ => return Err(ObjectError::UntypedScalarInternalCall { machine, offset }),
+        }
+        let validated = scalar_call_stack_at(
+            self.architecture,
+            machine,
+            self.bytes,
+            call,
+            self.evidence,
+            depth,
+            cleanup,
+        )?;
+        *peak = (*peak).max(validated.caller_live_bytes);
+        self.calls.push(validated);
+        Ok(())
+    }
+
+    /// Drains both ledgers into the validated scalar stack answer, ranking any
+    /// replay-specific failure behind them.
+    pub(crate) fn finish(
+        self,
+        peak: u32,
+        late_error: Option<ObjectError>,
+    ) -> Result<(ObjectScalarStack, Vec<ObjectScalarCallStack>), ObjectError> {
+        scalar_stack_result(
+            &self.claimed,
+            &self.call_sites,
+            self.machine,
+            peak,
+            self.evidence.stack_alignment,
+            self.calls,
+            late_error,
+        )
+    }
+}
+
 /// Drain the claimed-mutation and call-site ledgers into the validated
 /// scalar stack answer: the first unclaimed mutation is invalid scalar
 /// stack evidence and the first unclaimed call site an invalid internal
@@ -181,8 +299,8 @@ pub(crate) fn claimed_mutations_and_call_sites(
 /// joined the replay. `late_error` carries any replay-specific failure
 /// (e.g. unbalanced returns) that still ranks behind the ledger drains.
 pub(crate) fn scalar_stack_result(
-    claimed: &std::collections::BTreeMap<usize, ScalarStackMutation>,
-    call_sites: &std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+    claimed: &BTreeMap<usize, ScalarStackMutation>,
+    call_sites: &BTreeMap<usize, InternalCallRelocation>,
     machine: MachineId,
     peak: u32,
     stack_alignment: u32,

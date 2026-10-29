@@ -25,10 +25,6 @@ use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use symbol_resolved_trees as resolved;
 
-pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Result<(), Diagnostic> {
-    validate_equality_operands_in(program, &crate::lowerer::TypingCohort::default())
-}
-
 pub(crate) fn validate_equality_operands_in(
     program: &SymbolResolvedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
@@ -54,7 +50,11 @@ pub(crate) fn validate_equality_operands_in(
         }
     }
 
-    for domain in program.domain_definitions.iter().skip(cohort.domain_definitions) {
+    for domain in program
+        .domain_definitions
+        .iter()
+        .skip(cohort.domain_definitions)
+    {
         scan_proof_facts(program, domain.facts)?;
     }
 

@@ -68,7 +68,7 @@ pub(super) fn domains(
                 type_parameters,
                 target_type: row.target_type,
                 index_arguments: row.index_arguments,
-                predicate_body: row.predicate_body,
+                predicate_presence: row.predicate_presence,
                 predicate_facts: row.predicate_facts,
                 alias_expansion: row.alias_expansion,
                 classification: row.classification,

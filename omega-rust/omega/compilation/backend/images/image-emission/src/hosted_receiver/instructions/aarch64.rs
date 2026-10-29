@@ -2,16 +2,16 @@
 //! Address pairs, byte stores, argument occurrences, branch destinations, the
 //! exact semantic call and the original normal-return observations are replayed.
 
-use super::super::{HostedReceiverPartitions, invalid, recipe_index_for_runtime_position};
+use super::super::{HostedEntryPartitions, invalid, recipe_index_for_runtime_position};
 use diagnostics::Diagnostic;
 
-pub(in crate::hosted_receiver) fn validate(
+pub(crate) fn validate(
     target: target::NativeTarget,
     bytes: &[u8],
     address: u64,
     selected_entry: u64,
     bss: u64,
-    partitions: HostedReceiverPartitions,
+    partitions: HostedEntryPartitions,
     recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     let fail = || invalid(target);

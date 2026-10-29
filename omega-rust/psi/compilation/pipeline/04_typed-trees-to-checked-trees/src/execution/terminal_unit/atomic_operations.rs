@@ -26,7 +26,7 @@
 
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralPathSegment, PrimitiveType, StatementNode,
+    CheckedUnitStructuralPathSegment, PrimitiveType,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use checked_trees::{

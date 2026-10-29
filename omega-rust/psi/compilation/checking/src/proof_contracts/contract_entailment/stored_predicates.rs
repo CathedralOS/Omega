@@ -179,6 +179,7 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
             self.predicate,
             &bindings,
             &[],
+            &[],
             Some((machine, state)),
         );
         self.proven &= matches!(judgment, StructuralJudgment::Proven);

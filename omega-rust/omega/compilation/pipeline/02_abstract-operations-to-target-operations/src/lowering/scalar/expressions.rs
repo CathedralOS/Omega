@@ -150,14 +150,12 @@ pub(in crate::lowering) fn equal_boolean(
     }
 }
 
-pub(in crate::lowering) fn equal_integer(
-    left_id: ValueId,
+/// Split an integer pair, refusing non-integers and mixed address types.
+fn integer_pair(
     left: KnownScalar,
-    right_id: ValueId,
     right: KnownScalar,
-    psi_operation: OperationId,
     result: ValueId,
-) -> Result<KnownScalar, LoweringError> {
+) -> Result<(IntegerType, KnownInteger, IntegerType, KnownInteger), LoweringError> {
     let (
         KnownScalar::Integer {
             scalar_type: left_type,
@@ -174,6 +172,18 @@ pub(in crate::lowering) fn equal_integer(
     if left_type != right_type && (left_type.is_address() || right_type.is_address()) {
         return Err(LoweringError::ValueTypeMismatch(result));
     }
+    Ok((left_type, left, right_type, right))
+}
+
+pub(in crate::lowering) fn equal_integer(
+    left_id: ValueId,
+    left: KnownScalar,
+    right_id: ValueId,
+    right: KnownScalar,
+    psi_operation: OperationId,
+    result: ValueId,
+) -> Result<KnownScalar, LoweringError> {
+    let (left_type, left, right_type, right) = integer_pair(left, right, result)?;
     match (left, right) {
         (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
             Ok(KnownScalar::Boolean(
@@ -204,22 +214,7 @@ pub(in crate::lowering) fn order_integer(
     result: ValueId,
     inclusive: bool,
 ) -> Result<KnownScalar, LoweringError> {
-    let (
-        KnownScalar::Integer {
-            scalar_type: left_type,
-            value: left,
-        },
-        KnownScalar::Integer {
-            scalar_type: right_type,
-            value: right,
-        },
-    ) = (left, right)
-    else {
-        return Err(LoweringError::ValueTypeMismatch(result));
-    };
-    if left_type != right_type && (left_type.is_address() || right_type.is_address()) {
-        return Err(LoweringError::ValueTypeMismatch(result));
-    }
+    let (left_type, left, right_type, right) = integer_pair(left, right, result)?;
     match (left, right) {
         (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
             let ordering = left_type

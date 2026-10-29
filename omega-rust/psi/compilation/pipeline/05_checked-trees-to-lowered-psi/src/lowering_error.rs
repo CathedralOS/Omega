@@ -46,6 +46,11 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// A demanded domain has no retained theory for any selected carrier.
+    MissingUnitDomainPlan {
+        domain: language_semantics::SemanticDomainId,
+        name: String,
+    },
     MissingUnitStructuralDomainCarrier {
         domain: language_semantics::SemanticDomainId,
         carrier: semantic_vocabulary::StructuralTypeId,
@@ -109,6 +114,16 @@ pub enum LoweringError {
         owner: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
         reason: String,
+    },
+    /// Crash substitution must identify the exact completed caller home.
+    /// Preserve its namespace and path when the emitting owner is incomplete.
+    MissingCrashArgumentSource {
+        argument: terminal_psi::StructuralArgument,
+    },
+    ConflictingStructuralPlaceType {
+        place: PlaceId,
+        first: semantic_vocabulary::StructuralTypeId,
+        second: semantic_vocabulary::StructuralTypeId,
     },
     /// Preserve the actual graph entry rather than merging duplicate edge,
     /// argument-frame, and ordered-cleanup failures into one static message.

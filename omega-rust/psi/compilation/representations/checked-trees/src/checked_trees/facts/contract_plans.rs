@@ -55,7 +55,9 @@ pub use contract_identity::{
     DeclaredTermination, contract_declarations_commitment, contract_identity,
     declared_termination_commitment,
 };
-pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
+pub use crash_plans::{
+    CheckedRuntimeMembershipSubject, CheckedTrappingSite, CrashPlan, CrashRouteBucket,
+};
 pub use crash_predicates::{
     CrashCause, CrashInterface, CrashPredicateExpression, CrashPredicateIdentity,
     CrashRouteBucketId, CrashRouteGuard,
@@ -226,9 +228,9 @@ pub struct MachineContractPlan {
     pub commitment: MachineContractCommitment,
 }
 
-/// Domain-separated commitment to one machine's complete canonical public
-/// contract, declared through `typed_trees`'s shared digest carrier.
 typed_trees::digest_commitment! {
+    /// Domain-separated commitment to one machine's complete canonical public
+    /// contract, declared through `typed_trees`'s shared digest carrier.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     MachineContractCommitment
 }

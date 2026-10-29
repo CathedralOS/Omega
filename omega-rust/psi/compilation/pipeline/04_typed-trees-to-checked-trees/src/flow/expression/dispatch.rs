@@ -396,7 +396,7 @@ impl Execution<'_, '_, '_> {
                 let Some(domain) = self.program.domain_definition(domain_symbol) else {
                     continue;
                 };
-                if !domain.predicate_body.is_present() || domain.alias.is_some() {
+                if !domain.predicate_presence.is_present() || domain.alias.is_some() {
                     continue;
                 }
                 CarriedPredicate::Domain {

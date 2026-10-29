@@ -25,7 +25,6 @@ fn geometry_error(
     }
 }
 use calling_conventions::ValueShape;
-use semantic_vocabulary::IeeeFloatFormat;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};

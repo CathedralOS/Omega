@@ -414,7 +414,6 @@ crashes Trap
         Checker::own_tree(checker, syntax, resolution, typing, arm.target, UseRole::Value);
         let selection: Selection = Typing::selection(typing, arm.target);
         transition selection {
-            Selection::State { handle as _ } -> exit(checker, syntax, resolution, typing, arm)
             _ -> terminal(checker, syntax, resolution, typing, arm)
         }
     }
@@ -604,7 +603,7 @@ crashes Trap
     }
 
     machine rooted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, low: u64 in Trapping, role: UseRole) {
-        Checker::set_role(checker, root, role);
+        Checker::set_adapted_role(checker, typing, root, role);
         transition { _ -> descend(checker, syntax, typing, low, root) }
     }
 
@@ -669,7 +668,7 @@ crashes Trap
     }
 
     machine child(checker: &mut Checker, typing: &Typing, node: u64 in Trapping, role: UseRole) {
-        Checker::set_child_role(checker, typing, node, role);
+        Checker::set_adapted_role(checker, typing, node, role);
     }
 
     machine elements(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
@@ -681,7 +680,7 @@ crashes Trap
 
     machine element(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
         let node: u64 in Trapping = SyntaxTrees::argument(syntax, index);
-        Checker::set_child_role(checker, typing, node, role);
+        Checker::set_adapted_role(checker, typing, node, role);
         transition { _ -> elements(checker, syntax, typing, index + 1, end, role) }
     }
 
@@ -694,7 +693,7 @@ crashes Trap
 
     machine construct_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
         let field: ConstructField = SyntaxTrees::construct_field(syntax, index);
-        Checker::set_child_role(checker, typing, field.value, UseRole::Value);
+        Checker::set_adapted_role(checker, typing, field.value, UseRole::Value);
         transition { _ -> fields(checker, syntax, typing, index + 1, end) }
     }
 
@@ -707,16 +706,16 @@ crashes Trap
 
     machine arm(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, role: UseRole) {
         let arm: TransitionArm = SyntaxTrees::match_arm(syntax, index);
-        Checker::set_child_role(checker, typing, arm.target, role);
+        Checker::set_adapted_role(checker, typing, arm.target, role);
         transition { _ -> arms(checker, syntax, typing, index + 1, end, role) }
     }
 
     machine done() {}
 }
 
-// A child's role, unless typing lends it implicitly to a shared-reference
-// parameter.
-machine Checker::set_child_role(checker: &mut Checker, typing: &Typing, node: u64 in Trapping, role: UseRole)
+// Every evaluated root and child keeps typing's admitted shared access.
+// An existing mutable descriptor reborrowed shared is not a mutable access.
+machine Checker::set_adapted_role(checker: &mut Checker, typing: &Typing, node: u64 in Trapping, role: UseRole)
 crashes Trap
 {
     let adaptation: Adaptation = Typing::adaptation(typing, node);

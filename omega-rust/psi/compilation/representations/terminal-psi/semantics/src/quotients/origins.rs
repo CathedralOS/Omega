@@ -3,19 +3,14 @@ use super::*;
 use semantic_vocabulary::{BlockId, ValueId};
 use terminal_psi::StructuralArgument;
 
-/// Every edge into `target`, with the operands it binds there. A structural-case
-/// edge binds payload fields where the target expects forwarded parameters, so
-/// its presence abandons the query rather than projecting a payload as a
-/// parameter. The terminator classification itself belongs to the control graph.
+/// Every edge into `target`, distinguishing fresh case scalar captures from
+/// forwarded scalar operands while retaining all structural argument identities.
 fn incoming(
     machine: &TerminalMachine,
     target: BlockId,
-) -> Option<Vec<(&[ValueId], &[StructuralArgument])>> {
+) -> Option<Vec<(Option<&[ValueId]>, &[StructuralArgument])>> {
     let mut rows = Vec::new();
     for block in &machine.blocks {
-        if crate::control_graph::reaches_by_case(block, target) {
-            return None;
-        }
         for binding in crate::control_graph::forwarded_bindings(block) {
             if binding.target == target {
                 rows.push((binding.arguments, binding.structural_arguments));
@@ -95,7 +90,7 @@ fn scalar(machine: &TerminalMachine, value: ValueId, active: &mut Vec<ValueId>) 
         }) {
             let mut origin = None;
             for (arguments, _) in incoming(machine, block.id)? {
-                let candidate = scalar(machine, *arguments.get(position)?, active)?;
+                let candidate = scalar(machine, *arguments?.get(position)?, active)?;
                 if origin.is_some_and(|prior| prior != candidate) {
                     return None;
                 }

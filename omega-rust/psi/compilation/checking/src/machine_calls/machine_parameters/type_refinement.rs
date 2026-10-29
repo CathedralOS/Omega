@@ -363,7 +363,7 @@ fn fixed_array_lengths_match(
 /// Infer only missing call type arguments from declaration-backed operands.
 /// Explicit selections stay fixed; ordinary argument correspondence separately
 /// checks access, qualifications and the complete substituted carrier.
-pub(in crate::machine_calls) fn infer_call_type_arguments(
+pub fn infer_call_type_arguments(
     program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
     caller_parameters: &[TypeParameter],

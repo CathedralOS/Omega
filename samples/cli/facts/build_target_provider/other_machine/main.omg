@@ -1,7 +1,7 @@
 // A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
 // Expected exit: 0
 use reading_provider::main::Reading;
-machine forward() -> u64 reaches Reading ensures result >= 1000u64 { Reading::total() }
+machine forward() -> u64 reaches Reading ensures result >= 1000u64 { Reading<17u64>::total() }
 machine consume() -> u64 reaches Reading { forward() - 1000u64 }
 machine journey(expected: u64) reaches Reading crashes Trap {
     let difference: u64 = consume();

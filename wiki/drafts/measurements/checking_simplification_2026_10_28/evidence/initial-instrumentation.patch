@@ -1,0 +1,60 @@
+diff --git a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+index 394beaa51f3..50c4708ba59 100644
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+@@ -73,6 +73,7 @@ pub(super) fn validate(
+     if !local_data.role.is_runtime_binding() {
+         return;
+     }
++    let profile = phase_profile::guard("05.local.1_shape");
+     let (program, machine, state_name, current_state, symbols, _) = scope.reads();
+     let statement_index = scope.statement_index;
+     let value_environment = &mut *outputs.value_environment;
+@@ -325,6 +326,8 @@ pub(super) fn validate(
+             diagnostics,
+         );
+     }
++    drop(profile);
++    let profile = phase_profile::guard("05.local.2_nested");
+     calls::report_nested_call_in_local_initializer(
+         program,
+         machine,
+@@ -332,6 +335,8 @@ pub(super) fn validate(
+         local_data.initial_value,
+         diagnostics,
+     );
++    drop(profile);
++    let profile = phase_profile::guard("05.local.3_range");
+     let before = diagnostics.len();
+     let first_checked_interval = arithmetic_decisions.expression_values.len();
+     let local_target_domain =
+@@ -358,6 +363,8 @@ pub(super) fn validate(
+                 arithmetic_decisions,
+             )
+         });
++    drop(profile);
++    let profile = phase_profile::guard("05.local.4_containment");
+     // Keep the declared carrier check independent of arithmetic failures.
+     if local_data.initial_value.is_valid() {
+         let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+@@ -427,6 +434,8 @@ pub(super) fn validate(
+         }
+     }
+     if local_data.initial_value.is_valid() {
++        drop(profile);
++        let _profile = phase_profile::guard("05.local.5_capture");
+         let mut completed_values = Vec::new();
+         let aggregate_with_writes = matches!(
+             program
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+index f69326ce89e..aac0791918b 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+@@ -170,6 +170,7 @@ pub(super) fn analyze(
+     retain_trap_receipts: bool,
+     diagnostics: &mut Vec<Diagnostic>,
+ ) -> CheckedAnalysis {
++    let _profile = phase_profile::guard("05.expression_analysis.entry");
+     let mut decisions = ArithmeticDecisions::default();
+     let value = ExpressionWalk {
+         program,

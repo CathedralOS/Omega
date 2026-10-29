@@ -1,0 +1,2 @@
+machine guarded(value: u64) -> bool requires value != 0 { true }
+data Invalid requires guarded(value) requires value != 0 { value: u64; }

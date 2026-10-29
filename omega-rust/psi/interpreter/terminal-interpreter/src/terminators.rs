@@ -157,10 +157,21 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        let scalars = self.scalar_values_at(successor.arguments)?;
+        self.settle_successor_with_scalars(successor, &scalars, terminator, meter)
+    }
+
+    fn settle_successor_with_scalars(
+        &mut self,
+        successor: SelectedSuccessor<'_>,
+        scalars: &[TerminalScalarValue],
+        terminator: &Terminator,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let SelectedSuccessor {
             edge,
             target,
-            arguments,
+            arguments: _,
             structural_arguments,
             cleanup_actions,
         } = successor;
@@ -184,7 +195,7 @@ impl TerminalExecution<'_> {
         }
         let structural_arguments = selected_arguments.as_slice();
         let bindings = self
-            .prepare_block_bindings(target, arguments, structural_arguments)
+            .prepare_block_bindings(target, scalars, structural_arguments)
             .map_err(|error| {
                 error.in_argument_preparation("state arrival storage and memberships")
             })?;
@@ -302,21 +313,19 @@ impl TerminalExecution<'_> {
             if scalar.scalar_type() != parameter.scalar_type {
                 return Err(malformed());
             }
-            bindings.push((parameter.id, scalar));
+            bindings.push(scalar);
         }
-        let bindings =
-            block_bindings::BlockBindings::from_scalars(bindings, self.account.as_ref())?;
-        let cleanup_actions =
-            bindings.prepare_cleanup_actions(self, &[], &successor.cleanup_actions)?;
-        if let Err(error) = meter.charge_edge(successor.edge, terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
-        self.continue_cleanup_actions(
-            cleanup_actions.into_iter(),
-            CleanupContinuation::Successor {
+        self.settle_successor_with_scalars(
+            SelectedSuccessor {
+                edge: successor.edge,
                 target: successor.target,
-                bindings,
+                arguments: &[],
+                structural_arguments: &successor.structural_arguments,
+                cleanup_actions: &successor.cleanup_actions,
             },
+            &bindings,
+            terminator,
+            meter,
         )
     }
 

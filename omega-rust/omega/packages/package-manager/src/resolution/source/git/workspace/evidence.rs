@@ -109,22 +109,20 @@ impl GitWorkspaceSelectionEvidence {
                 root,
                 &declarations,
             )
-            .map_err(PackageSourceSelectionEvidenceError::Executed)?;
+            .map_err(PackageSourceSelectionEvidenceError::executed)?;
             return if replayed == self.plan {
                 Ok(())
             } else {
-                Err(PackageSourceSelectionEvidenceError::Selection(
-                    super::GitWorkspaceSelectionError::DeclarationEvidenceChanged,
-                ))
+                Err(super::GitWorkspaceSelectionError::DeclarationEvidenceChanged.into())
             };
         }
         let root_build = self.declarations().root();
         let mut total_bytes = account_declaration_bytes(0, root_build)
-            .map_err(PackageSourceSelectionEvidenceError::Selection)?;
+            .map_err(PackageSourceSelectionEvidenceError::from)?;
         let mut member_builds = Vec::with_capacity(self.plan().members().len());
         for (member_path, bytes) in self.declarations().members() {
             total_bytes = account_declaration_bytes(total_bytes, bytes)
-                .map_err(PackageSourceSelectionEvidenceError::Selection)?;
+                .map_err(PackageSourceSelectionEvidenceError::from)?;
             member_builds.push((member_path.clone(), bytes.as_slice()));
         }
         let supplied = member_builds
@@ -133,6 +131,6 @@ impl GitWorkspaceSelectionEvidence {
             .collect::<Vec<_>>();
         self.plan()
             .replay(root_build, &supplied)
-            .map_err(PackageSourceSelectionEvidenceError::Selection)
+            .map_err(PackageSourceSelectionEvidenceError::from)
     }
 }

@@ -192,7 +192,7 @@ struct MemoryContract {
     uses_stack_pointer: bool,
 }
 
-fn memory_contract(semantic: MachineSemanticKind, architecture: Architecture) -> MemoryContract {
+fn memory_contract(semantic: MachineSemanticKind) -> MemoryContract {
     use MachineSemanticKind::*;
     use RegisterOperandAccess::{Def, Use};
     match semantic {
@@ -454,8 +454,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 .iter()
                 .copied()
                 .filter(|(_, semantic)| {
-                    memory_contract(*semantic, case.target.architecture).memory
-                        != MachineMemoryEffect::NoneV1
+                    memory_contract(*semantic).memory != MachineMemoryEffect::NoneV1
                 })
                 .chain(floating_control_rules(&environment))
                 .collect::<BTreeSet<_>>(),
@@ -500,7 +499,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         );
 
         for (key, semantic) in &memory_rules {
-            let contract = memory_contract(*semantic, case.target.architecture);
+            let contract = memory_contract(*semantic);
             let row = environment
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected memory row {key:?}"));
@@ -651,7 +650,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
         )
         .units[0];
         for (key, semantic) in selected_memory_rules(&environment) {
-            let contract = memory_contract(semantic, case.target.architecture);
+            let contract = memory_contract(semantic);
             let row = environment.constraint(key).unwrap();
 
             // The declared footprint cannot be silently replaced: a real

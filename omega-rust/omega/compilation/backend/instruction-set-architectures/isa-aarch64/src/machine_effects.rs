@@ -162,10 +162,9 @@ pub fn aarch64_machine_effect_catalog(
                             | MachineSemanticKind::InvokeNoNormal
                             | MachineSemanticKind::CallUnit
                             | MachineSemanticKind::CallAggregate
+                            | MachineSemanticKind::NormalizedForeignCall
                     ) {
                         scalar_call_declaration(semantic, constraint, constraints)
-                    } else if semantic == MachineSemanticKind::NormalizedForeignCall {
-                        scalar_call::normalized_foreign_declaration(constraint, constraints)
                     } else {
                         declaration(semantic, &selected_keys)
                     },

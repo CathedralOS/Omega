@@ -1,5 +1,6 @@
 //! Select and publish one declared member from an authenticated Git workspace.
 
+#[cfg(test)]
 use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -26,6 +27,11 @@ pub(super) mod declarations;
 mod recorded;
 pub use recorded::resolve_git_workspace_member_at_revision_in_lanes;
 
+/// Resolve one declared workspace member through a caller-supplied resolver.
+///
+/// Test fixture entry: production callers pass both retained lanes to
+/// [`resolve_git_workspace_member_from_pin_in_lanes`].
+#[cfg(test)]
 pub(crate) fn resolve_git_workspace_member<Planner>(
     request: &GitSourceRequest,
     resolver: &SourceResolver,

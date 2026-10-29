@@ -16,6 +16,9 @@
 //! structural identity, so nested primitive leaves and record fields both write
 //! through after calls without manufacturing a second element snapshot.
 
+#[cfg(test)]
+mod tests;
+
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::runtime_rows::RuntimeRows;
@@ -297,7 +300,7 @@ impl ElementView {
         else {
             return Err(malformed());
         };
-        if projected != *selected {
+        if !Self::same_descriptor_home(&projected, selected) {
             return Err(malformed());
         }
         let home = self.home.as_ref().map(|home| {
@@ -351,9 +354,22 @@ impl ElementView {
     }
 
     pub(crate) fn matches_descriptor_home(&self, value: &TerminalStructuralValue) -> bool {
-        self.descriptor_home
-            .as_ref()
-            .map_or_else(|| value.path.is_empty(), |home| home == value)
+        self.descriptor_home.as_ref().map_or_else(
+            || value.path.is_empty(),
+            |home| Self::same_descriptor_home(home, value),
+        )
+    }
+
+    /// A checked qualification changes the view's facts, not its storage home.
+    /// Compare occurrence, path and carrier here; consumers separately check
+    /// access, extent and the live membership roster required by their contract.
+    fn same_descriptor_home(
+        left: &TerminalStructuralValue,
+        right: &TerminalStructuralValue,
+    ) -> bool {
+        left.opaque_identity == right.opaque_identity
+            && left.path == right.path
+            && left.structural_type == right.structural_type
     }
 
     /// A descriptor without an explicit home inherits only its keyed frame
@@ -363,39 +379,12 @@ impl ElementView {
         binding: &TerminalStructuralValue,
         selected: &TerminalStructuralValue,
     ) -> bool {
-        let same_home = |home: &TerminalStructuralValue| {
-            home.opaque_identity == selected.opaque_identity
-                && home.path == selected.path
-                && home.structural_type == selected.structural_type
-        };
+        let same_home = |home: &TerminalStructuralValue| Self::same_descriptor_home(home, selected);
         same_home(binding) && self.descriptor_home.as_ref().is_none_or(same_home)
     }
 
     pub(crate) fn len(&self) -> usize {
         self.window.end - self.window.start
-    }
-
-    /// A loan of a whole scalar array, addressed at its owner's activation.
-    /// A nonzero window or a field path is a different selection and does not
-    /// present the owner's full payload.
-    pub(crate) fn whole_scalar_array_frame(
-        &self,
-    ) -> Option<(
-        usize,
-        semantic_vocabulary::PlaceId,
-        semantic_vocabulary::StructuralTypeId,
-    )> {
-        if self.window.start != 0 {
-            return None;
-        }
-        let home = self.home.as_ref()?;
-        if !home.path.is_empty() {
-            return None;
-        }
-        if !matches!(self.backing, ElementViewBacking::Structural { .. }) {
-            return None;
-        }
-        Some(home.storage.scalar_array_frame())
     }
 
     /// A complete fixed-array projection retains its original packed frame,

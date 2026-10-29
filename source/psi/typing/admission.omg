@@ -36,6 +36,8 @@ public data Admission [copy] {
     case Exact;
     case Landed;
     case SharedLend;
+    // An existing reference attenuated to shared access; no new value borrow.
+    case SharedReborrow;
     case Qualified;
     case Read;
     // An anonymous value with a fractional part at an integer destination.
@@ -184,20 +186,21 @@ crashes Trap
     // A reference to a whole array views it as a slice of its elements,
     // a shared view from either reference.
     machine referenced(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let viewed: bool = Typer::views_array(typer, wanted, given);
-        let write_only: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::WriteOnly;
-        transition viewed {
-            true -> exact()
-            _ -> observed(wanted, given, actual, write_only)
+        let expands_write_only: bool = given.kind == TypeKind::Reference && given.access == ReferenceAccess::WriteOnly
+            && wanted.access != ReferenceAccess::WriteOnly;
+        transition expands_write_only {
+            true -> rejected()
+            false -> viewed(typer, wanted, given, actual)
         }
     }
 
-    // A write-only reference meets no other reference type: it reads as
-    // nothing (wiki/spec/language/ownership.md#borrows-and-aliases).
-    machine observed(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping, write_only: bool) -> Admission {
-        transition write_only {
-            true -> rejected()
-            _ -> access(wanted, given, actual)
+    // Access authority is settled before array/slice representation: a
+    // write-only reference cannot acquire read authority through a view.
+    machine viewed(typer: &Typer, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+        let viewed: bool = Typer::views_array(typer, wanted, given);
+        transition viewed {
+            true -> reference_adaptation(wanted, given)
+            false -> access(wanted, given, actual)
         }
     }
 
@@ -235,10 +238,21 @@ crashes Trap
 
     machine reborrow(wanted: TypeRow, given: TypeRow) -> Admission {
         transition given.kind == TypeKind::Reference && given.inner == wanted.inner {
-            true -> exact()
+            true -> reference_adaptation(wanted, given)
             _ -> rejected()
         }
     }
+
+    // Keep the selected shared access on the admitted value. The caller may
+    // forward an existing descriptor, but this use lends its referent shared.
+    machine reference_adaptation(wanted: TypeRow, given: TypeRow) -> Admission {
+        transition wanted.access == ReferenceAccess::Shared && given.access == ReferenceAccess::Mutable {
+            true -> shared_reborrow()
+            false -> exact()
+        }
+    }
+
+    machine shared_reborrow() -> Admission { Admission::SharedReborrow }
 
     machine unapplied(syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
         transition wanted.kind == TypeKind::Data && given.kind == TypeKind::Data && wanted.item == given.item
@@ -380,6 +394,7 @@ crashes Trap
             Admission::Exact -> admitted()
             Admission::Landed -> landing(typer, syntax, destination, expression, chosen)
             Admission::SharedLend -> lent(typer, syntax, written, expression, lend)
+            Admission::SharedReborrow -> mark_lent(typer, expression)
             Admission::Qualified -> qualified(typer, expression)
             Admission::Read -> read(typer, expression)
             Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
@@ -477,6 +492,7 @@ crashes Trap
         Admission::Exact -> yes()
         Admission::Landed -> yes()
         Admission::SharedLend -> yes()
+        Admission::SharedReborrow -> yes()
         Admission::Qualified -> yes()
         Admission::Read -> yes()
         _ -> no()

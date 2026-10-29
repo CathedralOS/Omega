@@ -71,7 +71,8 @@ use selected_instructions::{
     ieee_float_arithmetic_is_trapping,
 };
 use selected_instructions::{
-    IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+    IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
+    IeeeFloatToIntegerDomain,
 };
 
 mod conversions;
@@ -786,6 +787,17 @@ const fn two_source_opcode(operation: IeeeFloatArithmeticOperation) -> Option<u3
     }
 }
 
+/// The FPCR.RM field of one directed rounding mode: toward zero, toward
+/// positive, toward negative.
+const fn directed_mode(rounding: IeeeFloatRoundingDirection) -> u16 {
+    match rounding.ordinal() {
+        0 => 3,
+        1 => 1,
+        2 => 2,
+        _ => unreachable!(),
+    }
+}
+
 /// The canonical words of one form: `registers` holds the operand general
 /// registers in authored order followed by the result register.
 fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
@@ -802,20 +814,48 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
         general: result,
     };
     let (first, second, mask) = (LEFT_SCRATCH, RIGHT_SCRATCH, MASK_SCRATCH);
+    // Both directed forms share one FPCR envelope: capture the exact incoming
+    // controls through `result` before it is borrowed as a GPR temporary,
+    // install the masked, gradual-underflow mode, run `operation`, then
+    // restore the saved controls and publish the payload. q18 holds the exact
+    // saved FPCR until restoration, so no additional allocatable register or
+    // stack home is consumed.
+    let directed = |rounding, mut words: Vec<Word>, operation: Word| {
+        words.extend([
+            Word::FloatingControl {
+                read: true,
+                general: result,
+            },
+            move_in(result, mask, true),
+            Word::MoveWide {
+                keep: false,
+                shift: 1,
+                immediate: directed_mode(rounding) << 6,
+                general: result,
+            },
+            Word::FloatingControl {
+                read: false,
+                general: result,
+            },
+            operation,
+            Word::ToGeneral {
+                double: true,
+                vector: mask,
+                general: result,
+            },
+            Word::FloatingControl {
+                read: false,
+                general: result,
+            },
+            move_out(first),
+        ]);
+        words
+    };
     match form.operation {
         IeeeFloatArithmeticOperation::DirectedBinary {
             operation,
             rounding,
         } => {
-            // Capture both operands before borrowing the output as a GPR
-            // temporary. q18 holds the exact saved FPCR until restoration;
-            // no additional allocatable register or stack home is consumed.
-            let mode = match rounding.ordinal() {
-                0 => 3,
-                1 => 1,
-                2 => 2,
-                _ => unreachable!(),
-            };
             let opcode = match operation.ordinal() {
                 0 => 2,
                 1 => 3,
@@ -823,24 +863,12 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
                 3 => 1,
                 _ => unreachable!(),
             };
-            vec![
-                move_in(registers[0], first, double),
-                move_in(registers[1], second, double),
-                Word::FloatingControl {
-                    read: true,
-                    general: result,
-                },
-                move_in(result, mask, true),
-                Word::MoveWide {
-                    keep: false,
-                    shift: 1,
-                    immediate: mode << 6,
-                    general: result,
-                },
-                Word::FloatingControl {
-                    read: false,
-                    general: result,
-                },
+            directed(
+                rounding,
+                vec![
+                    move_in(registers[0], first, double),
+                    move_in(registers[1], second, double),
+                ],
                 Word::TwoSource {
                     double,
                     opcode,
@@ -848,62 +876,20 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
                     right: second,
                     result: first,
                 },
-                Word::ToGeneral {
-                    double: true,
-                    vector: mask,
-                    general: result,
-                },
-                Word::FloatingControl {
-                    read: false,
-                    general: result,
-                },
-                move_out(first),
-            ]
+            )
         }
-        IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding } => {
-            // Same FPCR envelope as directed binary arithmetic. FSQRT is the
-            // one-source opcode 0b000011; RC selects the directed result.
-            let mode = match rounding.ordinal() {
-                0 => 3,
-                1 => 1,
-                2 => 2,
-                _ => unreachable!(),
-            };
-            vec![
-                move_in(registers[0], first, double),
-                Word::FloatingControl {
-                    read: true,
-                    general: result,
-                },
-                move_in(result, mask, true),
-                Word::MoveWide {
-                    keep: false,
-                    shift: 1,
-                    immediate: mode << 6,
-                    general: result,
-                },
-                Word::FloatingControl {
-                    read: false,
-                    general: result,
-                },
-                Word::OneSource {
-                    double,
-                    opcode: 0b00_0011,
-                    source: first,
-                    result: first,
-                },
-                Word::ToGeneral {
-                    double: true,
-                    vector: mask,
-                    general: result,
-                },
-                Word::FloatingControl {
-                    read: false,
-                    general: result,
-                },
-                move_out(first),
-            ]
-        }
+        IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding } => directed(
+            rounding,
+            // FSQRT is the one-source opcode 0b000011; RC selects the directed
+            // result.
+            vec![move_in(registers[0], first, double)],
+            Word::OneSource {
+                double,
+                opcode: 0b00_0011,
+                source: first,
+                result: first,
+            },
+        ),
         IeeeFloatArithmeticOperation::IsNan
         | IeeeFloatArithmeticOperation::IsInfinite
         | IeeeFloatArithmeticOperation::IsFinite

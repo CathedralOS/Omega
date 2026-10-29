@@ -42,7 +42,7 @@ pub(super) fn validate(
         }
         let target = blocks.get(&successor.target).ok_or_else(invalid)?;
         if successor.payloads.len() != target.parameters.len()
-            || !target.structural_parameters.is_empty()
+            || successor.structural_bindings.len() != target.structural_parameters.len()
         {
             return Err(invalid());
         }

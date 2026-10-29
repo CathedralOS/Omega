@@ -131,10 +131,6 @@ impl<'program> PreparedIntegerPremisesCache<'program> {
 }
 
 impl<'program> PreparedIntegerPremises<'program> {
-    fn for_goal(&self) -> IntegerObservations<'program> {
-        self.observations.clone()
-    }
-
     fn take_goal_work(&self) -> IntegerObservations<'program> {
         if let Ok(mut guard) = self.goal_work.lock()
             && let Some(mut work) = guard.take()
@@ -155,10 +151,7 @@ impl<'program> PreparedIntegerPremises<'program> {
     fn reset_goal_work(&self, work: &mut IntegerObservations<'program>) {
         let base_atoms = self.observations.atoms.len();
         let base_bounds = self.observations.carrier_bounds.len();
-        let base_engine = self
-            .observations
-            .engine
-            .integer_projection_registrations();
+        let base_engine = self.observations.engine.integer_projection_registrations();
         work.atoms.truncate(base_atoms);
         work.carrier_bounds.truncate(base_bounds);
         work.operations.clear();
@@ -169,10 +162,9 @@ impl<'program> PreparedIntegerPremises<'program> {
             work.engine.restore_matrix_from(&self.observations.engine);
         }
         let removed_existing = work.engine.truncate_opaque_terms_since(base_engine.1);
-        if removed_existing
-            || work.engine.integer_projection_registrations().2 != base_engine.2
-        {
-            work.engine.restore_intervals_from(&self.observations.engine);
+        if removed_existing || work.engine.integer_projection_registrations().2 != base_engine.2 {
+            work.engine
+                .restore_intervals_from(&self.observations.engine);
         }
     }
 
@@ -187,20 +179,15 @@ impl<'program> PreparedIntegerPremises<'program> {
         *self.contradictory.get_or_init(|| {
             self.observations.engine.requires_unsatisfiable
                 || (!self.observations.engine.bounds.is_empty()
-                    && self
-                        .lower_bound_queries()
-                        .prove_at_least(&Polynomial::constant(BigInt::from_i64(-1)), &BigInt::zero()))
+                    && self.lower_bound_queries().prove_at_least(
+                        &Polynomial::constant(BigInt::from_i64(-1)),
+                        &BigInt::zero(),
+                    ))
         })
     }
 }
 
 impl<'program> IntegerObservations<'program> {
-    fn reset_for_goal(&mut self, prepared: &PreparedIntegerPremises<'program>) {
-        let next_operation_id = self.next_operation_id;
-        *self = prepared.for_goal();
-        self.next_operation_id = self.next_operation_id.max(next_operation_id);
-    }
-
     fn operation_placeholder(&mut self) -> Option<Polynomial> {
         let identity = self.next_operation_id;
         self.next_operation_id = identity.checked_add(1)?;
@@ -399,18 +386,6 @@ impl<'program> IntegerObservations<'program> {
 }
 
 impl<'program> StructuralJudge<'program> {
-    pub(in crate::proof_contracts::contract_entailment) fn has_potential_integer_premises(
-        &self,
-    ) -> bool {
-        self.rewrites.has_potential_integer_premises()
-    }
-
-    pub(in crate::proof_contracts::contract_entailment) fn potential_integer_premises_len(
-        &self,
-    ) -> usize {
-        self.rewrites.potential_integer_premises_len()
-    }
-
     pub(in crate::proof_contracts::contract_entailment) fn integer_premise_revision(
         &self,
     ) -> usize {
@@ -920,10 +895,6 @@ impl<'program> StructuralJudge<'program> {
         self.rewrites.iter().next().is_none()
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn rewrites_ptr(&self) -> usize {
-        std::sync::Arc::as_ptr(&self.rewrites) as usize
-    }
-
     pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites_or_substitutions(
         &self,
     ) -> bool {
@@ -1068,23 +1039,20 @@ impl<'program> StructuralJudge<'program> {
                 let goal_only_linear_ops = work.operations.iter().all(|op| {
                     matches!(
                         op.operator,
-                        BinaryOperator::Add
-                            | BinaryOperator::Subtract
-                            | BinaryOperator::Multiply
+                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
                     )
                 });
-                let goal_has_addr_bound = work.engine.bounds[base_engine_reg.3..]
-                    .iter()
-                    .any(|(poly, _)| {
-                        poly.terms.keys().any(|monomial| {
-                            monomial
-                                .keys()
-                                .any(|atom| atom.starts_with("\0address-model-bound:"))
-                        })
-                    })
-                    || work.carrier_bounds[base_bounds..]
+                let goal_has_addr_bound =
+                    work.engine.bounds[base_engine_reg.3..]
                         .iter()
-                        .any(|bound| {
+                        .any(|(poly, _)| {
+                            poly.terms.keys().any(|monomial| {
+                                monomial
+                                    .keys()
+                                    .any(|atom| atom.starts_with("\0address-model-bound:"))
+                            })
+                        })
+                        || work.carrier_bounds[base_bounds..].iter().any(|bound| {
                             bound.primitive == PrimitiveType::Addr
                                 && (has_premises || bound.value.constant_value().is_some())
                         });
@@ -1098,7 +1066,9 @@ impl<'program> StructuralJudge<'program> {
                         diff.terms
                             .keys()
                             .any(|monomial| monomial.contains_key(&name))
-                            && !work.engine.opaque_terms_since_mention(base_engine_reg.1, &name)
+                            && !work
+                                .engine
+                                .opaque_terms_since_mention(base_engine_reg.1, &name)
                             && !work.operations.iter().any(|op| {
                                 matches!(
                                     op.operator,
@@ -1113,7 +1083,8 @@ impl<'program> StructuralJudge<'program> {
                                         .terms
                                         .keys()
                                         .any(|monomial| monomial.contains_key(&name))
-                                    || op.value
+                                    || op
+                                        .value
                                         .terms
                                         .keys()
                                         .any(|monomial| monomial.contains_key(&name)))
@@ -1129,19 +1100,20 @@ impl<'program> StructuralJudge<'program> {
                     && left != right
                 {
                     let diff = left.sub(&right);
-                    let queries = (work.atoms.len() == base_atoms).then(|| {
-                        let q = prepared.lower_bound_queries();
-                        let bounds_hold = work.carrier_bounds[base_bounds..]
-                            .iter()
-                            .all(|bound| {
-                                bound.comparisons.iter().all(|(op, l, r)| {
-                                    IntegerObservations::comparison_holds(&q, *op, l, r)
-                                })
-                            });
-                        bounds_hold.then_some(q)
-                    }).flatten();
-                    if (base_engine_reg.1..work.engine.integer_projection_registrations().1)
-                        .any(|opaque_idx| {
+                    let queries = (work.atoms.len() == base_atoms)
+                        .then(|| {
+                            let q = prepared.lower_bound_queries();
+                            let bounds_hold =
+                                work.carrier_bounds[base_bounds..].iter().all(|bound| {
+                                    bound.comparisons.iter().all(|(op, l, r)| {
+                                        IntegerObservations::comparison_holds(&q, *op, l, r)
+                                    })
+                                });
+                            bounds_hold.then_some(q)
+                        })
+                        .flatten();
+                    if (base_engine_reg.1..work.engine.integer_projection_registrations().1).any(
+                        |opaque_idx| {
                             let name_opt = if let Some(ref q) = queries {
                                 work.engine
                                     .opaque_term_name_if_uncorrelated_with_queries(opaque_idx, q)
@@ -1154,9 +1126,7 @@ impl<'program> StructuralJudge<'program> {
                             diff.terms
                                 .keys()
                                 .any(|monomial| monomial.contains_key(name))
-                                && !work
-                                    .engine
-                                    .opaque_terms_since_mention(opaque_idx + 1, name)
+                                && !work.engine.opaque_terms_since_mention(opaque_idx + 1, name)
                                 && !work.operations.iter().any(|op| {
                                     matches!(
                                         op.operator,
@@ -1172,8 +1142,8 @@ impl<'program> StructuralJudge<'program> {
                                             .keys()
                                             .any(|monomial| monomial.contains_key(name)))
                                 })
-                        })
-                        && !(has_premises && prepared.is_contradictory())
+                        },
+                    ) && !(has_premises && prepared.is_contradictory())
                     {
                         return Some(false);
                     }
@@ -1189,10 +1159,7 @@ impl<'program> StructuralJudge<'program> {
                         .engine
                         .opaque_terms_since_only_wrapping_or_bitwise(base_engine_reg.1);
                     if only_policy_wrapping_or_bitwise
-                        && diff
-                            .terms
-                            .keys()
-                            .any(|monomial| !monomial.is_empty())
+                        && diff.terms.keys().any(|monomial| !monomial.is_empty())
                         && !(has_premises && prepared.is_contradictory())
                     {
                         return Some(false);
@@ -1232,10 +1199,7 @@ impl<'program> StructuralJudge<'program> {
                     if work.carrier_bounds.len() == base_bounds && goal_only_linear_ops {
                         let queries = prepared.lower_bound_queries();
                         let holds = IntegerObservations::comparison_holds(
-                            &queries,
-                            operator,
-                            &left,
-                            &right,
+                            &queries, operator, &left, &right,
                         );
                         if !holds || work.operations.is_empty() {
                             return Some(holds);
@@ -1254,25 +1218,21 @@ impl<'program> StructuralJudge<'program> {
                             return Some(true);
                         }
                         let no_rewrites = self.has_no_rewrites();
-                        let goal_bounds_disjoint = !has_premises
-                            || prepared.observations.engine.substitutions.is_empty();
+                        let goal_bounds_disjoint =
+                            !has_premises || prepared.observations.engine.substitutions.is_empty();
                         return (no_rewrites || goal_bounds_disjoint).then_some(false);
                     }
                     if goal_only_linear_ops {
                         let queries = prepared.lower_bound_queries();
-                        let carrier_bounds_already_hold = work.carrier_bounds[base_bounds..]
-                            .iter()
-                            .all(|bound| {
+                        let carrier_bounds_already_hold =
+                            work.carrier_bounds[base_bounds..].iter().all(|bound| {
                                 bound.comparisons.iter().all(|(op, l, r)| {
                                     IntegerObservations::comparison_holds(&queries, *op, l, r)
                                 })
                             });
                         if carrier_bounds_already_hold {
                             let holds = IntegerObservations::comparison_holds(
-                                &queries,
-                                operator,
-                                &left,
-                                &right,
+                                &queries, operator, &left, &right,
                             );
                             if !holds || work.operations.is_empty() {
                                 return Some(holds);
@@ -1299,12 +1259,10 @@ impl<'program> StructuralJudge<'program> {
                 let no_rewrites = self.has_no_rewrites();
                 let goal_bounds_disjoint_from_premises = !has_premises
                     || (prepared.observations.engine.substitutions.is_empty()
-                        && work.carrier_bounds[base_bounds..]
-                            .iter()
-                            .all(|bound| {
-                                (base_atoms..work.atoms.len())
-                                    .any(|index| bound.value == Polynomial::atom(atom_name(index)))
-                            }));
+                        && work.carrier_bounds[base_bounds..].iter().all(|bound| {
+                            (base_atoms..work.atoms.len())
+                                .any(|index| bound.value == Polynomial::atom(atom_name(index)))
+                        }));
                 if goal_bounds_disjoint_from_premises
                     && operator == BinaryOperator::Equal
                     && left != right
@@ -1330,7 +1288,8 @@ impl<'program> StructuralJudge<'program> {
                                         .terms
                                         .keys()
                                         .any(|monomial| monomial.contains_key(&name))
-                                    || op.value
+                                    || op
+                                        .value
                                         .terms
                                         .keys()
                                         .any(|monomial| monomial.contains_key(&name)))
@@ -1351,7 +1310,10 @@ impl<'program> StructuralJudge<'program> {
                     } else if !goal_only_linear_ops {
                         phase_profile::count("05.num.prove.2c_fork.existing_atoms.non_linear", 1);
                     } else if work.carrier_bounds.len() != base_bounds {
-                        phase_profile::count("05.num.prove.2c_fork.existing_atoms.carrier_bounds", 1);
+                        phase_profile::count(
+                            "05.num.prove.2c_fork.existing_atoms.carrier_bounds",
+                            1,
+                        );
                     }
                 } else {
                     phase_profile::count("05.num.prove.2c_fork.new_atoms_correlated", 1);

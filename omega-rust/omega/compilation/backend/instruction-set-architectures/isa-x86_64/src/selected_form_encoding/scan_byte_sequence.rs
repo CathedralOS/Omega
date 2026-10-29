@@ -46,7 +46,7 @@ enum Label {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Instruction {
+enum Instruction<T> {
     XorSelf(u8),
     Inc(u8),
     AddImmediate(u8, u8),
@@ -73,11 +73,26 @@ enum Instruction {
     },
     JumpConditional {
         condition: u8,
-        target: Label,
+        target: T,
     },
     Jump {
-        target: Label,
+        target: T,
     },
+}
+
+/// A byte compare and the conditional jump that consumes its flags.
+/// Every UTF-8 class test is this pair; the label marks the compare when a
+/// later jump enters at that test.
+fn emit_compare_immediate_branch(
+    emit: &mut (impl FnMut(Option<Label>, Instruction<Label>) + ?Sized),
+    label: Option<Label>,
+    register: u8,
+    immediate: u8,
+    condition: u8,
+    target: Label,
+) {
+    emit(label, Instruction::CompareImmediate8(register, immediate));
+    emit(None, Instruction::JumpConditional { condition, target });
 }
 
 fn layout(
@@ -87,10 +102,10 @@ fn layout(
     cursor: u8,
     byte: u8,
     result: u8,
-) -> Vec<(Option<Label>, Instruction)> {
+) -> Vec<(Option<Label>, Instruction<Label>)> {
     use Instruction::*;
-    let mut stream: Vec<(Option<Label>, Instruction)> = Vec::new();
-    let mut emit = |label: Option<Label>, instruction: Instruction| {
+    let mut stream: Vec<(Option<Label>, Instruction<Label>)> = Vec::new();
+    let mut emit = |label: Option<Label>, instruction: Instruction<Label>| {
         stream.push((label, instruction));
     };
     emit(None, XorSelf(cursor));
@@ -134,85 +149,29 @@ fn layout(
                 offset: 0,
             },
         );
-        emit(None, CompareImmediate8(byte, 0x80));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Advance1,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0x80, CC_B, Label::Advance1);
         // 0x80..0xC2 are stray continuations or the overlong leads C0/C1.
-        emit(None, CompareImmediate8(byte, 0xC2));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Fail,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xE0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Cont1,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xF0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_AE,
-                target: Label::Lead3,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xE0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::E0Path,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xED));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::EdPath,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xC2, CC_B, Label::Fail);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xE0, CC_B, Label::Cont1);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF0, CC_AE, Label::Lead3);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xE0, CC_E, Label::E0Path);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xED, CC_E, Label::EdPath);
         emit(
             None,
             Jump {
                 target: Label::Cont2Any,
             },
         );
-        emit(Some(Label::Lead3), CompareImmediate8(byte, 0xF5));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_AE,
-                target: Label::Fail,
-            },
+        emit_compare_immediate_branch(
+            &mut emit,
+            Some(Label::Lead3),
+            byte,
+            0xF5,
+            CC_AE,
+            Label::Fail,
         );
-        emit(None, CompareImmediate8(byte, 0xF0));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::F0Path,
-            },
-        );
-        emit(None, CompareImmediate8(byte, 0xF4));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_E,
-                target: Label::F4Path,
-            },
-        );
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF0, CC_E, Label::F0Path);
+        emit_compare_immediate_branch(&mut emit, None, byte, 0xF4, CC_E, Label::F4Path);
         emit(
             None,
             Jump {
@@ -375,7 +334,7 @@ fn layout(
 /// `tail` for a lead byte expecting `continuations` continuation bytes whose
 /// first admits `lower..=upper` and whose rest admit 0x80..=0xBF.
 fn emit_cont_tail(
-    emit: &mut dyn FnMut(Option<Label>, Instruction),
+    emit: &mut dyn FnMut(Option<Label>, Instruction<Label>),
     label: Label,
     continuations: u8,
     lower: u8,
@@ -423,22 +382,8 @@ fn emit_cont_tail(
         } else {
             (0x80, 0xBF)
         };
-        emit(None, CompareImmediate8(byte, cont_lower));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_B,
-                target: Label::Fail,
-            },
-        );
-        emit(None, CompareImmediate8(byte, cont_upper));
-        emit(
-            None,
-            JumpConditional {
-                condition: CC_A,
-                target: Label::Fail,
-            },
-        );
+        emit_compare_immediate_branch(emit, None, byte, cont_lower, CC_B, Label::Fail);
+        emit_compare_immediate_branch(emit, None, byte, cont_upper, CC_A, Label::Fail);
     }
     emit(None, AddImmediate(cursor, continuations + 1));
     emit(
@@ -462,7 +407,7 @@ fn rex8_pair(register: u8) -> u8 {
 
 fn emit_instruction(
     bytes: &mut Vec<u8>,
-    instruction: Instruction,
+    instruction: Instruction<Label>,
     patches: &mut Vec<(usize, Label)>,
 ) {
     match instruction {
@@ -523,39 +468,7 @@ fn emit_instruction(
 /// The decoded form of one emitted instruction, with absolute branch targets
 /// resolved from the rel32 fields — the independent shape `validate`
 /// compares against the construction-side layout.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Decoded {
-    XorSelf(u8),
-    Inc(u8),
-    AddImmediate(u8, u8),
-    TestSelf64(u8),
-    TestSelf8(u8),
-    TestImmediate8(u8, u8),
-    CompareImmediate8(u8, u8),
-    CompareRegister64 {
-        source: u8,
-        operand: u8,
-    },
-    LoadByte {
-        value: u8,
-        base: u8,
-        index: u8,
-        offset: u32,
-    },
-    SetNotEqual8(u8),
-    LoadAddress {
-        value: u8,
-        base: u8,
-        offset: u8,
-    },
-    JumpConditional {
-        condition: u8,
-        target: usize,
-    },
-    Jump {
-        target: usize,
-    },
-}
+type Decoded = Instruction<usize>;
 
 fn decode_one(
     bytes: &[u8],
@@ -743,7 +656,7 @@ fn decode_all_stream(bytes: &[u8]) -> Result<Vec<Decoded>, X86_64SelectedFormEnc
 /// The label targets, resolved to the byte positions `assemble` produces —
 /// the validator names a branch by where it lands, not by the layout label.
 fn expected_stream(
-    stream: &[(Option<Label>, Instruction)],
+    stream: &[(Option<Label>, Instruction<Label>)],
 ) -> Result<Vec<Decoded>, X86_64SelectedFormEncodingError> {
     let mut offsets: Vec<(Label, usize)> = Vec::new();
     let mut position = 0;
@@ -753,6 +666,13 @@ fn expected_stream(
         }
         position += instruction_size(*instruction);
     }
+    let position_of = |label: Label| {
+        offsets
+            .iter()
+            .find(|(candidate, _)| *candidate == label)
+            .map(|(_, position)| *position)
+            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)
+    };
     stream
         .iter()
         .map(|(_, instruction)| match *instruction {
@@ -787,27 +707,18 @@ fn expected_stream(
                 base,
                 offset,
             }),
-            Instruction::JumpConditional { condition, target } => {
-                let target = offsets
-                    .iter()
-                    .find(|(label, _)| *label == target)
-                    .map(|(_, position)| *position)
-                    .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-                Ok(Decoded::JumpConditional { condition, target })
-            }
-            Instruction::Jump { target } => {
-                let target = offsets
-                    .iter()
-                    .find(|(label, _)| *label == target)
-                    .map(|(_, position)| *position)
-                    .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-                Ok(Decoded::Jump { target })
-            }
+            Instruction::JumpConditional { condition, target } => Ok(Decoded::JumpConditional {
+                condition,
+                target: position_of(target)?,
+            }),
+            Instruction::Jump { target } => Ok(Decoded::Jump {
+                target: position_of(target)?,
+            }),
         })
         .collect()
 }
 
-fn instruction_size(instruction: Instruction) -> usize {
+fn instruction_size(instruction: Instruction<Label>) -> usize {
     match instruction {
         Instruction::XorSelf(_)
         | Instruction::Inc(_)

@@ -227,6 +227,40 @@ struct Declaration<'input> {
     normalization_owners: Vec<SourceSpan>,
 }
 
+fn propagate_target_observations(
+    declarations: &mut [Declaration<'_>],
+    syntax: &mut SyntaxTrees,
+    target_observations: &mut [bool],
+) {
+    loop {
+        let mut changed = false;
+        for (ordinal, declaration) in declarations.iter().enumerate() {
+            if !target_observations[ordinal]
+                && declaration.dependencies.iter().any(|(_, dependency)| {
+                    dependency
+                        .current()
+                        .is_some_and(|ordinal| target_observations[ordinal])
+                })
+            {
+                target_observations[ordinal] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
+        declaration.definition.pending_target_observation = target_observations[ordinal];
+        if target_observations[ordinal] {
+            syntax.items.replace_item(
+                declaration.item,
+                Item::Const(declaration.definition.clone()),
+            );
+        }
+    }
+}
+
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
     context: &crate::BuildTimeSources<'_>,
@@ -316,8 +350,8 @@ pub(crate) fn evaluate(
         let selected =
             preparation.initializer_dependencies(&syntax, &declarations[ordinal].definition)?;
         target_observations[ordinal] = selected.pending_target_observation;
-        let authored =
-            preparation.initializer_authored_dependencies(&declarations[ordinal].definition)?;
+        let authored = preparation
+            .initializer_authored_dependencies(&declarations[ordinal].definition, None)?;
         declarations[ordinal].authored_calls = authored.calls;
         declarations[ordinal].authored_operators = authored.initializer_operators;
         for (reference, source) in authored.constants {
@@ -346,6 +380,7 @@ pub(crate) fn evaluate(
                 &syntax,
                 &declarations[ordinal].definition,
                 expression,
+                None,
             )?;
             let mut dependencies = Vec::new();
             for (reference, declaration) in selected.constants {
@@ -359,33 +394,7 @@ pub(crate) fn evaluate(
     // Readiness follows the complete selected dependency closure, including
     // aliases and helper bodies. Keep whole expressions symbolic, rather than
     // trying to evaluate a nested observation as an ordinary machine call.
-    loop {
-        let mut changed = false;
-        for (ordinal, declaration) in declarations.iter().enumerate() {
-            if !target_observations[ordinal]
-                && declaration.dependencies.iter().any(|(_, dependency)| {
-                    dependency
-                        .current()
-                        .is_some_and(|ordinal| target_observations[ordinal])
-                })
-            {
-                target_observations[ordinal] = true;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-    for (ordinal, declaration) in declarations.iter_mut().enumerate() {
-        declaration.definition.pending_target_observation = target_observations[ordinal];
-        if target_observations[ordinal] {
-            syntax.items.replace_item(
-                declaration.item,
-                Item::Const(declaration.definition.clone()),
-            );
-        }
-    }
+    propagate_target_observations(&mut declarations, &mut syntax, &mut target_observations);
     reject_dependency_cycles(&declarations)?;
     // Evaluation roots demand their complete declaration graph. A leafless
     // literal is not ready merely because it has nothing to execute: its
@@ -412,7 +421,7 @@ pub(crate) fn evaluate(
             }
         }
     }
-    while declarations
+    'evaluation: while declarations
         .iter()
         .enumerate()
         .any(|(ordinal, declaration)| {
@@ -522,22 +531,179 @@ pub(crate) fn evaluate(
             &[],
             context.predecessor.clone(),
         )?;
-        let mut authored_probes = Vec::new();
+        // Static arguments must close before querying executable dependencies.
+        // This is readiness only: no relation, result, or provider is admitted.
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
+        let execution = prepared.typed();
+        let operator_facts = validation::derive_pre_flow_operator_selections(execution);
+        let admission = domain.admission(execution, authority.clone());
+        let mut observations = Vec::new();
+        let mut pending_choices = Vec::new();
         for ordinal in &ready {
+            let mut choices = Vec::new();
             for leaf in &declarations[*ordinal].leaves {
-                let expected = dependency_origins(
-                    &syntax,
-                    &declarations,
-                    &preparation,
-                    &leaf.dependencies,
-                    InitializerCustodyPurpose::Authored,
-                )?;
                 let reference = syntax.expressions.source_span(leaf.expression);
-                let custody = crate::const_evaluation::const_generic_expressions::validate_authored_probe_custody(
-                    &typed, reference, &expected, &leaf.calls, &syntax,
-                ).map_err(|reason| failure(reference, reason))?;
-                authored_probes.push((leaf.expression, custody));
+                let mut probes = execution.machines().iter().filter(|machine| {
+                    execution.symbols.symbol_source_span(machine.symbol) == Some(reference)
+                });
+                let (Some(probe), None) = (probes.next(), probes.next()) else {
+                    return Err(failure(
+                        reference,
+                        "initializer probe lost its unique source owner",
+                    ));
+                };
+                target_observations[*ordinal] |= admission.closure_needs_execution_preparation(
+                    execution,
+                    probe.symbol,
+                    &operator_facts,
+                );
+                let observation = super::const_generic_expressions::observe_authored_probe(
+                    &typed, reference, &syntax,
+                )
+                .map_err(|reason| failure(reference, reason))?;
+                for choice in observation.calls() {
+                    if !choices.contains(choice) {
+                        choices.push(*choice);
+                    }
+                }
+                observations.push((leaf.expression, observation));
             }
+            // Source lookup independently authenticates every typed choice.
+            // Only this selected closure can add mandatory readiness edges;
+            // merely retaining another overload never introduces its constants.
+            let definition = &declarations[*ordinal].definition;
+            let selected = preparation.selected_initializer_dependencies(definition, &choices)?;
+            let authored =
+                preparation.initializer_authored_dependencies(definition, Some(&choices))?;
+            target_observations[*ordinal] |= selected.pending_target_observation;
+            if !selected.pending_calls.is_empty() || !authored.pending_calls.is_empty() {
+                pending_choices.push(*ordinal);
+            }
+            let dependencies = selected
+                .constants
+                .iter()
+                .map(|(reference, source)| {
+                    dependency(&declarations, &preparation, *source, *reference)
+                        .map(|dependency| (*reference, dependency))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let authored_dependencies = authored
+                .constants
+                .iter()
+                .map(|(reference, source)| {
+                    dependency(&declarations, &preparation, *source, *reference)
+                        .map(|dependency| (*reference, dependency))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            declarations[*ordinal].dependencies = dependencies;
+            declarations[*ordinal].authored_dependencies = authored_dependencies;
+            declarations[*ordinal].calls = selected.calls;
+            declarations[*ordinal].readiness_operators = selected.initializer_operators;
+            declarations[*ordinal].normalization_owners = selected.normalization_owners;
+            declarations[*ordinal].authored_calls = authored.calls;
+            declarations[*ordinal].authored_operators = authored.initializer_operators;
+            for leaf_ordinal in 0..declarations[*ordinal].leaves.len() {
+                let leaf = &declarations[*ordinal].leaves[leaf_ordinal];
+                let selected = preparation.pending_leaf_dependencies(
+                    &syntax,
+                    &declarations[*ordinal].definition,
+                    leaf.expression,
+                    Some(&choices),
+                )?;
+                let dependencies = selected
+                    .constants
+                    .iter()
+                    .map(|(reference, source)| {
+                        dependency(&declarations, &preparation, *source, *reference)
+                            .map(|dependency| (*reference, dependency))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let leaf = &mut declarations[*ordinal].leaves[leaf_ordinal];
+                leaf.dependencies = dependencies;
+                leaf.calls = selected.calls;
+            }
+        }
+        propagate_target_observations(&mut declarations, &mut syntax, &mut target_observations);
+        reject_dependency_cycles(&declarations)?;
+        for (ordinal, target_observation) in target_observations.iter().enumerate() {
+            if *target_observation {
+                demanded[ordinal] = false;
+            }
+        }
+        ready.retain(|ordinal| demanded[*ordinal]);
+        if ready.is_empty() {
+            continue 'evaluation;
+        }
+        // A typed choice can reveal a previously unavailable constant edge.
+        // Re-enter the same readiness scheduler before any checked invocation.
+        // Keeping the selected graph also makes real cycles diagnose normally.
+        let mut discovered = Vec::new();
+        for ordinal in &ready {
+            for (_, dependency) in &declarations[*ordinal].dependencies {
+                if let Some(dependency) = dependency.current() {
+                    discovered.push(dependency);
+                }
+            }
+        }
+        while let Some(ordinal) = discovered.pop() {
+            if !demanded[ordinal] {
+                demanded[ordinal] = true;
+                discovered.extend(
+                    declarations[ordinal]
+                        .dependencies
+                        .iter()
+                        .filter_map(|(_, dependency)| dependency.current()),
+                );
+            }
+        }
+        if ready.iter().any(|ordinal| {
+            declarations[*ordinal]
+                .dependencies
+                .iter()
+                .any(|(_, dependency)| !dependency.is_ready(&declarations))
+        }) {
+            continue 'evaluation;
+        }
+        if pending_choices
+            .iter()
+            .any(|ordinal| ready.contains(ordinal))
+        {
+            return Err(failure(
+                SourceSpan::default(),
+                "typed initializer did not settle its exact source call choices",
+            ));
+        }
+        let mut authored_probes = Vec::new();
+        for (expression, observation) in observations {
+            if !ready.iter().any(|ordinal| {
+                declarations[*ordinal]
+                    .leaves
+                    .iter()
+                    .any(|leaf| leaf.expression == expression)
+            }) {
+                continue;
+            }
+            let leaf = ready
+                .iter()
+                .flat_map(|ordinal| &declarations[*ordinal].leaves)
+                .find(|leaf| leaf.expression == expression)
+                .ok_or_else(|| {
+                    failure(
+                        syntax.expressions.source_span(expression),
+                        "initializer lost its authored leaf",
+                    )
+                })?;
+            let expected = dependency_origins(
+                &syntax,
+                &declarations,
+                &preparation,
+                &leaf.dependencies,
+                InitializerCustodyPurpose::Authored,
+            )?;
+            let custody = observation
+                .validate(&expected, &leaf.calls)
+                .map_err(|reason| failure(syntax.expressions.source_span(expression), reason))?;
+            authored_probes.push((expression, custody));
         }
         let checked = ready
             .iter()
@@ -568,12 +734,17 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
+                // Deferred siblings remain authored; their private probes are
+                // not checked or executed by this independent batch.
+                let independent = domain.demanded_roots(&typed, &symbols);
+                let prepared =
+                    crate::PreparedBuildMachineProgram::prepare_in(&typed, &independent)?;
                 invocations::CheckedInitializers::prepare(
                     &prepared,
                     authority.clone(),
                     &symbols,
                     &domain.accounting,
+                    &[],
                 )
             })
             .transpose()?;
@@ -696,15 +867,11 @@ pub(crate) fn evaluate(
                 let literal = match result.value {
                     ScalarValue::UndeterminedNaN(format) => ExpressionNode::UndeterminedNaN(format),
                     ScalarValue::Float { format, bits } => {
-                        let spelling = match format {
-                            numerics::literals::FloatFormat::F32 => {
-                                format!("{:?}f32", f32::from_bits(bits as u32))
-                            }
-                            numerics::literals::FloatFormat::F64 => {
-                                format!("{:?}f64", f64::from_bits(bits))
-                            }
-                        };
-                        ExpressionNode::Float(syntax_trees::FloatSpelling::new(spelling, reference))
+                        let literal = numerics::literals::FloatLiteral::from_bits(format, bits)
+                            .ok_or_else(|| failure(reference, "invalid floating representation"))?;
+                        ExpressionNode::Float(syntax_trees::FloatSpelling::materialized(
+                            literal, reference,
+                        ))
                     }
                     ScalarValue::Index(value) => match value.decode_encoding() {
                         Some(DecodedCanonicalConstValue::Integer { value, .. }) => {

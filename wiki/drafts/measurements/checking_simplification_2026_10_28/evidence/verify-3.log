@@ -1,0 +1,6 @@
+local A: PASS
+local B: PASS
+package candidate checking failed: checked compilation failed for package `thirtytwo_arg_stack_calling_plan_local_invalid` with 1 diagnostic(s)
+  error: exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+    in package `thirtytwo_arg_stack_calling_plan_local_invalid`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-6e3a80a0097cf4fafb18758f209459ff3cec1be5c0ca6c20aa26506aac9d4b59\source\main.omg:92:31
+package-review settlement failed; omega.lock missing in C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\samples\cli\facts\thirtytwo_arg_stack_calling_plan\local\invalid (update exit 1)

@@ -18,39 +18,72 @@ machine relay_ten(
     a10
 }
 
-linux_x86_64 machine compute_target_body(v10: u64) -> u64
-    requires v10 >= 40 && v10 <= 80
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine compute_target_body(v10: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires v10 >= 40 && v10 <= 80;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(v10: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires v10 >= 40 && v10 <= 80
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let carried: u64 = relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, v10);
+        verify_carried(carried)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(v10: u64) -> u64
+        reaches SelectedBodyCheck crashes Trap
+        requires v10 >= 40 && v10 <= 80
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let carried: u64 = relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, v10);
+        verify_carried(carried)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> u64
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let carried: u64 = relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, v10);
-    verify_carried(carried)
+    SelectedProbe::compute_target_body(60)
 }
 
-linux_arm64 machine compute_target_body(v10: u64) -> u64
-    requires v10 >= 40 && v10 <= 80
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    let carried: u64 = relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, v10);
-    verify_carried(carried)
-}
-
-macos_arm64 machine compute_target_body(v10: u64) -> u64
-    requires v10 >= 40 && v10 <= 80
-{
-    let carried: u64 = relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, v10);
-    verify_carried(carried)
-}
-
-windows_x86_64 machine compute_target_body(v10: u64) -> u64
-    requires v10 >= 40 && v10 <= 80
-{
-    let carried: u64 = relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, v10);
-    verify_carried(carried)
-}
-
-machine evaluate() -> u64 {
-    compute_target_body(60)
-}
-
-machine main() crashes Trap {
     let res: u64 = evaluate();
     transition res == 40 {
         true -> done()
@@ -58,4 +91,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

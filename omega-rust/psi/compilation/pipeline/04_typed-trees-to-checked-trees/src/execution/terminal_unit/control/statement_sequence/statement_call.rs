@@ -178,6 +178,7 @@ pub(super) fn plan(
         // provider boundary or fabricated executable callee is introduced.
         let arguments = crate::execution::terminal_unit::calls::structural_call_arguments(
             program,
+            shapes,
             facts,
             call,
             machine,
@@ -234,6 +235,7 @@ pub(super) fn plan(
     call_phase("statement sequence: call: call operation");
     let mut operation = build_call_operation(
         program,
+        shapes,
         facts,
         Some(scalar_callees),
         machine,

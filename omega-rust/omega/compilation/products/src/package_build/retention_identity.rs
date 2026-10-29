@@ -27,7 +27,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v4\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v6\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -154,12 +154,19 @@ impl BuildOutputIdentity<'_> {
         self.digest.len(product_selection_requests.len());
         for selection in product_selection_requests {
             let language_semantics::declaration_selection::ExecutedProductSelection {
+                static_environment,
                 request,
                 selecting_machine,
                 composition,
                 target,
             } = selection;
             self.product_request(request)?;
+            self.digest.bool(static_environment.is_some());
+            if let Some(environment) = static_environment {
+                self.digest.bytes(&environment.identity);
+                self.optional_occurrence(environment.template)?;
+                self.optional_occurrence(environment.lexical_owner)?;
+            }
             self.product_target(*target);
             self.optional_occurrence(*selecting_machine)?;
             self.digest.bool(composition.is_some());
@@ -573,8 +580,13 @@ impl BuildOutputIdentity<'_> {
             let language_semantics::declaration_selection::ProductDeclarationOperand {
                 path,
                 source_span,
+                application,
             } = operand;
             self.digest.string(path);
+            // The authenticated source occurrence commits the complete authored
+            // recipe. Reached substitutions are committed separately above;
+            // invocation-local graph/source handles never enter this key.
+            self.digest.bool(application.is_some());
             self.occurrence(*source_span)?;
         }
         Ok(())
@@ -583,6 +595,8 @@ impl BuildOutputIdentity<'_> {
     fn provider_identity(&mut self, identity: &ProviderSelectionIdentity) -> Result<(), String> {
         let ProviderSelectionIdentity {
             symbol,
+            application: _,
+            application_identity,
             package,
             canonical_path,
             authored_path,
@@ -591,6 +605,10 @@ impl BuildOutputIdentity<'_> {
         self.package(*package);
         self.digest.string(canonical_path);
         self.digest.string(authored_path);
+        self.digest.bool(application_identity.is_some());
+        if let Some(identity) = application_identity {
+            self.digest.string(identity);
+        }
         Ok(())
     }
 

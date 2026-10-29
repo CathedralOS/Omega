@@ -4911,6 +4911,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 2374ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 2373ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/reference_arrival_handoff_through_parameter_exit built 2372ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/reference_arrival_handoff_through_target_body_exit built 2383ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/reference_recast_backing_footprint_through_call_result_exit built 3170ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_const_name_exit built 2897ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_field_exit built 2924ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_local_exit built 2883ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_match_join_exit built 3226ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_other_machine_exit built 2914ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_other_state_exit built 3168ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_parameter_exit built 3205ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_target_body_exit built 3211ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit built 2423ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit built 2405ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/register_stack_arg_calling_plan_through_field_exit built 2421ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -5037,6 +5046,15 @@ pass/facts/saved_observation_snapshot_through_other_machine_exit built 2412ms ex
 pass/facts/saved_observation_snapshot_through_other_state_exit built 2384ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/saved_observation_snapshot_through_parameter_exit built 1973ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/saved_observation_snapshot_through_target_body_exit built 1959ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/scalar_array_row_construction_through_call_result_exit built 2928ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_const_name_exit built 2837ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_field_exit built 2857ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_local_exit built 3041ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_match_join_exit built 2736ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_machine_exit built 2722ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_state_exit built 2720ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_parameter_exit built 2910ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_target_body_exit built 2962ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit built 1949ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/scalar_boundary_parameter_through_const_name_exit built 1933ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/scalar_boundary_parameter_through_field_exit built 2466ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -8561,19 +8579,12 @@ pass/slices/runtime_machine_entry_view_requires_index_exit built 7068ms exit:70 
 pass/slices/runtime_matched_window_coordinate_capture_exit built 2103ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/slices/runtime_matched_window_length built 1880ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 6918ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/slices/runtime_mutable_record_slice_result_reborrow_exit rejected 1512ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 3763ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 5881ms exit:21 interpreter-exit:21 interpreter:agrees @a92f16431042
-pass/slices/runtime_mutable_slice_result_nested_reborrow_exit rejected 1786ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_reborrow_exit rejected 1766ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_shared_observation_exit rejected 1589ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 2509ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 3424ms exit:0 interpreter-exit:0 interpreter:agrees @557e78cac57a+wt
+pass/slices/runtime_mutable_slice_result_reborrow_exit built 3821ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_shared_observation_exit built 3892ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_whole_forward_exit built 3469ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_subslice_state_forwarding_exit built 2318ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/slices/runtime_namespace_range_contract_exit built 2765ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/slices/runtime_nested_descriptor_scalar_store_exit built 2911ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

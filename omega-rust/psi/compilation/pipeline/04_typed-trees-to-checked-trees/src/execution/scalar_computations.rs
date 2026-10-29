@@ -97,6 +97,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
+                    shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
                     operators,
                     semantic,
                     flow,
@@ -264,22 +265,43 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                 }
                 if let Some(elements) = scalar_elements {
-                    for (element_index, (element, primitive_type)) in
-                        elements.elements.into_iter().enumerate()
-                    {
+                    for (element_index, element) in elements.elements.into_iter().enumerate() {
                         let Ok(element_ordinal) = u32::try_from(element_index) else {
                             break;
                         };
-                        builder.record_root(
-                            pure,
-                            statement_ordinal,
-                            CheckedScalarExpressionRole::ArrayElement {
-                                source: checked_trees::CheckedArrayConstructionSource::Statement,
-                                element_ordinal,
-                            },
-                            element,
-                            primitive_type,
-                        );
+                        let role = CheckedScalarExpressionRole::ArrayElement {
+                            source: checked_trees::CheckedArrayConstructionSource::Statement,
+                            element_ordinal,
+                        };
+                        match element {
+                            validation::ScalarArrayElement::Authored {
+                                expression,
+                                primitive_type,
+                            } => {
+                                builder.record_root(
+                                    pure,
+                                    statement_ordinal,
+                                    role,
+                                    expression,
+                                    primitive_type,
+                                );
+                            }
+                            validation::ScalarArrayElement::Projected {
+                                row,
+                                indices,
+                                leaf_type,
+                                primitive_type,
+                            } => {
+                                builder.record_projected_element_root(
+                                    statement_ordinal,
+                                    role,
+                                    row,
+                                    &indices,
+                                    leaf_type,
+                                    primitive_type,
+                                );
+                            }
+                        }
                     }
                 }
                 for construction in captured

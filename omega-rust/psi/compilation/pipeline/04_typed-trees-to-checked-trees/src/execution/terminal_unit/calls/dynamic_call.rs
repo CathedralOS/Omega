@@ -36,6 +36,7 @@ use checked_trees::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -76,6 +77,7 @@ pub(super) fn build(
     phase("call operation: dynamic structural arguments");
     let structural_arguments = structural_call_arguments(
         program,
+        shapes,
         facts,
         call,
         machine,

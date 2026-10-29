@@ -6,7 +6,7 @@
 //! application. Reflexive equality and body unfolding do not waive this gate.
 
 mod applied_bindings;
-pub(super) use applied_bindings::AppliedProofBindings;
+pub(super) use applied_bindings::{AppliedProofBindings, canonical_result_reference};
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
@@ -1097,6 +1097,10 @@ fn validate_specification_expression_in_scope(
                                         .as_ref()
                                         .expect("complete application")
                                         .machines,
+                                    &application_bindings
+                                        .as_ref()
+                                        .expect("complete application")
+                                        .types,
                                     caller.state_scope(),
                                 ),
                                 StructuralJudgment::Proven
@@ -1737,6 +1741,9 @@ fn structurally_substitutable_fact(
     expression: ExpressionHandle,
     term: &impl Fn(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> bool {
+    if program.static_type_predicate_operands(expression).is_some() {
+        return term(expression).is_some_and(|term| term_has_complete_substitution(program, &term));
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return matches!(program.expression_table.expression(expression), ExpressionNode::Call(_))
             && term(expression).is_some_and(|term| {
@@ -1751,7 +1758,7 @@ fn structurally_substitutable_fact(
         return term(binary.left)
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
-    if binary.operator == BinaryOperator::And {
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         return structurally_substitutable_fact(program, binary.left, term)
             && structurally_substitutable_fact(program, binary.right, term);
     }
@@ -1862,7 +1869,8 @@ fn term_has_complete_substitution(
             collection: subject,
             ..
         }
-        | StructuralTerm::Projection { subject, .. } => {
+        | StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
             // Term formation retains a selected field or collection measure;
             // its complete subject, not the display path alone, owns identity.
             term_has_complete_substitution(program, subject)

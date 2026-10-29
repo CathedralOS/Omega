@@ -373,6 +373,7 @@ impl ConstructionPredicates<'_> {
                     predicate,
                     &bindings,
                     &[],
+                    &[],
                     Some((machine, state)),
                 )
             })

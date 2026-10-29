@@ -36,13 +36,13 @@ mod unit_plans;
 pub use affine_cleanup_plans::{
     CheckedCleanupCaseCondition, CheckedCleanupControlPlans,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
-    CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedReferenceOwnerCleanup, CheckedStructuralCallCustodyPlan,
-    CheckedStructuralResultClaimPlan, CheckedUnitClaimTransferPlan,
-    CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedValueCompletionPlan,
+    CheckedNormalCleanupAction, CheckedNormalCompletion, CheckedNormalExitCleanupPlan,
+    CheckedNormalExitCleanups, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedPartialAffineUnitCleanupPlans, CheckedReferenceOwnerCleanup,
+    CheckedStructuralCallCustodyPlan, CheckedStructuralResultClaimPlan,
+    CheckedUnitClaimTransferPlan, CheckedUnitNominalAffineCallerRequirementPlan,
+    CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedValueCompletionPlan,
 };
 pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
@@ -80,6 +80,7 @@ pub use structural_control_plans::{
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedSuccessorCompletion,
 };
 pub use structural_return::{
     CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,

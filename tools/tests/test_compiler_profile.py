@@ -19,12 +19,114 @@ import sample_gate
 import sample_native_gate
 
 
+def executable_fixture(payload=b""):
+    # A small executable envelope; profile protocol execution is mocked.
+    header = bytearray(120)
+    header[:7] = b"\x7fELF\x02\x01\x01"
+    header[16:18] = (2).to_bytes(2, "little")
+    header[32:40] = (64).to_bytes(8, "little")
+    header[54:56] = (56).to_bytes(2, "little")
+    header[56:58] = (1).to_bytes(2, "little")
+    header[64:68] = (1).to_bytes(4, "little")
+    header[96:104] = (len(header) + len(payload)).to_bytes(8, "little")
+    return bytes(header) + payload
+
+
+
 class CompilerProfileTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.binary = Path(self.temporary.name) / "compiler"
-        self.binary.write_bytes(profile.SCHEMA.encode())
+        self.binary.write_bytes(executable_fixture(profile.SCHEMA.encode()))
+        self.binary.chmod(0o755)
+
+    def test_declared_executable_payloads_must_be_complete(self):
+        from compiler_profile_images import executable_image
+        elf = executable_fixture(b"payload")
+        self.assertTrue(executable_image(elf))
+        self.assertFalse(executable_image(elf[:-1]))
+        macho = bytearray(112)
+        macho[:4] = b"\xcf\xfa\xed\xfe"
+        for offset, value in [(12, 2), (16, 1), (20, 72), (32, 0x19), (36, 72)]:
+            macho[offset:offset + 4] = value.to_bytes(4, "little")
+        macho[72:80] = (104).to_bytes(8, "little")
+        macho[80:88] = (8).to_bytes(8, "little")
+        self.assertTrue(executable_image(macho))
+        self.assertFalse(executable_image(macho[:-1]))
+        fat = bytearray(28) + macho
+        fat[:4] = b"\xca\xfe\xba\xbe"
+        fat[4:8] = (1).to_bytes(4, "big")
+        fat[16:20] = (28).to_bytes(4, "big")
+        fat[20:24] = len(macho).to_bytes(4, "big")
+        self.assertTrue(executable_image(fat))
+        self.assertFalse(executable_image(fat[:-1]))
+        fat[28:32] = b"data"
+        self.assertFalse(executable_image(fat))
+        pe = bytearray(520)
+        pe[:2] = b"MZ"
+        pe[60:64] = (64).to_bytes(4, "little")
+        pe[64:68] = b"PE\0\0"
+        for offset, value in [(70, 1), (84, 112), (86, 2), (88, 0x20b)]:
+            pe[offset:offset + 2] = value.to_bytes(2, "little")
+        pe[148:152] = (512).to_bytes(4, "little")
+        pe[216:220] = (8).to_bytes(4, "little")
+        pe[220:224] = (512).to_bytes(4, "little")
+        self.assertTrue(executable_image(pe))
+        self.assertFalse(executable_image(pe[:-1]))
+        pe[86:88] = (0x2002).to_bytes(2, "little")
+        self.assertFalse(executable_image(pe))
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "requires FIFO support")
+    def test_nonregular_input_is_refused_before_read(self):
+        self.binary.unlink()
+        os.mkfifo(self.binary)
+        with patch.object(Path, "read_bytes", side_effect=AssertionError("must not read FIFO")):
+            with self.assertRaisesRegex(profile.CompilerProfileError, "regular executable"):
+                profile.require_optimized(self.binary)
+            with self.assertRaisesRegex(profile.CompilerProfileError, "regular executable"):
+                profile.record_cargo_build(self.binary, "")
+
+    def test_failed_strip_data_refuses_before_receipt_or_process(self):
+        self.binary.write_bytes(bytes(range(256)) + bytes(96))
+        self.binary.chmod(0o755)
+        with patch.object(profile.subprocess, "run") as query:
+            with self.assertRaisesRegex(profile.CompilerProfileError, "executable image"):
+                profile.require_optimized(self.binary)
+            with self.assertRaisesRegex(profile.CompilerProfileError, "executable image"):
+                profile.record_cargo_build(self.binary, "")
+        query.assert_not_called()
+        self.assertFalse(Path(str(self.binary) + ".compiler-profile.json").exists())
+
+    def test_matching_cargo_receipt_cannot_bless_nonexecutable_output_bytes(self):
+        data = bytes(range(256)) + bytes(96)
+        self.binary.write_bytes(data)
+        self.binary.chmod(0o755)
+        contents = json.dumps(dict(rustflags=[]))
+        evidence = dict(opt_level="1", rustflags=[], fingerprint=dict(
+            path="historical/bin-omega.json", contents=contents,
+            sha256=profile.hashlib.sha256(contents.encode()).hexdigest()))
+        receipt = dict(schema=profile.CARGO_RECEIPT_SCHEMA,
+                       binary_sha256=profile.hashlib.sha256(data).hexdigest(),
+                       profile=dict(schema=profile.SCHEMA, opt_level="1"),
+                       cargo_profiles=dict(compiler="1", omega="1"),
+                       effective_codegen=dict(compiler=evidence, omega=evidence))
+        receipt_path = Path(str(self.binary) + ".compiler-profile.json")
+        receipt_path.write_text(json.dumps(receipt))
+        before = receipt_path.read_bytes()
+        with patch.object(profile.subprocess, "run") as query:
+            with self.assertRaisesRegex(profile.CompilerProfileError, "executable image"):
+                profile.require_optimized(self.binary)
+        query.assert_not_called()
+        self.assertEqual(receipt_path.read_bytes(), before)
+
+    @unittest.skipIf(os.name == "nt", "Windows does not use POSIX executable bits")
+    def test_lost_execute_permission_refuses_before_profile_query(self):
+        self.binary.chmod(0o644)
+        with patch.object(profile.subprocess, "run") as query:
+            with self.assertRaisesRegex(profile.CompilerProfileError, "regular executable"):
+                profile.require_optimized(self.binary)
+        query.assert_not_called()
 
     def response(self, level="1"):
         return subprocess.CompletedProcess([], 0, json.dumps(dict(schema=profile.SCHEMA, opt_level=level)), "")
@@ -81,7 +183,8 @@ class CompilerProfileTests(unittest.TestCase):
             fingerprint = artifact.parent.parent / "fingerprint"
             fingerprint.mkdir()
             (fingerprint / ("lib-" + name + ".json")).write_text(json.dumps(dict(rustflags=[])))
-        self.binary.write_bytes(b"historical runner")
+        self.binary.write_bytes(executable_fixture(b"historical runner"))
+        self.binary.chmod(0o755)
         def message(name, level, executable=None):
             return json.dumps(dict(reason="compiler-artifact", target=dict(name=name),
                                    profile=dict(opt_level=level), fresh=True, executable=executable,
@@ -99,7 +202,7 @@ class CompilerProfileTests(unittest.TestCase):
         with patch.object(profile.subprocess, "run") as query:
             self.assertEqual(profile.require_optimized(self.binary)["profile"]["opt_level"], "1")
             query.assert_not_called()
-            self.binary.write_bytes(b"replacement compiler")
+            self.binary.write_bytes(executable_fixture(b"replacement compiler"))
             with self.assertRaisesRegex(profile.CompilerProfileError, "different binary digest"):
                 profile.require_optimized(self.binary)
         for invalid in [records.replace('"1"', '"0"'), message("corpus_runner", "1", str(self.binary))]:

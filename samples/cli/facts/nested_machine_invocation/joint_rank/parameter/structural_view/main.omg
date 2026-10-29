@@ -1,0 +1,34 @@
+// Expected exit: 0
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+machine count(counter: &mut u64, remaining: &[u8])
+terminates;
+terminates by remaining -> Slice::Length;
+{
+    transition remaining.len > 0 {
+        true -> forward(remaining, counter)
+        false -> done()
+    }
+    machine forward(pending: &[u8], counter: &mut u64)
+    requires pending.len > 0;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        transition { _ -> count(counter, pending[1..]) }
+    }
+    machine done() {}
+}
+machine input(counter: &mut u64, remaining: &[u8]) { count(counter, remaining); }
+machine perform(counter: &mut u64, bytes: &[u8], select: bool) {
+    input(counter, match select { true -> bytes false -> bytes[0..0] });
+}
+machine main() crashes Trap {
+    let bytes: [u8; 7] = [1, 2, 3, 4, 5, 6, 7];
+    let mut counted: u64 = 3;
+    perform(&mut counted, &bytes[..], true);
+    let matched: bool = counted == 10;
+    perform(&mut counted, &bytes[..], false);
+    transition matched && counted == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

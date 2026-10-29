@@ -1321,7 +1321,15 @@ pub(super) fn lower_unit_structural_domains(
             selected_plans.push(plan);
         }
         if !found {
-            return unsupported("Unit closure references a missing structural domain carrier");
+            return Err(LoweringError::MissingUnitDomainPlan {
+                domain,
+                name: checked
+                    .typed
+                    .semantic_domains
+                    .name(domain)
+                    .unwrap_or_default()
+                    .to_owned(),
+            });
         }
     }
     // Semantic family and exact storage carrier are independent identities.

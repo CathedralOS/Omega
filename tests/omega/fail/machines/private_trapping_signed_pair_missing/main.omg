@@ -1,0 +1,11 @@
+// Expected exit: 0
+public machine divide(a: i64 in Trapping, b: i64 in Trapping) -> i64 in Trapping {
+ transition b != 0 { true -> quotient(a,b) false -> (0) }
+ machine quotient(a: i64 in Trapping, b: i64 in Trapping) -> i64 in Trapping { a / b }
+}
+machine main() crashes Trap {
+ let ordinary: i64 in Trapping = divide(12, 3);
+ let excluded: i64 in Trapping = divide(-9223372036854775808, -1);
+ transition ordinary == 4 && excluded == 0 { true -> {} false -> bad() }
+ machine bad() crashes Trap { crash Trap; }
+}

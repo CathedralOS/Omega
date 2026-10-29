@@ -99,7 +99,7 @@ impl DomainSemanticRole {
 /// Role-keyed semantic contributions of one declared domain.
 ///
 /// Predicate membership is deliberately absent: it lives in
-/// [`DomainPredicateBody`] and the proof-fact lattice. Fixed fields make the
+/// [`DomainPredicatePresence`] and the proof-fact lattice. Fixed fields make the
 /// initial closed vocabulary explicit while allowing a hybrid domain to
 /// contribute independently on each axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]

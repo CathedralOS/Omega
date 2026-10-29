@@ -1,0 +1,462 @@
+use psi::checking::checker;
+use psi::checks::checks;
+use psi::checking::contracts;
+use psi::checking::domains;
+use psi::checking::evaluation;
+use psi::checking::flow;
+use psi::checking::facts;
+use psi::checking::invocations;
+use psi::checking::places;
+use psi::checking::obligations;
+use psi::checking::references;
+use psi::checking::termination;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// A normalized witness retains every component and its relation identity.
+// Distance views keep their two endpoint values because the zone can prove
+// their monotonic comparison without manufacturing a subtraction subject.
+// Entry components are immutable snapshots, separate from live parameter homes.
+public data NormalizedRank [copy] {
+    valid: bool;
+    view: RankingView;
+    measure: u64 in Trapping;
+    count: u64 in Trapping;
+    values: [Value; 64];
+}
+
+public machine NormalizedRank::initialize(rank: &mut NormalizedRank)
+crashes Trap
+{
+    rank.valid = false;
+    rank.view = RankingView::Default;
+    rank.measure = 0;
+    rank.count = 0;
+    transition { _ -> next(rank, 0) }
+    machine next(rank: &mut NormalizedRank, index: u64 in Trapping) {
+        transition index < 64 { true -> clear(rank, index) false -> {} }
+    }
+    machine clear(rank: &mut NormalizedRank, index: u64 in Trapping)
+    requires index < 64
+    {
+        let value: Value = Value::unknown();
+        rank.values[index] = value;
+        transition { _ -> next(rank, index + 1) }
+    }
+}
+
+public machine Checker::evaluate_rank(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause, rank: &mut NormalizedRank)
+crashes Trap
+{
+    NormalizedRank::initialize(rank);
+    collect(checker, syntax, resolution, typing, item, termination, rank);
+    // Mathematical projections can create places whose admitted data-domain
+    // facts are pending. Settle that shared owner before proving naturalness
+    // or capturing bounds; the query never invents a separate measure premise.
+    Checker::install_domains(checker, syntax, resolution, typing);
+    Checker::validate_rank_values(checker, rank);
+    machine collect(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause, rank: &mut NormalizedRank) {
+        transition termination.ranked {
+            true -> witnessed(checker, syntax, resolution, typing, item, termination, rank)
+            false -> {}
+        }
+    }
+    machine witnessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause, rank: &mut NormalizedRank) {
+        let written: Clause = SyntaxTrees::clause(syntax, termination.handle);
+        let view: RankingView = Checker::elaborated_view(syntax, resolution, typing, termination);
+        rank.view = view;
+        transition written.argument_count > 0 && view != RankingView::Default {
+            true -> first(checker, syntax, resolution, typing, item, termination, written, view, rank)
+            false -> {}
+        }
+    }
+    machine first(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause, written: Clause, view: RankingView, rank: &mut NormalizedRank) {
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument);
+        let first: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, root);
+        transition view {
+            RankingView::Measure -> measured(checker, syntax, resolution, typing, termination, written, first, rank)
+            RankingView::SliceLength -> slice(checker, typing, written, first, rank)
+            RankingView::BoundedDistance -> pair(checker, syntax, resolution, typing, item, written, first, rank)
+            RankingView::IncreasingTo -> limited(checker, syntax, resolution, typing, item, written, first, rank)
+            RankingView::Descending -> single(checker, written, first, rank)
+            _ -> {}
+        }
+    }
+    machine single(checker: &Checker, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        rank.values[0] = first;
+        rank.count = 1;
+        rank.valid = written.argument_count == 1;
+    }
+    machine slice(checker: &mut Checker, typing: &Typing, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        transition first.place > 0 {
+            true -> length(checker, typing, written, first, rank)
+            false -> {}
+        }
+    }
+    machine length(checker: &mut Checker, typing: &Typing, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Length, 0, first.place, 0);
+        let value: Value = Checker::reference_value(checker, typing, place);
+        transition { _ -> single(checker, written, value, rank) }
+    }
+    machine pair(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        transition written.argument_count == 2 {
+            true -> paired(checker, syntax, resolution, typing, item, written, first, rank)
+            false -> {}
+        }
+    }
+    machine paired(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument + 1);
+        let second: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, root);
+        transition { _ -> distance(checker, first, second, rank) }
+    }
+    machine limited(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        let view: Expression = SyntaxTrees::expression(syntax, written.expression);
+        transition written.argument_count == 1 && view.count == 1 {
+            true -> limit(checker, syntax, resolution, typing, item, view, first, rank)
+            false -> {}
+        }
+    }
+    machine limit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, view: Expression, first: Value, rank: &mut NormalizedRank) {
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, view.first);
+        let second: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, root);
+        transition { _ -> distance(checker, first, second, rank) }
+    }
+    machine distance(checker: &Checker, first: Value, second: Value, rank: &mut NormalizedRank) {
+        rank.values[0] = first;
+        rank.values[1] = second;
+        rank.count = 2;
+        rank.valid = true;
+    }
+    machine measured(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        let handle: u64 in Trapping = NameResolution::ranking_measure(resolution, termination.handle);
+        let measure: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        rank.measure = handle;
+        transition written.argument_count == 1 && measure.component_count <= 64 {
+            true -> measure_kind(checker, syntax, resolution, typing, measure, written, first, rank)
+            false -> {}
+        }
+    }
+    machine measure_kind(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        transition measure.component_count > 0 {
+            true -> components(checker, syntax, resolution, typing, measure, first, rank, 0)
+            false -> computed(checker, syntax, resolution, typing, measure, written, first, rank)
+        }
+    }
+    machine computed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, written: Clause, first: Value, rank: &mut NormalizedRank) {
+        let value: Value = Checker::measured_value(checker, syntax, resolution, typing, measure, first);
+        transition { _ -> single(checker, written, value, rank) }
+    }
+    machine components(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, first: Value, rank: &mut NormalizedRank, index: u64 in Trapping) {
+        transition index < measure.component_count && index < 64 {
+            true -> component(checker, syntax, resolution, typing, measure, first, rank, index)
+            false -> complete(rank, measure.component_count)
+        }
+    }
+    machine component(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, measure: MachineItem, first: Value, rank: &mut NormalizedRank, index: u64 in Trapping)
+    requires index < 64
+    {
+        let value: Value = Checker::component_value(checker, syntax, resolution, typing, measure, first, index);
+        rank.values[index] = value;
+        transition { _ -> components(checker, syntax, resolution, typing, measure, first, rank, index + 1) }
+    }
+    machine complete(rank: &mut NormalizedRank, count: u64 in Trapping) { rank.count = count; rank.valid = count > 0 && count <= 64; }
+}
+
+public machine Checker::natural_rank_value(checker: &Checker, value: Value) -> bool
+crashes Trap
+{
+    let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
+    Checker::proves_at_most(checker, zero, value)
+}
+
+public machine Checker::snapshot_rank(checker: &mut Checker, typing: &Typing, rank: &mut NormalizedRank)
+crashes Trap
+{
+    transition rank.valid && rank.count <= 64 {
+        true -> component(checker, typing, rank, 0)
+        false -> {}
+    }
+    machine component(checker: &mut Checker, typing: &Typing, rank: &mut NormalizedRank, index: u64 in Trapping) {
+        transition index < rank.count && index < 64 {
+            true -> retained(checker, typing, rank, index)
+            false -> {}
+        }
+    }
+    machine retained(checker: &mut Checker, typing: &Typing, rank: &mut NormalizedRank, index: u64 in Trapping)
+    requires index < 64
+    {
+        let value: Value = rank.values[index];
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::RankEntry, index, 0, 0);
+        Checker::initialize_place(checker, typing, place, value);
+        let captured: Value = Checker::place_value(checker, place);
+        rank.values[index] = captured;
+        rank.valid = rank.valid && place > 0;
+        transition { _ -> component(checker, typing, rank, index + 1) }
+    }
+}
+
+// 0 means unknown/increasing, 1 preserving, 2 strict. All normalized
+// components are compared; equal leading coordinates never skip later ones.
+public machine Checker::compare_ranks(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank) -> u64 in Trapping
+crashes Trap
+{
+    transition before.valid && after.valid && before.view == after.view && before.measure == after.measure && before.count == after.count && before.count > 0 && before.count <= 64 {
+        true -> relation(checker, before, after)
+        false -> 0
+    }
+    machine relation(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank) -> u64 in Trapping {
+        transition before.view {
+            RankingView::BoundedDistance -> distance(checker, before, after)
+            RankingView::IncreasingTo -> distance(checker, before, after)
+            _ -> component(checker, before, after, 0)
+        }
+    }
+    machine component(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank, index: u64 in Trapping) -> u64 in Trapping {
+        transition index < before.count && index < 64 {
+            true -> compared(checker, before, after, index)
+            false -> 1
+        }
+    }
+    machine compared(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank, index: u64 in Trapping) -> u64 in Trapping
+    requires index < 64
+    {
+        let left: Value = before.values[index];
+        let right: Value = after.values[index];
+        let strict: bool = Checker::proves_less(checker, right, left);
+        let kept: bool = Checker::proves_at_most(checker, right, left);
+        transition strict {
+            true -> 2
+            false -> preserving(checker, before, after, index, kept)
+        }
+    }
+    machine preserving(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank, index: u64 in Trapping, kept: bool) -> u64 in Trapping {
+        transition kept {
+            true -> component(checker, before, after, index + 1)
+            false -> 0
+        }
+    }
+    machine distance(checker: &Checker, before: &NormalizedRank, after: &NormalizedRank) -> u64 in Trapping {
+        let lower: Value = before.values[0];
+        let upper: Value = before.values[1];
+        let next_lower: Value = after.values[0];
+        let next_upper: Value = after.values[1];
+        let positive: bool = Checker::proves_less(checker, lower, upper);
+        let bound_kept: bool = Checker::proves_at_most(checker, next_upper, upper);
+        let bound_fell: bool = Checker::proves_less(checker, next_upper, upper);
+        let climbed: bool = Checker::proves_less(checker, lower, next_lower);
+        let kept: bool = Checker::proves_at_most(checker, lower, next_lower);
+        transition positive && ((bound_kept && climbed) || (bound_fell && kept)) {
+            true -> 2
+            false -> non_increasing(bound_kept && kept)
+        }
+    }
+    machine non_increasing(proven: bool) -> u64 in Trapping { transition proven { true -> 1 false -> 0 } }
+}
+
+// Capture after own entry requirements/domains and before executable writes.
+// Snapshot roots have no storage parent, so later parameter mutation cannot
+// reinterpret their mathematical value or invalidate unrelated coordinates.
+public machine Checker::require_rank_range_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
+crashes Trap
+{
+    let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
+    checker.entry_rank.valid = false;
+    checker.entry_rank_has_range = false;
+    transition termination.ranked {
+        true -> witnessed(checker, syntax, resolution, typing, item, termination)
+        false -> {}
+    }
+    machine witnessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, termination: TerminationClause) {
+        Checker::capture_source(checker, syntax, resolution, item);
+        let mut rank: NormalizedRank;
+        Checker::evaluate_rank(checker, syntax, resolution, typing, item, termination, &mut rank);
+        Checker::snapshot_rank(checker, typing, &mut rank);
+        checker.entry_rank = rank;
+        let clause: Clause = SyntaxTrees::clause(syntax, termination.handle);
+        transition clause.has_range {
+            true -> ranged(checker, syntax, resolution, typing, item, clause)
+            false -> {}
+        }
+    }
+    machine ranged(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, clause: Clause) {
+        let bounds: RankBounds = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
+        Checker::install_domains(checker, syntax, resolution, typing);
+        let lower: Value = Checker::snapshot_rank_bound(checker, typing, bounds.first, 64);
+        let upper: Value = Checker::snapshot_rank_bound(checker, typing, bounds.second, 65);
+        checker.entry_rank_bounds = RankBounds { first: lower, second: upper };
+        checker.entry_rank_has_range = true;
+        let within: bool = Checker::normalized_rank_within(checker, syntax, &checker.entry_rank, checker.entry_rank_bounds, clause);
+        transition within {
+            true -> {}
+            false -> unproven(checker, syntax, clause)
+        }
+    }
+    machine unproven(checker: &mut Checker, syntax: &SyntaxTrees, clause: Clause) {
+        let range: Expression = SyntaxTrees::expression(syntax, clause.range);
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RankRangeUnproven, range.source_span);
+    }
+}
+
+machine Checker::snapshot_rank_bound(checker: &mut Checker, typing: &Typing, value: Value, coordinate: u64 in Trapping) -> Value
+crashes Trap
+{
+    let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::RankEntry, coordinate, 0, 0);
+    Checker::initialize_place(checker, typing, place, value);
+    Checker::place_value(checker, place)
+}
+
+machine Checker::normalized_rank_within(checker: &Checker, syntax: &SyntaxTrees, rank: &NormalizedRank, bounds: RankBounds, clause: Clause) -> bool
+crashes Trap
+{
+    let distance: bool = rank.view == RankingView::BoundedDistance || rank.view == RankingView::IncreasingTo;
+    transition rank.valid && ((rank.count == 1 && !distance) || (rank.count == 2 && distance)) {
+        true -> produced(checker, syntax, rank, bounds, clause, distance)
+        false -> false
+    }
+    machine produced(checker: &Checker, syntax: &SyntaxTrees, rank: &NormalizedRank, bounds: RankBounds, clause: Clause, distance: bool) -> bool {
+        transition distance {
+            true -> pair(checker, syntax, rank, bounds, clause)
+            false -> single(checker, syntax, rank, bounds, clause)
+        }
+    }
+    machine pair(checker: &Checker, syntax: &SyntaxTrees, rank: &NormalizedRank, bounds: RankBounds, clause: Clause) -> bool {
+        let produced: RankBounds = RankBounds { first: rank.values[0], second: rank.values[1] };
+        Checker::rank_within(checker, syntax, produced, bounds, clause, rank.view)
+    }
+    machine single(checker: &Checker, syntax: &SyntaxTrees, rank: &NormalizedRank, bounds: RankBounds, clause: Clause) -> bool {
+        let unknown: Value = Value::unknown();
+        let produced: RankBounds = RankBounds { first: rank.values[0], second: unknown };
+        Checker::rank_within(checker, syntax, produced, bounds, clause, rank.view)
+    }
+}
+
+public machine Checker::require_invocation_descent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, expression: u64 in Trapping, call: Expression)
+crashes Trap
+{
+    transition checker.zone.infeasible || !checker.output.machine_accepted { true -> {} false -> dispatched(checker, syntax, resolution, typing, selection, expression, call) }
+    machine dispatched(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, expression: u64 in Trapping, call: Expression) {
+        transition selection {
+            Selection::Machine { handle } -> selected(checker, syntax, resolution, typing, expression, call, handle)
+            _ -> {}
+        }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, call: Expression, target: u64 in Trapping) {
+        let source_component: u64 in Trapping = InvocationGraph::component(&checker.invocations, checker.machine);
+        let target_component: u64 in Trapping = InvocationGraph::component(&checker.invocations, target);
+        let internal: bool = source_component > 0 && source_component == target_component;
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, target);
+        let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
+        transition termination.ranked {
+            true -> witnessed(checker, syntax, resolution, typing, expression, call, item, termination, internal)
+            false -> observed(checker, expression, internal, 0)
+        }
+    }
+    machine witnessed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, call: Expression, item: MachineItem, termination: TerminationClause, internal: bool) {
+        let captured: bool = Checker::capture_rank_actuals(checker, syntax, call, item.parameter_count);
+        let mut after: NormalizedRank;
+        Checker::evaluate_rank(checker, syntax, resolution, typing, item, termination, &mut after);
+        after.valid = after.valid && captured;
+        let comparison: u64 in Trapping = Checker::compare_ranks(checker, &checker.entry_rank, &after);
+        Checker::check_rank_arrival_range(checker, syntax, resolution, typing, call, item, termination, &after, internal);
+        transition { _ -> observed(checker, expression, internal, comparison) }
+    }
+    machine observed(checker: &mut Checker, expression: u64 in Trapping, internal: bool, comparison: u64 in Trapping) {
+        transition internal {
+            true -> occurrence(checker, expression, comparison)
+            false -> {}
+        }
+    }
+    machine occurrence(checker: &mut Checker, expression: u64 in Trapping, comparison: u64 in Trapping) {
+        let handle: u64 in Trapping = InvocationGraph::edge_handle(&checker.invocations, checker.machine, expression);
+        let observed: bool = InvocationGraph::observe_rank(&mut checker.invocations, handle, comparison > 0, comparison == 2);
+        transition observed { true -> {} false -> incomplete(checker) }
+    }
+    machine incomplete(checker: &mut Checker) { checker.overflowed = true; }
+}
+
+machine Checker::capture_rank_actuals(checker: &mut Checker, syntax: &SyntaxTrees, call: Expression, count: u64 in Trapping) -> bool
+crashes Trap
+{
+    let supplied: u64 in Trapping = Checker::operand_count(call);
+    checker.argument_count = count;
+    transition supplied == count && count <= 64 {
+        true -> next(checker, syntax, call, count, 0)
+        false -> false
+    }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, call: Expression, count: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition index < count && index < 64 {
+            true -> argument(checker, syntax, call, count, index)
+            false -> true
+        }
+    }
+    machine argument(checker: &mut Checker, syntax: &SyntaxTrees, call: Expression, count: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = Checker::operand(syntax, call, index);
+        let value: Value = Checker::value_at(checker, handle);
+        Checker::set_argument(checker, index, value);
+        transition { _ -> next(checker, syntax, call, count, index + 1) }
+    }
+}
+
+// The target's own range is owed on initial and internal arrivals. A cyclic
+// arrival additionally preserves the exact entry endpoints; decrease alone
+// cannot justify replacing a range or assuming its input requirement.
+machine Checker::check_rank_arrival_range(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, item: MachineItem, termination: TerminationClause, after: &NormalizedRank, internal: bool)
+crashes Trap
+{
+    let clause: Clause = SyntaxTrees::clause(syntax, termination.handle);
+    transition clause.has_range {
+        true -> ranged(checker, syntax, resolution, typing, call, item, clause, after, internal)
+        false -> {}
+    }
+    machine ranged(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, item: MachineItem, clause: Clause, after: &NormalizedRank, internal: bool) {
+        let bounds: RankBounds = Checker::rank_bounds(checker, syntax, resolution, typing, item, clause);
+        Checker::install_domains(checker, syntax, resolution, typing);
+        let within: bool = Checker::normalized_rank_within(checker, syntax, after, bounds, clause);
+        let pinned: bool = Checker::rank_endpoints_pinned(checker, bounds);
+        transition within && (!internal || pinned) {
+            true -> {}
+            false -> unproven(checker, call)
+        }
+    }
+    machine unproven(checker: &mut Checker, call: Expression) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RankRangeUnproven, call.source_span);
+    }
+}
+
+machine Checker::rank_endpoints_pinned(checker: &Checker, bounds: RankBounds) -> bool
+crashes Trap
+{
+    transition checker.entry_rank_has_range { true -> captured(checker, bounds) false -> false }
+    machine captured(checker: &Checker, bounds: RankBounds) -> bool {
+    let entry: RankBounds = checker.entry_rank_bounds;
+    let lower: bool = Checker::proves_at_most(checker, entry.first, bounds.first) && Checker::proves_at_most(checker, bounds.first, entry.first);
+    let upper: bool = Checker::proves_at_most(checker, entry.second, bounds.second) && Checker::proves_at_most(checker, bounds.second, entry.second);
+    lower && upper
+    }
+}
+
+// Validate the complete normalized roster only after projection domains settle.
+machine Checker::validate_rank_values(checker: &Checker, rank: &mut NormalizedRank)
+crashes Trap
+{
+    transition rank.valid && rank.count > 0 && rank.count <= 64 {
+        true -> component(checker, rank, 0)
+        false -> invalid(rank)
+    }
+    machine component(checker: &Checker, rank: &mut NormalizedRank, index: u64 in Trapping) {
+        transition index < rank.count && index < 64 {
+            true -> natural(checker, rank, index)
+            false -> {}
+        }
+    }
+    machine natural(checker: &Checker, rank: &mut NormalizedRank, index: u64 in Trapping)
+    requires index < 64
+    {
+        let value: Value = rank.values[index];
+        let proven: bool = Checker::natural_rank_value(checker, value);
+        transition proven { true -> component(checker, rank, index + 1) false -> invalid(rank) }
+    }
+    machine invalid(rank: &mut NormalizedRank) { rank.valid = false; }
+}

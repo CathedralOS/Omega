@@ -7,7 +7,7 @@
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use build_declarations::DependencyPurpose;
-use build_time_evaluation::provider_declarations::{ProviderPlanningContext, ProviderSelection};
+use build_time_evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
 use source::{SourceOrigin, SourceResolutionStratum};
 use std::path::PathBuf;
@@ -28,6 +28,25 @@ impl PackageCompilationInputs {
                         paths.push(anchor.source().path.clone());
                     }
                 }
+                for application in [
+                    &selection.subject_application,
+                    &selection.provider_application,
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    for span in application.declaration_spans() {
+                        let file = application.sources.get(span.source_id).ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "retained application has a foreign source coordinate",
+                            )]
+                        })?;
+                        let source = self.admit_retained_product_source(bundle, file)?;
+                        if source.resolution_stratum == SourceResolutionStratum::Base {
+                            paths.push(source.path);
+                        }
+                    }
+                }
             }
         }
         paths.sort();
@@ -39,9 +58,8 @@ impl PackageCompilationInputs {
     /// This neither grants authority nor installs Build-host service backing.
     pub fn rejoin_package_provider_selections(
         &self,
-        typed: &typed_trees::TypedTrees,
+        source: &mut psi_compiler::SourceContinuation,
     ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-        let context = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
         let mut selections = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
             if scope != DependencyPurpose::Product {
@@ -56,7 +74,35 @@ impl PackageCompilationInputs {
                     self.admit_retained_product_declaration(bundle, &selected.provider)?;
                 // Duplicate/default arbitration belongs to provider settlement,
                 // where authoritative root overrides have their proper tier.
-                selections.push(selected.rejoin(context, &[]).map_err(|error| vec![error])?);
+                for application in [
+                    &mut selected.subject_application,
+                    &mut selected.provider_application,
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    let needed = application
+                        .declaration_spans()
+                        .map(|span| span.source_id)
+                        .collect::<Vec<_>>();
+                    let files = application
+                        .sources
+                        .files()
+                        .map(|file| {
+                            if needed.contains(&file.source_id) {
+                                self.admit_retained_product_source(bundle, file)
+                            } else {
+                                Ok(file.clone())
+                            }
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    application.sources = std::sync::Arc::new(source::SourceMap::from_files(files));
+                }
+                selections.push(
+                    source
+                        .rejoin_product_provider_selection(&selected)
+                        .map_err(|error| vec![error])?,
+                );
             }
         }
         Ok(selections)
@@ -110,7 +156,18 @@ impl PackageCompilationInputs {
         anchor: &RetainedDeclaration,
     ) -> Result<RetainedDeclaration, Vec<Diagnostic>> {
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
-        let mut source = anchor.source().clone();
+        let source = self.admit_retained_product_source(bundle, anchor.source())?;
+        RetainedDeclaration::from_retained_parts(source, anchor.span(), anchor.kind())
+            .map_err(|reason| refuse(reason.into()))
+    }
+
+    fn admit_retained_product_source(
+        &self,
+        bundle: &PackageBuildHandoff,
+        original: &source::SourceFile,
+    ) -> Result<source::SourceFile, Vec<Diagnostic>> {
+        let refuse = |reason: String| vec![Diagnostic::error(reason)];
+        let mut source = original.clone();
         let relative = source
             .path
             .strip_prefix(&source.package_root)
@@ -177,7 +234,6 @@ impl PackageCompilationInputs {
                 source.resolution_stratum = SourceResolutionStratum::DependencyActivationExtension;
             }
         }
-        RetainedDeclaration::from_retained_parts(source, anchor.span(), anchor.kind())
-            .map_err(|reason| refuse(reason.into()))
+        Ok(source)
     }
 }

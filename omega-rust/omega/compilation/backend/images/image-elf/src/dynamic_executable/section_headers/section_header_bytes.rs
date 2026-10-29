@@ -54,6 +54,7 @@ impl ValidatedElfSectionHeaderTableTemplate {
         self.contents.bytes.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn placement_fixup_count(&self) -> usize {
         self.contents.placement_fixups.len()
     }

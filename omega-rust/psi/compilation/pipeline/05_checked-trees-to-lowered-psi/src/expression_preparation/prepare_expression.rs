@@ -231,6 +231,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 left,
                 right,
                 formation_decided,
+                ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 let left = self.lower_scalar(identities, left)?;

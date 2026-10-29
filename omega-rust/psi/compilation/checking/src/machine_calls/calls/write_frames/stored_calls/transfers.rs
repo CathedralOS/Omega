@@ -1,7 +1,6 @@
 //! Publish and install completed slot transfers without re-evaluating their sources.
 //! Completed operands retain their exact source cuts and carrier/backing association.
 
-use super::super as frames;
 use super::*;
 
 pub(in crate::machine_calls::calls::write_frames) fn public_effects(

@@ -166,50 +166,26 @@ pub(crate) fn operation_structural_call_contract_matches(
             callee,
             structural_arguments,
             claim_transfers,
-            result: AbstractStructuralCallResult::Unit,
+            result: result @ (AbstractStructuralCallResult::Unit
+            | AbstractStructuralCallResult::Scalar(_)),
             ..
         } => callee
             .machine()
             .and_then(|machine| functions.get(&machine))
             .is_some_and(|callee| {
-                structural_arguments_match(
+                let projection = match result {
+                    AbstractStructuralCallResult::Unit => StructuralProjectionPolicy::Unit,
+                    _ => StructuralProjectionPolicy::Projected,
+                };
+                direct_call_arguments_match(
                     caller,
-                    operation.psi_operation(),
-                    structural_arguments,
-                    &callee.structural_parameters,
-                    types,
-                    domains,
-                    StructuralProjectionPolicy::Unit,
-                ) && validate_internal_claim_transfers(
-                    caller,
+                    operation,
                     callee,
                     structural_arguments,
                     claim_transfers,
-                )
-            }),
-        O::CallStructural {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            result: AbstractStructuralCallResult::Scalar(_),
-            ..
-        } => callee
-            .machine()
-            .and_then(|machine| functions.get(&machine))
-            .is_some_and(|callee| {
-                structural_arguments_match(
-                    caller,
-                    operation.psi_operation(),
-                    structural_arguments,
-                    &callee.structural_parameters,
                     types,
                     domains,
-                    StructuralProjectionPolicy::Projected,
-                ) && validate_internal_claim_transfers(
-                    caller,
-                    callee,
-                    structural_arguments,
-                    claim_transfers,
+                    projection,
                 )
             }),
         O::CallStructural {
@@ -233,22 +209,18 @@ pub(crate) fn operation_structural_call_contract_matches(
                 }) {
                     return reference_call_matches(caller, operation, callee, types, domains);
                 }
-                structural_arguments_match(
+                // Argument custody does not depend on the callee's result
+                // producer or carrier family. Replay ordinary projections and
+                // literal backing with the same source/access contract.
+                direct_call_arguments_match(
                     caller,
-                    operation.psi_operation(),
-                    structural_arguments,
-                    &callee.structural_parameters,
-                    types,
-                    domains,
-                    // Argument custody does not depend on the callee's result
-                    // producer or carrier family. Replay ordinary projections and
-                    // literal backing with the same source/access contract.
-                    StructuralProjectionPolicy::Projected,
-                ) && validate_internal_claim_transfers(
-                    caller,
+                    operation,
                     callee,
                     structural_arguments,
                     claim_transfers,
+                    types,
+                    domains,
+                    StructuralProjectionPolicy::Projected,
                 ) && validate_structural_call_result(
                     result,
                     callee,
@@ -303,6 +275,31 @@ pub(crate) fn operation_structural_call_contract_matches(
         }),
         _ => true,
     }
+}
+
+/// Direct (non-dynamic) structural calls share one argument-custody rule:
+/// replay the callee's structural parameters under the caller's projection
+/// policy, then admit claim traffic only through the internal-call contract.
+#[allow(clippy::too_many_arguments)]
+fn direct_call_arguments_match(
+    caller: &PsiOptimizationFunction,
+    operation: &O,
+    callee: &PsiOptimizationFunction,
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    claim_transfers: &[terminal_psi::ClaimTransfer],
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    projection: StructuralProjectionPolicy,
+) -> bool {
+    structural_arguments_match(
+        caller,
+        operation.psi_operation(),
+        structural_arguments,
+        &callee.structural_parameters,
+        types,
+        domains,
+        projection,
+    ) && validate_internal_claim_transfers(caller, callee, structural_arguments, claim_transfers)
 }
 
 /// The call's requirement-obligation and crash-route rows replay the callee's

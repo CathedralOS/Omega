@@ -57,6 +57,7 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
         UPSTREAM_DESCRIPTOR_COUNT + self.contents.descriptors.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn appended_descriptor_count(&self) -> usize {
         self.contents.descriptors.len()
     }

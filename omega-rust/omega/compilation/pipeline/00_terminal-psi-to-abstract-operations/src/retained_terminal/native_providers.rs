@@ -412,6 +412,7 @@ impl TerminalNativeRealizationProposal {
         // join. Rejoin complete plans, then derive every builtin in that one
         // namespace; no saved plan ordinal crosses this selection boundary.
         let non_intrinsic_execution = [None];
+        let non_authored_realization = [None];
         let intrinsic_provenance = selection
             .plans()
             .iter()
@@ -432,10 +433,20 @@ impl TerminalNativeRealizationProposal {
                                 "native execution lost original intrinsic row custody",
                             )]
                         })?;
+                    let row_numeric_realizations = self
+                        .providers()
+                        .numeric_realizations
+                        .get(position)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "native execution lost selected external declaration custody",
+                            )]
+                        })?;
                     return Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan,
                         semantic_schema: &plan.schema,
                         row_executions,
+                        row_numeric_realizations,
                     });
                 }
                 let leaf = self
@@ -461,6 +472,7 @@ impl TerminalNativeRealizationProposal {
                     plan,
                     semantic_schema: &leaf.satisfied_schema,
                     row_executions,
+                    row_numeric_realizations: &non_authored_realization,
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;

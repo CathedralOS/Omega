@@ -26,6 +26,8 @@ pub enum StaticArgumentSnapshot {
     },
     Path(Vec<IdentifierSnapshot>),
     Application {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        member: Option<Box<StaticArgumentSnapshot>>,
         path: Vec<IdentifierSnapshot>,
         lifetime_arguments: Vec<IdentifierSnapshot>,
         arguments: Vec<StaticArgumentSnapshot>,
@@ -662,6 +664,10 @@ pub(crate) fn snapshot_static_argument(
         }
     } else if let Some(application) = &argument.application {
         StaticArgumentSnapshot::Application {
+            member: syntax_trees
+                .expressions
+                .static_member(application.member)
+                .map(|member| Box::new(snapshot_static_argument(syntax_trees, member))),
             path: snapshot_identifier_slice(syntax_trees, &argument.path),
             lifetime_arguments: snapshot_identifier_slice(
                 syntax_trees,

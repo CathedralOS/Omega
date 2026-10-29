@@ -64,13 +64,28 @@ impl Builder<'_, '_> {
             return None;
         }
         let mut elements = Vec::with_capacity(array.elements.len());
-        for (element_ordinal, (leaf, primitive_type)) in array.elements.into_iter().enumerate() {
-            let root = self.expression(leaf, primitive_type)?;
-            self.plans.nodes.get_mut(root).authored_root = leaf;
+        for (element_ordinal, element) in array.elements.into_iter().enumerate() {
+            let element_ordinal = u32::try_from(element_ordinal).ok()?;
+            let root = match element {
+                validation::ScalarArrayElement::Authored {
+                    expression: leaf,
+                    primitive_type,
+                } => {
+                    let root = self.expression(leaf, primitive_type)?;
+                    self.plans.nodes.get_mut(root).authored_root = leaf;
+                    root
+                }
+                validation::ScalarArrayElement::Projected {
+                    row,
+                    indices,
+                    leaf_type,
+                    primitive_type,
+                } => self.projected_element_scalar(row, &indices, leaf_type, primitive_type)?,
+            };
             self.push_scalar_root(
                 CheckedScalarExpressionRole::StructuralArrayElement {
                     expression,
-                    element_ordinal: u32::try_from(element_ordinal).ok()?,
+                    element_ordinal,
                 },
                 root,
             )?;

@@ -4,7 +4,8 @@
 //!
 //! Start at `build_time_evaluation.rs`: build machines are admitted against the
 //! checked program. Admitted constants use common Terminal production and
-//! execution; other Build jobs retain their checked-interpreter service. Results
+//! execution; remaining pure policy/value jobs still use checked-tree evaluation.
+//! Build activations execute through Omega's Terminal host, not this evaluator. Results
 //! are installed as const lengths, const domain facts, layout plans, placed views,
 //! and wire plans. Omega schedules these services; it never reinterprets them.
 //!
@@ -79,12 +80,11 @@ pub use machine_execution::build_activation::{
 };
 pub use machine_execution::build_machines::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineCapturedFilesystemRoot,
-    BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
-    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
-    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
-    BuildMachineFilesystemSponsor, BuildMachineFilesystemSponsorLimits, BuildMachineInvocation,
-    CheckedBuildProgram, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
-    evaluate_build_machine_measured,
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
+    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
+    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor,
+    BuildMachineFilesystemSponsorLimits, CheckedBuildProgram, PreparedBuildMachineEntry,
+    PreparedBuildMachineProgram,
 };
 pub use machine_execution::selected_operators::{
     SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,

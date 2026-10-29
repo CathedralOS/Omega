@@ -19,8 +19,7 @@ pub(super) fn validate(
     let Some(transition) = statement.as_transition() else {
         unreachable!("dispatched transition_statements")
     };
-    let (program, machine, state_name, current_state, symbols, writable_roots) = scope.reads();
-    let machine_symbols = scope.machine_symbols;
+    let (program, machine, state_name, current_state, _symbols, writable_roots) = scope.reads();
     let transition_values = scope.transition_values;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;

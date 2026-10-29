@@ -178,39 +178,6 @@ pub(super) fn value_case_path_is_selected(
     )
 }
 
-/// Prove an assigned value from live membership or an independently checked
-/// predicate. A declared field alone cannot license an inactive payload read.
-pub(super) fn value_proves_domain(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    statement_index: usize,
-    value: ExpressionHandle,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    let entry_constraints = facts
-        .flow
-        .state_statement(state_flow, statement_index)
-        .map(|statement| statement.entry_constraints)
-        .unwrap_or(state_flow.entry_constraints);
-    let contexts = facts
-        .flow
-        .semantic_constraint_contexts(entry_constraints)
-        .collect::<Vec<_>>();
-    if !value_case_path_is_selected(program, facts, state_flow, statement_index, value) {
-        return false;
-    }
-    value_proves_domain_in_contexts(
-        program,
-        facts,
-        state_flow,
-        statement_index,
-        value,
-        domain_symbol,
-        &contexts,
-    )
-}
-
 pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

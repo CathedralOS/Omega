@@ -112,24 +112,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
     digest.byte(2); // AdmittedProvider::NormalizedForeignCall.
-    digest.raw(
-        &execution
-            .provider_plan_report_identity()
-            .get()
-            .to_le_bytes(),
-    );
-    digest.raw(&execution.provider_execution_report_identity().to_le_bytes());
-    digest.raw(
-        &execution
-            .provider_execution_report_fingerprint()
-            .to_le_bytes(),
-    );
-    digest.raw(&execution.normalized_root_report_identity().to_le_bytes());
-    digest.raw(
-        &execution
-            .boundary_contract_report_fingerprint()
-            .to_le_bytes(),
-    );
+    hash_provider_execution_binding(&mut digest, execution);
     match mechanism {
         target_operations::NormalizedForeignCallMechanism::Table {
             target,
@@ -210,24 +193,7 @@ pub(crate) fn admitted_provider_settlement_identity(
     digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
     digest.byte(3); // AdmittedProviderSettlement role.
-    digest.raw(
-        &execution
-            .provider_plan_report_identity()
-            .get()
-            .to_le_bytes(),
-    );
-    digest.raw(&execution.provider_execution_report_identity().to_le_bytes());
-    digest.raw(
-        &execution
-            .provider_execution_report_fingerprint()
-            .to_le_bytes(),
-    );
-    digest.raw(&execution.normalized_root_report_identity().to_le_bytes());
-    digest.raw(
-        &execution
-            .boundary_contract_report_fingerprint()
-            .to_le_bytes(),
-    );
+    hash_provider_execution_binding(&mut digest, execution);
     hash_boundary_settlement_record(&mut digest, settlement)?;
     match port_effect {
         None => digest.byte(0),
@@ -237,6 +203,24 @@ pub(crate) fn admitted_provider_settlement_identity(
         }
     }
     Ok(digest.finish())
+}
+
+/// Bind the five provider report coordinates carried by one admitted-provider
+/// execution, in canonical little-endian order. Every admitted-provider
+/// settlement role opens with this step before its role-specific custody.
+fn hash_provider_execution_binding(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    execution: ProviderExecutionBinding,
+) {
+    for coordinate in [
+        execution.provider_plan_report_identity().get(),
+        execution.provider_execution_report_identity(),
+        execution.provider_execution_report_fingerprint(),
+        execution.normalized_root_report_identity(),
+        execution.boundary_contract_report_fingerprint(),
+    ] {
+        digest.raw(&coordinate.to_le_bytes());
+    }
 }
 
 /// Strong identity for one installed provider boundary call realized as a

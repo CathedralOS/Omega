@@ -1,0 +1,18 @@
+// Expected exit: 0
+use omega_language_std::console;
+data Buffer { value: i32; canary: u64; }
+data Empty {}
+machine main() reaches Console invokes Console; blocks; crashes Trap {
+ let mut empty: Empty;
+ let mut buffer: Buffer = Buffer { value: 0, canary: 33 };
+ transition { _ -> block read(&mut empty, &mut buffer) }
+ machine read(empty: &mut Empty, buffer: &mut Buffer) {
+  let input: ByteRead = block Console::read_byte();
+  transition input { ByteRead::Byte { value } -> block retain(empty, buffer, value) _ -> halt() }
+ }
+ machine retain(empty: &mut Empty, buffer: &mut Buffer, value: i32) {
+  buffer.value = value;
+  transition { _ -> block read(empty, buffer) }
+ }
+ machine halt() { Console::exit_process(0); }
+}

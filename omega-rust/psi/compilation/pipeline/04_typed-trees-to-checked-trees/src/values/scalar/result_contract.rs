@@ -589,6 +589,7 @@ impl ContractPredicates<'_, '_> {
                     right,
                     right_domain,
                     false,
+                    false,
                 )?;
                 // A contract term is a total observation. Trapping arithmetic
                 // owns a crash site at its operation and has no proposition.

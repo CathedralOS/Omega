@@ -14,6 +14,7 @@ pub struct ResolvedAuthoredCallBinding {
 mod build_selection_origin;
 mod product;
 pub use build_selection_origin::BuildSelectionOrigin;
+pub mod product_operands;
 mod product_target;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
@@ -441,9 +442,11 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
 /// declaration-selection ledger.
 ///
 /// The ledger mints identities in deterministic resolution traversal order.
-/// Later representations carry the value verbatim and attach it to the
-/// corresponding typed or checked fact; they never reconstruct it from source
-/// text, diagnostic rendering, or a mutable IR handle. Compiler-generated
+/// Representations in the same ledger carry this value verbatim and attach it
+/// to the corresponding typed or checked fact. A separately joined Product
+/// world rejoins producer-issued source coordinates through its authenticated
+/// source and current ledger; it never copies a foreign occurrence ordinal or
+/// infers an association from diagnostic text or a mutable IR handle. Compiler-generated
 /// clones may deliberately retain the same identity because they derive from
 /// the same authored occurrence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
@@ -476,10 +479,29 @@ impl CompilerDerivedSelectionPartition {
     }
 }
 
+/// A producer-issued source coordinate must rejoin one current ledger row.
+/// Compiler-copy partitions need their semantic owner before crossing worlds;
+/// their transient ordinals cannot identify a retained source selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum AuthoredDeclarationSelectionCoordinateError {
+    Missing,
+    Ambiguous,
+    CompilerCopyRequiresOwner,
+}
+
+impl std::fmt::Display for AuthoredDeclarationSelectionCoordinateError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Missing => "authored selection source coordinate has no current ledger row",
+            Self::Ambiguous => "authored selection source coordinate has multiple current ledger rows",
+            Self::CompilerCopyRequiresOwner =>
+                "authored selection belongs to a compiler-derived copy whose exact semantic owner is required",
+        })
+    }
+}
+
 /// Why an authored selection could not enter the ledger.
-///
-/// Recording is transactional: either a complete row receives its occurrence
-/// identity or the ledger remains unchanged.
+/// Recording is transactional: a failed row leaves the ledger unchanged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionRecordError {
     InvalidSelectedSymbol,
@@ -831,6 +853,41 @@ impl AuthoredDeclarationSelections {
             late_binding,
         ));
         Ok(occurrence_id)
+    }
+
+    /// Rejoin a source-issued coordinate captured from an original expression's
+    /// actual selection attachments. This query never infers a selection from
+    /// diagnostic text, records a new row, or transfers the old target's handles.
+    /// The caller first authenticates and rebases the immutable source owner.
+    pub fn source_coordinate_occurrence(
+        &self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionCoordinateError>
+    {
+        use AuthoredDeclarationSelectionCoordinateError as Error;
+        let positions = self.by_span.0.get(&source_span).ok_or(Error::Missing)?;
+        let mut selected = None;
+        let mut ambiguous = false;
+        let mut partitioned = false;
+        for position in positions {
+            let row = &self.rows[*position as usize];
+            if row.exposure != exposure || row.kind != kind {
+                continue;
+            }
+            partitioned |= row.compiler_partition.is_some();
+            if selected.replace(row.occurrence_id).is_some() {
+                ambiguous = true;
+            }
+        }
+        if partitioned {
+            Err(Error::CompilerCopyRequiresOwner)
+        } else if ambiguous {
+            Err(Error::Ambiguous)
+        } else {
+            selected.ok_or(Error::Missing)
+        }
     }
 
     /// The first row selecting exactly `selected_symbol` for this source span,

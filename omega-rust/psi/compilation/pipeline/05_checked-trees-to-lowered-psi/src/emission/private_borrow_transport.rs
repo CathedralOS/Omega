@@ -164,6 +164,11 @@ fn forward_from(
             }
             Terminator::StructuralCase { source, cases, .. } => {
                 observe(*source, StructuralAccess::SharedBorrow);
+                for case in cases {
+                    for argument in &case.structural_arguments {
+                        observe(argument.place, argument.access);
+                    }
+                }
                 cases.iter().map(|case| case.target).collect()
             }
             Terminator::ReturnStructural { source, .. } => {
@@ -321,14 +326,7 @@ fn forward_from(
             Terminator::StructuralCase { source, cases, .. } => {
                 *source = mapped(names, *source);
                 for case in cases {
-                    if namespaces
-                        .iter()
-                        .any(|(identity, names)| *identity == case.target && !names.is_empty())
-                    {
-                        return unsupported(
-                            "private case dispatch needs explicit exclusive state-borrow forwarding",
-                        );
-                    }
+                    forward(case.target, &mut case.structural_arguments);
                     remap_cleanup_actions(&mut case.cleanup_actions, names);
                 }
             }

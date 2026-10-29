@@ -263,9 +263,6 @@ pub enum AssignmentWriteTarget {
 
 struct AssignmentEvidence {
     target: AssignmentWriteTarget,
-    aliases: Vec<(String, FramePlaceOrigin)>,
-    divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
-    stored: Vec<StoredLocalOrigins>,
 }
 
 /// A state's recorded assignment results, as `walk_state_assignments`
@@ -540,9 +537,6 @@ fn assignment_evidence(
     {
         return Some(AssignmentEvidence {
             target: AssignmentWriteTarget::Storage { paths: vec![path] },
-            aliases: Vec::new(),
-            divergent: Vec::new(),
-            stored: Vec::new(),
         });
     }
     let state = match site {
@@ -570,9 +564,6 @@ fn assignment_evidence(
         .find(|(recorded, _)| *recorded == index)?;
     Some(AssignmentEvidence {
         target: prefix.target.clone(),
-        aliases: prefix.aliases.clone(),
-        divergent: prefix.divergent.clone(),
-        stored: prefix.stored.clone(),
     })
 }
 

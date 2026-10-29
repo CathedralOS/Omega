@@ -48,7 +48,7 @@ mod machine_parameter_arguments;
 mod type_arguments;
 use machine_parameter_arguments::validate_machine_parameter_arguments;
 pub use type_arguments::call_type_arguments;
-pub(crate) use type_arguments::callable_type_arguments;
+pub(crate) use type_arguments::{callable_type_arguments, declaration_call_type_arguments};
 mod receiver_calls;
 mod receiverless_calls;
 mod recursion;
@@ -59,7 +59,7 @@ mod write_frames;
 pub(crate) use write_frames::provider_completion_covers_writable_slots;
 
 pub use unit_returns::machine_has_unit_result;
-pub(crate) use unit_returns::{call_completes_unit_state, unit_type};
+pub(crate) use unit_returns::unit_type;
 pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
 
 use argument_bounds::report_argument_bounds;
@@ -900,9 +900,10 @@ pub use topology::{
     CompletingTransfer, call_target_entry_symbol, call_target_has_checked_body_contract,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, completing_call_transfer, completing_transition_invocation,
-    completing_transition_transfer, expression_normal_completion_possible, find_machine,
-    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
-    find_state_in_machine, find_state_on_machine, machine_state_by_symbols, machine_state_count,
+    completing_transition_invocations, completing_transition_transfer,
+    expression_normal_completion_possible, find_machine, find_machine_by_entry_state,
+    find_machine_head, find_state, find_state_for_exit, find_state_in_machine,
+    find_state_on_machine, machine_state_by_symbols, machine_state_count,
     normal_completion_possible, terminal_callable_target,
 };
 mod receiver_topology;
@@ -916,7 +917,6 @@ pub use receiver_topology::{
 mod argument_correspondence;
 pub(crate) use argument_correspondence::{
     call_binding_correspondence, captured_argument_position, executable_parameters,
-    immutable_runtime_parameter,
 };
 mod occurrences;
 pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};

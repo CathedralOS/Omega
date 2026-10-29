@@ -1,9 +1,9 @@
 # Numeric values and bounds
 
-Numeric bounds are propositions established by data-level `where`, callable
+Numeric bounds are propositions established by data-level `requires`, callable
 contracts, intentionally named domains, and ordinary flow reasoning. A scalar
 carrier does not accept a separate bracketed range annotation. Fields and case
-payloads contribute their interval relationships through their owning `where`;
+payloads contribute their interval relationships through their owning `requires`;
 parameters use `requires`; results use `ensures`; locals use established flow
 facts. Explicit nominal qualification follows
 [domains](domains.md#declaration-and-membership); internal interval analysis

@@ -20,7 +20,10 @@ pub use declarations::operators::{
     derive_pre_flow_operator_selections, scoped_operator_application,
 };
 pub use declarations::traits::refinement_fit;
-pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
+pub use declarations::traits::{
+    ProviderRegionCorrespondence, closed_provider_region_correspondence,
+    provider_region_correspondence,
+};
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
@@ -220,7 +223,8 @@ pub use value_custody::places::{
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, range_operator_establishes_endpoint_extent, saved_dispatch_call,
     saved_dispatch_subject, structural_atomic_field, structural_scalar_field,
-    structural_scalar_field_at_coordinate, structural_scalar_field_in_parameters,
+    structural_scalar_field_at_coordinate,
+    structural_scalar_field_at_element_coordinate, structural_scalar_field_in_parameters,
     structural_scalar_field_of_evaluated_receiver, structural_source, subslice_expression,
     value_element_has_builtin_coordinate, value_has_builtin_coordinates,
 };
@@ -327,10 +331,11 @@ pub use machine_calls::effect_inference::{
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
+pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
-    ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
-    ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
-    ValidatedRequirementCallTypeBinding, ValidatedStaticMachineSelections,
+    PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
+    ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
+    ValidatedRequirementCallSpecialization, ValidatedRequirementCallTypeBinding,
     closed_static_call_type_bindings, validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
@@ -396,7 +401,7 @@ pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
-    ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
+    ScalarArrayElement, ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
     is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
     scalar_array_preserves_memberships,
@@ -570,26 +575,27 @@ pub use machine_calls::calls::{
     call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
-    completing_transition_invocation, completing_transition_transfer,
-    expression_normal_completion_possible, find_call_site, find_call_site_in_state, find_machine,
-    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
-    find_state_in_machine, find_state_on_machine, invocation_output_parameter,
-    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
-    normal_completion_possible, receiver_can_dispatch_to_machine, resolve_name_path_member_symbol,
-    resolve_state_call_target, statement_call_can_dispatch_to_machine,
-    statement_call_receiver_members, statement_call_receiver_path, terminal_callable_target,
-    trait_machine_signature_symbol, transition_call_target,
+    completing_transition_invocation, completing_transition_invocations,
+    completing_transition_transfer, expression_normal_completion_possible, find_call_site,
+    find_call_site_in_state, find_machine, find_machine_by_entry_state, find_machine_head,
+    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
+    invocation_output_parameter, machine_parameter_signature_symbol, machine_state_by_symbols,
+    machine_state_count, normal_completion_possible, receiver_can_dispatch_to_machine,
+    resolve_name_path_member_symbol, resolve_state_call_target,
+    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
+    statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
+    transition_call_target,
 };
 pub use value_custody::places::{
     CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,
     StorageObservationTypePathError, canonical_owned_place_type_reference,
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, contextual_canonical_place_from_expression,
-    data_member_symbol_by_name, declared_data_type, effective_member_symbol,
-    expression_place_type_reference, expression_root_symbol, expression_type_reference_in_state,
-    expression_type_symbol, first_valid_name_path_symbol, index_place_segment,
-    loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
+    canonical_qualification_path, collection_element_type_reference,
+    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    effective_member_symbol, expression_place_type_reference, expression_root_symbol,
+    expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
+    index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,
     nearest_scoped_local, observed_storage_type_references, owned_projection_type_reference,
     parameter_source_type_application, place_root_may_be_symbol,
     project_type_reference_from_segments, projected_statement_receiver_place,

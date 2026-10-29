@@ -128,21 +128,23 @@ impl TargetProviderPreparationRequest<'_> {
                         selection.subject.selects_schema(
                             schema,
                             candidate.plan.identity_text(row.requirement_identity),
+                            candidate.plan.schema.root_application_identity(),
                         )
                     })
                 });
-            // This identity was previously queried only after selection and
-            // provenance admission. Preserve that failure boundary, even though
-            // the source query itself now belongs to preparation.
-            let provider_owner = candidate
-                .provenance
-                .provider_type
-                .map(|provider| self.declaration_identity(provider))
-                .transpose();
+            // Close nominal and numeric realization declarations while source
+            // custody exists. Retain failure until selection and provenance
+            // admission demand this candidate, preserving the prior boundary.
+            let closed_declarations = crate::native_provider_sources::close_provider_declarations(
+                self.context,
+                self.exact_toolchain_sources,
+                &candidate.plan,
+                &candidate.provenance,
+            );
             prepared.push(PreparedCandidate {
                 derived: candidate,
                 schema_owner,
-                provider_owner,
+                closed_declarations,
                 explicitly_selected,
             });
         }

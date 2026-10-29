@@ -188,7 +188,7 @@ pub(in crate::checks::borrows) fn access_released_in_prefix(
             }))
 }
 
-pub(super) fn copied_read_before_reference_transfer(
+pub(super) fn copied_observation_before_terminal_transfer(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,

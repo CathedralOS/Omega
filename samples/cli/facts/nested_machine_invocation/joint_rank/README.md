@@ -103,3 +103,29 @@ cover the complete row, normal output-loan timing, lineage controls and the
 `facts/nested_machine_joint_rank_carried_restoration_*`; composition and safety
 controls are `borrows/nested_machine_carried_*`. These are macOS ARM64 execution
 observations; the broader parent acceptance remains open.
+
+## Descriptor length coordinates
+
+The same fact also has a `structural_view/` production in each of the nine
+places. An authored `Slice::Length` rank transports its descriptor through a
+private helper with reordered arguments and no separate ranking clause.
+[Requirements, witnesses and controls](local/structural_view/README.md) describe
+the exact admitted coordinate and current-versus-entry descriptor observations.
+
+## Optional rank ranges
+
+Each place also carries the same fact through `ranged_value/`.
+[Formation, invocation premises and changed-bound examples](local/ranged_value/README.md)
+explain why optional intervals are instantiated at each invocation while the
+nonnegative rank relation stays fixed. The accompanying controls retain strict
+descent, arithmetic formation and ordinary call obligations.
+
+[Projected scalar coordinates](local/projected_value/README.md) carry the same
+private-cycle fact through inline record fields in all nine places, with
+nested-field, moved-copy, entry-reset and wrong-subject controls.
+
+[Descriptor field coordinates](local/descriptor_field/README.md) carry that same
+private-cycle fact through slice descriptors stored in inline records across all
+nine places. Nested records, moved copies and mutable payload stores exercise
+composition; restoring an earlier descriptor or shortening only another field
+still rejects. Call requirements observe prepared operands before callee writes.

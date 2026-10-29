@@ -98,6 +98,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     initial: Vec<Binding>,
     current: Vec<Binding>,
     lengths: Vec<Length>,
+    initial_lengths: Vec<Length>,
     fields: Vec<ScalarField>,
     conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
@@ -221,6 +222,7 @@ impl<'program> CurrentScalarValues<'program> {
             current: initial.clone(),
             initial,
             lengths,
+            initial_lengths: Vec::new(),
             fields: Vec::new(),
             conditions: Vec::new(),
             hypotheses: Vec::new(),
@@ -228,6 +230,7 @@ impl<'program> CurrentScalarValues<'program> {
             scalar_observations: std::cell::OnceCell::new(),
         };
         values.seed_parameter_fields();
+        values.initial_lengths = values.lengths.clone();
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))
@@ -301,12 +304,7 @@ impl<'program> CurrentScalarValues<'program> {
                     );
                     let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
                     values.replace_scalar_fields(local.symbol, &[], scalar_fields);
-                    values.capture_record_fields(
-                        local.symbol,
-                        &[],
-                        local.name.as_str(),
-                        local.initial_value,
-                    );
+                    values.capture_record_fields(local.symbol, &[], local.initial_value);
                     if let Some(primitive) = integer_carrier(program, local.type_reference) {
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
@@ -426,12 +424,7 @@ impl<'program> CurrentScalarValues<'program> {
                     if let Some((owner, path)) = field_storage_path(program, assignment.target) {
                         values.replace_conditions(owner, &path, conditions);
                         values.replace_scalar_fields(owner, &path, scalar_fields);
-                        values.replace_record_fields(
-                            owner,
-                            &path,
-                            &program.expression_table.display_name(assignment.target),
-                            fields,
-                        );
+                        values.replace_record_fields(owner, &path, fields);
                     }
                 }
                 StatementNode::Call(call) => {
@@ -863,6 +856,16 @@ impl<'program> CurrentScalarValues<'program> {
             .find(|binding| binding.symbol == symbol)?
             .value
             .clone()
+    }
+
+    /// Value of a completed operand at this frame, retaining admitted
+    /// operation evidence as well as captured stores and field values.
+    /// Formation and ordered operand effects remain caller obligations.
+    pub(crate) fn current_value(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.capture(self.program, self.machine, self.state, expression)
     }
 
     pub(crate) fn initial_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
@@ -1393,7 +1396,6 @@ struct ScopedOccurrence<'roster, 'tree> {
     program: &'tree dyn ::validation::CheckingInput,
     machine: &'tree Machine,
     state: &'tree State,
-    statement_index: usize,
     lengths: &'roster [Length],
     hypotheses: &'roster [ScopedArithmeticHypothesis],
 }
@@ -1404,7 +1406,6 @@ impl<'program> CurrentScalarValues<'program> {
             program: self.program,
             machine: self.machine,
             state: self.state,
-            statement_index: self.statement_index,
             lengths: &self.lengths,
             hypotheses: &self.hypotheses,
         }
@@ -1424,7 +1425,6 @@ impl<'program> CurrentScalarValues<'program> {
             program,
             machine,
             state,
-            statement_index: self.statement_index,
             lengths,
             hypotheses: &self.hypotheses,
         }

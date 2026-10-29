@@ -78,7 +78,7 @@ That does not make different witness values equal, erase resource identity, or
 make every mathematical identity proof interchangeable. `[erased]` is a separate
 decision about runtime storage and use, not a synonym for logical irrelevance.
 
-In a `requires`, `ensures`, `where` fact, or proposition, `left == right` over
+In a `requires` or `ensures` clause, or proposition, `left == right` over
 one identical non-primitive data type states proof-relevant identity. It does
 not run or require `Equatable`, so a law over `Seq<T>` can hold without an
 equality algorithm for `T`. Executable `==` still selects equality machinery;
@@ -295,7 +295,7 @@ a schematic example:
 
 ```omega
 data Real = CauchySeq % ConvergesTogether
-where
+requires
     ConvergesTogether satisfies
         Equivalence<CauchySeq, ConvergesTogether>
         as CauchyEquivalence;

@@ -252,24 +252,6 @@ impl<'program> Evaluator<'program> {
         self.eval_byte_data_operand(expression, frame, "build-root path", "build-root path")
     }
 
-    pub(in crate::interpreter::evaluator) fn enable_rooted_build_paths_from_arguments(
-        &mut self,
-        arguments: &[build_time_values::BuildTimeValue],
-    ) {
-        self.rooted_build_paths_required = arguments.iter().any(|argument| {
-            let build_time_values::BuildTimeValue::Struct { fields, .. } = argument else {
-                return false;
-            };
-            fields.iter().any(|(_, value)| {
-                matches!(
-                    value,
-                    build_time_values::BuildTimeValue::Struct { type_name, .. }
-                        if matches!(type_name.as_str(), SOURCE_ROOT_FACET_TYPE | OUTPUT_ROOT_FACET_TYPE)
-                )
-            })
-        });
-    }
-
     fn include_build_source(
         &mut self,
         output_root: FilesystemGrantRootIdentity,

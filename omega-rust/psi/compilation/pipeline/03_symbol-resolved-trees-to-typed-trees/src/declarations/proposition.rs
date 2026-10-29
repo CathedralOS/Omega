@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
-use crate::expressions::proposition::{is_proposition_call_target, lower_proposition_application};
+use crate::expressions::proposition::lower_proposition_application;
 
 pub(crate) fn lower_proposition_definition(
     lowerer: &mut Lowerer,

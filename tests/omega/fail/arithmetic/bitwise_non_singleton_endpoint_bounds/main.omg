@@ -1,0 +1,11 @@
+machine bounded(value: u32)
+    requires value >= 1u32 && value <= 2u32
+{}
+machine probe(value: u32)
+    requires value >= 0u32 && value <= 3u32
+{
+    // Endpoints XOR1 are1 and2, but interior inputs produce0 and3.
+    let xored: u32 = value ^ 1u32;
+    bounded(xored);
+}
+machine main() { probe(1u32); }

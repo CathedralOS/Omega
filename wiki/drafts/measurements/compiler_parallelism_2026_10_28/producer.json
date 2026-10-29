@@ -1,0 +1,55 @@
+{
+  "revision": "bf39a3c901bc8ea3ee60b8b57fdc408a591dbacb",
+  "command": [
+    "mbx",
+    "build",
+    "-p",
+    "omega",
+    "--release",
+    "--message-format=json-render-diagnostics",
+    "--target-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+  ],
+  "profile": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target\\release\\omega.exe",
+    "sha256": "3e4fb39360e6b84e89f57b6cd56ac1b486e9146892694ec529a477613fd78720",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cargo_receipt": {
+    "schema": "omega-cargo-effective-profile-v1",
+    "binary_sha256": "3e4fb39360e6b84e89f57b6cd56ac1b486e9146892694ec529a477613fd78720",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    },
+    "cargo_profiles": {
+      "compiler": "3",
+      "omega": "3"
+    },
+    "effective_codegen": {
+      "compiler": {
+        "opt_level": "3",
+        "rustflags": [],
+        "fingerprint": {
+          "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target\\release\\build\\compiler\\a5bf81d3c54b5609\\fingerprint\\lib-compiler.json",
+          "sha256": "a723daf7078c850b82f2bf735564e2a0bb8446421cdb9406604fa00b02a6175f",
+          "contents": "{\"rustc\":10315350086747005743,\"features\":\"[]\",\"declared_features\":\"[]\",\"target\":14542878094803164324,\"profile\":854319013279132213,\"path\":6372070951736706540,\"deps\":[[400799645177626778,\"checked_trees\",false,14032784711948411607],[1059528184614241612,\"representation_planning\",false,5916992981007286291],[1610527399013098506,\"typed_trees\",false,13613096803484825128],[1615221214053979952,\"compilation_products\",false,11068954666984826606],[1640109457206774509,\"artifacts\",false,14008562472750628849],[1711442968657191840,\"calling_conventions\",false,18401817160120432951],[1898208988777329016,\"source\",false,12250520569023758247],[1924025776233946284,\"image_emission\",false,16098153349969222152],[2382352304950428071,\"build_script_build\",false,7660015072166735861],[3066855556449361459,\"psi_compiler\",false,15433958148745872515],[3545235138420306594,\"proof_admission\",false,3932425893172820816],[3908936792640746840,\"diagnostics\",false,17593238640810658124],[5057888279709045280,\"selected_dispatch\",false,8873282212559128907],[5116714697683158349,\"backend_plan\",false,18139070878526762560],[5333089618401176910,\"compiler_storage\",false,14146209308524987478],[5349598457293356381,\"trust_model\",false,8397792789667921798],[5670948099796325903,\"build_evaluation\",false,18116559470050458188],[5897401743819147503,\"cap_std\",false,14884823732460231466],[6166167655811717331,\"language_semantics\",false,8667728525072134223],[6899288221836336065,\"package_compilation\",false,14084241317389170871],[7244979152936138260,\"lowered_psi\",false,3322891076653447442],[7506177389607197671,\"native_production\",false,12367556389689720790],[8754498860833015413,\"optimization_core\",false,14215508606337340648],[10818533769705875305,\"build_output\",false,11341574582291372934],[11188680917988408006,\"semantic_vocabulary\",false,10713201401922348563],[12157534750047541982,\"task_plans\",false,13001505965541772808],[12188397660646305209,\"phase_profile\",false,17830547364972956422],[12394834101026071639,\"terminal_codec\",false,17517472637140229585],[12502127007745024532,\"native_artifact\",false,12426436113728910423],[12630067220396926051,\"package_evidence\",false,530468679801893388],[12715007246588334909,\"effects\",false,14285221958826266443],[12723485327714526697,\"package_source\",false,10690333326266699958],[12797218185892383994,\"target_operations\",false,8110454520762651348],[13220796944663612070,\"validation\",false,8449338051456169877],[13743527841119234638,\"optimization\",false,8983598537349374998],[13761142353379444244,\"boundary_applications\",false,12069315802221474734],[13793273622105103305,\"target\",false,13902165801019417880],[14309372781760986309,\"component_description\",false,3451293035277524781],[14646336899285194118,\"build_time_evaluation\",false,2402092233182606973],[14788719978421997145,\"provider_planning\",false,1284019061685264571],[15973547901167930523,\"terminal_psi\",false,1071331621482785737],[16480885569755634381,\"build_declarations\",false,4509464104604524210],[17242998750855893736,\"symbols\",false,9704305794343611878],[17601212995674864881,\"arena\",false,532355572982784169]],\"local\":[{\"CheckDepInfo\":{\"dep_info\":\"release\\\\build\\\\compiler/a5bf81d3c54b5609\\\\fingerprint\\\\dep-lib-compiler\",\"fingerprint\":\"content\"}}],\"rustflags\":[],\"config\":8362119626465528914,\"compile_kind\":0}"
+        }
+      },
+      "omega": {
+        "opt_level": "3",
+        "rustflags": [],
+        "fingerprint": {
+          "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target\\release\\build\\omega\\225bbba51847b8f3\\fingerprint\\bin-omega.json",
+          "sha256": "5d4e03e58547187f6c5a492392e9c61880c89df011c4f02676fd01b0c0628ae3",
+          "contents": "{\"rustc\":10315350086747005743,\"features\":\"[]\",\"declared_features\":\"[]\",\"target\":5446725426426050784,\"profile\":854319013279132213,\"path\":11045634313634492850,\"deps\":[[1615221214053979952,\"compilation_products\",false,11068954666984826606],[1640109457206774509,\"artifacts\",false,14008562472750628849],[1905961997388574174,\"omega\",false,6822688307813144458],[1905961997388574174,\"build_script_build\",false,5735788346794654254],[2382352304950428071,\"compiler\",false,8813377022357628688],[2663012088317288449,\"bounded_process\",false,3470353647943486929],[3908936792640746840,\"diagnostics\",false,17593238640810658124],[4448418639799633185,\"resolver_execution\",false,16685492298292511585],[4632663292518149161,\"package_manager\",false,4315918169559785021],[6899288221836336065,\"package_compilation\",false,14084241317389170871],[6907809148683517601,\"terminal_semantics\",false,16665559862436645164],[11188680917988408006,\"semantic_vocabulary\",false,10713201401922348563],[12006118792573981896,\"mimalloc\",false,3951235234851187382],[12188397660646305209,\"phase_profile\",false,17830547364972956422],[12307594144288734907,\"omega_build\",false,10625611642797859450],[12394834101026071639,\"terminal_codec\",false,17517472637140229585],[12723485327714526697,\"package_source\",false,10690333326266699958],[13244339070881324213,\"platform_custody\",false,10573564772391245063],[13793273622105103305,\"target\",false,13902165801019417880],[15973547901167930523,\"terminal_psi\",false,1071331621482785737],[18048552749316581453,\"terminal_installation\",false,5677197442141062042],[18309843729841915485,\"terminal_runtime\",false,1490732490650289416]],\"local\":[{\"CheckDepInfo\":{\"dep_info\":\"release\\\\build\\\\omega/225bbba51847b8f3\\\\fingerprint\\\\dep-bin-omega\",\"fingerprint\":\"content\"}}],\"rustflags\":[],\"config\":8362119626465528914,\"compile_kind\":0}"
+        }
+      }
+    }
+  },
+  "checksum_freshness": true,
+  "content_fingerprints": true
+}

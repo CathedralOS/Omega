@@ -2229,23 +2229,15 @@ pub(crate) fn field_store_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<PrimitiveAccessGeometry> {
-    let regions = storage_projection_regions(root, path, declarations)?;
-    let (byte_offset, byte_size, leaf_elements) = inline_scalar_field_geometry(
-        regions.root,
-        &path[regions.segment_start..],
-        field,
+    primitive_access_geometry(
+        root,
+        path,
         scalar,
         declarations,
-    )?;
-    let mut elements = regions.elements;
-    elements.extend(leaf_elements);
-    Some(PrimitiveAccessGeometry {
-        byte_offset,
-        byte_size,
-        elements,
-        pointer_slots: regions.pointer_slots,
-        uses_borrowed_backing: regions.uses_borrowed_backing,
-    })
+        |root, path, scalar, declarations| {
+            inline_scalar_field_geometry(root, path, field, scalar, declarations)
+        },
+    )
 }
 
 pub(crate) fn store(

@@ -82,10 +82,9 @@ impl PreparedConflicts {
         let domain_count = domains.len();
         let mut counts = vec![0u32; domain_count];
         for interference in &ranges.interference {
-            if let (Some(left), Some(right)) = (
-                lookup(interference.lower),
-                lookup(interference.higher),
-            ) && left != right
+            if let (Some(left), Some(right)) =
+                (lookup(interference.lower), lookup(interference.higher))
+                && left != right
             {
                 counts[left] += 1;
                 counts[right] += 1;
@@ -114,29 +113,23 @@ impl PreparedConflicts {
         // Record each authored fact once on both of its domains instead of rescanning
         // every fact and every domain member for every ordered domain pair.
         let mut neighbors_strictly_sorted = ranges.early_clobbers.is_empty()
-            && domains
-                .iter()
-                .all(|d| d.extra_members.is_empty())
-            && domains
-                .windows(2)
-                .all(|w| w[0].leader() < w[1].leader());
+            && domains.iter().all(|d| d.extra_members.is_empty())
+            && domains.windows(2).all(|w| w[0].leader() < w[1].leader());
         let mut prev_pair = (VirtualRegisterId(0), VirtualRegisterId(0));
         let mut first_pair = true;
         for interference in &ranges.interference {
             if neighbors_strictly_sorted {
                 if interference.lower >= interference.higher
-                    || (!first_pair
-                        && (interference.lower, interference.higher) <= prev_pair)
+                    || (!first_pair && (interference.lower, interference.higher) <= prev_pair)
                 {
                     neighbors_strictly_sorted = false;
                 }
                 prev_pair = (interference.lower, interference.higher);
                 first_pair = false;
             }
-            let (Some(left), Some(right)) = (
-                lookup(interference.lower),
-                lookup(interference.higher),
-            ) else {
+            let (Some(left), Some(right)) =
+                (lookup(interference.lower), lookup(interference.higher))
+            else {
                 continue;
             };
             if left == right {
@@ -276,8 +269,8 @@ impl PreparedConflicts {
         let model = physical.model();
         let view_count = model.views.len();
         let mut used_views = vec![false; view_count];
-        let all_domains_under_128 = view_count <= 128
-            || domains.iter().all(|d| d.candidates.is_empty());
+        let all_domains_under_128 =
+            view_count <= 128 || domains.iter().all(|d| d.candidates.is_empty());
         let dense_view_ids = all_domains_under_128
             && model
                 .views
@@ -365,7 +358,10 @@ impl PreparedConflicts {
         let mut physical_counts = vec![0u16; view_count];
         let mut physical_matrix = vec![0u8; view_count * view_count];
         let use_conflict_masks = all_domains_under_128
-            && used_views.iter().enumerate().all(|(idx, &used)| !used || idx < 128);
+            && used_views
+                .iter()
+                .enumerate()
+                .all(|(idx, &used)| !used || idx < 128);
         let mut conflict_masks = if use_conflict_masks {
             vec![[0u128; 8]; view_count.min(128)]
         } else {
@@ -379,6 +375,24 @@ impl PreparedConflicts {
                     .chain(&v.write_units)
                     .all(|u| usize::from(u.0) < 128)
         });
+        // One pair is recorded as a matrix byte plus the same byte reflected into
+        // the right view's per-class mask row; both view loops below share this step.
+        let mut record_pair = |left_idx: usize, right_idx: usize, mask: u8| -> bool {
+            if mask == 0 {
+                return false;
+            }
+            physical_matrix[left_idx * view_count + right_idx] = mask;
+            if use_conflict_masks {
+                let bit = 1u128 << left_idx;
+                let right_masks = &mut conflict_masks[right_idx];
+                for pm in 1..8u8 {
+                    if (mask & pm) != 0 {
+                        right_masks[pm as usize] |= bit;
+                    }
+                }
+            }
+            true
+        };
         if can_use_unit_masks {
             let mut view_masks = vec![(0u128, 0u128, 0u128); view_count];
             let mut active_indices = Vec::with_capacity(view_count);
@@ -400,7 +414,6 @@ impl PreparedConflicts {
             }
             for &left_idx in &active_indices {
                 let (left_u, left_w, left_all) = view_masks[left_idx];
-                let row_base = left_idx * view_count;
                 let mut count = 0u16;
                 for &right_idx in &active_indices {
                     let (right_u, right_w, right_all) = view_masks[right_idx];
@@ -409,19 +422,8 @@ impl PreparedConflicts {
                         left_defines: (left_w & right_u) != 0,
                         right_defines: (right_w & left_u) != 0,
                     };
-                    let mask = pair.to_mask();
-                    if mask != 0 {
-                        physical_matrix[row_base + right_idx] = mask;
+                    if record_pair(left_idx, right_idx, pair.to_mask()) {
                         count += 1;
-                        if use_conflict_masks {
-                            let bit = 1u128 << left_idx;
-                            let right_masks = &mut conflict_masks[right_idx];
-                            for pm in 1..8u8 {
-                                if (mask & pm) != 0 {
-                                    right_masks[pm as usize] |= bit;
-                                }
-                            }
-                        }
                     }
                 }
                 physical_counts[left_idx] = count;
@@ -432,7 +434,6 @@ impl PreparedConflicts {
                 if !used_views[left_idx] {
                     continue;
                 }
-                let row_base = left_idx * view_count;
                 let mut count = 0u16;
                 for right in &model.views {
                     let right_idx = usize::from(right.id.0);
@@ -444,19 +445,8 @@ impl PreparedConflicts {
                         left_defines: definition_overwrites_use(left, right),
                         right_defines: definition_overwrites_use(right, left),
                     };
-                    let mask = pair.to_mask();
-                    if mask != 0 {
-                        physical_matrix[row_base + right_idx] = mask;
+                    if record_pair(left_idx, right_idx, pair.to_mask()) {
                         count += 1;
-                        if use_conflict_masks {
-                            let bit = 1u128 << left_idx;
-                            let right_masks = &mut conflict_masks[right_idx];
-                            for pm in 1..8u8 {
-                                if (mask & pm) != 0 {
-                                    right_masks[pm as usize] |= bit;
-                                }
-                            }
-                        }
                     }
                 }
                 physical_counts[left_idx] = count;
@@ -487,7 +477,10 @@ impl PreparedConflicts {
                 let start = offsets[domain] as usize;
                 let end = offsets[domain + 1] as usize;
                 for &(neighbor, pair) in &entries[start..end] {
-                    if !affinities.get_domain_affinities(neighbor as usize).is_empty() {
+                    if !affinities
+                        .get_domain_affinities(neighbor as usize)
+                        .is_empty()
+                    {
                         affinity_entries.push((neighbor, pair));
                     }
                 }
@@ -525,10 +518,7 @@ impl PreparedConflicts {
 
     #[inline]
     pub(super) fn has_affinity_neighbor(&self, domain: usize) -> bool {
-        self.affinity_offsets
-            .get(domain + 1)
-            .copied()
-            .unwrap_or(0)
+        self.affinity_offsets.get(domain + 1).copied().unwrap_or(0)
             > self.affinity_offsets.get(domain).copied().unwrap_or(0)
     }
 
@@ -592,8 +582,8 @@ impl PreparedConflicts {
         view: RegisterViewId,
         other_view: RegisterViewId,
     ) -> bool {
-        let physical_mask = self.physical_matrix
-            [usize::from(view.0) * self.view_count + usize::from(other_view.0)];
+        let physical_mask =
+            self.physical_matrix[usize::from(view.0) * self.view_count + usize::from(other_view.0)];
         (physical_mask & pair.to_mask()) != 0
     }
 
@@ -608,24 +598,6 @@ impl PreparedConflicts {
         let row = self.row(left);
         row.binary_search_by_key(&right_u32, |&(other, _)| other)
             .map_or_else(|_| DomainPair::default(), |position| row[position].1)
-    }
-
-    /// Candidates have already been admitted by construction. Both IDs come
-    /// from a domain's original candidates or its monotonically shrinking set.
-    pub(super) fn conflicts_between(
-        &self,
-        domain: usize,
-        view: RegisterViewId,
-        other_domain: usize,
-        other_view: RegisterViewId,
-    ) -> bool {
-        let physical_mask = self.physical_matrix
-            [usize::from(view.0) * self.view_count + usize::from(other_view.0)];
-        if physical_mask == 0 {
-            return false;
-        }
-        let pair = self.pair(domain, other_domain);
-        (physical_mask & pair.to_mask()) != 0
     }
 }
 

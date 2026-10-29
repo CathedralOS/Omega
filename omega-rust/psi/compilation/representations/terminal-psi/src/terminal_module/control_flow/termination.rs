@@ -220,9 +220,15 @@ impl Terminator {
                     }
                 }
             }
-            Self::StructuralCase { source, .. } | Self::ReturnStructural { source, .. } => {
+            Self::StructuralCase { source, cases, .. } => {
                 *source = map(*source);
+                for case in cases {
+                    for argument in &mut case.structural_arguments {
+                        argument.place = map(argument.place);
+                    }
+                }
             }
+            Self::ReturnStructural { source, .. } => *source = map(*source),
             Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
         }
     }
@@ -355,10 +361,8 @@ impl Terminator {
         }
     }
     /// Structural-argument rosters this terminator binds into successor
-    /// blocks: the jump's roster or each conditional successor's roster, in
-    /// edge order. External completions feed a boundary rather than a block,
-    /// and case successors bind payloads positionally — neither contributes a
-    /// roster.
+    /// blocks, in edge order. Case edges additionally bind scalar payloads
+    /// positionally. External completions feed a boundary rather than a block.
     pub fn successor_block_arguments(&self) -> Vec<&[StructuralArgument]> {
         match self {
             Self::Jump {
@@ -373,6 +377,10 @@ impl Terminator {
                 when_true.structural_arguments.as_slice(),
                 when_false.structural_arguments.as_slice(),
             ],
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
+                .map(|case| case.structural_arguments.as_slice())
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -440,6 +448,8 @@ pub struct StructuralCaseSuccessorEdge {
     pub target: BlockId,
     pub case: StructuralCaseId,
     pub payload_fields: Vec<StructuralFieldId>,
+    /// Simultaneous structural bindings, captured before edge cleanup.
+    pub structural_arguments: Vec<StructuralArgument>,
     /// Ordered actions after payload capture and before destination binding.
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }

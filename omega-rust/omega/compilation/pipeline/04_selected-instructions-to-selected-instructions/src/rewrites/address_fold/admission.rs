@@ -131,13 +131,9 @@ pub(super) fn admit<'source>(
     let row = environment
         .constraint(consumer.constraint)
         .ok_or(AddressFoldError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
+    if !crate::rewrites::declares_pair(row, RegisterOperandAccess::Use, second_access)
         || row.operands[0].class != pointer_operand.class
         || pointer_operand.class != pointer_register.class
-        || row.operands[1].operand != 1
-        || row.operands[1].access != second_access
         || row.operands[1].class != second_operand.class
         || second_operand.class != second_register.class
     {
@@ -185,13 +181,12 @@ pub(super) fn admit<'source>(
     let producer_row = environment
         .constraint(producer.constraint)
         .ok_or(AddressFoldError::ConstraintMismatch)?;
-    if producer_row.operands.len() != 2
-        || producer_row.operands[0].operand != 0
-        || producer_row.operands[0].access != RegisterOperandAccess::Use
-        || producer_row.operands[0].class != base_operand.class
+    if !crate::rewrites::declares_pair(
+        producer_row,
+        RegisterOperandAccess::Use,
+        RegisterOperandAccess::Def,
+    ) || producer_row.operands[0].class != base_operand.class
         || base_operand.class != base_register.class
-        || producer_row.operands[1].operand != 1
-        || producer_row.operands[1].access != RegisterOperandAccess::Def
         || producer_row.operands[1].class != result_operand.class
         || result_operand.class != pointer_register.class
     {

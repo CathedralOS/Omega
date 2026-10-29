@@ -8,28 +8,6 @@ use crate::proofs::{
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, unsupported,
 };
 
-/// Resolve type meaning, not access or bounds evidence. Fixed arrays own a
-/// static extent; views keep their independently admitted live-length
-/// obligation while continuing through the same element/member namespace.
-fn indexed_element_type(
-    shape: &StructuralTypeShape,
-    element_index: u64,
-) -> Result<StructuralTypeId, LoweringError> {
-    match shape {
-        StructuralTypeShape::FixedArray {
-            element,
-            length: terminal_psi::ArrayExtent::Literal(length),
-        } => {
-            if element_index >= *length {
-                return unsupported("structural contract fixed index is out of bounds");
-            }
-            Ok(*element)
-        }
-        StructuralTypeShape::ElementView { element, .. } => Ok(*element),
-        _ => unsupported("structural contract index receiver is not a collection"),
-    }
-}
-
 pub(crate) fn lower_structural_member_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,

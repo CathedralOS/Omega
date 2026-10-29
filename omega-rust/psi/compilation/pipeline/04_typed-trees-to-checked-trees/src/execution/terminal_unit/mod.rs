@@ -135,7 +135,7 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
+    PermissionEventKind, PermissionEventSource, SemanticDomainId,
 };
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -1107,23 +1107,33 @@ pub(crate) fn build_checked_unit_effect_plans(
             }
         }
     }
-    let stored_operand_identities = candidates
-        .iter()
-        .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
-        .flat_map(|plan| {
-            plan.operations
-                .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                .map(move |operation| (plan.machine, plan.state, operation))
-        })
-        .chain(composed_machines.iter().flat_map(|plan| {
-            plan.states.iter().flat_map(move |state| {
-                state
-                    .operation_dependencies()
+    let retained_operations = || {
+        candidates
+            .iter()
+            .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
+            .flat_map(|plan| {
+                plan.operations
+                    .iter()
                     .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                    .map(move |operation| (plan.machine, state.state, operation))
+                    .map(move |operation| (plan.machine, plan.state, operation))
             })
-        }))
+            .chain(composed_machines.iter().flat_map(|plan| {
+                plan.states.iter().flat_map(move |state| {
+                    state
+                        .operation_dependencies()
+                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                        .map(move |operation| (plan.machine, state.state, operation))
+                })
+            }))
+    };
+    types::retain_call_qualification_domains(
+        program,
+        facts,
+        &mut shapes,
+        retained_operations(),
+        &mut retained_type_identities,
+    );
+    let stored_operand_identities = retained_operations()
         .flat_map(|(machine, state, operation)| {
             byte_operands::store_operand_type_identities(
                 program,

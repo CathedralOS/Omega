@@ -146,12 +146,21 @@ pub struct CheckedRuntimeRankMember {
     pub body: HandleSpan<State>,
 }
 
+/// The part of an exact rank carrier observed by the component judgment.
+/// Payload writes preserve an extent; descriptor replacement does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedRankObservation {
+    Value,
+    Length,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeNaturalState {
     pub state: SymbolHandle,
     pub coordinate: CheckedRankCoordinateHandle,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
+    pub observation: CheckedRankObservation,
 }
 
 impl Default for CheckedRuntimeNaturalState {
@@ -163,6 +172,7 @@ impl Default for CheckedRuntimeNaturalState {
             coordinate: CheckedRankCoordinateHandle::invalid(),
             parameter_position: 0,
             primitive_type: typed_trees::types::PrimitiveType::Bool,
+            observation: CheckedRankObservation::Value,
         }
     }
 }

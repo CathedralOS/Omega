@@ -112,17 +112,19 @@ impl<Layouts: LayoutQueryProvider> ConstantValueClosureRequest<'_, Layouts> {
                 &selection,
                 &self.layouts,
             )?;
-            closed
-                .tables
-                .const_declarations
-                .for_each_mut(|_, declaration| {
-                    if declaration.evaluated_value.is_none() {
-                        declaration.evaluated_value = evaluated
-                            .const_declaration_by_symbol(declaration.symbol)
-                            .and_then(|value| value.evaluated_value.clone());
-                    }
-                });
         }
+        // Operator-dependent declarations are completed source jobs too; a
+        // layout query is not the authority for their exact symbol rejoin.
+        closed
+            .tables
+            .const_declarations
+            .for_each_mut(|_, declaration| {
+                if declaration.evaluated_value.is_none() {
+                    declaration.evaluated_value = evaluated
+                        .const_declaration_by_symbol(declaration.symbol)
+                        .and_then(|value| value.evaluated_value.clone());
+                }
+            });
         Ok(closed)
     }
 }

@@ -38,18 +38,7 @@ fn exact_affine_projected_calls(
         || home.multiplicity != StructuralMultiplicity::Affine
         || home.access != StructuralAccess::Owned
         || !cleanup.locals.is_empty()
-        || calls
-            .iter()
-            .map(|call| call.owner)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != calls.len()
-        || calls.windows(2).any(|pair| {
-            pair[0]
-                .code_offset
-                .checked_add(pair[0].byte_count)
-                .is_none_or(|end| end > pair[1].code_offset)
-        })
+        || !distinct_contiguous_calls(calls)
         || calls.iter().enumerate().any(|(ordinal, call)| {
             let [argument] = call.arguments.as_slice() else {
                 return true;
@@ -66,35 +55,7 @@ fn exact_affine_projected_calls(
     {
         return false;
     }
-    let residuals = cleanup
-        .actions
-        .iter()
-        .filter_map(|action| match action {
-            TerminalAffineCleanupAction::DiscardResidual(residual) => Some(residual),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if super::super::unit::affine_cleanup::retired_home_partition(&cleanup.actions, home.place)
-        .is_none_or(|partition| residuals.len() != partition.len())
-        || residuals
-            .iter()
-            .any(|residual| residual.place != home.place)
-    {
-        return false;
-    }
-    let moved = calls
-        .iter()
-        .map(|call| {
-            let argument = &call.arguments[0];
-            (argument.path.as_slice(), argument.structural_type)
-        })
-        .collect::<Vec<_>>();
-    crate::object_artifact::replay::structural::partial_cleanup_partition::exact_partial_cleanup_partition(
-        &cleanup.structural_types,
-        home.structural_type,
-        &moved,
-        &residuals,
-    )
+    exact_moved_cleanup_partition(cleanup, home.place, home.structural_type, calls)
 }
 
 /// Replay the whole path, retaining root-array metadata even for deeper leaves.
@@ -245,18 +206,7 @@ pub(crate) fn exact_projected_affine_result<'a>(
         || producer.semantic_result.is_some()
         || !producer.scalar_arguments.is_empty()
         || !producer.claim_transfers.is_empty()
-        || calls
-            .iter()
-            .map(|call| call.owner)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != calls.len()
-        || calls.windows(2).any(|pair| {
-            pair[0]
-                .code_offset
-                .checked_add(pair[0].byte_count)
-                .is_none_or(|end| end > pair[1].code_offset)
-        })
+        || !distinct_contiguous_calls(calls)
         || consumers.iter().enumerate().any(|(ordinal, call)| {
             let [argument] = call.arguments.as_slice() else {
                 return true;
@@ -277,6 +227,49 @@ pub(crate) fn exact_projected_affine_result<'a>(
     {
         return None;
     }
+    if calls
+        .last()?
+        .code_offset
+        .checked_add(calls.last()?.byte_count)?
+        > cleanup.code_offset
+    {
+        return None;
+    }
+    exact_moved_cleanup_partition(
+        cleanup,
+        result.operation_result.place,
+        result.operation_result.structural_type,
+        consumers,
+    )
+    .then_some(result)
+}
+
+/// A call roster addresses each call site once and its calls cover contiguous
+/// code, so the roster is a total order over the function's own call extent.
+fn distinct_contiguous_calls(calls: &[InternalUnitCallRecord]) -> bool {
+    calls
+        .iter()
+        .map(|call| call.owner)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        == calls.len()
+        && !calls.windows(2).any(|pair| {
+            pair[0]
+                .code_offset
+                .checked_add(pair[0].byte_count)
+                .is_none_or(|end| end > pair[1].code_offset)
+        })
+}
+
+/// The cleanup's residual partition must enumerate exactly the projections the
+/// calls move out of one owned place: every residual retires that place, and
+/// the retained declarations account for the same rows.
+fn exact_moved_cleanup_partition(
+    cleanup: &UnitAffineCleanupRecord,
+    place: semantic_vocabulary::PlaceId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    calls: &[InternalUnitCallRecord],
+) -> bool {
     let residuals = cleanup
         .actions
         .iter()
@@ -285,23 +278,13 @@ pub(crate) fn exact_projected_affine_result<'a>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if super::super::unit::affine_cleanup::retired_home_partition(
-        &cleanup.actions,
-        result.operation_result.place,
-    )
-    .is_none_or(|partition| residuals.len() != partition.len())
-        || residuals
-            .iter()
-            .any(|residual| residual.place != result.operation_result.place)
-        || calls
-            .last()?
-            .code_offset
-            .checked_add(calls.last()?.byte_count)?
-            > cleanup.code_offset
+    if super::super::unit::affine_cleanup::retired_home_partition(&cleanup.actions, place)
+        .is_none_or(|partition| residuals.len() != partition.len())
+        || residuals.iter().any(|residual| residual.place != place)
     {
-        return None;
+        return false;
     }
-    let moved = consumers
+    let moved = calls
         .iter()
         .map(|call| {
             let argument = &call.arguments[0];
@@ -310,9 +293,8 @@ pub(crate) fn exact_projected_affine_result<'a>(
         .collect::<Vec<_>>();
     crate::object_artifact::replay::structural::partial_cleanup_partition::exact_partial_cleanup_partition(
         &cleanup.structural_types,
-        result.operation_result.structural_type,
+        structural_type,
         &moved,
         &residuals,
     )
-    .then_some(result)
 }

@@ -258,7 +258,7 @@ pub(super) fn lower(
             .block_entry(case.target)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if case.case != declared.id
-            || !target.structural_parameters.is_empty()
+            || target.structural_parameters.len() != case.structural_bindings.len()
             || case.payloads.len() != target.parameters.len()
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -270,6 +270,13 @@ pub(super) fn lower(
         // ownership liveness; the validated abstract graph remains the
         // custody authority.
         let mut edge_live = live.clone();
+        super::transfers::re_home_bound_references(
+            function,
+            structural_types,
+            &case.structural_bindings,
+            &target.structural_parameters,
+            &mut edge_live,
+        )?;
         super::terminator::plain_home_cleanup(
             function,
             &mut edge_live,
@@ -321,6 +328,7 @@ pub(super) fn lower(
                 .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
             target: case.target,
             payloads,
+            structural_bindings: case.structural_bindings.clone(),
             cleanup_actions: case.cleanup_actions.clone(),
         });
     }

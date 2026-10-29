@@ -1,6 +1,6 @@
 //! Independent reader for Microsoft x64 entry construction and exact pipe writes.
 use super::{
-    HostedReceiverPartitions, expected_addresses, recipe_index_for_runtime_position, rip_relative,
+    HostedEntryPartitions, expected_addresses, recipe_index_for_runtime_position, rip_relative,
 };
 use diagnostics::Diagnostic;
 
@@ -62,7 +62,7 @@ pub(in crate::hosted_receiver) fn validate(
     address: u64,
     selected_entry: u64,
     output: &image::EmittedImageOutput,
-    partitions: HostedReceiverPartitions,
+    partitions: HostedEntryPartitions,
     recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     let invalid = || Reader::reject("invalid bridge partitions or import residency");

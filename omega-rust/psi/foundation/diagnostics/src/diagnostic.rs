@@ -169,7 +169,6 @@ impl compiler_storage::Record for ExceededProvision {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
         output.record(|output| {
             self.resource.to_owned().write(output)?;
             self.limit.write(output)?;
@@ -180,7 +179,6 @@ impl compiler_storage::Record for ExceededProvision {
     fn read<Context>(
         input: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
-        use compiler_storage::Record;
         input.record(|input| {
             let resource = String::read(input)?;
             let limit = u64::read(input)?;

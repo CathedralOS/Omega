@@ -1,5 +1,7 @@
 use psi::checking::arithmetic;
 use psi::checking::checker;
+use psi::checking::completions;
+use psi::checking::ranking;
 use psi::checking::recasts;
 use psi::checking::constructions;
 use psi::checking::contracts;
@@ -389,7 +391,8 @@ crashes Trap
 
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
         let selection: Selection = Typing::selection(typing, handle);
-        Checker::record_self_call(checker, selection);
+        Checker::observe_selected_invocation(checker, selection, handle);
+        Checker::observe_invocation(checker, syntax, typing, selection, handle, checking);
         transition checking {
             true -> recorded(checker, syntax, resolution, typing, handle, expression, row)
             _ -> effects(checker, syntax, resolution, typing, handle, expression, row)
@@ -401,8 +404,10 @@ crashes Trap
         Checker::record_call(checker, syntax, resolution, selection);
         Checker::record_supply(checker, syntax, selection, node);
         Checker::require_call_qualifications(checker, syntax, resolution, typing, selection, expression);
-        Checker::require_self_descent(checker, syntax, resolution, typing, selection, expression);
+        // Input formation and the target's own contract precede any use of
+        // recursive comparison evidence. Ranking never establishes an input.
         Checker::require_callee_facts(checker, syntax, resolution, typing, selection, expression);
+        Checker::require_invocation_descent(checker, syntax, resolution, typing, selection, node, expression);
         transition { _ -> effects(checker, syntax, resolution, typing, node, expression, row) }
     }
 
@@ -475,10 +480,15 @@ crashes Trap
     machine callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
         let guarantees: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Ensures);
+        let completed: bool = Checker::completed_numeric_result(checker, typing, node, machine, row);
         transition guarantees {
             true -> guaranteed(checker, syntax, resolution, typing, node, expression, item)
-            _ -> resulted(checker, syntax, typing, node, expression, row)
+            _ -> completed_or_typed(checker, syntax, typing, node, expression, row, completed)
         }
+    }
+
+    machine completed_or_typed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, completed: bool) {
+        transition completed { true -> {} false -> resulted(checker, syntax, typing, node, expression, row) }
     }
 
     machine guaranteed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, item: MachineItem) {
@@ -964,4 +974,27 @@ crashes Trap
     machine chosen(handle: u64 in Trapping) -> u64 in Trapping {
         handle
     }
+}
+
+machine Checker::observe_invocation(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, selection: Selection, call: u64 in Trapping, checking: bool)
+crashes Trap
+{
+    transition !checking && !checker.replay {
+        true -> selected(checker, syntax, typing, selection, call)
+        false -> done()
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, selection: Selection, call: u64 in Trapping) {
+        transition selection {
+            Selection::Machine { handle } -> incoming(checker, syntax, typing, call, handle)
+            _ -> done()
+        }
+    }
+    machine incoming(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, handle: u64 in Trapping) {
+        let slot: u64 in Trapping = Checker::body_slot(checker, handle);
+        transition slot > 0 {
+            true -> Checker::contribute(checker, syntax, typing, call, handle)
+            false -> done()
+        }
+    }
+    machine done() {}
 }

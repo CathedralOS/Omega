@@ -89,6 +89,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             statement_index,
             storage_snapshot,
             value_observations: HandleSpan::empty(),
+            operator_invocations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),
@@ -941,7 +942,7 @@ fn statement_record_ranges(
         let range = ranges
             .get_mut(statement)
             .expect("borrow record names its source frame or exit");
-        if range.is_empty() {
+        if std::ops::Range::<usize>::is_empty(range) {
             *range = ordinal..ordinal + 1;
         } else {
             assert_eq!(

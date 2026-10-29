@@ -167,6 +167,7 @@ pub(super) fn encode_terminator(
                 for field in &case.payload_fields {
                     writer.id(*field);
                 }
+                encode_structural_arguments(writer, &case.structural_arguments)?;
                 writer.len("case successor cleanup actions", case.cleanup_actions.len())?;
                 for action in &case.cleanup_actions {
                     encode_affine_cleanup_action(writer, action)?;
@@ -286,6 +287,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                     target: reader.id("BlockId")?,
                     case: reader.id("StructuralCaseId")?,
                     payload_fields: decode_ids(reader, "StructuralFieldId")?,
+                    structural_arguments: decode_structural_arguments(reader)?,
                     cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
                 })
             })?;

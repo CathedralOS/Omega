@@ -196,6 +196,7 @@ impl StructuralJudge<'_> {
             parameters,
             owner,
             &bindings,
+            &[],
             None,
             0,
         ) else {
@@ -432,7 +433,7 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        self.selected_guarantees(&owner, &bindings, &bindings, Some(application), depth)
+        self.selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
             .map(|guarantees| guarantees.equations)
     }
 
@@ -445,6 +446,7 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
+        type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
         result: Option<&StructuralTerm>,
         depth: usize,
     ) -> Option<SelectedGuarantees> {
@@ -522,10 +524,21 @@ impl StructuralJudge<'_> {
                         ))
                         .collect::<Vec<_>>()
                 };
+                let member_type_bindings = static_parameters
+                    .iter()
+                    .zip(member_static)
+                    .filter_map(|(parameter, member)| {
+                        type_bindings
+                            .iter()
+                            .find(|(symbol, _)| *symbol == parameter.symbol)
+                            .map(|(_, reference)| (member.symbol, *reference))
+                    })
+                    .collect::<Vec<_>>();
                 let guarantees = self.declared_guarantees(
                     &SelectedCallContract::Concrete(machine, entry),
                     &member_bindings(entry_bindings),
                     &member_bindings(bindings),
+                    &member_type_bindings,
                     result,
                     depth,
                 )?;
@@ -558,7 +571,14 @@ impl StructuralJudge<'_> {
             }
             return common;
         }
-        self.declared_guarantees(owner, entry_bindings, bindings, result, depth)
+        self.declared_guarantees(
+            owner,
+            entry_bindings,
+            bindings,
+            type_bindings,
+            result,
+            depth,
+        )
     }
 
     fn declared_guarantees(
@@ -566,6 +586,7 @@ impl StructuralJudge<'_> {
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
+        type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
         result: Option<&StructuralTerm>,
         depth: usize,
     ) -> Option<SelectedGuarantees> {
@@ -589,6 +610,7 @@ impl StructuralJudge<'_> {
                         callable,
                         parameters,
                         entry_bindings,
+                        type_bindings,
                         depth + 1,
                     ),
                     ProofFact::Membership(required) => self.selected_membership_requirement(
@@ -622,6 +644,7 @@ impl StructuralJudge<'_> {
                         parameters,
                         callable,
                         bindings,
+                        type_bindings,
                         result,
                         &mut equations,
                         depth + 1,
@@ -899,6 +922,7 @@ impl StructuralJudge<'_> {
             parameters,
             callable,
             bindings,
+            &[],
             None,
             0,
         ) else {
@@ -1054,6 +1078,7 @@ pub(super) fn selected_requirement_judgment(
     callable: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     depth: usize,
 ) -> StructuralJudgment {
     if depth >= 32 {
@@ -1061,18 +1086,20 @@ pub(super) fn selected_requirement_judgment(
     }
     let program = judge.program;
     if let Some(binary) = program.expression_table.binary_node(expression)
-        && binary.operator == BinaryOperator::And
+        && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     {
         // The retained conjunction is not overloadable. Its operands keep
         // their own selected predicate meanings; a nominal leaf must not
         // prevent a neighboring scalar leaf from reaching its judge.
-        return match (
+        return StructuralJudgment::connective(
+            binary.operator,
             selected_requirement_judgment(
                 judge,
                 binary.left,
                 callable,
                 parameters,
                 bindings,
+                type_bindings,
                 depth + 1,
             ),
             selected_requirement_judgment(
@@ -1081,15 +1108,10 @@ pub(super) fn selected_requirement_judgment(
                 callable,
                 parameters,
                 bindings,
+                type_bindings,
                 depth + 1,
             ),
-        ) {
-            (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
-                StructuralJudgment::Refuted
-            }
-            (StructuralJudgment::Proven, StructuralJudgment::Proven) => StructuralJudgment::Proven,
-            _ => StructuralJudgment::Unknown,
-        };
+        );
     }
     if super::super::structural_terms::is_case_observation(program, expression) {
         let Some(map) = parameters
@@ -1113,6 +1135,7 @@ pub(super) fn selected_requirement_judgment(
         parameters,
         callable,
         bindings,
+        type_bindings,
         None,
         depth + 1,
     ) else {
@@ -1146,6 +1169,7 @@ pub(super) fn capture_guarantees(
     parameters: &[typed_trees::signature::StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
     depth: usize,
@@ -1167,6 +1191,7 @@ pub(super) fn capture_guarantees(
             parameters,
             callable,
             bindings,
+            type_bindings,
             result,
             equations,
             depth + 1,
@@ -1178,6 +1203,7 @@ pub(super) fn capture_guarantees(
             parameters,
             callable,
             bindings,
+            type_bindings,
             result,
             equations,
             depth + 1,
@@ -1197,6 +1223,7 @@ pub(super) fn capture_guarantees(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 0,
             ),
@@ -1207,6 +1234,7 @@ pub(super) fn capture_guarantees(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 0,
             ),
@@ -1241,6 +1269,7 @@ pub(super) fn capture_guarantees(
         parameters,
         callable,
         bindings,
+        type_bindings,
         result,
         depth + 1,
     ) else {
@@ -1268,11 +1297,19 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
     parameters: &[typed_trees::signature::StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     depth: usize,
 ) -> Option<StructuralTerm> {
     if depth >= 64 {
         return None;
+    }
+    if program.static_type_predicate_operands(expression).is_some() {
+        return super::super::structural_terms::static_type_predicate_term(
+            program,
+            expression,
+            type_bindings,
+        );
     }
     if let Some(value) = super::super::proof_integer::anonymous_integer_value(program, expression) {
         return Some(StructuralTerm::Integer(value));
@@ -1319,6 +1356,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                         parameters,
                         callable,
                         bindings,
+                        type_bindings,
                         result,
                         depth + 1,
                     )
@@ -1338,6 +1376,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                         parameters,
                         callable,
                         bindings,
+                        type_bindings,
                         result,
                         depth + 1,
                     )
@@ -1364,6 +1403,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -1389,6 +1429,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?,
@@ -1399,6 +1440,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?,
@@ -1415,6 +1457,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                     parameters,
                     callable,
                     bindings,
+                    type_bindings,
                     result,
                     depth + 1,
                 )?;
@@ -1436,6 +1479,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                         parameters,
                         callable,
                         bindings,
+                        type_bindings,
                         result,
                         depth + 1,
                     )
@@ -1475,6 +1519,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                         parameters,
                         callable,
                         bindings,
+                        type_bindings,
                         result,
                         depth + 1,
                     )
@@ -1493,6 +1538,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?,
@@ -1513,6 +1559,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                         parameters,
                         callable,
                         bindings,
+                        type_bindings,
                         result,
                         depth + 1,
                     )
@@ -1545,6 +1592,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -1555,6 +1603,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;

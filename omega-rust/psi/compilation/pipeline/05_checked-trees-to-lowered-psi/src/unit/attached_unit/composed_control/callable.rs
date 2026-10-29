@@ -149,10 +149,6 @@ pub(in crate::unit::attached_unit) fn emit(
         .zip(machine.structural_parameters.iter())
         .map(|(source, parameter)| (source.position, parameter.clone()))
         .collect();
-    let element_views = crate::expression_preparation::bindings::element_views(
-        &view_roster,
-        &catalogs.structural_types,
-    );
     let entry = plan
         .states
         .first()
@@ -170,7 +166,6 @@ pub(in crate::unit::attached_unit) fn emit(
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types: &catalogs.structural_types,
-            element_views: &element_views,
         },
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;

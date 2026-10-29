@@ -34,6 +34,8 @@ pub struct StaticMachineApplication {
     /// Diagnostic text only; the symbol above owns declaration identity.
     pub target: Identifier,
     pub arguments: HandleSpan<StaticMachineArgument>,
+    /// Original named input coordinates produced while materializing source recipes.
+    pub input_selections: HandleSpan<crate::product_operand::ProductInputSelection>,
     /// Occurrence-local machine operands after contextual specialization, in
     /// machine-binder order. Authored operands remain above; closed entries
     /// retain complete tuples through the ordinary specialization roster.
@@ -87,26 +89,6 @@ pub enum StaticMachineBindingValue {
 impl Default for StaticMachineBindingValue {
     fn default() -> Self {
         Self::Type(TypeReferenceHandle::invalid())
-    }
-}
-
-impl StaticMachineBinding {
-    pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
-        // The binder belongs to binding_declaration, not lexical_owner.
-        // Remapping it would turn recursive calls into bindings for a private
-        // caller's erased telescope. Actual operands do follow caller cloning.
-        match &mut self.value {
-            StaticMachineBindingValue::Machine(argument)
-            | StaticMachineBindingValue::Conformance(argument) => argument.remap_symbols(symbols),
-            StaticMachineBindingValue::RuntimeValue { subject, .. } => {
-                if let Some((_, replacement)) =
-                    symbols.iter().find(|(source, _)| *source == *subject)
-                {
-                    *subject = *replacement;
-                }
-            }
-            StaticMachineBindingValue::Type(_) | StaticMachineBindingValue::Const(_) => {}
-        }
     }
 }
 

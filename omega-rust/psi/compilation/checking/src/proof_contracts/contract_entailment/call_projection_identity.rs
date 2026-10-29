@@ -399,6 +399,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                                     self.parameters,
                                     *owner,
                                     &bindings,
+                                    &[],
                                     None,
                                     0,
                                 ),
@@ -479,6 +480,7 @@ fn bound_index(
                 parameters,
                 owner,
                 bindings,
+                &[],
                 None,
                 0,
             )

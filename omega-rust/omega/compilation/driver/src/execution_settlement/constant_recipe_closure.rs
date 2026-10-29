@@ -44,9 +44,13 @@ pub(crate) fn close_constant_recipes(
             )
         })
         .collect();
-    // Runtime layout queries also retain a continuation even when no array,
-    // range endpoint, or const application contributes a recipe roster entry.
-    let needs_constant_values = !typed.constant_recipes.is_empty() || !layout_queries.is_empty();
+    // Layout observations and declaration values also retain a continuation
+    // without an array, endpoint, or const-application recipe roster entry.
+    let needs_constant_values = !typed.constant_recipes.is_empty()
+        || !layout_queries.is_empty()
+        || typed.const_declarations().iter().any(|declaration| {
+            declaration.pending_target_observation && declaration.evaluated_value.is_none()
+        });
     if !needs_constant_values && shared.facts.integer_range_obligations.is_empty() {
         return Ok(Arc::clone(shared));
     }

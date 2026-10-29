@@ -49,11 +49,9 @@ pub use allocation_legality::{
     AllocationLegalityError, ValidatedAllocationLegality, analyze_allocation_legality,
     analyze_allocation_legality_reusing,
 };
+pub(crate) use allocator_availability::AllocatorAvailabilityError;
 pub use allocator_availability::ValidatedAllocatorAvailability;
 pub(crate) use allocator_availability::materialize_allocator_availability;
-pub(crate) use allocator_availability::{
-    AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
-};
 pub(crate) use fixed_precolored_intervals::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     ValidatedFixedPrecoloredIntervals, analyze_fixed_precolored_intervals,
@@ -66,13 +64,11 @@ pub(crate) use fixed_precolored_split_requirements::{
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
     ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_split_requirements,
 };
-pub(crate) use recovery_classification::RecoveryClassificationValidationReceipt;
 pub use recovery_classification::{
     RecoveryClassificationError, ValidatedRecoveryClassifications, classify_pressure_recovery,
 };
 pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, ValidatedSelectedAnalysis};
 
-pub(crate) use spill_choice::SpillChoiceValidationReceipt;
 pub use spill_choice::{SpillChoiceError, ValidatedSpillChoices, choose_spill_victims};
 
 /// Each function's digest for the receipt identity: a carried function's

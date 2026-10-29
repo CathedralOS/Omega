@@ -1,0 +1,63 @@
+{
+  "counts": {
+    "RETURN_CACHE_MISS": 8,
+    "RETURN_CACHE_HIT": 3
+  },
+  "queries": [
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 0.0099,
+      "key": "(Handle { arena_index: 1423, generation: 1 }, Handle { arena_index: 1820, generation: 1 }, None, None, [], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 0.0099,
+      "key": "(Handle { arena_index: 1454, generation: 1 }, Handle { arena_index: 2165, generation: 1 }, None, None, [], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 105.7299,
+      "key": "(Handle { arena_index: 1453, generation: 1 }, Handle { arena_index: 2130, generation: 1 }, None, None, [(Handle { arena_index: 2362, generation: 1 }, Some(1), Some(1)), (Handle { arena_index: 2363, generation: 1 }, Some(2), Some(2)), (Handle { arena_index: 2364, generation: 1 }, Some(3), Some(3)), (Handle { arena_index: 2365, generation: 1 }, Some(4), Some(4)), (Handle { arena_index: 2366, generation: 1 }, Some(5), Some(5)), (Handle { arena_index: 2367, generation: 1 }, Some(6), Some(6)), (Handle { arena_index: 2368, generation: 1 }, Some(7), Some(7)), (Handle { arena_index: 2369, generation: 1 }, Some(8), Some(8)), (Handle { arena_index: 2370, generation: 1 }, Some(9), Some(9)), (Handle { arena_index: 2371, generation: 1 }, Some(10), Some(10)), (Handle { arena_index: 2372, generation: 1 }, Some(11), Some(11)), (Handle { arena_index: 2373, generation: 1 }, Some(12), Some(12)), (Handle { arena_index: 2374, generation: 1 }, Some(13), Some(13)), (Handle { arena_index: 2375, generation: 1 }, Some(14), Some(14)), (Handle { arena_index: 2376, generation: 1 }, Some(15), Some(15)), (Handle { arena_index: 2377, generation: 1 }, Some(16), Some(16)), (Handle { arena_index: 2378, generation: 1 }, Some(17), Some(17)), (Handle { arena_index: 2379, generation: 1 }, Some(18), Some(18)), (Handle { arena_index: 2380, generation: 1 }, Some(19), Some(19)), (Handle { arena_index: 2381, generation: 1 }, Some(20), Some(20)), (Handle { arena_index: 2382, generation: 1 }, Some(21), Some(21)), (Handle { arena_index: 2383, generation: 1 }, Some(22), Some(22)), (Handle { arena_index: 2384, generation: 1 }, Some(23), Some(23)), (Handle { arena_index: 2385, generation: 1 }, Some(24), Some(24)), (Handle { arena_index: 2386, generation: 1 }, Some(25), Some(25)), (Handle { arena_index: 2387, generation: 1 }, Some(26), Some(26)), (Handle { arena_index: 2388, generation: 1 }, Some(27), Some(27)), (Handle { arena_index: 2389, generation: 1 }, Some(28), Some(28)), (Handle { arena_index: 2390, generation: 1 }, Some(29), Some(29)), (Handle { arena_index: 2391, generation: 1 }, Some(30), Some(30)), (Handle { arena_index: 2392, generation: 1 }, Some(31), Some(31)), (Handle { arena_index: 2393, generation: 1 }, Some(60), Some(60))], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 112.0244,
+      "key": "(Handle { arena_index: 1453, generation: 1 }, Handle { arena_index: 2130, generation: 1 }, None, None, [(Handle { arena_index: 2362, generation: 1 }, Some(1), Some(1)), (Handle { arena_index: 2363, generation: 1 }, Some(2), Some(2)), (Handle { arena_index: 2364, generation: 1 }, Some(3), Some(3)), (Handle { arena_index: 2365, generation: 1 }, Some(4), Some(4)), (Handle { arena_index: 2366, generation: 1 }, Some(5), Some(5)), (Handle { arena_index: 2367, generation: 1 }, Some(6), Some(6)), (Handle { arena_index: 2368, generation: 1 }, Some(7), Some(7)), (Handle { arena_index: 2369, generation: 1 }, Some(8), Some(8)), (Handle { arena_index: 2370, generation: 1 }, Some(9), Some(9)), (Handle { arena_index: 2371, generation: 1 }, Some(10), Some(10)), (Handle { arena_index: 2372, generation: 1 }, Some(11), Some(11)), (Handle { arena_index: 2373, generation: 1 }, Some(12), Some(12)), (Handle { arena_index: 2374, generation: 1 }, Some(13), Some(13)), (Handle { arena_index: 2375, generation: 1 }, Some(14), Some(14)), (Handle { arena_index: 2376, generation: 1 }, Some(15), Some(15)), (Handle { arena_index: 2377, generation: 1 }, Some(16), Some(16)), (Handle { arena_index: 2378, generation: 1 }, Some(17), Some(17)), (Handle { arena_index: 2379, generation: 1 }, Some(18), Some(18)), (Handle { arena_index: 2380, generation: 1 }, Some(19), Some(19)), (Handle { arena_index: 2381, generation: 1 }, Some(20), Some(20)), (Handle { arena_index: 2382, generation: 1 }, Some(21), Some(21)), (Handle { arena_index: 2383, generation: 1 }, Some(22), Some(22)), (Handle { arena_index: 2384, generation: 1 }, Some(23), Some(23)), (Handle { arena_index: 2385, generation: 1 }, Some(24), Some(24)), (Handle { arena_index: 2386, generation: 1 }, Some(25), Some(25)), (Handle { arena_index: 2387, generation: 1 }, Some(26), Some(26)), (Handle { arena_index: 2388, generation: 1 }, Some(27), Some(27)), (Handle { arena_index: 2389, generation: 1 }, Some(28), Some(28)), (Handle { arena_index: 2390, generation: 1 }, Some(29), Some(29)), (Handle { arena_index: 2391, generation: 1 }, Some(30), Some(30)), (Handle { arena_index: 2392, generation: 1 }, Some(31), Some(31)), (Handle { arena_index: 2393, generation: 1 }, Some(60), Some(60))], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_HIT",
+      "milliseconds": 0.0003,
+      "key": "(Handle { arena_index: 1454, generation: 1 }, Handle { arena_index: 2165, generation: 1 }, None, None, [], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_HIT",
+      "milliseconds": 9.999999999999999e-05,
+      "key": "(Handle { arena_index: 1454, generation: 1 }, Handle { arena_index: 2165, generation: 1 }, None, None, [], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 105.3459,
+      "key": "(Handle { arena_index: 1452, generation: 1 }, Handle { arena_index: 2097, generation: 1 }, None, None, [(Handle { arena_index: 2329, generation: 1 }, Some(1), Some(1)), (Handle { arena_index: 2330, generation: 1 }, Some(2), Some(2)), (Handle { arena_index: 2331, generation: 1 }, Some(3), Some(3)), (Handle { arena_index: 2332, generation: 1 }, Some(4), Some(4)), (Handle { arena_index: 2333, generation: 1 }, Some(5), Some(5)), (Handle { arena_index: 2334, generation: 1 }, Some(6), Some(6)), (Handle { arena_index: 2335, generation: 1 }, Some(7), Some(7)), (Handle { arena_index: 2336, generation: 1 }, Some(8), Some(8)), (Handle { arena_index: 2337, generation: 1 }, Some(9), Some(9)), (Handle { arena_index: 2338, generation: 1 }, Some(10), Some(10)), (Handle { arena_index: 2339, generation: 1 }, Some(11), Some(11)), (Handle { arena_index: 2340, generation: 1 }, Some(12), Some(12)), (Handle { arena_index: 2341, generation: 1 }, Some(13), Some(13)), (Handle { arena_index: 2342, generation: 1 }, Some(14), Some(14)), (Handle { arena_index: 2343, generation: 1 }, Some(15), Some(15)), (Handle { arena_index: 2344, generation: 1 }, Some(16), Some(16)), (Handle { arena_index: 2345, generation: 1 }, Some(17), Some(17)), (Handle { arena_index: 2346, generation: 1 }, Some(18), Some(18)), (Handle { arena_index: 2347, generation: 1 }, Some(19), Some(19)), (Handle { arena_index: 2348, generation: 1 }, Some(20), Some(20)), (Handle { arena_index: 2349, generation: 1 }, Some(21), Some(21)), (Handle { arena_index: 2350, generation: 1 }, Some(22), Some(22)), (Handle { arena_index: 2351, generation: 1 }, Some(23), Some(23)), (Handle { arena_index: 2352, generation: 1 }, Some(24), Some(24)), (Handle { arena_index: 2353, generation: 1 }, Some(25), Some(25)), (Handle { arena_index: 2354, generation: 1 }, Some(26), Some(26)), (Handle { arena_index: 2355, generation: 1 }, Some(27), Some(27)), (Handle { arena_index: 2356, generation: 1 }, Some(28), Some(28)), (Handle { arena_index: 2357, generation: 1 }, Some(29), Some(29)), (Handle { arena_index: 2358, generation: 1 }, Some(30), Some(30)), (Handle { arena_index: 2359, generation: 1 }, Some(31), Some(31)), (Handle { arena_index: 2360, generation: 1 }, Some(60), Some(60))], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 104.82560000000001,
+      "key": "(Handle { arena_index: 1452, generation: 1 }, Handle { arena_index: 2097, generation: 1 }, None, None, [(Handle { arena_index: 2329, generation: 1 }, Some(1), Some(1)), (Handle { arena_index: 2330, generation: 1 }, Some(2), Some(2)), (Handle { arena_index: 2331, generation: 1 }, Some(3), Some(3)), (Handle { arena_index: 2332, generation: 1 }, Some(4), Some(4)), (Handle { arena_index: 2333, generation: 1 }, Some(5), Some(5)), (Handle { arena_index: 2334, generation: 1 }, Some(6), Some(6)), (Handle { arena_index: 2335, generation: 1 }, Some(7), Some(7)), (Handle { arena_index: 2336, generation: 1 }, Some(8), Some(8)), (Handle { arena_index: 2337, generation: 1 }, Some(9), Some(9)), (Handle { arena_index: 2338, generation: 1 }, Some(10), Some(10)), (Handle { arena_index: 2339, generation: 1 }, Some(11), Some(11)), (Handle { arena_index: 2340, generation: 1 }, Some(12), Some(12)), (Handle { arena_index: 2341, generation: 1 }, Some(13), Some(13)), (Handle { arena_index: 2342, generation: 1 }, Some(14), Some(14)), (Handle { arena_index: 2343, generation: 1 }, Some(15), Some(15)), (Handle { arena_index: 2344, generation: 1 }, Some(16), Some(16)), (Handle { arena_index: 2345, generation: 1 }, Some(17), Some(17)), (Handle { arena_index: 2346, generation: 1 }, Some(18), Some(18)), (Handle { arena_index: 2347, generation: 1 }, Some(19), Some(19)), (Handle { arena_index: 2348, generation: 1 }, Some(20), Some(20)), (Handle { arena_index: 2349, generation: 1 }, Some(21), Some(21)), (Handle { arena_index: 2350, generation: 1 }, Some(22), Some(22)), (Handle { arena_index: 2351, generation: 1 }, Some(23), Some(23)), (Handle { arena_index: 2352, generation: 1 }, Some(24), Some(24)), (Handle { arena_index: 2353, generation: 1 }, Some(25), Some(25)), (Handle { arena_index: 2354, generation: 1 }, Some(26), Some(26)), (Handle { arena_index: 2355, generation: 1 }, Some(27), Some(27)), (Handle { arena_index: 2356, generation: 1 }, Some(28), Some(28)), (Handle { arena_index: 2357, generation: 1 }, Some(29), Some(29)), (Handle { arena_index: 2358, generation: 1 }, Some(30), Some(30)), (Handle { arena_index: 2359, generation: 1 }, Some(31), Some(31)), (Handle { arena_index: 2360, generation: 1 }, Some(60), Some(60))], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_HIT",
+      "milliseconds": 0.0011,
+      "key": "(Handle { arena_index: 1454, generation: 1 }, Handle { arena_index: 2165, generation: 1 }, None, None, [], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 103.37689999999999,
+      "key": "(Handle { arena_index: 1453, generation: 1 }, Handle { arena_index: 2130, generation: 1 }, None, None, [], [])"
+    },
+    {
+      "kind": "RETURN_CACHE_MISS",
+      "milliseconds": 117.6009,
+      "key": "(Handle { arena_index: 1452, generation: 1 }, Handle { arena_index: 2097, generation: 1 }, None, None, [], [])"
+    }
+  ]
+}

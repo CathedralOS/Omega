@@ -6,7 +6,7 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
     LoweringError, Proposition, ScalarTerm, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration, unsupported,
+    StructuralTypeDeclaration, ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -70,11 +70,7 @@ pub(crate) struct ContractViewNamespace<'a> {
     /// Structural type declarations the parameters' member paths resolve
     /// against; member leaves in contract operands fail closed when absent.
     pub structural_types: &'a [StructuralTypeDeclaration],
-    pub element_views: &'a std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
 }
-
-static EMPTY_ELEMENT_VIEWS: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>> =
-    std::collections::BTreeMap::new();
 
 impl ContractViewNamespace<'static> {
     /// Empty formal and constant namespaces, for genuinely context-free terms.
@@ -85,7 +81,6 @@ impl ContractViewNamespace<'static> {
         parameters: &[],
         result: ContractStructuralResult::Absent,
         structural_types: &[],
-        element_views: &EMPTY_ELEMENT_VIEWS,
     };
 }
 

@@ -116,8 +116,6 @@ pub(crate) fn stage_optimized_active_resident_rematerialization_pressure(
     );
     Ok(StagedOptimizedActiveResidentRematerializationPressure {
         source,
-        choices,
-        classifications,
         rematerialization,
         liveness,
         ranges,
@@ -143,8 +141,6 @@ pub(crate) fn complete_optimized_active_resident_rematerialization(
 > {
     let StagedOptimizedActiveResidentRematerializationPressure {
         source,
-        choices,
-        classifications,
         rematerialization,
         liveness,
         ranges,
@@ -165,17 +161,7 @@ pub(crate) fn complete_optimized_active_resident_rematerialization(
         &homes,
     )
     .map_err(OptimizedActiveResidentRematerializationError::Manifest)?;
-    let custody = custody_receipt(
-        prefix_custody.source(),
-        &choices,
-        &classifications,
-        &rematerialization,
-        &liveness,
-        &ranges,
-        &legality,
-        &homes,
-        &manifest,
-    );
+    let custody = custody_receipt(prefix_custody, &homes, &manifest);
     Ok(StagedOptimizedActiveResidentRematerialization {
         source,
         rematerialization,

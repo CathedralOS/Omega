@@ -146,6 +146,7 @@ pub(super) fn record(
         let statement_nodes_start = plans.nodes.storage_slice().len();
         let mut builder = Builder {
             program,
+            shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
             operators,
             semantic,
             flow,
@@ -168,7 +169,7 @@ pub(super) fn record(
             scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };
-        if let Some(root) = observation(&mut builder, rank, subject, &bindings) {
+        if let Some(root) = observation(&mut builder, rank, subject, &bindings, admitted) {
             let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
@@ -236,6 +237,7 @@ fn observation(
     rank: &CheckedStateNaturalRank,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
     match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
@@ -288,18 +290,41 @@ fn observation(
                 builder.expression(*body, primitive_type)
             }
         }
-        CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-            input_coordinate(builder, rank, subject, bindings, primitive_type)
+        CheckedNaturalRankMeasure::IntegerValue {
+            coordinate,
+            primitive_type,
+        } => {
+            let coordinate = admitted.coordinates.get(coordinate);
+            let path = admitted.path_segments.span(coordinate.path)?;
+            if coordinate.parameter != rank.parameter {
+                return None;
+            }
+            let (_, state) = validation::find_state(builder.program, rank.state)?;
+            let parameter = builder
+                .program
+                .state_parameters(state)
+                .get(usize::try_from(rank.parameter_position).ok()?)?;
+            if parameter.symbol != coordinate.parameter {
+                return None;
+            }
+            builder.scalar_coordinate(
+                subject.unwrap_or_default(),
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(coordinate.parameter),
+                    segments: path.to_vec(),
+                },
+                primitive_type,
+            )
         }
-        CheckedNaturalRankMeasure::SequenceLength { subject } => {
-            let (owner, state) = validation::find_state(builder.program, builder.state)?;
-            let (parameter, position, expression) = validation::ranking_slice_length_observation(
-                builder.program,
-                owner,
-                state,
-                bindings,
-                subject,
-            )?;
+        CheckedNaturalRankMeasure::SequenceLength { coordinate } => {
+            let (_, state) = validation::find_state(builder.program, builder.state)?;
+            let coordinate = admitted.coordinates.get(coordinate);
+            let coordinate = validation::RankSubjectCoordinate {
+                parameter: coordinate.parameter,
+                path: admitted.path_segments.span(coordinate.path)?.to_vec(),
+            };
+            let (parameter, position, expression) =
+                validation::ranking_slice_length_observation(builder.program, state, &coordinate)?;
             (parameter == rank.parameter && position == rank.parameter_position).then_some(())?;
             Some(builder.insert(
                 PrimitiveType::U64,
@@ -344,6 +369,7 @@ fn distance(
         template(1),
         ArithmeticDomain::Exact,
         true,
+        false,
     )?;
     let operands = builder.plans.operands.insert_many([ceiling, lower]);
     Some(builder.insert(

@@ -125,8 +125,7 @@ fn source_scope<'p>(
     // Static provider slots inherit their exact application from the authored
     // requirement qualifier. A source routing carrier no longer supplies that
     // scope; selected maps and equal ABI signatures still cannot invent it.
-    let qualifier_scope =
-        receiver().and_then(|scope| scope.declaring_scope(program, owner.symbol));
+    let qualifier_scope = receiver().and_then(|scope| scope.declaring_scope(program, owner.symbol));
     let scope = match qualifier_scope {
         Some(scope) => Some(scope),
         None if program.trait_type_parameters(owner).is_empty()
@@ -293,22 +292,6 @@ fn prepare_invocations(
         .map_err(|message| vec![Diagnostic::error(message)])?;
     }
     Ok(invocations)
-}
-
-fn prepared_occurrence(
-    invocations: &[PreparedInvocation],
-    site: super::super::CallSite,
-    owner: SymbolHandle,
-) -> Result<&InvocationTuple, Vec<Diagnostic>> {
-    invocations
-        .iter()
-        .find(|invocation| invocation.site == site && invocation.owner == owner)
-        .map(|invocation| &invocation.tuple)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "requirement call lost its prepared invocation",
-            )]
-        })
 }
 
 /// Static calls instantiate their own complete invocation tuples. These rows
@@ -612,8 +595,13 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             .closed_requirement_application(target)
             .map_or(target, |closed| closed.template);
         if program.trait_machine_signature(template).is_none()
-            && let Some((requirement, _)) =
-                source_scope(program, owner, target, || None, TypeReferenceHandle::invalid())?
+            && let Some((requirement, _)) = source_scope(
+                program,
+                owner,
+                target,
+                || None,
+                TypeReferenceHandle::invalid(),
+            )?
         {
             template = requirement;
         }

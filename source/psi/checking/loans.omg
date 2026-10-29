@@ -307,10 +307,11 @@ crashes Trap
         place: u64 in Trapping,
         exclusive: bool
     ) {
+        let lender: u64 in Trapping = Checker::path_root(syntax, resolution, typing, place, true);
+        let inherited: bool = Checker::copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
         let owner: u64 in Trapping = Checker::place_root(syntax, resolution, typing, place);
         let owned: bool = Checker::lends_owned(syntax, handle, owner);
         let kept: bool = Ownership::add_loan(&mut checker.ownership, holder, place, exclusive, owned);
-        let lender: u64 in Trapping = Checker::path_root(syntax, resolution, typing, place, true);
         Ownership::extend_uses(&mut checker.ownership, lender, holder);
         transition kept {
             true -> node(checker, syntax, resolution, typing, root, holder, handle + 1)
@@ -335,6 +336,16 @@ machine Checker::copy_carrier_loans(checker: &mut Checker, syntax: &SyntaxTrees,
 crashes Trap
 {
     let lender: u64 in Trapping = Checker::carrier_root(checker, syntax, resolution, typing, handle);
+    let copied: bool = Checker::copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
+    copied
+}
+
+// Every derived loan retains the lender's complete backing roster. The new
+// direct route separately records how the derived holder may access its
+// lender; inherited rows keep their exact places, ownership and exclusivity.
+machine Checker::copy_holder_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping) -> bool
+crashes Trap
+{
     transition lender > 0 {
         true -> next(checker, syntax, resolution, typing, handle, holder, lender, 0, checker.ownership.loan_count)
         _ -> answer(false)
@@ -608,10 +619,11 @@ crashes Trap
     }
 
     machine lend(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, holder: u64 in Trapping, handle: u64 in Trapping, place: u64 in Trapping, exclusive: bool) {
+        let lender: u64 in Trapping = Checker::path_root(syntax, resolution, typing, place, true);
+        let inherited: bool = Checker::copy_holder_loans(checker, syntax, resolution, typing, handle, holder, lender);
         let owner: u64 in Trapping = Checker::place_root(syntax, resolution, typing, place);
         let owned: bool = Checker::lends_owned(syntax, handle, owner);
         let kept: bool = Ownership::add_loan(&mut checker.ownership, holder, place, exclusive, owned);
-        let lender: u64 in Trapping = Checker::path_root(syntax, resolution, typing, place, true);
         Ownership::extend_uses(&mut checker.ownership, lender, holder);
         transition kept {
             true -> done()

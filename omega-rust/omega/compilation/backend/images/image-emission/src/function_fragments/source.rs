@@ -7,7 +7,7 @@ use abstract_operations::{
 };
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 mod aggregate_results;
 mod control_flow;
 pub(super) mod placed_reference;
@@ -526,9 +526,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     callee,
                     ..
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
-                AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
-                    || program_image_retained(operation, targeted, selected)
-                    || ieee_float_builtin_retained(operation, targeted, selected)
+                AbstractOperation::BoundaryCall { psi_operation, boundary, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
+                    || program_image_retained(psi_operation, boundary, targeted, selected)
+                    || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
@@ -681,18 +681,11 @@ fn byte_concatenation_retained<'operation>(
 /// operands and result homes; publication joins that operation and boundary to
 /// the single selected form attributed to it alone.
 fn ieee_float_builtin_retained(
-    operation: &AbstractOperation,
+    psi_operation: &OperationId,
+    boundary: &BoundaryMachineId,
     targeted: &target_operations::TargetFunction,
     selected: &selected_instructions::SelectedFunction,
 ) -> bool {
-    let AbstractOperation::BoundaryCall {
-        psi_operation,
-        boundary,
-        ..
-    } = operation
-    else {
-        return false;
-    };
     let mut rows = targeted.graph.operations().filter_map(|row| match row {
         target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
             psi_operation: retained,
@@ -730,18 +723,11 @@ fn ieee_float_builtin_retained(
 }
 
 fn program_image_retained(
-    operation: &AbstractOperation,
+    psi_operation: &OperationId,
+    boundary: &BoundaryMachineId,
     targeted: &target_operations::TargetFunction,
     selected: &selected_instructions::SelectedFunction,
 ) -> bool {
-    let AbstractOperation::BoundaryCall {
-        psi_operation,
-        boundary,
-        ..
-    } = operation
-    else {
-        return false;
-    };
     targeted.graph.operations().filter(|row| matches!(row,
         target_operations::TargetUnitOperation::ProgramImageAddress {
             psi_operation: actual, boundary: actual_boundary, ..

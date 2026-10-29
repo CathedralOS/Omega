@@ -139,12 +139,6 @@ pub fn x86_64_machine_effect_catalog(
                         ),
                     );
                 }
-                if semantic == MachineSemanticKind::NormalizedForeignCall {
-                    return Ok(scalar_call::normalized_foreign_declaration(
-                        constraint,
-                        constraints,
-                    ));
-                }
                 Ok(if matches!(semantic, memory::declared_semantics!()) {
                     memory::declaration(semantic, constraint, constraints)
                 } else if matches!(
@@ -152,6 +146,7 @@ pub fn x86_64_machine_effect_catalog(
                     MachineSemanticKind::CallScalar
                         | MachineSemanticKind::CallAggregate
                         | MachineSemanticKind::InvokeNoNormal
+                        | MachineSemanticKind::NormalizedForeignCall
                 ) {
                     scalar_call_declaration(semantic, constraint, constraints)
                 } else if matches!(

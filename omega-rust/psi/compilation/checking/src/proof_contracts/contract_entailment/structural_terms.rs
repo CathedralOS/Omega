@@ -34,6 +34,7 @@ pub(super) use owned_observations::{
     shared_inline_observation_type,
 };
 mod scalar_operands;
+mod scalar_representation;
 pub(super) use binary::{
     binary_term_in_scope, logical_not_term_in_scope, sealed_primitive_float_operator,
 };
@@ -45,6 +46,9 @@ pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms
 pub(super) use scalar_operands::{
     completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
     term_is_unobserved_descriptor,
+};
+pub(super) use scalar_representation::{
+    normalize_scalar_representation, scalar_representation_term,
 };
 
 /// An admitted integer conversion preserves its mathematical value; policy
@@ -209,6 +213,16 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         StructuralTerm::BoundProjection { subject, path } => {
             format!("{}.{path}", program.symbols.name(*subject))
         }
+        StructuralTerm::ScalarRepresentation {
+            source,
+            target,
+            value,
+        } => format!(
+            "representation<{}, {}>({})",
+            source.name(),
+            target.name(),
+            term_spelling(program, value)
+        ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Float(value) => value.to_string(),
         StructuralTerm::Constructor { data, case, fields } => {
@@ -432,6 +446,48 @@ pub(crate) fn source_operations_have_same_meaning(
     }
 }
 
+/// The same exact type proposition is retained in declaration and applied
+/// contract scopes. Type actuals stay separate from runtime value substitutions.
+pub(super) fn static_type_predicate_term(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+) -> Option<StructuralTerm> {
+    let (left, right, negate) = program.static_type_predicate_operands(expression)?;
+    let value = if substitutions.is_empty() {
+        program.static_type_predicate_value(expression)
+    } else {
+        program.applied_static_type_predicate_value(expression, substitutions)
+    };
+    if let Some(value) = value {
+        return Some(StructuralTerm::Constructor {
+            data: "bool".to_owned(),
+            case: value.to_string(),
+            fields: Vec::new(),
+        });
+    }
+    let identity = |reference| {
+        program.type_identity_text(program.type_identity_with_simultaneous_substitutions(
+            typed_trees::type_identity::TypeIdentityRequest {
+                substitutions,
+                ..typed_trees::type_identity::TypeIdentityRequest::package_qualified(reference)
+            },
+        ))
+    };
+    let mut operands = [identity(left)?, identity(right)?];
+    operands.sort_unstable();
+    Some(StructuralTerm::Variable(format!(
+        "$static-type-predicate:{}:{}:{}:{}:{negate}",
+        operands[0].len(),
+        operands[0],
+        operands[1].len(),
+        operands[1],
+    )))
+}
+
 pub(super) fn structural_term(
     program: &dyn crate::CheckingInput,
     scope: Option<(
@@ -446,26 +502,8 @@ pub(super) fn structural_term(
     expression: ExpressionHandle,
     bindings: Option<&dyn Fn(ExpressionHandle) -> Option<StructuralTerm>>,
 ) -> Option<StructuralTerm> {
-    if let Some((left, right, negate)) = program.static_type_predicate_operands(expression) {
-        if let Some(value) = program.static_type_predicate_value(expression) {
-            return Some(StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: value.to_string(),
-                fields: Vec::new(),
-            });
-        }
-        let mut operands = [
-            program.package_qualified_type_identity_text(left),
-            program.package_qualified_type_identity_text(right),
-        ];
-        operands.sort_unstable();
-        return Some(StructuralTerm::Variable(format!(
-            "$static-type-predicate:{}:{}:{}:{}:{negate}",
-            operands[0].len(),
-            operands[0],
-            operands[1].len(),
-            operands[1]
-        )));
+    if program.static_type_predicate_operands(expression).is_some() {
+        return static_type_predicate_term(program, expression, &[]);
     }
     if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
         return Some(term);
@@ -582,9 +620,12 @@ pub(super) fn structural_term(
                     crate::expression_result_type_reference(program, machine, state, cast.value)
                 })
             }?;
-            denotation_preserving_conversion(program, cast, source)
-                .then(|| structural_term(program, scope, frame, cast.value, bindings))
-                .flatten()
+            let value = structural_term(program, scope, frame, cast.value, bindings)?;
+            if denotation_preserving_conversion(program, cast, source) {
+                Some(value)
+            } else {
+                scalar_representation_term(program, cast, source, value)
+            }
         }
         // A determinate float literal carries its exact decimal spelling; the
         // ordering arm widens it once at judgment. UndeterminedNaN stays

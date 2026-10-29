@@ -183,7 +183,6 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
- "checked-interpreter",
  "compilation-products",
  "diagnostics",
  "effects",
@@ -648,6 +647,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
+name = "encoded-scalar-plan"
+version = "0.1.0"
+dependencies = [
+ "register-model",
+ "selected-instructions",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -969,9 +976,11 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "diagnostics",
+ "encoded-scalar-plan",
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -991,9 +1000,11 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "diagnostics",
+ "encoded-scalar-plan",
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -1026,6 +1037,7 @@ dependencies = [
 name = "language-semantics"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "build-time-values",
  "compiler-storage",
  "language-core",
@@ -1353,6 +1365,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalized-foreign-call-plan"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "legalized-operations",
+ "optimization-unit",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
+]
+
+[[package]]
 name = "numerics"
 version = "0.1.0"
 dependencies = [
@@ -1415,6 +1444,7 @@ dependencies = [
  "diagnostics",
  "package-compilation",
  "package-manager",
+ "phase-profile",
  "platform-custody",
  "semantic-vocabulary",
  "target",
@@ -1483,7 +1513,6 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "checked-interpreter",
  "checked-trees",
  "compiler-storage",
  "diagnostics",
@@ -1551,7 +1580,6 @@ dependencies = [
  "build-output",
  "cap-fs-ext",
  "cap-std",
- "checked-interpreter",
  "compilation-products",
  "compiler",
  "diagnostics",
@@ -2662,6 +2690,7 @@ dependencies = [
  "phase-profile",
  "proof",
  "representation-selections",
+ "source",
  "symbols",
  "typed-trees",
  "validation",

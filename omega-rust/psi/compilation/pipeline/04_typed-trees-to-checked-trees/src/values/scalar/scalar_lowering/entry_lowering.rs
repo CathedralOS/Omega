@@ -699,6 +699,7 @@ pub(crate) fn lower_scalar_expression(
                 right,
                 right_domain,
                 operators.formation_is_decided(expression),
+                operators.is_trap_free(expression),
             )
         }
         _ => None,

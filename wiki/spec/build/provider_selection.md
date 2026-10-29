@@ -316,7 +316,7 @@ reordering is permitted; collapsing independent binders or strengthening an
 unrestricted input to `[copy]` is not.
 
 The quantifier ranges over source applications satisfying the telescope and
-`where` requirements, excluding target layout limits. Target-dependent routing
+`requires` requirements, excluding target layout limits. Target-dependent routing
 or admissions may qualify the row, but symbolic coverage proves only routing
 and dispatch, not calling policy, byte layout, register classes, or stack
 placement. Bodyless, external, opaque, intrinsic, and separately supplied

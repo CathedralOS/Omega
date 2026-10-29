@@ -122,7 +122,7 @@ impl Default for CheckedStateNaturalRank {
             parameter: SymbolHandle::invalid(),
             parameter_position: 0,
             measure: CheckedNaturalRankMeasure::SequenceLength {
-                subject: typed_trees::expression::ExpressionHandle::invalid(),
+                coordinate: crate::CheckedRankCoordinateHandle::invalid(),
             },
             observation: crate::CheckedScalarComputationHandle::invalid(),
         }
@@ -140,14 +140,19 @@ pub enum CheckedNaturalRankMeasure {
         measure: SymbolHandle,
         primitive_type: PrimitiveType,
     },
-    /// `Slice::Length`: exact source subject identity; its element or byte
-    /// count and arrival projection live in the shared computation root.
+    /// `Slice::Length`: exact admitted arrival coordinate. Private participants
+    /// need no fabricated source occurrence to read their descriptor extent.
     SequenceLength {
-        subject: typed_trees::expression::ExpressionHandle,
+        coordinate: crate::CheckedRankCoordinateHandle,
     },
-    /// `Nat::Descending`: the fixed-width integer subject itself, signed or
-    /// unsigned. The checker proves it descends on every cyclic edge.
-    IntegerParameter { primitive_type: PrimitiveType },
+    /// `Nat::Descending`: the exact formal-relative integer coordinate,
+    /// including a projected field. Admission owns formation and edge proofs;
+    /// executable observation must consume this coordinate, never a guessed
+    /// whole-formal slot.
+    IntegerValue {
+        coordinate: crate::CheckedRankCoordinateHandle,
+        primitive_type: PrimitiveType,
+    },
     /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
     /// distance from the climbing lower subject (`parameter`) up to `upper`.
     /// The cursor uses `primitive_type`; the bound is an admitted expression
@@ -211,7 +216,12 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// completion captures its records through it, and a structural return
     /// completes at its last statement.
     pub statement_count: u32,
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    /// Exact source exit selected before destination planning by a closed static
+    /// dispatch. Canonical flow and cleanup evidence retain every source arm;
+    /// executable cleanup and result custody consume only this coordinate.
+    /// None preserves the ordinary runtime control alternatives.
+    pub selected_exit: Option<crate::FlowClaimJoinExit>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

@@ -96,153 +96,161 @@ pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     }
     encode_len(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {
-        crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
-        row.origin.encode_identity(bytes);
-        crate::codec_bytes::push_encoded(bytes, row.place.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, row.byte_offset.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, row.byte_count.to_le_bytes());
-        match row.role {
-            SelectedMemoryAccessRole::ReadByteSpan {
-                length,
-                obligation,
-                accepted_fact,
+        encode_memory_access(bytes, row);
+    }
+}
+
+/// One memory-access row: the instruction and origin that produced it, the
+/// place it addresses, and the role-specific payload that distinguishes the
+/// access. The plan identity and the recovery codec publish the same row, so
+/// its spelling lives beside the type it reads.
+pub fn encode_memory_access(bytes: &mut Vec<u8>, row: &crate::SelectedMemoryAccess) {
+    crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
+    row.origin.encode_identity(bytes);
+    crate::codec_bytes::push_encoded(bytes, row.place.get().to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, row.byte_offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, row.byte_count.to_le_bytes());
+    match row.role {
+        SelectedMemoryAccessRole::ReadByteSpan {
+            length,
+            obligation,
+            accepted_fact,
+        }
+        | SelectedMemoryAccessRole::WriteByteSpan {
+            length,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(
+                if matches!(row.role, SelectedMemoryAccessRole::ReadByteSpan { .. }) {
+                    8
+                } else {
+                    9
+                },
+            );
+            crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::WriteByteSequence {
+            index,
+            value,
+            length,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(7);
+            for identity in [index.get(), value.get(), length.get(), obligation.get()] {
+                crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
             }
-            | SelectedMemoryAccessRole::WriteByteSpan {
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(
-                    if matches!(row.role, SelectedMemoryAccessRole::ReadByteSpan { .. }) {
-                        8
-                    } else {
-                        9
-                    },
-                );
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteByteSequence {
-                index,
-                value,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(7);
-                for identity in [index.get(), value.get(), length.get(), obligation.get()] {
-                    crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
-                }
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadByteSequence {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(3);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteIndexedPrimitive {
-                index,
-                value,
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::ReadByteSequence {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::WriteIndexedPrimitive {
+            index,
+            value,
+            stride,
+            extent,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(10);
+            encode_indexed(
+                bytes,
+                &[index.get(), value.get(), obligation.get()],
                 stride,
                 extent,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(10);
-                encode_indexed(
-                    bytes,
-                    &[index.get(), value.get(), obligation.get()],
-                    stride,
-                    extent,
-                );
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteIndexedStructural {
-                index,
-                stride,
-                extent,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(13);
-                encode_indexed(bytes, &[index.get(), obligation.get()], stride, extent);
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadIndexedPrimitive {
-                index,
-                stride,
-                extent,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(12);
-                encode_indexed(bytes, &[index.get(), obligation.get()], stride, extent);
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadElementView {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(11);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::WriteElementView {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            } => {
-                bytes.push(14);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-                bytes.extend_from_slice(&accepted_fact.bytes());
-            }
-            SelectedMemoryAccessRole::ReadReturnedView { producer } => {
-                bytes.push(15);
-                crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
-            }
-            SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
-                bytes.push(16);
-                crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
-            }
-            SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
-            SelectedMemoryAccessRole::ReadBacking => bytes.push(18),
-            SelectedMemoryAccessRole::WriteBacking => bytes.push(19),
-            SelectedMemoryAccessRole::ReadLocal { slot: value } => {
-                bytes.push(17);
-                local_slot(bytes, value);
-            }
-            SelectedMemoryAccessRole::WritePlace => bytes.push(6),
-            SelectedMemoryAccessRole::WriteOutgoing { slot: value } => {
-                bytes.push(1);
-                slot(bytes, value);
-            }
-            SelectedMemoryAccessRole::AddressOutgoing { slot: value } => {
-                bytes.push(2);
-                slot(bytes, value);
-            }
-            SelectedMemoryAccessRole::WriteLocal { slot: value } => {
-                bytes.push(4);
-                local_slot(bytes, value);
-            }
-            SelectedMemoryAccessRole::AddressLocal { slot: value } => {
-                bytes.push(5);
-                local_slot(bytes, value);
-            }
+            );
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::WriteIndexedStructural {
+            index,
+            stride,
+            extent,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(13);
+            encode_indexed(bytes, &[index.get(), obligation.get()], stride, extent);
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::ReadIndexedPrimitive {
+            index,
+            stride,
+            extent,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(12);
+            encode_indexed(bytes, &[index.get(), obligation.get()], stride, extent);
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::ReadElementView {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(11);
+            crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::WriteElementView {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        } => {
+            bytes.push(14);
+            crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        SelectedMemoryAccessRole::ReadReturnedView { producer } => {
+            bytes.push(15);
+            crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
+        }
+        SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
+            bytes.push(16);
+            crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
+        }
+        SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
+        SelectedMemoryAccessRole::ReadBacking => bytes.push(18),
+        SelectedMemoryAccessRole::WriteBacking => bytes.push(19),
+        SelectedMemoryAccessRole::ReadLocal { slot: value } => {
+            bytes.push(17);
+            local_slot(bytes, value);
+        }
+        SelectedMemoryAccessRole::WritePlace => bytes.push(6),
+        SelectedMemoryAccessRole::WriteOutgoing { slot: value } => {
+            bytes.push(1);
+            slot(bytes, value);
+        }
+        SelectedMemoryAccessRole::AddressOutgoing { slot: value } => {
+            bytes.push(2);
+            slot(bytes, value);
+        }
+        SelectedMemoryAccessRole::WriteLocal { slot: value } => {
+            bytes.push(4);
+            local_slot(bytes, value);
+        }
+        SelectedMemoryAccessRole::AddressLocal { slot: value } => {
+            bytes.push(5);
+            local_slot(bytes, value);
         }
     }
 }

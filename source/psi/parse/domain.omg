@@ -13,7 +13,8 @@ use psi::tokens::tokens;
 // a bracketed array or slice type, retained as a type reference; the index
 // arguments share the static argument grammar. The tail is a transparent
 // alias `= Path {& Path};`, or `[requires facts] [established by Path {,
-// Path}]` closed by `;` or by an empty body `{ }`. The item and its root are
+// Path}]` closed by `;`. Domain bodies, including empty braces, are retired.
+// The item and its root are
 // retained at its last token.
 public machine Parser::parse_domain(
     parser: &mut Parser,
@@ -260,30 +261,13 @@ crashes Trap
         let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition semicolon {
             true -> closed(parser, input)
-            _ -> body(parser, input)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDomainEnd)
         }
     }
 
     machine closed(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         transition { _ -> retain_capacity(parser, input, false) }
-    }
-
-    machine body(parser: &mut Parser, input: &TokenStream) {
-        let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
-        transition braced {
-            true -> body_open(parser, input)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDomainEnd)
-        }
-    }
-
-    machine body_open(parser: &mut Parser, input: &TokenStream) {
-        Parser::take_current(parser, input);
-        Parser::expect_punctuation(parser, input, PunctuationKind::RightBrace, ParseDiagnosticCode::ExpectedDomainBodyEnd);
-        transition parser.output.accepted {
-            true -> retain_capacity(parser, input, false)
-            _ -> done()
-        }
     }
 
     machine retain_capacity(parser: &mut Parser, input: &TokenStream, is_alias: bool) {

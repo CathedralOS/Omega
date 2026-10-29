@@ -29,12 +29,23 @@ impl CurrentScalarValues<'_> {
                     super::fixed_length(self.program, reference, || format!("{identity}:length"))
                 {
                     if !path.is_empty() {
+                        let coordinate = path
+                            .iter()
+                            .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                            .collect::<Vec<_>>();
+                        let Some(name) = validation::frame_length_coordinate_path(
+                            self.program,
+                            parameter.symbol,
+                            &coordinate,
+                        ) else {
+                            continue;
+                        };
                         self.lengths.push(super::Length {
                             subject: super::LengthSubject::Field {
                                 owner: parameter.symbol,
                                 path,
                             },
-                            name: String::new(),
+                            name,
                             stable: false,
                             type_reference: reference,
                             value: Some(value),
@@ -91,14 +102,6 @@ impl CurrentScalarValues<'_> {
                 }
             }
         }
-    }
-
-    pub(crate) fn application_value(
-        &self,
-        expression: ExpressionHandle,
-        arguments: &[(SymbolHandle, Option<ExpressionHandle>)],
-    ) -> Option<ScopedArithmeticExpression> {
-        self.application_value_with_captured(expression, arguments, &[])
     }
 
     pub(crate) fn application_value_with_captured(

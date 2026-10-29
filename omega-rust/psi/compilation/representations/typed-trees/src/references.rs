@@ -138,6 +138,12 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
     fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
+    /// An application reached from a real call or retained source owner.
+    fn static_application(
+        &mut self,
+        _: crate::static_applications::StaticMachineApplicationHandle,
+    ) {
+    }
     /// Source scope is declaration custody, not permission to execute its body.
     fn declaration_description_dependency(&mut self, _: SymbolHandle) {}
     /// Exact member body retained for a materialized target layout, distinct
@@ -833,6 +839,53 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     }
 }
 
+/// Materialized Product recipes are original source inputs. Their exact
+/// supplying scopes and actuals remain obligations after const folding; their
+/// declaration roots describe choices and do not create executable realizers.
+pub fn visit_product_operand_inputs(
+    program: &TypedTrees,
+    roots: &mut impl TypedReferences,
+    owner: SymbolHandle,
+) {
+    let pending = program
+        .product_operand_applications
+        .iter()
+        .filter_map(|(handle, application)| {
+            let source = program
+                .expression_table
+                .static_machine_application(application.supplying_application);
+            (source.lexical_owner == owner).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        return;
+    }
+    let live = program.live_product_operand_applications();
+    for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
+        let application = program.product_operand_applications.get(handle);
+        let source = program
+            .expression_table
+            .static_machine_application(application.supplying_application);
+        roots.enter_lexical_scope(source.lexical_owner);
+        roots.declaration_description_dependency(application.declaration);
+        for selection in program
+            .product_input_selections
+            .span_or_empty(application.input_selections)
+        {
+            if let Some(occurrence) = selection.occurrence {
+                roots.authored_selection(occurrence);
+            }
+        }
+        if let Some(arguments) = &application.argument.application {
+            for argument in arguments.arguments.iter() {
+                visit_static_argument(program, roots, argument);
+            }
+        }
+        application.scope.visit_references(program, roots);
+        roots.leave_lexical_scope();
+    }
+}
+
 pub fn collect_expression_source_owners(
     program: &TypedTrees,
     expression_sources: &[source::SourceSpan],
@@ -1145,6 +1198,9 @@ pub fn visit_static_argument(
         for nested in application.arguments.iter() {
             visit_static_argument(program, retained, nested);
         }
+        if let Some(member) = program.expression_table.static_member(application.member) {
+            visit_static_argument(program, retained, member);
+        }
     }
 }
 
@@ -1168,6 +1224,18 @@ fn visit_static_machine_bindings_inner(
 ) {
     if !application.is_valid() || !visited.insert(application) {
         return;
+    }
+    retained.static_application(application);
+    let source = program
+        .expression_table
+        .static_machine_application(application);
+    for selection in program
+        .product_input_selections
+        .span_or_empty(source.input_selections)
+    {
+        if let Some(occurrence) = selection.occurrence {
+            retained.authored_selection(occurrence);
+        }
     }
     if let Some(selection) = &program
         .expression_table
@@ -1284,6 +1352,7 @@ fn visit_declaration_dependencies(
     owner: SymbolHandle,
 ) {
     visit_constant_evaluation_entries(program, retained, owner);
+    visit_product_operand_inputs(program, retained, owner);
     if program.trait_implementation_applications.is_empty() {
         return;
     }

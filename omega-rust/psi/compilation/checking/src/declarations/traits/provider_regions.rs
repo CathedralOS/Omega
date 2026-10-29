@@ -41,8 +41,61 @@ pub fn provider_region_correspondence(
         return None;
     }
     let root = AppliedTraitScope::from_conformance(program.typed_program(), provider)?;
+    provider_region_correspondence_in_scope(
+        program,
+        provider,
+        receiver,
+        root,
+        vec![None; provider.lifetime_parameters.len()],
+    )
+}
+
+/// A captured implementation already supplies every own static and regional
+/// actual. They remain rigid while composing its inherited receiver view.
+pub fn closed_provider_region_correspondence(
+    program: &dyn crate::CheckingInput,
+    provider: &Conformance,
+    receiver: &AppliedTraitScope<'_>,
+    capture: &typed_trees::typed_trees::CapturedMachineApplication,
+) -> Option<ProviderRegionCorrespondence> {
+    if capture.conformance_application.declaration != provider.symbol
+        || capture.conformance_application.lifetime_arguments.len()
+            != provider.lifetime_parameters.len()
+    {
+        return None;
+    }
+    let source = program
+        .expression_table
+        .static_machine_application(capture.supplying_application);
+    let regions = capture
+        .conformance_application
+        .lifetime_arguments
+        .iter()
+        .map(|name| {
+            typed_trees::type_identity::lifetime_parameter_identity(
+                program.typed_program(),
+                source.lexical_owner,
+                name,
+            )
+            .map(Some)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let scope = capture
+        .conformance_application
+        .trait_scope
+        .scope(program.typed_program())?;
+    provider_region_correspondence_in_scope(program, provider, receiver, scope, regions)
+}
+
+fn provider_region_correspondence_in_scope(
+    program: &dyn crate::CheckingInput,
+    provider: &Conformance,
+    receiver: &AppliedTraitScope<'_>,
+    root: AppliedTraitScope<'_>,
+    initial_regions: Vec<Option<LifetimeParameterIdentity>>,
+) -> Option<ProviderRegionCorrespondence> {
     let supplied = root.declaring_scope(program.typed_program(), receiver.declaration.symbol)?;
-    let mut applications = vec![vec![None; provider.lifetime_parameters.len()]];
+    let mut applications = vec![initial_regions];
     let matched = supplied.with_identity_scopes(program.typed_program(), |supplied_scopes| {
         receiver.with_identity_scopes(program.typed_program(), |receiving_scopes| {
             let supplied_environment = ApplicationRegions::new(&supplied, supplied_scopes);

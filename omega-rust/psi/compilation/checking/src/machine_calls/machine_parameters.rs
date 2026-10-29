@@ -20,7 +20,7 @@ pub use closed_types::closed_static_call_type_bindings;
 pub(crate) mod contract_facts;
 mod nominal_admission;
 mod type_refinement;
-pub(super) use type_refinement::infer_call_type_arguments;
+pub use type_refinement::infer_call_type_arguments;
 
 use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;
@@ -122,11 +122,13 @@ pub struct ValidatedRequirementCallSpecialization {
     pub machine_selections: Vec<ValidatedRequirementCallMachineSelection>,
 }
 
-/// The complete static-machine selection evidence one validation pass
-/// retained: nominal satisfaction rows plus the specializations generic
-/// calls derived at their `machine` arguments.
+/// Static-machine shape and operational evidence prepared by validation.
+/// Inferred private crash contracts are unavailable at that boundary. Their
+/// exact obligations survive until the completed checked crash catalog exists;
+/// checked-fact publication, not this carrier, establishes full admission.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ValidatedStaticMachineSelections {
+pub struct PreparedStaticMachineSelections {
+    pub crash_refinements: Vec<StaticMachineContractObligation>,
     /// ENT4: exact nominal satisfaction selected for each admitted static
     /// machine argument.
     pub nominal_uses: Vec<ValidatedNominalMachineUse>,
@@ -139,17 +141,60 @@ pub struct ValidatedStaticMachineSelections {
 /// selections until concrete effect obligations have also been discharged.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct FormedStaticMachineSelections {
-    rows: ValidatedStaticMachineSelections,
-    pending_effects: Vec<StaticMachineEffectObligation>,
+    rows: PreparedStaticMachineSelections,
+    pending_effects: Vec<StaticMachineContractObligation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct StaticMachineEffectObligation {
+pub struct StaticMachineContractObligation {
     /// Exact substituted binder row, not its source symbol shared by other
     /// closed requirement applications with different outer contracts.
     parameter: arena::Handle<TypeParameter>,
     selected: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ordinal: usize,
+    original_selected: SymbolHandle,
     label: String,
+}
+
+impl StaticMachineContractObligation {
+    pub fn selected_entry(&self) -> SymbolHandle {
+        self.selected
+    }
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Rejoin the exact applied requirement, never another view sharing its
+    /// original declaration symbol. Both formation and late crash admission
+    /// consume this occurrence/substitution tuple in the same frozen program.
+    pub fn required_signature<'p>(
+        &self,
+        program: &'p dyn crate::CheckingInput,
+    ) -> Result<&'p typed_trees::signature::StateSignature, &'static str> {
+        let parameter = program.data_type_parameters.get(self.parameter);
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            return Err("the selected callable lost its machine binder");
+        };
+        let required = machine_parameter_signature(program, contract);
+        if let Some(applied) = program.applied_machine_callable(
+            self.application,
+            self.ordinal,
+            self.original_selected,
+            parameter.symbol,
+            required,
+        ) {
+            return Ok(applied.required);
+        }
+        if program.has_applied_machine_selection(
+            self.application,
+            self.ordinal,
+            self.original_selected,
+        ) {
+            return Err("the selected callable lost its exact applied requirement");
+        }
+        Ok(required)
+    }
 }
 
 fn project_operational_rows(
@@ -294,13 +339,13 @@ pub(crate) fn admit_static_machine_effects(
     program: &dyn crate::CheckingInput,
     operational: &flow_effects::OperationalPlan,
     formed: FormedStaticMachineSelections,
-) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
+) -> Result<PreparedStaticMachineSelections, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let service_reaches = crate::infer_service_reaches(program, operational);
     let invocations = crate::infer_synchronous_invocations(program);
     let (suspensions, blockings) = project_operational_rows(operational);
     let index = machine_state_index(program);
-    for obligation in formed.pending_effects {
+    for obligation in &formed.pending_effects {
         let parameter = program.data_type_parameters.get(obligation.parameter);
         let TypeParameterKind::Machine { contract } = &parameter.kind else {
             unreachable!("formed machine selection has a machine binder")
@@ -323,7 +368,9 @@ pub(crate) fn admit_static_machine_effects(
         );
     }
     if diagnostics.is_empty() {
-        Ok(formed.rows)
+        let mut prepared = formed.rows;
+        prepared.crash_refinements = formed.pending_effects;
+        Ok(prepared)
     } else {
         Err(diagnostics)
     }
@@ -331,7 +378,7 @@ pub(crate) fn admit_static_machine_effects(
 
 pub fn validate_static_machine_selections(
     program: &dyn crate::CheckingInput,
-) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
+) -> Result<PreparedStaticMachineSelections, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let selections = form_static_machine_selections(program, &mut diagnostics);
     if diagnostics.is_empty() {
@@ -548,9 +595,22 @@ fn form_call_selection(
             (requirements, generic_types, invocation_type_count)
         } else {
             if !arguments.is_empty() {
+                let source_span = match site {
+                    ValidatedNominalMachineUseSite::Expression(handle) => {
+                        program.expression_table.source_span(handle)
+                    }
+                    ValidatedNominalMachineUseSite::Statement(handle) => {
+                        program
+                            .statement_table
+                            .statement(handle)
+                            .as_call()
+                            .expect("validated call site")
+                            .source_span
+                    }
+                };
                 diagnostics.push(Diagnostic::error(format!(
                     "call `{target_name}` supplies static machine arguments, but its generic callee did not resolve"
-                )));
+                )).with_source_span(source_span));
             }
             return;
         };
@@ -725,7 +785,7 @@ fn form_call_selection(
         if let Some((machine, _)) = machine_and_state(program, index, selected.symbol) {
             selections
                 .pending_effects
-                .push(StaticMachineEffectObligation {
+                .push(StaticMachineContractObligation {
                     parameter: program
                         .data_type_parameters
                         .iter()
@@ -734,6 +794,9 @@ fn form_call_selection(
                         })
                         .expect("formed contract binder belongs to the typed parameter arena"),
                     selected: selection_symbol,
+                    application,
+                    ordinal: static_machine_ordinal,
+                    original_selected: selected.symbol,
                     label: format!("machine argument `{}` for `{target_name}`", machine.name),
                 });
         }

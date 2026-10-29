@@ -1,0 +1,41 @@
+// Expected exit: 0.
+// Visible typed operators cannot select a carrier for anonymous comparisons.
+use omega::language::core::float_operations;
+
+machine main() crashes Trap {
+    transition 0 == 0 {
+        true -> unequal()
+        false -> wrong()
+    }
+
+    machine unequal() crashes Trap {
+        transition 1 == 0 {
+            true -> wrong()
+            false -> fraction()
+        }
+    }
+
+    machine fraction() crashes Trap {
+        transition 1 / 2 > 0 {
+            true -> negative()
+            false -> wrong()
+        }
+    }
+
+    machine negative() crashes Trap {
+        transition 2 / 3 >= 1 {
+            true -> wrong()
+            false -> typed(0u64, 1u64)
+        }
+    }
+
+    machine typed(left: u64, right: u64) crashes Trap {
+        transition left == right {
+            true -> wrong()
+            false -> done()
+        }
+    }
+
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

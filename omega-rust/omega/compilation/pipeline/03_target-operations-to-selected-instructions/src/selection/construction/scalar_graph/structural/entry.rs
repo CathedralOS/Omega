@@ -287,29 +287,7 @@ fn retain_owned_home(
                 selected_instructions::SelectedMemoryAccessRole::ReadPlace,
             )?;
             super::super::aggregate_memory::load(builder, incoming, value, displacement, width)?;
-            let (destination, displacement) = super::displaced_memory_pointer(
-                builder,
-                place,
-                pointer,
-                offset,
-                width,
-                Default::default(),
-            )?;
-            super::super::structural_case::memory(
-                builder,
-                source.entry_block,
-                place,
-                offset,
-                width,
-                selected_instructions::SelectedMemoryAccessRole::WritePlace,
-            )?;
-            super::super::aggregate_memory::store(
-                builder,
-                destination,
-                value,
-                displacement,
-                width,
-            )?;
+            store_home_range(builder, source, place, pointer, offset, width, value)?;
             offset = offset.checked_add(width).ok_or_else(invalid)?;
         }
         builder.transport.pointers.push((place, pointer));
@@ -331,24 +309,32 @@ fn retain_owned_home(
             .find(|(stored, byte_offset, _)| *stored == place && *byte_offset == offset)
             .map(|(_, _, value)| *value)
             .ok_or_else(|| invalid())?;
-        let (pointer, displacement) = super::displaced_memory_pointer(
-            builder,
-            place,
-            pointer,
-            offset,
-            width,
-            Default::default(),
-        )?;
-        super::super::structural_case::memory(
-            builder,
-            source.entry_block,
-            place,
-            offset,
-            width,
-            selected_instructions::SelectedMemoryAccessRole::WritePlace,
-        )?;
-        super::super::aggregate_memory::store(builder, pointer, value, displacement, width)?;
+        store_home_range(builder, source, place, pointer, offset, width, value)?;
     }
     builder.transport.pointers.push((place, pointer));
     Ok(())
+}
+
+/// Write one range of the parameter's private home and record the access, so
+/// both an incoming pointer and an incoming fragment reach the same storage.
+fn store_home_range(
+    builder: &mut Builder<'_>,
+    source: &LegalizedScalarFunction,
+    place: semantic_vocabulary::PlaceId,
+    home: VirtualRegisterId,
+    offset: u32,
+    width: u32,
+    value: VirtualRegisterId,
+) -> Result<(), SelectedInstructionError> {
+    let (destination, displacement) =
+        super::displaced_memory_pointer(builder, place, home, offset, width, Default::default())?;
+    super::super::structural_case::memory(
+        builder,
+        source.entry_block,
+        place,
+        offset,
+        width,
+        selected_instructions::SelectedMemoryAccessRole::WritePlace,
+    )?;
+    super::super::aggregate_memory::store(builder, destination, value, displacement, width)
 }

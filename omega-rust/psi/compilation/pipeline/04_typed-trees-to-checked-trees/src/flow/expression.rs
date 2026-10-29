@@ -44,6 +44,7 @@ mod live_memberships;
 mod primitive_reads;
 mod reference_projection;
 mod result_facts;
+mod result_memberships;
 mod returned_descriptors;
 mod returned_regions;
 mod selected_call_stores;
@@ -73,6 +74,7 @@ struct EvaluatedOperand {
 
 #[derive(Clone, Copy, Default)]
 struct CompletedValue {
+    invocation: Handle<checked_trees::FlowCallFact>,
     boolean_completion: Handle<boolean_completions::BooleanCompletions>,
     /// Exact source payload read associated with this completion.
     case_access: Handle<checked_trees::FlowCaseAccessFact>,
@@ -104,6 +106,7 @@ struct InvocationInputs<'evaluated> {
 
 #[derive(Default)]
 struct CompletedInvocation {
+    call: Handle<checked_trees::FlowCallFact>,
     stores: Vec<stored_call_values::CallStore>,
     operands: HandleSpan<checked_trees::FlowOperandFact>,
 }
@@ -635,11 +638,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         call.exit_semantic_contexts = *contexts;
         call.exit_constraints = *constraints;
         let operands = call.operands;
-        self.context
+        let call = self
+            .context
             .control
             .calls
             .append_to_span(self.state_calls, call);
-        CompletedInvocation { stores, operands }
+        CompletedInvocation {
+            call,
+            stores,
+            operands,
+        }
     }
 
     pub(super) fn expression(
@@ -672,7 +680,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             constraints,
             &mut completed,
         );
-        self.append_result_facts(expression, contexts, constraints);
+        // Borrowed invocation guarantees observe live backing. Publish them
+        // with the completed descriptor below, after its footprint is captured.
+        if !completed.invocation.is_valid() || !self.operand_is_view(expression) {
+            self.append_result_facts(expression, contexts, constraints);
+        }
         (value, completed)
     }
 
@@ -830,6 +842,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .unwrap_or_default()
         };
+        self.append_invocation_memberships(
+            completed.invocation,
+            &mut capture,
+            contexts,
+            constraints,
+        );
         let carries_borrows = !binds_view
             && validation::borrow_contracts::is_borrow_carrying_data(
                 self.program,
@@ -1363,7 +1381,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     operand_span = control.operands
                         .insert_many(captured_operands.iter().copied());
                 }
-                control.operator_invocations.append(
+                control.operator_invocations.append_to_span(
+                    &mut control.statements.get_mut(self.statement_fact).operator_invocations,
                     checked_trees::FlowOperatorInvocationFact {
                         operator_use,
                         named_use: arena::Handle::invalid(),
@@ -1453,7 +1472,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .control
                 .operands
                 .insert_many(bound.iter().copied());
-            self.context.control.operator_invocations.append(
+            self.context.control.operator_invocations.append_to_span(
+                &mut self
+                    .context
+                    .control
+                    .statements
+                    .get_mut(self.statement_fact)
+                    .operator_invocations,
                 checked_trees::FlowOperatorInvocationFact {
                     operator_use: arena::Handle::invalid(),
                     named_use,
@@ -1473,6 +1498,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         completed: &mut CompletedValue,
     ) -> Option<bool> {
         let CompletedValue {
+            invocation,
             boolean_completion,
             case_access,
             formed_type,
@@ -1719,6 +1745,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     contexts,
                     constraints,
                 );
+                *invocation = completed.call;
                 // Share the invocation's exact captured operands. Cloning
                 // them would manufacture second evaluation occurrences and
                 // make retained-loan correspondence ambiguous.

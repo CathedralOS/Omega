@@ -90,6 +90,12 @@ pub enum LegalizationError {
         operation: Option<semantic_vocabulary::OperationId>,
         site: optimization_core::CompilerCheckSite,
     },
+    /// Preserve the failed descriptor origin reconstruction boundary.
+    DescriptorCallOrigins {
+        machine: semantic_vocabulary::MachineId,
+        result: semantic_vocabulary::PlaceId,
+        reason: &'static str,
+    },
     /// A current reference read failed its exact observation/resident join.
     /// This adds context to an unchanged custody refusal; storage geometry
     /// never substitutes for the missing permission occurrence.

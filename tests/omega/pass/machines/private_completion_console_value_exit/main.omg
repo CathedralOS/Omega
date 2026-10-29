@@ -1,0 +1,12 @@
+// Expected exit: 0
+use omega_language_std::console;
+machine consume() -> i32 reaches Console invokes Console; blocks; crashes Trap {
+ let input: ByteRead = block Console::read_byte();
+ transition input { ByteRead::Byte { value } -> found(value) ByteRead::Eof -> 0 }
+ machine found(value: i32) -> i32 { value }
+}
+machine main() reaches Console invokes Console; blocks; crashes Trap {
+ let result: i32 = block consume();
+ transition result == 0 { true -> {} false -> bad() }
+ machine bad() crashes Trap { crash Trap; }
+}

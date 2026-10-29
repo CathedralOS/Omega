@@ -9,51 +9,78 @@ machine verify_prod(value: i64) -> i64
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
-    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine compute_target_body(lhs: i64, rhs: i64) -> i64
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i64, rhs: i64) -> i64
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: i64 in Saturating = lhs as i64 in Saturating;
+        let b: i64 in Saturating = rhs as i64 in Saturating;
+        let sat: i64 in Saturating = a * b;
+        let prod: i64 = sat as i64;
+        verify_prod(prod)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i64, rhs: i64) -> i64
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: i64 in Saturating = lhs as i64 in Saturating;
+        let b: i64 in Saturating = rhs as i64 in Saturating;
+        let sat: i64 in Saturating = a * b;
+        let prod: i64 = sat as i64;
+        verify_prod(prod)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> i64
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let a: i64 in Saturating = lhs as i64 in Saturating;
-    let b: i64 in Saturating = rhs as i64 in Saturating;
-    let sat: i64 in Saturating = a * b;
-    let prod: i64 = sat as i64;
-    verify_prod(prod)
+    SelectedProbe::compute_target_body(15, 8)
 }
 
-linux_arm64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
-    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    let a: i64 in Saturating = lhs as i64 in Saturating;
-    let b: i64 in Saturating = rhs as i64 in Saturating;
-    let sat: i64 in Saturating = a * b;
-    let prod: i64 = sat as i64;
-    verify_prod(prod)
-}
-
-macos_arm64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
-    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
-{
-    let a: i64 in Saturating = lhs as i64 in Saturating;
-    let b: i64 in Saturating = rhs as i64 in Saturating;
-    let sat: i64 in Saturating = a * b;
-    let prod: i64 = sat as i64;
-    verify_prod(prod)
-}
-
-windows_x86_64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
-    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
-{
-    let a: i64 in Saturating = lhs as i64 in Saturating;
-    let b: i64 in Saturating = rhs as i64 in Saturating;
-    let sat: i64 in Saturating = a * b;
-    let prod: i64 = sat as i64;
-    verify_prod(prod)
-}
-
-machine evaluate() -> i64 {
-    compute_target_body(15, 8)
-}
-
-machine main() crashes Trap {
     let res: i64 = evaluate();
     transition res == 150 {
         true -> done()
@@ -61,4 +88,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

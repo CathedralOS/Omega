@@ -152,9 +152,7 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         if let Some(prepared) = self.prepared_index() {
             prepared
                 .exact_indices
-                .binary_search_by(|&idx| {
-                    self.engine.bounds[idx as usize].0.terms.cmp(&value.terms)
-                })
+                .binary_search_by(|&idx| self.engine.bounds[idx as usize].0.terms.cmp(&value.terms))
                 .is_ok_and(|position| {
                     &self.engine.bounds[prepared.exact_indices[position] as usize].1 >= bound
                 })
