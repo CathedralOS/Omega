@@ -2,9 +2,9 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintCatalog,
-    RegisterConstraintFamily, RegisterInstructionConstraint, RegisterReservationProfile,
-    RegisterUnitId, RegisterUnitKind, RegisterWriteSemantics, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+    RegisterInstructionConstraint, RegisterReservationProfile, RegisterUnitId, RegisterUnitKind,
+    RegisterWriteSemantics, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile, encode_constraint_key,
 };
 
 pub(crate) const IDENTITY_WIDTH: usize = 32;
@@ -118,7 +118,7 @@ pub(crate) fn register_constraint_catalog_identity(
     architecture(&mut bytes, catalog.architecture);
     length(&mut bytes, catalog.required.len());
     for key in &catalog.required {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     length(&mut bytes, catalog.constraints.len());
     for constraint in &catalog.constraints {
@@ -241,15 +241,15 @@ pub fn target_register_environment_identity(
     }
     u64_value(&mut bytes, selected_keys.call_unit.len() as u64);
     for key in &selected_keys.call_unit {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     u64_value(&mut bytes, selected_keys.call_scalar.len() as u64);
     u64_value(&mut bytes, selected_keys.call_unit_mixed.len() as u64);
     for key in &selected_keys.call_unit_mixed {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     for key in &selected_keys.call_scalar {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, *key);
     }
     for keys in [
         &selected_keys.call_aggregate,
@@ -258,7 +258,7 @@ pub fn target_register_environment_identity(
     ] {
         u64_value(&mut bytes, keys.len() as u64);
         for key in keys {
-            constraint_key(&mut bytes, key.family, key.variant);
+            encode_constraint_key(&mut bytes, *key);
         }
     }
     for key in [
@@ -295,12 +295,12 @@ pub fn target_register_environment_identity(
         selected_keys.trapping_shift,
         selected_keys.trapping_convert,
     ] {
-        constraint_key(&mut bytes, key.family, key.variant);
+        encode_constraint_key(&mut bytes, key);
     }
     if !selected_keys.return_float.is_empty() {
         u64_value(&mut bytes, selected_keys.return_float.len() as u64);
         for key in &selected_keys.return_float {
-            constraint_key(&mut bytes, key.family, key.variant);
+            encode_constraint_key(&mut bytes, *key);
         }
     }
     TargetRegisterEnvironmentIdentity::from_canonical_bytes(&bytes)
@@ -338,7 +338,7 @@ fn preservation_convention(bytes: &mut Vec<u8>, convention: &PreservationConvent
 
 fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionConstraint) {
     u16_value(bytes, constraint.id.0);
-    constraint_key(bytes, constraint.key.family, constraint.key.variant);
+    encode_constraint_key(bytes, constraint.key);
     length(bytes, constraint.operands.len());
     for operand in &constraint.operands {
         u16_value(bytes, operand.operand);
@@ -353,17 +353,12 @@ fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionC
     unit_ids(bytes, &constraint.clobbers);
 }
 
-fn constraint_key(bytes: &mut Vec<u8>, family: RegisterConstraintFamily, variant: u32) {
-    byte(bytes, family.tag());
-    crate::codec_bytes::push_encoded(bytes, variant.to_le_bytes());
-}
-
 fn optional_constraint_key(bytes: &mut Vec<u8>, key: Option<crate::RegisterConstraintKey>) {
     match key {
         None => byte(bytes, 0),
         Some(key) => {
             byte(bytes, 1);
-            constraint_key(bytes, key.family, key.variant);
+            encode_constraint_key(bytes, key);
         }
     }
 }

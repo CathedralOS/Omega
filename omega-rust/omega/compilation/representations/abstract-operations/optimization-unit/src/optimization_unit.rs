@@ -254,11 +254,12 @@ impl PsiOptimizationUnit {
     }
 }
 pub use structural_places::{
-    DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position, admit_field_node,
+    DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position,
     argument_rewrites_place, bound_place, bound_value, declared_structural_type, dominators,
-    established_case_at, field_evidence, function_analysis, integer_comparison_condition,
-    observed_field_declaration, operation_result_placement, proof_basis,
-    reachable_blocks_after_conditional_fold, resolved_sole_case, root_producer,
+    established_case_at, field_evidence, field_value_accounting, field_value_reads,
+    function_analysis, integer_comparison_condition, observed_field_declaration,
+    operation_result_placement, proof_basis, reachable_blocks_after_conditional_fold,
+    receiver_custody_distinct, resolved_sole_case, retirable_scalar_node, root_producer,
     scalar_value_definition, shape, sole_case_at_path, structural_child,
 };
 

@@ -195,6 +195,7 @@ pub(in crate::encoding::recovery) fn expression(
             25 => Expression::BuiltinTypeMember(super::tag!(reader => {
                 0 => symbols::BuiltinTypeMember::AddressBound,
             })),
+            26 => Expression::TypeEquality { left: type_identity(reader)?, right: type_identity(reader)?, negated: reader.boolean()? },
         }))
     })
 }

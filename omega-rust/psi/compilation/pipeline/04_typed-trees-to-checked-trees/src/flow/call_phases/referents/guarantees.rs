@@ -15,6 +15,12 @@ pub(super) struct ReturnedGuarantee {
     pub place: CanonicalPlace,
     pub domain: SymbolHandle,
     pub identity: SemanticDomainId,
+    /// The callee's checked normal return independently proves this row:
+    /// declared child obligations and authored ensures hold on every exit of
+    /// a callable callee. `false` marks the referent's own declared root
+    /// constraints, which no callee exit re-proves; they restore a caller row
+    /// only under a write region covering that row's exact place.
+    pub proven_at_exit: bool,
 }
 
 pub(super) struct PreparedGuarantees {
@@ -74,6 +80,9 @@ impl PreparedGuarantees {
     /// The caller has independently established the concrete fact's static
     /// identity and this writer's overlap/confinement. Match only that formal,
     /// domain instance and occurrence; a guarantee on another writer is inert.
+    /// A row no callee exit proves additionally requires `write_region` to
+    /// cover the concrete place: a checked whole write re-established the
+    /// constraint, while a deeper element write could still violate it.
     pub fn restores(
         &self,
         program: &dyn validation::CheckingInput,
@@ -81,9 +90,16 @@ impl PreparedGuarantees {
         concrete: &CanonicalPlace,
         domain: SymbolHandle,
         identity: SemanticDomainId,
+        write_region: Option<&CanonicalPlace>,
     ) -> bool {
         let matches_contract = |row: &ReturnedGuarantee| {
-            parameter == Some(row.parameter) && domain == row.domain && identity == row.identity
+            parameter == Some(row.parameter)
+                && domain == row.domain
+                && identity == row.identity
+                && (row.proven_at_exit
+                    || write_region.is_some_and(|region| {
+                        same_occurrence_covered(program, region, concrete)
+                    }))
         };
         let key = facts::places::place_bucket_hash(concrete.root, &concrete.segments);
         self.exact_positions.candidates(key).any(|position| {
@@ -109,12 +125,36 @@ fn same_occurrence_when_selected(
             .segments
             .iter()
             .zip(&selected.segments)
-            .all(|(left, right)| match (*left, *right) {
-                (PlaceSegment::FixedIndex { .. }, PlaceSegment::Index { expression }) => {
-                    expression.is_valid()
-                        && program.expression_table.range_node(expression).is_none()
-                }
-                _ => crate::flow::static_place_segment_pair_equal(*left, *right)
-                    .unwrap_or(*left == *right),
-            })
+            .all(|(left, right)| same_occurrence_segment(program, *left, *right))
+}
+
+/// A write region covers a concrete fact place when every leading segment of
+/// the region selects that fact's coordinates: an unresolved index covers
+/// whichever element it denotes, and a shorter region covers everything below.
+fn same_occurrence_covered(
+    program: &dyn validation::CheckingInput,
+    region: &CanonicalPlace,
+    concrete: &CanonicalPlace,
+) -> bool {
+    region.root == concrete.root
+        && region.segments.len() <= concrete.segments.len()
+        && region
+            .segments
+            .iter()
+            .zip(&concrete.segments)
+            .all(|(region, concrete)| same_occurrence_segment(program, *concrete, *region))
+}
+
+fn same_occurrence_segment(
+    program: &dyn validation::CheckingInput,
+    concrete: PlaceSegment,
+    selected: PlaceSegment,
+) -> bool {
+    match (concrete, selected) {
+        (PlaceSegment::FixedIndex { .. }, PlaceSegment::Index { expression }) => {
+            expression.is_valid() && program.expression_table.range_node(expression).is_none()
+        }
+        _ => crate::flow::static_place_segment_pair_equal(concrete, selected)
+            .unwrap_or(concrete == selected),
+    }
 }

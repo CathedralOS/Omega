@@ -385,13 +385,11 @@ impl OperationFrame<'_, '_> {
         let id = self.operations.allocate();
         let (returned, declaration) =
             self.prepare_structural_call_result(identities, call, shape, id)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
+        self.operations.push(Operation::unsuspended(
             id,
-            result: OperationResult::Structural(returned.clone()),
+            OperationResult::Structural(returned.clone()),
             kind,
-        });
+        ));
         // The dense route registers the completed value here; a composed
         // state registers it, with its local, when publishing.
         if matches!(self.results, StructuralResults::Dense(_)) {
@@ -689,6 +687,16 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
@@ -707,7 +715,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
@@ -851,6 +859,16 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
@@ -869,7 +887,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,

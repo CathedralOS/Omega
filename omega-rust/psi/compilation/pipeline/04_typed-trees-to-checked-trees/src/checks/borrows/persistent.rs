@@ -1137,6 +1137,7 @@ pub(super) fn is_state_independent_borrow_source(
         | typed_trees::expression::ExpressionNode::Range(_)
         | typed_trees::expression::ExpressionNode::StructLiteral(_)
         | typed_trees::expression::ExpressionNode::Unary(_)
+        | typed_trees::expression::ExpressionNode::TypeExpression(_)
         | typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
     }
 }

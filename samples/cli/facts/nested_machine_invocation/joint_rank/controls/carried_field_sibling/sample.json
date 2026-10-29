@@ -1,0 +1,6 @@
+{
+  "rejection_contains": [
+    "mutates `second.value`",
+    "still active"
+  ]
+}

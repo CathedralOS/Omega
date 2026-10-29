@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 use typed_trees::type_identity::CallableIdentityId;
 use typed_trees::type_identity::TypeIdentityId;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDynamicSlotPlan {
     /// The slot symbol selector calls target.
     pub slot: SymbolHandle,
@@ -44,7 +44,7 @@ pub struct CheckedDynamicSlotPlan {
     pub result_reference_sources: Vec<crate::CheckedReturnedReferencePlan>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDynamicClaimPath {
     pub argument_index: u32,
     pub path: Vec<crate::CheckedUnitStructuralPathSegment>,

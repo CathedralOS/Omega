@@ -662,15 +662,17 @@ pub struct CheckingMemos {
             >,
         >,
     >,
-    /// Declaration-level returned field projections per callee machine symbol.
+    /// Declaration-level returned field projections per callee machine symbol,
+    /// paired with the transitive struct-returning callees consulted.
     pub(crate) returned_field_projections: Mutex<
         symbols::SymbolMap<
-            Arc<
+            Arc<(
                 Vec<(
                     Vec<facts::PlaceSegment>,
                     crate::proof_contracts::contract_entailment::structural_judgment::StructuralTerm,
                 )>,
-            >,
+                Vec<symbols::SymbolHandle>,
+            )>,
         >,
     >,
     pub(crate) declared_float_field_bounds: Mutex<
@@ -679,6 +681,9 @@ pub struct CheckingMemos {
             Vec<crate::DeclaredFloatFieldBound>,
         >,
     >,
+    // Contract-output demand also reads the checked context's authored ceilings;
+    // unlike the typed call inventory, it resets when context is replaced.
+    pub(crate) trapping_receipt_demand: OnceLock<Arc<crate::proof_contracts::arithmetic_domains::TrappingReceiptDemand>>,
     pub(crate) private_arrival_index: OnceLock<
         Arc<
             crate::proof_contracts::contract_entailment::structural_prefix::ProgramPrivateArrivalIndex,
@@ -779,6 +784,7 @@ impl CheckingMemos {
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
             ),
+            trapping_receipt_demand: self.trapping_receipt_demand.clone(),
             private_arrival_index: self.private_arrival_index.clone(),
             private_closed_arrivals: Mutex::new(
                 self.private_closed_arrivals

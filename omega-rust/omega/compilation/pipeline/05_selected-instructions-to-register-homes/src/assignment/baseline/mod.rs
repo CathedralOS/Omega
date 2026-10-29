@@ -31,36 +31,11 @@ use terminal_psi::TerminalPsiIdentity;
 
 use super::PostHomeCustodyReceipt;
 
-pub(crate) fn stage_register_homes_with_assignment(
-    legality: StagedOptimizedAllocationLegality,
-    homes: crate::ValidatedRegisterHomes,
-) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
-    let staged = construction::construct_with_assignment(legality, homes)?;
-    Ok(staged)
-}
-
-/// Post-copy assignment probe the recovery route runs while it still owns the
-/// reanalysis, so residual `NoCompatibleHome` pressure can be answered by
-/// runtime spill instead of failing the fixed-view sequence.
-pub(crate) fn assign_optimized_register_homes_after_fixed_view_copies(
-    reanalysis: &StagedOptimizedSelectedReanalysis,
-) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    construction::assign_optimized_register_homes_after_fixed_view_copies(reanalysis)
-}
-
-pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
-    reanalysis: StagedOptimizedSelectedReanalysis,
-    homes: crate::ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    OptimizedPostCopyRegisterHomeCustodyError,
-> {
-    let staged =
-        construction::construct_optimized_register_homes_after_fixed_view_copies_with_assignment(
-            reanalysis, homes,
-        )?;
-    Ok(staged)
-}
+pub(crate) use construction::{
+    assign_optimized_register_homes_after_fixed_view_copies,
+    stage_register_homes_after_fixed_view_copies_with_assignment,
+    stage_register_homes_with_assignment,
+};
 
 /// Bounded opt-in physical-home staging. This lane admits only legality plans
 /// with at least one shared legal candidate per VReg and no unresolved
@@ -105,19 +80,12 @@ impl StagedOptimizedRegisterHomes {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.legality.legality()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.legality
+    assignment_context_accessors!(
+        legality
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(ref StagedOptimizedRegisterHomes {
         custody: StagedOptimizedRegisterHomeCustodyReceipt,
     });
@@ -212,21 +180,14 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.reanalysis.legality()
     }
-    /// The retained optimized-target proof input, kept as replay evidence;
-    /// downstream custody checks compare the owner handle by identity.
-    pub fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.reanalysis
+    assignment_context_accessors!(
+        reanalysis
             .transformation_stage()
             .source_legality_stage()
             .live_range_stage()
             .liveness_stage()
             .selected_stage()
-            .optimized_target_owner()
-    }
-    assignment_context_accessors!();
+    );
     receipt_accessor_rows!(ref StagedOptimizedRegisterHomesAfterFixedViewCopies {
         custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     });

@@ -220,6 +220,10 @@ pub(crate) fn validate_suffix_landing(
         }
     };
 
+    if program.static_type_context_is_unreachable(value) {
+        return;
+    }
+    let declared = program.statically_refined_type_reference(value, declared);
     let Some(unwrapped) = crate::value_custody::places::unwrapped_type_reference(program, declared)
     else {
         return;
@@ -343,3 +347,6 @@ pub(crate) fn validate_suffix_landings(
         }
     }
 }
+
+mod owned_bytes;
+pub use owned_bytes::land_owned_fixed_byte_literal;

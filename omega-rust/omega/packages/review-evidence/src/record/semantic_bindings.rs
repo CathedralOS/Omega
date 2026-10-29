@@ -1,3 +1,4 @@
+use crate::record::accessors::field_projection_accessors;
 use effects::provider_plan::ServiceSchema;
 use package_compilation::AcceptedSemanticBinding;
 
@@ -29,11 +30,6 @@ impl SemanticBindingReviewCandidate {
         }
     }
 
-    pub const fn binding(&self) -> &AcceptedSemanticBinding {
-        &self.binding
-    }
-
-    pub const fn service_schema(&self) -> &ServiceSchema {
-        &self.service_schema
-    }
+    field_projection_accessors!(borrowed binding: &AcceptedSemanticBinding);
+    field_projection_accessors!(borrowed service_schema: &ServiceSchema);
 }

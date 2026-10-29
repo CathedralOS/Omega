@@ -108,6 +108,16 @@ pub enum LoweringError {
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    /// Crash substitution must identify the exact completed caller home.
+    /// Preserve its namespace and path when the emitting owner is incomplete.
+    MissingCrashArgumentSource {
+        argument: terminal_psi::StructuralArgument,
+    },
+    ConflictingStructuralPlaceType {
+        place: PlaceId,
+        first: semantic_vocabulary::StructuralTypeId,
+        second: semantic_vocabulary::StructuralTypeId,
+    },
     /// Preserve the actual graph entry rather than merging duplicate edge,
     /// argument-frame, and ordered-cleanup failures into one static message.
     InvalidSelectedCleanupEntry(Box<SelectedCleanupEntryMismatch>),

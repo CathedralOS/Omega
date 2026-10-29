@@ -106,6 +106,9 @@ impl Implication<'_> {
                     number(high),
                 ));
             }
+            if let Value::Boolean(Boolean::Variable(value)) = &value {
+                boolean_bounds(&mut path, value);
+            }
             return Some((path, value));
         }
         let value = match value_shape(self.program, field_type)? {
@@ -116,7 +119,7 @@ impl Implication<'_> {
             },
             ValueShape::Integer(carrier) => self.integer(carrier, &mut path)?,
             ValueShape::Collection { .. } => self.parameter(field_type, &mut path)?,
-            ValueShape::Boolean => return None,
+            ValueShape::Boolean => self.boolean(&mut path)?,
         };
         self.records.push(Observation {
             identity,

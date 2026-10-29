@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "state `receive` receives `view` as both mutable and read-only"
+  ]
+}

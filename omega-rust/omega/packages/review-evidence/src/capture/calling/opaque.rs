@@ -1,6 +1,7 @@
 //! Exact opaque selection/use joins with all replay receipts removed afterward.
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::capture::representation::physical_contract::{
     project_representation_copy_disposition, project_representation_lifecycle,
     project_representation_origin, project_value_placement,
@@ -142,8 +143,4 @@ fn validate_selection_use(
     Ok(())
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "calling opaque policy cannot retain {reason}"
-    ))]
-}
+refusal!(reason, "calling opaque policy cannot retain {reason}");

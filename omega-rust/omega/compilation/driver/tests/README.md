@@ -61,7 +61,7 @@ distinct program inputs and each owns one production.
 
 For target installations whose entry carries hosted context or service bindings,
 `terminal_target_provisions.txt` may contain `compiled-application`. This trusted
-fixture configuration requests one ordinary compilation cohort for the host and
+fixture configuration requests one ordinary compilation cohort for the requested target and
 the authored target roster. Each target supplies only its own actual admitted
 runtime provisions, and every report must retain the same canonical Terminal
 artifact. No foreign image is executed by this option; the observations are
@@ -230,6 +230,14 @@ portable fixture oracle. Source or compiler changes require fresh review, not
 copying bindings or deleting a stale lock to turn it into an unlocked request.
 
 ### Captured Build input fixtures
+
+This section describes the existing legacy fixture harness, not the ratified
+public authoring model. `STAGED-BUILD-CAPABILITIES` in
+[TASKS.md](../../../../../TASKS.md) migrates these controls to ordinary explicit
+filesystem views and context-specific staged execution, then removes the
+BuildInputs/BuildSource registry and related facets. Retain the same isolation,
+missing-file, source-capture and immutable-publication obligations; a renamed
+wrapper around the old protocol is not that migration.
 
 An authored fixture may supply named host-API inputs as immediate directories
 under `build-inputs/<slot>/`. The corpus harness captures each sealed directory

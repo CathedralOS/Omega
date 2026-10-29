@@ -25,9 +25,10 @@ pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
 
 pub use evaluated_bindings::{
-    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
-    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
-    EvaluatedForeignImport, EvaluatedForeignSyscall, evaluated_syscall_identity_digest,
+    BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
+    EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
+    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
+    EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
 };
 pub use identity_table::{ProviderIdentityId, ProviderIdentityTable};
 pub use service_schemas::BoundaryCallingPlanCommitment;

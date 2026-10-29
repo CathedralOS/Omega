@@ -354,7 +354,7 @@ fn collect_root_mentions(
                 recurse(source);
             }
         }
-        typed_trees::spelled_literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -374,6 +374,7 @@ fn expression_contains(
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(_)
         | ExpressionNode::Name(_)
+        | ExpressionNode::TypeExpression(_)
         | typed_trees::spelled_literal_expression_pattern!() => false,
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),

@@ -4,6 +4,7 @@ mod demands;
 mod realizations;
 
 use crate::capture::PackageReviewInput;
+use crate::capture::refusal;
 use crate::record::PackagePolicyBoundaryApplications;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -17,7 +18,21 @@ pub(crate) fn project_checked_boundary_application_policy<'a>(
     package: PackageKeyIdentity,
     original_indices: &[usize],
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = input.into();
+    let projected = input
+        .external_providers
+        .is_none()
+        .then(|| input.project_external_providers())
+        .transpose()?;
+    let services = input
+        .service_declarations
+        .is_none()
+        .then(|| input.project_service_declarations());
+    let compilation = &PackageReviewInput {
+        service_declarations: input.service_declarations.or(services.as_ref()),
+        external_providers: input.external_providers.or(projected.as_ref()),
+        ..input
+    };
     let policy = PackagePolicyBoundaryApplications {
         demands: demands::project(compilation, package)?,
         realizations: realizations::project(compilation, package, original_indices)?,
@@ -25,8 +40,4 @@ pub(crate) fn project_checked_boundary_application_policy<'a>(
     Ok(policy)
 }
 
-fn rejected(reason: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "boundary application policy rejects {reason}"
-    ))]
-}
+refusal!(reason, "boundary application policy rejects {reason}");

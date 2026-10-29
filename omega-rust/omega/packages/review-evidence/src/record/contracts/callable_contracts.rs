@@ -3,6 +3,7 @@ use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewPropositionApplication;
 use crate::record::PackageReviewPropositionParameterApplication;
+use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractFact {
@@ -31,13 +32,8 @@ pub struct PackageReviewResultCaseIdentity {
 }
 
 impl PackageReviewResultCaseIdentity {
-    pub const fn result_data(&self) -> &PackageReviewNominalIdentity {
-        &self.result_data
-    }
-
-    pub const fn result_case(&self) -> &PackageReviewNominalIdentity {
-        &self.result_case
-    }
+    field_projection_accessors!(borrowed result_data: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed result_case: &PackageReviewNominalIdentity);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -50,25 +46,15 @@ pub struct PackageReviewCallableContract {
 }
 
 impl PackageReviewCallableContract {
-    pub const fn kind(&self) -> PackageReviewContractKind {
-        self.kind
-    }
-
-    pub const fn result_case(&self) -> Option<&PackageReviewResultCaseIdentity> {
-        self.result_case.as_ref()
-    }
+    field_projection_accessors!(copied kind: PackageReviewContractKind);
+    field_projection_accessors!(optional result_case: Option<&PackageReviewResultCaseIdentity>);
 
     pub fn binding(&self) -> Option<&str> {
         self.binding.as_deref()
     }
 
-    pub const fn evidence_lane_position(&self) -> Option<u32> {
-        self.evidence_lane_position
-    }
-
-    pub const fn fact(&self) -> &PackageReviewContractFact {
-        &self.fact
-    }
+    field_projection_accessors!(copied evidence_lane_position: Option<u32>);
+    field_projection_accessors!(borrowed fact: &PackageReviewContractFact);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

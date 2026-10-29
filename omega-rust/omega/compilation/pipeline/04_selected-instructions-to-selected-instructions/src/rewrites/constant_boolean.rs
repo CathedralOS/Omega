@@ -126,39 +126,22 @@ impl ConstantBooleanReceipt {
     /// The folded flag-reader materialization's source-side identity.
         materialization: SelectedInstructionId,
     });
-    /// The durable transformation identity the post-allocation manifest
-    /// ledger records: the receipt's exact fields under the
-    /// constant-boolean domain separator.
-    pub fn identity(&self) -> ConstantBooleanIdentity {
-        constant_boolean_identity(self)
-    }
 }
 
 receipt_selected_identities!(ConstantBooleanReceipt);
 
-/// Canonical identity of one validated constant boolean fold: every receipt
-/// field — the coordinate, both plan identities, and the proof inputs — is
-/// part of the durable record, so two folds of the same materialization
-/// under different sources stay distinct transformations.
-pub(crate) fn constant_boolean_identity(
-    receipt: &ConstantBooleanReceipt,
-) -> ConstantBooleanIdentity {
-    ConstantBooleanIdentity::from_canonical_bytes(&crate::rewrites::rewrite_bytes(
-        b"omega.terminal-constant-boolean-fold.v1\0",
-        &receipt.source_selected.bytes(),
-        &receipt.transformed_selected.bytes(),
-        &receipt.optimization_unit.bytes(),
-        |bytes| {
-            crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
-            bytes.extend_from_slice(
-                &u64::try_from(receipt.function_index)
-                    .expect("constant-boolean function index fits u64")
-                    .to_le_bytes(),
-            );
-            crate::codec_bytes::push_encoded(bytes, receipt.materialization.0.to_le_bytes());
-        },
-    ))
-}
+// Canonical identity of one validated constant boolean fold: every receipt
+// field — the coordinate, both plan identities, and the proof inputs — is
+// part of the durable record, so two folds of the same materialization
+// under different sources stay distinct transformations.
+rewrite_receipt_identity!(
+    constant_boolean_identity,
+    ConstantBooleanIdentity,
+    ConstantBooleanReceipt,
+    b"omega.terminal-constant-boolean-fold.v1\0",
+    "constant-boolean",
+    materialization,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstantBooleanError {
@@ -184,10 +167,4 @@ pub enum ConstantBooleanError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for ConstantBooleanError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid constant boolean fold: {self:?}")
-    }
-}
-
-impl std::error::Error for ConstantBooleanError {}
+failed_display!(ConstantBooleanError, "invalid constant boolean fold");

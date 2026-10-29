@@ -1,0 +1,65 @@
+// Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
+// Expected exit: 0
+machine same(lower: u64, upper: u64) -> bool { lower == upper }
+data Interval [copy] {
+    case Empty;
+    case Point(lo: u64, hi: u64);
+}
+machine produce(lower: u64) -> Interval { Interval::Point { lo: lower, hi: lower } }
+trait Width { machine width(interval: Interval, expected_lower: u64) -> u64; }
+WindowsWidth satisfies Width {
+    machine width(interval: Interval, expected_lower: u64) -> u64 {
+        match interval {
+            Interval::Point { lo, hi } -> observe_width(hi - lo, lo, expected_lower)
+            Interval::Empty -> 77
+        }
+    }
+}
+LinuxWidth satisfies Width {
+    machine width(interval: Interval, expected_lower: u64) -> u64 {
+        match interval {
+            Interval::Point { lo, hi } -> observe_width(hi - lo, lo, expected_lower)
+            Interval::Empty -> 77
+        }
+    }
+}
+LinuxArmWidth satisfies Width {
+    machine width(interval: Interval, expected_lower: u64) -> u64 {
+        match interval {
+            Interval::Point { lo, hi } -> observe_width(hi - lo, lo, expected_lower)
+            Interval::Empty -> 77
+        }
+    }
+}
+MacWidth satisfies Width {
+    machine width(interval: Interval, expected_lower: u64) -> u64 {
+        match interval {
+            Interval::Point { lo, hi } -> observe_width(hi - lo, lo, expected_lower)
+            Interval::Empty -> 77
+        }
+    }
+}
+machine journey<Operations satisfies Width>() crashes Trap {
+    let point: Interval = produce(17);
+    let exact: u64 = Operations::width(point, 17);
+    let fallback: u64 = Operations::width(Interval::Empty {}, 17);
+    transition exact == 0 && fallback == 77 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+// Observe the received payload only after the unconditional subtraction argument.
+machine observe_width(difference: u64, lower: u64, expected_lower: u64) -> u64 {
+    match lower == expected_lower {
+        true -> difference
+        false -> 99
+    }
+}
+
+machine windows_entry() crashes Trap { journey<WindowsWidth>(); }
+machine linux_entry() crashes Trap { journey<LinuxWidth>(); }
+machine linux_arm_entry() crashes Trap { journey<LinuxArmWidth>(); }
+machine mac_entry() crashes Trap { journey<MacWidth>(); }

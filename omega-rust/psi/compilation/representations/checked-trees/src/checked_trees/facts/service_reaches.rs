@@ -8,7 +8,7 @@ use arena::{Arena, HandleSpan};
 use language_semantics::{ServiceReachRowId, ServiceReachRowTable, ServiceReachTable};
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ServiceReachFacts {
     pub services: ServiceReachTable,
     pub rows: ServiceReachRowTable,
@@ -58,7 +58,7 @@ impl ServiceReachFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineServiceReachRows {
     pub machine: SymbolHandle,
     pub dependency: flow_effects::ServiceReachDependency,

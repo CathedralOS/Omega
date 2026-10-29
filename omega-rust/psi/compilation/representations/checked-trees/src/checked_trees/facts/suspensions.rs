@@ -7,7 +7,7 @@
 use language_semantics::SuspensionPlan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SuspensionFacts {
     /// One exact-keyed entry per checked machine, in machine order.
     pub machines: Vec<MachineSuspensionFact>,
@@ -22,7 +22,7 @@ impl SuspensionFacts {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineSuspensionFact {
     pub machine: SymbolHandle,
     pub plan: SuspensionPlan,

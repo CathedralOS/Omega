@@ -8,7 +8,7 @@
 use language_semantics::SynchronousInvocationPlan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SynchronousInvocationFacts {
     /// One exact-keyed entry per checked machine, in machine order.
     pub machines: Vec<MachineSynchronousInvocationFact>,
@@ -23,7 +23,7 @@ impl SynchronousInvocationFacts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineSynchronousInvocationFact {
     pub machine: SymbolHandle,
     /// Exact symbolic targets retained before provider settlement can rewrite

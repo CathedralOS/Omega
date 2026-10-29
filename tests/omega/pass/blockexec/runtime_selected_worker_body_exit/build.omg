@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_selected_worker_body_exit");
-    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, linux_arm64);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, linux_x86_64);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, macos_arm64);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, macos_x86_64);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, windows_x86_64);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, uefi_x86_64);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, cross_platform_cli);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, local_unchecked);
+    Build::select_provider<WorkerProvider, CheckedWorkerProviderWorkerProviderImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

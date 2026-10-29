@@ -1,14 +1,14 @@
 //! Shared ordinary call operands, requirements and crash substitution.
 use super::super::{
     BTreeMap, MachineId, ObligationId, Proposition, StructuralArgument,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, structural_crash_argument_type,
+    StructuralParameterDeclaration, StructuralTypeDeclaration,
     substitute_structural_crash_route_roots,
 };
 use super::parameters::call_index_selectors;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
-    allocate_dense, argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
+    StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, allocate_dense,
+    argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
     lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
     unsupported,
 };
@@ -16,6 +16,7 @@ use crate::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArgument
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
@@ -207,6 +208,9 @@ pub(super) fn prepare(
         current_claims,
     )?;
 
+    let caller_types = scalar_bindings
+        .published_structural_types()?
+        .with_completed(operations)?;
     let crash_continuations = prepare_crash_continuations(
         identities,
         checked,
@@ -222,20 +226,7 @@ pub(super) fn prepare(
         &terminal_scalar_values,
         &terminal_arguments,
         structural_types,
-        |argument, index| {
-            if call_byte_places.contains(&argument.place) {
-                Ok(target.parameters[index].structural_type)
-            } else {
-                structural_crash_argument_type(
-                    argument,
-                    parameters,
-                    local_places,
-                    structural_result_places,
-                    primitive_local_places,
-                    &operations.operations,
-                )
-            }
-        },
+        &caller_types,
     )?;
     let requirement_obligations = prepare_requirement_obligations(&target, calls, operations)?;
     Ok(ModuleInvocationArguments {
@@ -265,6 +256,7 @@ pub(crate) fn prepare_computed_module_call(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     coordinate: SourceCallCoordinate,
+    caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
     target_machine: symbols::SymbolHandle,
     arguments: &[ValueDeclaration],
     erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
@@ -312,6 +304,7 @@ pub(crate) fn prepare_computed_module_call(
         .iter()
         .map(|argument| argument.emit(source_values, calls, next_value, operations))
         .collect::<Result<Vec<_>, _>>()?;
+    let caller_types = caller_types.clone().with_completed(operations)?;
     let crash_continuations = match signature {
         Some(signature) => prepare_crash_continuations(
             identities,
@@ -324,35 +317,7 @@ pub(crate) fn prepare_computed_module_call(
             arguments,
             &emitted_structural_arguments,
             calls.structural_types,
-            |argument, index| {
-                if argument.place == emitted_structural_arguments[index].place {
-                    structural_arguments[index].root_type.or_else(|| {
-                        argument
-                            .path
-                            .is_empty()
-                            .then_some(signature.parameters[index].structural_type)
-                    })
-                } else {
-                    calls
-                        .signatures
-                        .iter()
-                        .flat_map(|signature| &signature.parameters)
-                        .find(|parameter| parameter.place == argument.place)
-                        .map(|parameter| parameter.structural_type)
-                        .or_else(|| {
-                            operations.operations.iter().find_map(|operation| {
-                                operation
-                                    .result
-                                    .structural()
-                                    .filter(|result| result.place == argument.place)
-                                    .map(|result| result.structural_type)
-                            })
-                        })
-                }
-                .ok_or(LoweringError::Unsupported(
-                    "computed call crash argument has no physical root carrier",
-                ))
-            },
+            &caller_types,
         )?,
         None if structural_arguments.is_empty() => {
             lower_checked_crash_route_buckets(identities, crash_routes, arguments)?
@@ -417,7 +382,7 @@ pub(crate) fn prepare_crash_continuations(
     terminal_scalar_values: &[ValueDeclaration],
     terminal_arguments: &[StructuralArgument],
     structural_types: &[StructuralTypeDeclaration],
-    mut root_type: impl FnMut(&StructuralArgument, usize) -> Result<StructuralTypeId, LoweringError>,
+    caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     if target.parameters.len() != terminal_arguments.len() {
         return unsupported("ordinary call has an unsupported structural operand arity");
@@ -497,11 +462,11 @@ pub(crate) fn prepare_crash_continuations(
                 captures,
                 operations,
                 structural_types,
-                &mut |argument| root_type(argument, index),
+                &mut |argument| caller_types.root_type(argument),
             )?;
             let prefix = crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
                 &argument,
-                root_type(&argument, index)?,
+                caller_types.root_type(&argument)?,
                 structural_types,
             )?;
             Ok(Some((argument.place, prefix)))
@@ -590,11 +555,5 @@ pub(super) fn emit_structural(
     if register_binding {
         operations.bind_structural_value(result.binding_ordinal, returned.into());
     }
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, id, structural_type))
 }

@@ -2,7 +2,15 @@ machine build(builder: &mut Build) {
     Build::application(builder, "linear_structural_provider_pure_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::accept_boundary<Flow>(builder);
-    Build::select_provider<Flow, ProviderFlowImplementation>(builder);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, linux_arm64);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, linux_x86_64);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, macos_arm64);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, macos_x86_64);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, windows_x86_64);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, uefi_x86_64);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, cross_platform_cli);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, local_unchecked);
+    Build::select_provider<Flow, ProviderFlowImplementation>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

@@ -130,6 +130,7 @@ pub(super) struct PlannedCall<'p> {
 /// `None` supplies no registered scalar targets; it never consults published catalogs.
 pub(in crate::execution) fn build_call_operation(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     scalar_callees: Option<ScalarCalleeClosure>,
     machine: &typed_trees::machine::Machine,
@@ -243,6 +244,7 @@ pub(in crate::execution) fn build_call_operation(
         super::ResolvedCallTarget::Requirement(requirement) => {
             return super::trait_boundary_call::build(
                 program,
+                shapes,
                 facts,
                 machine,
                 state,
@@ -262,6 +264,7 @@ pub(in crate::execution) fn build_call_operation(
         super::ResolvedCallTarget::DynamicSlot(slot) => {
             return super::dynamic_call::build(
                 program,
+                shapes,
                 facts,
                 machine,
                 state,
@@ -317,6 +320,7 @@ pub(in crate::execution) fn build_call_operation(
     phase("call operation: structural arguments");
     let structural_arguments = structural_call_arguments(
         program,
+        shapes,
         facts,
         call,
         machine,

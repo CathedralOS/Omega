@@ -12,20 +12,8 @@ pub(crate) fn function_relative_statistics(
         u64::try_from(value)
             .map_err(|_| FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
     };
-    let functions = count(layout.functions().len())?;
-    let blocks = layout
-        .functions()
-        .iter()
-        .try_fold(0_u64, |total, function| {
-            total
-                .checked_add(count(function.blocks.len())?)
-                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-        })?;
-    let instructions = layout.blocks().try_fold(0_u64, |total, block| {
-        total
-            .checked_add(count(block.instructions.len())?)
-            .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-    })?;
+    // Each total the layout already enumerates counts itself; the per-function
+    // byte total is the one sum the layout does not yield.
     let bytes = layout
         .functions()
         .iter()
@@ -34,35 +22,28 @@ pub(crate) fn function_relative_statistics(
                 .checked_add(function.byte_count)
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
-    let resolved_conditional_branches = layout
-        .instructions()
-        .filter(|instruction| {
-            instruction
-                .branch
-                .as_deref()
-                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-                .is_some()
-        })
-        .try_fold(0_u64, |total, _| {
-            total
-                .checked_add(1)
-                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-        })?;
-    let ordinary_internal_machine_fixups = layout
-        .instructions()
-        .filter(|instruction| instruction.internal_machine_fixup.is_some())
-        .try_fold(0_u64, |total, _| {
-            total
-                .checked_add(1)
-                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-        })?;
-    let unresolved_internal_machine_fixups = ordinary_internal_machine_fixups;
     Ok(FunctionRelativeOptimizationRealizationStatistics {
-        functions,
-        blocks,
-        instructions,
+        functions: count(layout.functions().len())?,
+        blocks: count(layout.blocks().count())?,
+        instructions: count(layout.instructions().count())?,
         bytes,
-        resolved_conditional_branches,
-        unresolved_internal_machine_fixups,
+        resolved_conditional_branches: count(
+            layout
+                .instructions()
+                .filter(|instruction| {
+                    instruction
+                        .branch
+                        .as_deref()
+                        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                        .is_some()
+                })
+                .count(),
+        )?,
+        unresolved_internal_machine_fixups: count(
+            layout
+                .instructions()
+                .filter(|instruction| instruction.internal_machine_fixup.is_some())
+                .count(),
+        )?,
     })
 }

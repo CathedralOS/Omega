@@ -1108,7 +1108,12 @@ impl ChainExit<'_> {
             }
             Terminator::StructuralCase { cases, .. } => {
                 for arm in cases {
-                    self.leave(arm.target, &[], &mut arm.cleanup_actions, next_obligation)?;
+                    self.leave(
+                        arm.target,
+                        &arm.structural_arguments,
+                        &mut arm.cleanup_actions,
+                        next_obligation,
+                    )?;
                 }
                 Ok(())
             }

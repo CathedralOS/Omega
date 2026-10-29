@@ -10,7 +10,7 @@ use super::{
     FlowStatementFact,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowContextFacts {
     pub semantic_context_refs: Arena<FlowSemanticContextRef>,
     pub constraint_refs: Arena<FlowConstraintRef>,
@@ -28,7 +28,7 @@ impl FlowContextFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowInvalidationFacts {
     pub segments: Arena<facts::PlaceSegment>,
     pub events: Arena<FlowInvalidationFact>,
@@ -43,7 +43,7 @@ impl FlowInvalidationFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBorrowLifetimeFacts {
     pub activations: Arena<FlowBorrowActivationFact>,
     pub weakenings: Arena<FlowBorrowWeakeningFact>,
@@ -61,7 +61,7 @@ impl FlowBorrowLifetimeFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOwnershipFacts {
     pub instruction_effect_receipts: Arena<super::FlowInstructionEffectReceiptFact>,
     pub instruction_dispositions: Arena<super::FlowInstructionDispositionFact>,
@@ -171,7 +171,7 @@ impl FlowOwnershipFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBoundaryFacts {
     pub edges: Arena<FlowBoundaryEdgeFact>,
 }
@@ -182,7 +182,7 @@ impl FlowBoundaryFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowControlFacts {
     pub storage_snapshots: Arena<super::FlowStorageSnapshot>,
     pub storage_predecessors: Arena<arena::Handle<super::FlowStorageSnapshot>>,
@@ -213,6 +213,7 @@ pub struct FlowControlFacts {
     pub operand_retained_roots: Arena<facts::PlaceRoot>,
     pub operand_retained_leaves: Arena<super::FlowOperandRetainedLeaf>,
     pub operand_retained_suppliers: Arena<super::FlowOperandRetainedSupplier>,
+    pub output_lifetime_sources: Arena<super::FlowOutputLifetimeSources>,
     pub operand_retained_regions: Arena<super::FlowOperandRetainedRegion>,
     pub operand_retained_paths: Arena<facts::PlaceSegment>,
     pub statements: Arena<FlowStatementFact>,
@@ -297,6 +298,7 @@ impl FlowControlFacts {
             operand_retained_roots: Arena::default(),
             operand_retained_leaves: Arena::default(),
             operand_retained_suppliers: Arena::default(),
+            output_lifetime_sources: Arena::default(),
             operand_retained_regions: Arena::default(),
             operand_retained_paths: Arena::default(),
             calls,
@@ -388,7 +390,7 @@ impl FlowControlFacts {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowFacts {
     pub contexts: FlowContextFacts,
     pub invalidations: FlowInvalidationFacts,
@@ -575,6 +577,7 @@ paged_flow_roots!(FlowControlFacts {
         operand_retained_roots,
         operand_retained_leaves,
         operand_retained_suppliers,
+        output_lifetime_sources,
         operand_retained_regions,
         operand_retained_paths,
         statements,

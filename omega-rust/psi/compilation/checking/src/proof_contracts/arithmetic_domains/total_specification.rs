@@ -63,6 +63,7 @@ pub(crate) fn validate_total_specification_arithmetic(
         ArithmeticDomain::Exact,
         owner,
         true,
+        false,
         &mut formation_diagnostics,
     );
     // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
@@ -84,6 +85,7 @@ pub(crate) fn validate_total_specification_arithmetic(
             ArithmeticDomain::Exact,
             owner,
             true,
+            false,
             &mut ignored_diagnostics,
         )
     };
@@ -889,6 +891,14 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             });
         }
         if let Some(data) = bindings.data {
+            if data.predicate_subject_symbol.is_valid() && data.predicate_subject_type.is_valid() {
+                parameters.push(typed_trees::signature::StateParameter {
+                    symbol: data.predicate_subject_symbol,
+                    name: typed_trees::name::Identifier::from("self"),
+                    type_reference: data.predicate_subject_type,
+                    ..Default::default()
+                });
+            }
             parameters.extend(program.data_members(data).iter().filter_map(|member| {
                 let typed_trees::data::DataMember::Field(field) = member else {
                     return None;

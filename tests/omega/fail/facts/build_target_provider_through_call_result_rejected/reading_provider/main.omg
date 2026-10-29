@@ -1,0 +1,10 @@
+module main;
+public boundary trait Reading {
+    machine total() -> u64 reaches ensures result >= 999u64;
+}
+FirstReading satisfies Reading {
+    machine total() -> u64 ensures result >= 1000u64 { 1100u64 }
+}
+SecondReading satisfies Reading {
+    machine total() -> u64 ensures result >= 1000u64 { 2100u64 }
+}

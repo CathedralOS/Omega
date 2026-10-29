@@ -711,17 +711,6 @@ pub(crate) fn integer_literal_handle(
                 None
             }
         }
-        ExpressionNode::Name(path)
-            if proof_plan
-                .program
-                .expression_table
-                .name_path_members(path.members)
-                .iter()
-                .map(|member| member.as_str())
-                .eq(["u32", "MAX"]) =>
-        {
-            Some(u32::MAX as i64)
-        }
         _ => None,
     }
 }

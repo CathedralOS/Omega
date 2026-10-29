@@ -14,6 +14,10 @@ use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+mod prepared;
+pub use prepared::PreparedTargetProviderPublication;
+use prepared::{PreparedCandidate, PreparedTarget};
+
 /// Complete interface roster for selections, including inherited methods.
 /// Retaining only called coordinates would turn a whole-provider selection
 /// into an unauthorized partial composition.
@@ -65,44 +69,31 @@ pub fn provider_selection_roots<'selection>(
     Ok(roots)
 }
 
-/// Immutable checked input and its exact produced artifact. Derivation never
-/// reruns Build, checking, specialization or foreign-binding evaluation.
-pub struct TargetProviderPublicationRequest<'program> {
+/// Prepare source relationships before Terminal production. Artifact demand
+/// remains unknown here; no candidate is selected or installed by preparation.
+pub struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
-    pub artifact: terminal_codec::TerminalArtifactView<'program>,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub defaults: &'program [crate::TargetProviderDefaults],
     pub overrides: &'program [ProviderSelection],
     pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
     pub settlement: &'program crate::ProviderSettlement,
     pub targets: &'program [String],
-    pub optimization_selection: optimization_core::OptimizationSelectionIdentity,
 }
 
-impl TargetProviderPublicationRequest<'_> {
-    /// Produce every requested target row, preserving a named failure for an
-    /// unavailable realization. No row authorizes native or host execution.
-    pub fn publish(&self) -> Vec<backend_plan::TerminalTargetProviderProposal> {
-        self.targets
+impl TargetProviderPreparationRequest<'_> {
+    /// Preserve preparation failures per target, including unavailable sibling
+    /// targets. Neither a failure nor an unused candidate invalidates production.
+    pub fn prepare(&self) -> PreparedTargetProviderPublication {
+        let targets = self
+            .targets
             .iter()
-            .map(|target| backend_plan::TerminalTargetProviderProposal {
-                target: target.clone(),
-                terminal_psi: self.artifact.identity(),
-                optimization_selection: self.optimization_selection,
-                selection: self.publish_target(target).map_err(|diagnostics| {
-                    diagnostics
-                        .into_iter()
-                        .map(|diagnostic| diagnostic.message)
-                        .collect()
-                }),
-            })
-            .collect()
+            .map(|target| (target.clone(), self.prepare_target(target)))
+            .collect();
+        PreparedTargetProviderPublication::new(targets, self.assumed_bindings.to_vec())
     }
 
-    fn publish_target(
-        &self,
-        target: &str,
-    ) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
+    fn prepare_target(&self, target: &str) -> Result<PreparedTarget, Vec<Diagnostic>> {
         let profile = target::TargetProfile::from_canonical_target_name(target).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "provider proposal has no receiving target catalog for `{target}`"
@@ -111,7 +102,7 @@ impl TargetProviderPublicationRequest<'_> {
         // A recognized profile realized outside this compiler, such as the
         // Alpha bootstrap target, publishes a named unavailable row like any
         // other unavailable realization; it is never asked for a native target.
-        let native_target = profile.native_realization().ok_or_else(|| {
+        profile.native_realization().ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "target `{target}` has no provider realization in this compiler"
             ))]
@@ -124,19 +115,11 @@ impl TargetProviderPublicationRequest<'_> {
             &self.settlement.evaluated_via_bindings,
             &declarations.origins,
         ))?;
-        // Select within the retained demand domain, never by intersecting a
-        // plan's rows. An unrelated unique provider is not an installation
-        // obligation. Explicit declarations retain their complete schema even
-        // when no runtime body calls it; every demanded schema remains whole.
-        let module = self.artifact.module();
-        let mut demanded = Vec::with_capacity(candidates.len());
+        let mut prepared = Vec::with_capacity(candidates.len());
         for candidate in candidates {
             let schema = candidate.provenance.schema.symbol();
-            let owner = self.declaration_identity(schema)?;
-            if module.boundary_machines.iter().any(|boundary| {
-                boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
-                    && module.identities.text(boundary.owner.identity()) == Some(owner.as_str())
-            }) || declarations
+            let schema_owner = self.declaration_identity(schema)?;
+            let explicitly_selected = declarations
                 .provider_defaults
                 .iter()
                 .chain(self.overrides)
@@ -147,42 +130,34 @@ impl TargetProviderPublicationRequest<'_> {
                             candidate.plan.identity_text(row.requirement_identity),
                         )
                     })
-                })
-            {
-                demanded.push(candidate);
-            }
+                });
+            // This identity was previously queried only after selection and
+            // provenance admission. Preserve that failure boundary, even though
+            // the source query itself now belongs to preparation.
+            let provider_owner = candidate
+                .provenance
+                .provider_type
+                .map(|provider| self.declaration_identity(provider))
+                .transpose();
+            prepared.push(PreparedCandidate {
+                derived: candidate,
+                schema_owner,
+                provider_owner,
+                explicitly_selected,
+            });
         }
-        let selected = crate::select_derived_provider_plans(
-            &demanded,
-            native_target,
-            &declarations.provider_defaults,
-            self.overrides,
-        )?;
-        // This ordinary owner checks authored provenance, operator-family
-        // completeness and independent composition. Its returned provenance
-        // keeps each whole plan with its selecting symbol; independently sorted
-        // plan/owner vectors must never be positionally zipped.
-        let (_, provenance) = crate::selected_provider_plan_facts(self.context, selected)?;
-        let plans = provenance
-            .into_iter()
-            .map(|selected| {
-                let provider_declaration = selected
-                    .provider
-                    .provider_type
-                    .map(|provider| self.declaration_identity(provider))
-                    .transpose()?;
-                Ok(backend_plan::TerminalTargetProviderPlan {
-                    plan: selected.plan,
-                    provider_declaration,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        backend_plan::TerminalTargetProviderSelection::from_plans(plans, self.artifact)
-            .map(|mut selection| {
-                selection.assumed_bindings = self.assumed_bindings.to_vec();
-                selection
-            })
-            .map_err(|reason| vec![Diagnostic::error(reason)])
+        let selection_declarations =
+            crate::provider_planning::PreparedSelectionDeclarations::prepare(
+                self.context,
+                declarations.provider_defaults.iter().chain(self.overrides),
+            );
+        Ok(PreparedTarget {
+            profile,
+            candidates: prepared,
+            defaults: declarations.provider_defaults,
+            overrides: self.overrides.to_vec(),
+            selection_declarations,
+        })
     }
 
     fn declaration_identity(&self, symbol: SymbolHandle) -> Result<String, Vec<Diagnostic>> {

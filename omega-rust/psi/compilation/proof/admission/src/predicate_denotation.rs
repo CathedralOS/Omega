@@ -31,6 +31,46 @@ pub fn check_predicate_evaluation_size<'input>(
     Ok(())
 }
 
+/// The three rosters one conversion route produces, with the originals
+/// retained beside them: the input prelude (charge every original
+/// proposition's traversal, then validate it against the context) and the
+/// rosters the route's own `convert` step projects. Both converting routes
+/// differ only in that step.
+fn checked_denotations<'input>(
+    context: &PropositionContext,
+    goal: &'input Proposition,
+    requirements: &'input [Proposition],
+    semantic_axioms: &'input [Proposition],
+    mut convert: impl FnMut(&Proposition, &mut Budget) -> Result<Proposition, PredicateDenotationError>,
+) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError> {
+    let mut budget = Budget::new();
+    // Bound input traversal before recursive type validation or cloning. The
+    // same budget subsequently covers all newly expanded Boolean branches.
+    for proposition in std::iter::once(goal)
+        .chain(requirements)
+        .chain(semantic_axioms)
+    {
+        budget.proposition(proposition, 0)?;
+        context
+            .validate(proposition)
+            .map_err(PredicateDenotationError::Malformed)?;
+    }
+    Ok(CheckedPredicateDenotations {
+        original_goal: goal,
+        original_requirements: requirements,
+        original_semantic_axioms: semantic_axioms,
+        goal: convert(goal, &mut budget)?,
+        requirements: requirements
+            .iter()
+            .map(|proposition| convert(proposition, &mut budget))
+            .collect::<Result<Vec<_>, _>>()?,
+        semantic_axioms: semantic_axioms
+            .iter()
+            .map(|proposition| convert(proposition, &mut budget))
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
 #[cfg(test)]
 mod value_equality_tests;
 
@@ -88,35 +128,13 @@ pub fn check_predicate_denotations<'input>(
     requirements: &'input [Proposition],
     semantic_axioms: &'input [Proposition],
 ) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError> {
-    let mut budget = Budget::new();
-    // Bound input traversal before recursive type validation or cloning. The
-    // same budget subsequently covers all newly expanded Boolean branches.
-    for proposition in std::iter::once(goal)
-        .chain(requirements)
-        .chain(semantic_axioms)
-    {
-        budget.proposition(proposition, 0)?;
-        context
-            .validate(proposition)
-            .map_err(PredicateDenotationError::Malformed)?;
-    }
-    let normalized_goal = normalize(goal, &mut budget, 0)?;
-    let normalized_requirements = requirements
-        .iter()
-        .map(|proposition| normalize(proposition, &mut budget, 0))
-        .collect::<Result<Vec<_>, _>>()?;
-    let normalized_axioms = semantic_axioms
-        .iter()
-        .map(|proposition| normalize(proposition, &mut budget, 0))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(CheckedPredicateDenotations {
-        original_goal: goal,
-        original_requirements: requirements,
-        original_semantic_axioms: semantic_axioms,
-        goal: normalized_goal,
-        requirements: normalized_requirements,
-        semantic_axioms: normalized_axioms,
-    })
+    checked_denotations(
+        context,
+        goal,
+        requirements,
+        semantic_axioms,
+        |proposition, budget| normalize(proposition, budget, 0),
+    )
 }
 
 /// Check predicate conversion under unconditional, typed value equalities from
@@ -132,37 +150,14 @@ pub fn check_predicate_denotations_with_value_equalities<'input>(
     requirements: &'input [Proposition],
     semantic_axioms: &'input [Proposition],
 ) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError> {
-    let mut budget = Budget::new();
-    for proposition in std::iter::once(goal)
-        .chain(requirements)
-        .chain(semantic_axioms)
-    {
-        budget.proposition(proposition, 0)?;
-        context
-            .validate(proposition)
-            .map_err(PredicateDenotationError::Malformed)?;
-    }
     let equalities = value_equalities::ValueEqualities::from_semantic_axioms(semantic_axioms);
-    let mut convert = |proposition: &Proposition| {
-        transport_denotation(context, proposition, &equalities, &mut budget)
-    };
-    let normalized_goal = convert(goal)?;
-    let normalized_requirements = requirements
-        .iter()
-        .map(&mut convert)
-        .collect::<Result<Vec<_>, PredicateDenotationError>>()?;
-    let normalized_axioms = semantic_axioms
-        .iter()
-        .map(&mut convert)
-        .collect::<Result<Vec<_>, PredicateDenotationError>>()?;
-    Ok(CheckedPredicateDenotations {
-        original_goal: goal,
-        original_requirements: requirements,
-        original_semantic_axioms: semantic_axioms,
-        goal: normalized_goal,
-        requirements: normalized_requirements,
-        semantic_axioms: normalized_axioms,
-    })
+    checked_denotations(
+        context,
+        goal,
+        requirements,
+        semantic_axioms,
+        |proposition, budget| transport_denotation(context, proposition, &equalities, budget),
+    )
 }
 
 /// Compute an equivalent denotation under explicitly supplied value equations.

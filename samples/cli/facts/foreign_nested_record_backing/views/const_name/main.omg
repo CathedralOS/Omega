@@ -1,4 +1,4 @@
-// Fact: A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; the restored middle Cell satisfies ResidentValue for observed_gap, while completion writes 73 and preserves both neighbors, marker 91 and the earlier copy 37.
+// Fact: A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion restores the original Cell::Issued memberships and ResidentValue for observed_gap, writes 73, and preserves both neighbors, marker 91 and the earlier copy 37.
 // Expected exit: 0. Both writes reach the caller array through its checked fixed-array reference.
 use omega::language::core::content;
 use omega::language::core::drop;
@@ -6,7 +6,11 @@ use omega::language::core::external_binding;
 public data ByteUnit {}
 public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
 public data Cell { value: u64 in ResidentValue; }
-public data Buffer<'cells> [linear] { marker: u64; cells: &'cells mut [Cell; 3]; }
+public domain Cell::Issued established by mint_cell;
+machine mint_cell(value: u64 in ResidentValue) -> Cell
+ensures result in Cell::Issued { Cell { value: value } }
+machine observe_cell(cell: &Cell in Cell::Issued) -> u64 { cell.value }
+public data Buffer<'cells> [linear] { marker: u64; cells: &'cells mut [Cell in Cell::Issued; 3]; }
 machine Buffer::drop(buffer: &mut Buffer<'cells>) {}
 public domain Buffer::Owned;
 machine Owned::content<'cells>(buffer: &Buffer<'cells>) -> CountedQuantity<ByteUnit>
@@ -140,23 +144,25 @@ data Main {}
 machine observed_gap(value: u64 in ResidentValue) -> u64 { 2147483647 - value }
 machine run_main(main: &mut Main) reaches Writer crashes Trap {
     let capacity: Capacity in Capacity::Available = Writer::acquire();
-    let mut cells: [Cell; 3] = [Cell { value: 305419896 }, Cell { value: ORIGINAL }, Cell { value: 1515863100 }];
+    let mut cells: [Cell in Cell::Issued; 3] = [mint_cell(305419896), mint_cell(ORIGINAL), mint_cell(1515863100)];
     let original: u64 = cells[1].value;
     let mut buffer: Buffer in Buffer::Owned = Buffer { marker: 91, cells: &mut cells };
     let pending: Pending = Writer::register(capacity, &mut buffer);
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Writer::complete(pending, &mut observed);
     Writer::release(returned);
+    let issued_value: u64 = observe_cell(&buffer.cells[1]);
     let value: u64 = buffer.cells[1].value;
     let gap: u64 = observed_gap(buffer.cells[1].value);
     let left: u64 = buffer.cells[0].value;
     let right: u64 = buffer.cells[2].value;
     let marker: u64 = buffer.marker;
     drop(buffer);
+    let caller_issued_value: u64 = observe_cell(&cells[1]);
     let caller_value: u64 = cells[1].value;
     let caller_left: u64 = cells[0].value;
     let caller_right: u64 = cells[2].value;
-    transition gap == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left == 305419896 && right == 1515863100 && caller_value == 73 && caller_left == 305419896 && caller_right == 1515863100 { true -> done() _ -> bad() }
+    transition issued_value == 73 && caller_issued_value == 73 && gap == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left == 305419896 && right == 1515863100 && caller_value == 73 && caller_left == 305419896 && caller_right == 1515863100 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

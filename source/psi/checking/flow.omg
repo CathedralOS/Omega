@@ -1,5 +1,6 @@
 use psi::checking::aliases;
 use psi::checking::checker;
+use psi::checking::completions;
 use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
@@ -775,40 +776,50 @@ crashes Trap
         end: u64 in Trapping,
         checking: bool
     ) {
-        transition checking && checker.output.machine_accepted && !checker.zone.infeasible {
-            true -> returned(checker, syntax, resolution, typing, first, end)
+        transition checker.output.machine_accepted && !checker.zone.infeasible {
+            true -> returned(checker, syntax, resolution, typing, first, end, checking)
             _ -> done()
         }
     }
 
-    machine returned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first: u64 in Trapping, end: u64 in Trapping) {
+    machine returned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first: u64 in Trapping, end: u64 in Trapping, checking: bool) {
         transition end > first {
-            true -> last(checker, syntax, resolution, typing, end - 1)
-            _ -> empty(checker, syntax, resolution, typing)
+            true -> last(checker, syntax, resolution, typing, end - 1, checking)
+            _ -> empty(checker, syntax, resolution, typing, checking)
         }
     }
 
-    machine last(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine last(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, checking: bool) {
         let statement: Statement = SyntaxTrees::statement(syntax, index);
         transition statement.kind == StatementKind::Tail {
-            true -> tail(checker, syntax, resolution, typing, statement)
-            _ -> unit(checker, syntax, resolution, typing, statement.source_span)
+            true -> tail(checker, syntax, resolution, typing, statement, checking)
+            _ -> unit(checker, syntax, resolution, typing, statement.source_span, checking)
         }
     }
 
-    machine tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
+    machine tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, checking: bool) {
         let value: Value = Checker::value_at(checker, statement.value);
+        Checker::observe_normal_completion(checker, value);
+        transition checking { true -> owed_tail(checker, syntax, resolution, typing, statement, value) false -> done() }
+    }
+
+    machine owed_tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value) {
         Checker::require_result_qualification(checker, syntax, resolution, typing, statement.value, value, statement.source_span);
         Checker::require_guarantees(checker, syntax, resolution, typing, value, statement.source_span);
     }
 
-    machine empty(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
+    machine empty(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, checking: bool) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, checker.machine);
-        transition { _ -> unit(checker, syntax, resolution, typing, item.source_span) }
+        transition { _ -> unit(checker, syntax, resolution, typing, item.source_span, checking) }
     }
 
-    machine unit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan) {
+    machine unit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, source_span: SourceSpan, checking: bool) {
         let value: Value = Value::unknown();
+        Checker::observe_normal_completion(checker, value);
+        transition checking { true -> owed_unit(checker, syntax, resolution, typing, value, source_span) false -> done() }
+    }
+
+    machine owed_unit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, value: Value, source_span: SourceSpan) {
         Checker::require_guarantees(checker, syntax, resolution, typing, value, source_span);
     }
 
@@ -904,7 +915,8 @@ crashes Trap
         Checker::require_stored_qualification(checker, syntax, resolution, typing, destination, statement.value, value, statement.source_span, checking);
         let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, target.place, epoch);
         Checker::store_value(checker, syntax, resolution, typing, statement, target, value, origin);
-        Checker::record_alias(checker, syntax, typing, target.place, statement.value, value, replayable);
+        let captured: Value = Checker::value_at(checker, statement.value);
+        Checker::record_alias(checker, syntax, typing, target.place, statement.value, captured, replayable);
         transition owner > 0 {
             true -> window(checker, syntax, resolution, typing, statement, target.place, owner, checking)
             _ -> done()
@@ -1076,12 +1088,12 @@ crashes Trap
     let replaced: bool = Checker::replace_reference(checker, syntax, resolution, typing, statement, value);
     transition replaced {
         true -> done()
-        _ -> destination(checker, typing, statement, target, value, origin)
+        _ -> destination(checker, syntax, typing, statement, target, origin)
     }
 
-    machine destination(checker: &mut Checker, typing: &Typing, statement: Statement, target: Value, value: Value, origin: u64 in Trapping) {
+    machine destination(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, target: Value, origin: u64 in Trapping) {
         transition target.place > 0 {
-            true -> located(checker, typing, statement, target.place, value)
+            true -> located(checker, syntax, typing, statement, target.place)
             _ -> containing(checker, typing, statement, origin)
         }
     }
@@ -1089,20 +1101,22 @@ crashes Trap
     // A store through a recast view of another carrier
     // (wiki/spec/layouts/recasts.md) writes bits the storage's own carrier
     // does not read back as the stored value: the storage is forgotten.
-    machine located(checker: &mut Checker, typing: &Typing, statement: Statement, place: u64 in Trapping, value: Value) {
+    machine located(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping) {
         let storage: Place = Checker::place_at(checker, place - 1);
         let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
         let written: u64 in Trapping = Checker::read_type(typing, destination);
         let storing: BuiltinType = Checker::carrier(typing, written);
         let holding: BuiltinType = Checker::place_carrier(typing, storage.kind, storage.type_handle);
         transition storing == holding {
-            true -> bound(checker, typing, place, value)
+            true -> bound(checker, syntax, typing, statement, place)
             _ -> whole(checker, typing, place)
         }
     }
 
-    machine bound(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
-        Checker::bind_place(checker, typing, place, value);
+    machine bound(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping) {
+        Checker::snapshot_assignment(checker, syntax, typing, statement.value, place);
+        let captured: Value = Checker::value_at(checker, statement.value);
+        Checker::bind_place(checker, typing, place, captured);
     }
 
     machine containing(checker: &mut Checker, typing: &Typing, statement: Statement, origin: u64 in Trapping) {
@@ -1503,6 +1517,7 @@ crashes Trap
 
     machine completed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool) {
         let value: Value = Value::unknown();
+        Checker::observe_normal_completion(checker, value);
         transition checking {
             true -> owed(checker, syntax, resolution, typing, arm, value)
             _ -> done()
@@ -1524,13 +1539,13 @@ crashes Trap
         Checker::evaluate_tree(checker, syntax, resolution, typing, arm.target, checking);
         let selection: Selection = Typing::selection(typing, arm.target);
         transition selection {
-            Selection::State { handle } -> jump(checker, syntax, resolution, typing, arm.target, handle, checking)
             _ -> terminal(checker, syntax, resolution, typing, arm, checking)
         }
     }
 
     machine terminal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool) {
         let value: Value = Checker::value_at(checker, arm.target);
+        Checker::observe_normal_completion(checker, value);
         transition checking {
             true -> returned(checker, syntax, resolution, typing, arm, value)
             _ -> done()
@@ -1542,39 +1557,6 @@ crashes Trap
     machine returned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, value: Value) {
         Checker::require_result_qualification(checker, syntax, resolution, typing, arm.target, value, arm.source_span);
         transition { _ -> owed(checker, syntax, resolution, typing, arm, value) }
-    }
-
-    // A jump is an edge of the body's local control graph
-    // (termination.omg), to its target state's node.
-    machine jump(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping, checking: bool) {
-        let node: u64 in Trapping = state - checker.first_state + 1;
-        Checker::record_edge(checker, node);
-        transition checking {
-            true -> required(checker, syntax, resolution, typing, call, state, node)
-            _ -> contributed(checker, syntax, typing, call, state)
-        }
-    }
-
-    // A target state's `requires` facts must hold at the jump, and a cyclic
-    // jump of a terminating body descends its ranking.
-    machine required(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping, node: u64 in Trapping) {
-        let item: StateItem = SyntaxTrees::state_item(syntax, state);
-        let expression: Expression = SyntaxTrees::expression(syntax, call);
-        Checker::require_descent(checker, syntax, resolution, typing, expression, node, item.first_parameter, item.parameter_count);
-        Checker::require_argument_qualifications(checker, syntax, resolution, typing, expression, item.first_parameter, item.parameter_count);
-        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, item.first_parameter, expression, ClauseKind::Requires, true);
-        transition held {
-            true -> done()
-            _ -> unproven(checker, expression)
-        }
-    }
-
-    machine unproven(checker: &mut Checker, expression: Expression) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::RequirementUnproven, expression.source_span);
-    }
-
-    machine contributed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping) {
-        Checker::contribute(checker, syntax, typing, call, state);
     }
 
     machine done() {}

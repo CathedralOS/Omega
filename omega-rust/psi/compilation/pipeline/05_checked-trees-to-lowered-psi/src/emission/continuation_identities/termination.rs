@@ -102,6 +102,9 @@ impl IdentityMap {
                 for case in cases {
                     case.target = self.target(case.edge, case.target);
                     case.edge = self.edge(case.edge);
+                    for argument in &mut case.structural_arguments {
+                        self.argument(argument);
+                    }
                     self.cleanup(&mut case.cleanup_actions);
                 }
             }

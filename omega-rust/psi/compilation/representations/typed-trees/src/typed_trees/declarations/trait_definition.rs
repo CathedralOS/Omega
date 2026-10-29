@@ -15,7 +15,7 @@ use crate::signature::StateSignature;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
@@ -39,7 +39,7 @@ pub struct TraitDefinition {
 
 /// One `machine *` or `machine Base::requirement` narrowing clause of a
 /// transparent refinement.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitRefinementClause {
     /// The authored base requirement name; `None` for the `machine *`
     /// wildcard covering every base requirement.
@@ -54,7 +54,7 @@ pub struct TraitRefinementClause {
 }
 
 /// How one refinement clause's `reaches` axis binds.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum TraitRefinementReach {
     /// The clause omits `reaches`; covered requirements inherit the base row.
     #[default]
@@ -69,7 +69,7 @@ pub enum TraitRefinementReach {
 }
 
 /// One covered base requirement's independent abstract reach row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ClauseAbstractReachRow {
     /// The covered base requirement's name.
     pub requirement: Identifier,
@@ -82,7 +82,7 @@ pub struct ClauseAbstractReachRow {
 /// inherited requirement to exactly one realization row. It owns no data
 /// subject; its trait application's types are ordinary arguments, and any
 /// implementation of a runtime-capable trait may be selected dynamically.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct Conformance {
     pub symbol: SymbolHandle,
     /// Source visibility retained independently from semantic conformance
@@ -101,7 +101,7 @@ pub struct Conformance {
     pub rows: Vec<ConformanceRow>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConformanceRow {
     pub declaring_trait: SymbolHandle,
     pub declaring_trait_name: Identifier,
@@ -116,7 +116,7 @@ pub struct ConformanceRow {
     pub source: ConformanceRowSource,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ConformanceRowSource {
     Inline,
     Reference,
@@ -135,7 +135,7 @@ impl ConformanceRowSource {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,
     pub name: Identifier,

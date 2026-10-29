@@ -4,6 +4,7 @@ use crate::interpreter::evaluator::{
     SemanticFloatFormat, SymbolHandle, UnaryOperator, Value, integer_bounds, primitive_bit_width,
     primitive_is_unsigned64, trap, unsupported, wrap_to_width,
 };
+use numerics::float_semantics::RoundingDirection;
 use symbols::BuiltinFunction;
 
 fn byte_sequence_element(element: &Cell) -> EvalResult<u8> {
@@ -14,6 +15,154 @@ fn byte_sequence_element(element: &Cell) -> EvalResult<u8> {
     u8::try_from(*value).map_err(|_| {
         Halt::Unsupported("byte-sequence equality has an out-of-range element".to_owned())
     })
+}
+
+/// A compiler-minted named-float intrinsic: the executable semantics one
+/// unnameable call target spells and the call arity it takes.
+///
+/// A state-local expression copy keeps only the target spelling, so the
+/// spelling is resolved here once: the stem names the operation and the
+/// `_f32`/`_f64` suffix names the format. Routes then dispatch the resolved
+/// operation instead of re-listing its spellings and re-deriving its format.
+#[derive(Clone, Copy)]
+pub(in crate::interpreter::evaluator) enum NamedFloatIntrinsic {
+    /// `float#multiply_then_add_*`: a separately rounded product, then a sum.
+    MultiplyThenAdd,
+    /// `float#fused_multiply_add_*`: one rounding over the exact sum.
+    FusedMultiplyAdd,
+    /// `float#fused_multiply_add_toward_<direction>_*`.
+    FusedMultiplyAddDirected(RoundingDirection),
+    /// `float#<add|subtract|multiply|divide>_toward_<direction>_*`.
+    DirectedBinary(BinaryOperator, RoundingDirection),
+    /// `float#sqrt_toward_<direction>_*`.
+    DirectedSquareRoot(RoundingDirection),
+}
+
+impl NamedFloatIntrinsic {
+    /// Resolve one compiler-minted spelling, or `None` when the target names
+    /// some other builtin family.
+    fn from_target(target: &str) -> Option<(Self, SemanticFloatFormat)> {
+        let spelling = target.strip_prefix("float#")?;
+        let (stem, format) = match spelling.strip_suffix("_f32") {
+            Some(stem) => (stem, SemanticFloatFormat::BINARY32),
+            None => (
+                spelling.strip_suffix("_f64")?,
+                SemanticFloatFormat::BINARY64,
+            ),
+        };
+        let Some((operation, direction)) = stem.rsplit_once("_toward_") else {
+            let intrinsic = match stem {
+                "multiply_then_add" => Self::MultiplyThenAdd,
+                "fused_multiply_add" => Self::FusedMultiplyAdd,
+                _ => return None,
+            };
+            return Some((intrinsic, format));
+        };
+        let direction = match direction {
+            "zero" => RoundingDirection::TowardZero,
+            "positive" => RoundingDirection::TowardPositive,
+            "negative" => RoundingDirection::TowardNegative,
+            _ => return None,
+        };
+        let intrinsic = match operation {
+            "fused_multiply_add" => Self::FusedMultiplyAddDirected(direction),
+            "sqrt" => Self::DirectedSquareRoot(direction),
+            "add" => Self::DirectedBinary(BinaryOperator::Add, direction),
+            "subtract" => Self::DirectedBinary(BinaryOperator::Subtract, direction),
+            "multiply" => Self::DirectedBinary(BinaryOperator::Multiply, direction),
+            "divide" => Self::DirectedBinary(BinaryOperator::Divide, direction),
+            _ => return None,
+        };
+        Some((intrinsic, format))
+    }
+
+    /// The call-operand count this intrinsic's semantic definition takes.
+    const fn arity(self) -> usize {
+        match self {
+            Self::MultiplyThenAdd | Self::FusedMultiplyAdd | Self::FusedMultiplyAddDirected(_) => 3,
+            Self::DirectedBinary(..) => 2,
+            Self::DirectedSquareRoot(_) => 1,
+        }
+    }
+
+    /// The operand refusal this operation class reports.
+    const fn operand_refusal(self) -> &'static str {
+        match self {
+            Self::MultiplyThenAdd | Self::FusedMultiplyAdd | Self::FusedMultiplyAddDirected(_) => {
+                "selected ternary float operand is not a float"
+            }
+            Self::DirectedBinary(..) => "selected directed-float operand is not a float",
+            Self::DirectedSquareRoot(_) => "selected directed square-root operand is not a float",
+        }
+    }
+
+    /// The operation name one trapped result reports, in the wording of the
+    /// intrinsic class it belongs to.
+    fn trapping_operation(self, target: &str) -> String {
+        match self {
+            Self::MultiplyThenAdd | Self::FusedMultiplyAdd | Self::FusedMultiplyAddDirected(_) => {
+                format!(
+                    "named float operation `{}`",
+                    target
+                        .strip_prefix("float#")
+                        .and_then(|name| name.rsplit_once('_').map(|(operation, _)| operation))
+                        .unwrap_or("ternary_float")
+                )
+            }
+            Self::DirectedBinary(..) => "directed float operation".to_owned(),
+            Self::DirectedSquareRoot(_) => "directed square root".to_owned(),
+        }
+    }
+}
+
+/// The exact `FloatSemantics` kernel one directed binary operation takes in one
+/// rounding direction.
+fn directed_binary_kernel(
+    operation: BinaryOperator,
+    direction: RoundingDirection,
+) -> Option<fn(SemanticFloatFormat, &FloatMeaning, &FloatMeaning) -> FloatMeaning> {
+    use RoundingDirection::{TowardNegative, TowardPositive, TowardZero};
+    Some(match (operation, direction) {
+        (BinaryOperator::Add, TowardZero) => FloatSemantics::add_toward_zero,
+        (BinaryOperator::Add, TowardPositive) => FloatSemantics::add_toward_positive,
+        (BinaryOperator::Add, TowardNegative) => FloatSemantics::add_toward_negative,
+        (BinaryOperator::Subtract, TowardZero) => FloatSemantics::subtract_toward_zero,
+        (BinaryOperator::Subtract, TowardPositive) => FloatSemantics::subtract_toward_positive,
+        (BinaryOperator::Subtract, TowardNegative) => FloatSemantics::subtract_toward_negative,
+        (BinaryOperator::Multiply, TowardZero) => FloatSemantics::multiply_toward_zero,
+        (BinaryOperator::Multiply, TowardPositive) => FloatSemantics::multiply_toward_positive,
+        (BinaryOperator::Multiply, TowardNegative) => FloatSemantics::multiply_toward_negative,
+        (BinaryOperator::Divide, TowardZero) => FloatSemantics::divide_toward_zero,
+        (BinaryOperator::Divide, TowardPositive) => FloatSemantics::divide_toward_positive,
+        (BinaryOperator::Divide, TowardNegative) => FloatSemantics::divide_toward_negative,
+        _ => return None,
+    })
+}
+
+/// The exact `FloatSemantics` kernel one directed ternary operation takes in
+/// one rounding direction.
+fn fused_multiply_add_kernel(
+    direction: RoundingDirection,
+) -> fn(SemanticFloatFormat, &FloatMeaning, &FloatMeaning, &FloatMeaning) -> FloatMeaning {
+    match direction {
+        RoundingDirection::TowardZero => FloatSemantics::fused_multiply_add_toward_zero,
+        RoundingDirection::TowardPositive => FloatSemantics::fused_multiply_add_toward_positive,
+        RoundingDirection::TowardNegative => FloatSemantics::fused_multiply_add_toward_negative,
+        RoundingDirection::NearestTiesToEven => FloatSemantics::fused_multiply_add,
+    }
+}
+
+/// The exact `FloatSemantics` kernel one directed square root takes in one
+/// rounding direction.
+fn directed_square_root_kernel(
+    direction: RoundingDirection,
+) -> fn(SemanticFloatFormat, &FloatMeaning) -> FloatMeaning {
+    match direction {
+        RoundingDirection::TowardZero => FloatSemantics::square_root_toward_zero,
+        RoundingDirection::TowardPositive => FloatSemantics::square_root_toward_positive,
+        RoundingDirection::TowardNegative => FloatSemantics::square_root_toward_negative,
+        RoundingDirection::NearestTiesToEven => FloatSemantics::square_root,
+    }
 }
 
 impl<'program> Evaluator<'program> {
@@ -56,18 +205,26 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Execute an unnameable provider builtin for a selected ternary float
-    /// operation. The named contract chooses fused versus separately rounded
-    /// semantics and any explicit direction, then adapts only the final result
-    /// using all original operands.
-    pub(in crate::interpreter::evaluator) fn eval_rewritten_ternary_float(
+    /// Execute one compiler-minted named-float intrinsic selected by an exact
+    /// provider plan. The resolved intrinsic names the exact `FloatSemantics`
+    /// kernel and the call arity, the spelling names the format, and the
+    /// operands' declared arithmetic domain adapts only the final result --
+    /// exactly like the native lowering.
+    pub(in crate::interpreter::evaluator) fn eval_named_float_intrinsic(
         &mut self,
+        target: &str,
         arguments: &[ExpressionHandle],
-        format: SemanticFloatFormat,
-        intrinsic: &str,
         frame: &mut Frame,
-    ) -> EvalResult<Value> {
-        let scalar_type = arguments
+    ) -> EvalResult<Option<Value>> {
+        let Some((intrinsic, format)) = NamedFloatIntrinsic::from_target(target) else {
+            return Ok(None);
+        };
+        // A call whose operand count does not fit the intrinsic's semantic
+        // definition is not this intrinsic; the next candidate decides.
+        if arguments.len() != intrinsic.arity() {
+            return Ok(None);
+        }
+        let domain = arguments
             .iter()
             .filter_map(|argument| self.expression_scalar_type(*argument, frame))
             .reduce(|left, right| {
@@ -76,56 +233,42 @@ impl<'program> Evaluator<'program> {
                 } else {
                     right
                 }
-            });
-        let mut operands = Vec::with_capacity(3);
-        for operand in arguments {
-            let value = self.eval_expression(*operand, frame)?;
+            })
+            .map(|(_, domain)| domain);
+        let mut operands = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            let value = self.eval_expression(*argument, frame)?;
             if !value.is_float() {
-                return unsupported("selected ternary float operand is not a float");
+                return unsupported(intrinsic.operand_refusal());
             }
             operands.push(self.float_operand(&value, format)?);
         }
         let meaning = match intrinsic {
-            "float#multiply_then_add_f32" | "float#multiply_then_add_f64" => {
+            NamedFloatIntrinsic::MultiplyThenAdd => {
                 FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2])
             }
-            "float#fused_multiply_add_f32" | "float#fused_multiply_add_f64" => {
+            NamedFloatIntrinsic::FusedMultiplyAdd => {
                 FloatSemantics::fused_multiply_add(format, &operands[0], &operands[1], &operands[2])
             }
-            "float#fused_multiply_add_toward_zero_f32"
-            | "float#fused_multiply_add_toward_zero_f64" => {
-                FloatSemantics::fused_multiply_add_toward_zero(
+            NamedFloatIntrinsic::FusedMultiplyAddDirected(direction) => {
+                fused_multiply_add_kernel(direction)(
                     format,
                     &operands[0],
                     &operands[1],
                     &operands[2],
                 )
             }
-            "float#fused_multiply_add_toward_positive_f32"
-            | "float#fused_multiply_add_toward_positive_f64" => {
-                FloatSemantics::fused_multiply_add_toward_positive(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                    &operands[2],
-                )
+            NamedFloatIntrinsic::DirectedBinary(operation, direction) => {
+                let Some(kernel) = directed_binary_kernel(operation, direction) else {
+                    return unsupported("unknown selected directed-float intrinsic");
+                };
+                kernel(format, &operands[0], &operands[1])
             }
-            "float#fused_multiply_add_toward_negative_f32"
-            | "float#fused_multiply_add_toward_negative_f64" => {
-                FloatSemantics::fused_multiply_add_toward_negative(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                    &operands[2],
-                )
+            NamedFloatIntrinsic::DirectedSquareRoot(direction) => {
+                directed_square_root_kernel(direction)(format, &operands[0])
             }
-            _ => return unsupported("unknown selected ternary-float intrinsic"),
         };
-        let operation = intrinsic
-            .strip_prefix("float#")
-            .and_then(|name| name.rsplit_once('_').map(|(operation, _)| operation))
-            .unwrap_or("ternary_float");
-        let meaning = match scalar_type.map(|(_, domain)| domain) {
+        let meaning = match domain {
             Some(ArithmeticDomain::Saturating) => {
                 let operand_refs = operands.iter().collect::<Vec<_>>();
                 FloatSemantics::apply_saturating_policy(format, &operand_refs, meaning)
@@ -133,149 +276,14 @@ impl<'program> Evaluator<'program> {
             Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
-                        "named float operation `{operation}` produced {} in Trapping domain",
+                        "{} produced {} in Trapping domain",
+                        intrinsic.trapping_operation(target),
                         trap_class.label()
                     ))
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
         };
-        Ok(self.semantic_float_result(meaning, format))
-    }
-
-    /// Execute an unnameable one-step directed binary operation selected by an exact
-    /// provider plan. The shared semantic engine supplies the result; policy
-    /// adapts only that result exactly like the native lowering.
-    pub(in crate::interpreter::evaluator) fn eval_rewritten_directed_binary(
-        &mut self,
-        arguments: &[ExpressionHandle],
-        format: SemanticFloatFormat,
-        intrinsic: &str,
-        frame: &mut Frame,
-    ) -> EvalResult<Value> {
-        let scalar_type = arguments
-            .iter()
-            .filter_map(|argument| self.expression_scalar_type(*argument, frame))
-            .reduce(|left, right| {
-                if left.1 != ArithmeticDomain::Exact {
-                    left
-                } else {
-                    right
-                }
-            });
-        let mut operands = Vec::with_capacity(2);
-        for operand in arguments {
-            let value = self.eval_expression(*operand, frame)?;
-            if !value.is_float() {
-                return unsupported("selected directed-float operand is not a float");
-            }
-            operands.push(self.float_operand(&value, format)?);
-        }
-        let operation = intrinsic
-            .strip_prefix("float#")
-            .and_then(|name| name.split_once("_toward_").map(|(operation, _)| operation));
-        let direction = if intrinsic.contains("toward_zero") {
-            Some("zero")
-        } else if intrinsic.contains("toward_positive") {
-            Some("positive")
-        } else if intrinsic.contains("toward_negative") {
-            Some("negative")
-        } else {
-            None
-        };
-        let meaning = match (operation, direction) {
-            (Some("add"), Some("zero")) => {
-                FloatSemantics::add_toward_zero(format, &operands[0], &operands[1])
-            }
-            (Some("add"), Some("positive")) => {
-                FloatSemantics::add_toward_positive(format, &operands[0], &operands[1])
-            }
-            (Some("add"), Some("negative")) => {
-                FloatSemantics::add_toward_negative(format, &operands[0], &operands[1])
-            }
-            (Some("subtract"), Some("zero")) => {
-                FloatSemantics::subtract_toward_zero(format, &operands[0], &operands[1])
-            }
-            (Some("subtract"), Some("positive")) => {
-                FloatSemantics::subtract_toward_positive(format, &operands[0], &operands[1])
-            }
-            (Some("subtract"), Some("negative")) => {
-                FloatSemantics::subtract_toward_negative(format, &operands[0], &operands[1])
-            }
-            (Some("multiply"), Some("zero")) => {
-                FloatSemantics::multiply_toward_zero(format, &operands[0], &operands[1])
-            }
-            (Some("multiply"), Some("positive")) => {
-                FloatSemantics::multiply_toward_positive(format, &operands[0], &operands[1])
-            }
-            (Some("multiply"), Some("negative")) => {
-                FloatSemantics::multiply_toward_negative(format, &operands[0], &operands[1])
-            }
-            (Some("divide"), Some("zero")) => {
-                FloatSemantics::divide_toward_zero(format, &operands[0], &operands[1])
-            }
-            (Some("divide"), Some("positive")) => {
-                FloatSemantics::divide_toward_positive(format, &operands[0], &operands[1])
-            }
-            (Some("divide"), Some("negative")) => {
-                FloatSemantics::divide_toward_negative(format, &operands[0], &operands[1])
-            }
-            _ => return unsupported("unknown selected directed-float intrinsic"),
-        };
-        let meaning = match scalar_type.map(|(_, domain)| domain) {
-            Some(ArithmeticDomain::Saturating) => {
-                let operand_refs = operands.iter().collect::<Vec<_>>();
-                FloatSemantics::apply_saturating_policy(format, &operand_refs, meaning)
-            }
-            Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
-                .map_err(|trap_class| {
-                    Halt::Trap(format!(
-                        "directed float operation produced {} in Trapping domain",
-                        trap_class.label()
-                    ))
-                })?,
-            Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
-        };
-        Ok(self.semantic_float_result(meaning, format))
-    }
-
-    /// Execute an unnameable one-step directed square root selected by an exact
-    /// provider plan. Its single authored argument is evaluated once.
-    pub(in crate::interpreter::evaluator) fn eval_rewritten_directed_square_root(
-        &mut self,
-        arguments: &[ExpressionHandle],
-        format: SemanticFloatFormat,
-        intrinsic: &str,
-        frame: &mut Frame,
-    ) -> EvalResult<Value> {
-        let scalar_type = self.expression_scalar_type(arguments[0], frame);
-        let value = self.eval_expression(arguments[0], frame)?;
-        if !value.is_float() {
-            return unsupported("selected directed square-root operand is not a float");
-        }
-        let operand = self.float_operand(&value, format)?;
-        let meaning = if intrinsic.contains("toward_zero") {
-            FloatSemantics::square_root_toward_zero(format, &operand)
-        } else if intrinsic.contains("toward_positive") {
-            FloatSemantics::square_root_toward_positive(format, &operand)
-        } else if intrinsic.contains("toward_negative") {
-            FloatSemantics::square_root_toward_negative(format, &operand)
-        } else {
-            return unsupported("unknown selected directed square-root intrinsic");
-        };
-        let meaning = match scalar_type.map(|(_, domain)| domain) {
-            Some(ArithmeticDomain::Saturating) => {
-                FloatSemantics::apply_saturating_policy(format, &[&operand], meaning)
-            }
-            Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
-                .map_err(|trap_class| {
-                    Halt::Trap(format!(
-                        "directed square root produced {} in Trapping domain",
-                        trap_class.label()
-                    ))
-                })?,
-            Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
-        };
-        Ok(self.semantic_float_result(meaning, format))
+        Ok(Some(self.semantic_float_result(meaning, format)))
     }
 
     /// Runtime integers use i64 storage even for u64. Decode each value with

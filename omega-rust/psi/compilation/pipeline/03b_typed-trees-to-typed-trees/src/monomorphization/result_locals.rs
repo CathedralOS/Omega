@@ -215,8 +215,7 @@ pub(super) fn refresh_generic_call_results(
             super::body_rewriting::forwarded_static_argument_rewrites(program, &candidate);
         let expressions = program
             .expression_table
-            .iter_expressions()
-            .filter(|(expression, _)| expression.arena_index() as usize >= expression_start)
+            .iter_expressions_from(expression_start)
             .map(|(expression, _)| expression)
             .collect::<Vec<_>>();
         for expression in expressions {
@@ -237,6 +236,8 @@ pub(super) fn refresh_generic_call_results(
             program,
             &candidate,
             type_start,
+            expression_start,
+            &[],
             SymbolHandle::invalid(),
         )
         .map_err(|error| vec![error])?;

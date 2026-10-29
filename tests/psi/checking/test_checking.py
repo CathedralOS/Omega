@@ -170,12 +170,93 @@ def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
     assert actual == status and payload == b"", f"{name}: status {actual}, {len(payload)} bytes"
 
 
+def nested_machine_cases(program: str) -> None:
+    source = (b"machine outer(a: &[u8; 4], i: u64) -> u8 { transition i < 4 { true -> middle(a, i) false -> (0) } "
+              b"machine middle(a: &[u8; 4], i: u64) -> u8 { leaf(a, i) "
+              b"machine leaf(a: &[u8; 4], i: u64) -> u8 { a[i] } } }")
+    accepted(program, "three-level-ordinary-and-terminal-arrival-facts", source)
+    rejected(program, "three-level-arrival-bound-endpoint", source.replace(b"i < 4", b"i <= 4"), "IndexOutOfBounds", b"a[i]")
+    source = (b"machine outer(a: &[u8; 4], i: u64) requires i < 4 { _ = helper(a, i); _ = helper(a, 4); "
+              b"machine helper(a: &[u8; 4], i: u64) -> u8 { a[i] } }")
+    rejected(program, "private-helper-never-inherits-parent-entry-facts", source, "IndexOutOfBounds", b"a[i]")
+    source = (b"data Cell { value: u64; } machine observe(cell: &Cell) -> u64 { cell.value } "
+              b"machine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before } "
+              b"machine forward(cell: &mut Cell) -> u64 { transition { _ -> update(cell, observe(cell)) } }")
+    accepted(program, "terminal-existing-reference-captures-completed-observation", source)
+    ordinary = source.replace(b"transition { _ -> update(cell, observe(cell)) }", b"let before: u64 = update(cell, observe(cell)); before")
+    rejected(program, "returning-call-retains-ordinary-exclusive-window", ordinary, "OverlappingArguments", b"cell!7")
+
+
+def invocation_component_cases(program: str) -> None:
+    # Frozen own-contract controls: ancestry supplies neither a witness nor
+    # input authority. Reordering the component preserves every obligation.
+    cases = (
+        ('ordinary_continuation_contract/positive', b'machine outer(items: &[u8; 4], index: u64) -> u8 {\n    transition index < 4 { true -> read(items, index) false -> (0) }\n    machine read(items: &[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', None),
+        ('ordinary_continuation_contract/invalid', b'machine outer(items: &[u8; 4], index: u64) -> u8 {\n    transition index <= 4 { true -> read(items, index) false -> (0) }\n    machine read(items: &[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', 'RequirementUnproven'),
+        ('own_crash_marker/positive', b'machine outer() -> u8\ncrashes Trap\ncrashes Abort\n{\n    child()\n    machine child() -> u8 crashes Trap { crash Trap; }\n}\n', None),
+        ('own_crash_marker/invalid', b'machine outer() -> u8\ncrashes Trap\ncrashes Abort\n{\n    child()\n    machine child() -> u8 crashes Abort { crash Trap; }\n}\n', 'CrashNotDeclared'),
+        ('own_loan_result/positive', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { &item.points }\n}\n', None),
+        ('own_loan_result/invalid', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { let local: Score = Score { points: 1 }; &local.points }\n}\n', 'LoanEscapes'),
+        ('own_linear_custody/positive', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { finish(owned) }\n}\n', None),
+        ('own_linear_custody/invalid', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { let code: i32 = owned.code; code }\n}\n', 'LinearUnconsumed'),
+        ('joint_terminal_component/positive', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\n', None),
+        ('joint_terminal_component/invalid', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\n', 'RankUnproven'),
+        ('joint_terminal_component/positive_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\n', None),
+        ('joint_terminal_component/invalid_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\n', 'RankUnproven'),
+        ('rank_initial_and_backedge/positive', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', None),
+        ('rank_initial_and_backedge/invalid', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, 0) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
+        ('rank_initial_and_backedge/invalid_backedge', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, 0)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
+        ('outer_termination_promise/positive', b'machine outer(n: u64) -> u64\nterminates;\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    terminates by remaining;\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', None),
+        ('outer_termination_promise/invalid', b'machine outer(n: u64) -> u64\nterminates;\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', 'ProgressUnproven'),
+        ('full_lexicographic_arity/positive', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner - 1 })\n        false -> progress.outer\n    }\n}\n', None),
+        ('full_lexicographic_arity/invalid', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner })\n        false -> progress.outer\n    }\n}\n', 'RankUnproven'),
+        ('numeric_completion/original_clamp', b'machine clamp(x: u64) -> u64 ensures result <= 10 { transition x <= 10 { true -> (x) _ -> capped() } machine capped() -> u64 { 10 } }', None),
+        ('numeric_completion/capped_eleven', b'machine clamp(x: u64) -> u64 ensures result <= 10 { transition x <= 10 { true -> (x) _ -> capped() } machine capped() -> u64 { 11 } }', 'GuaranteeUnproven'),
+        ('numeric_completion/mixed_returns', b'machine clamp(flag: bool) -> u64 ensures result <= 10 { capped(flag) machine capped(flag: bool) -> u64 { transition flag { true -> 10 false -> 11 } } }', 'GuaranteeUnproven'),
+        ('numeric_completion/forward_chain', b'machine clamp() -> u64 ensures result <= 10 { middle() machine middle() -> u64 { final() } machine final() -> u64 { 10 } }', None),
+        ('numeric_completion/own_requirement', b'machine helper(value: u64) -> u64 requires value <= 10 { value } machine clamp(value: u64) -> u64 requires value <= 10 ensures result <= 10 { helper(value) }', None),
+        ('numeric_completion/wider_requirement', b'machine helper(value: u64) -> u64 requires value <= 11 { value } machine clamp(value: u64) -> u64 requires value <= 11 ensures result <= 10 { helper(value) }', 'GuaranteeUnproven'),
+        ('numeric_completion/false_own_guarantee', b'machine clamp() -> u64 ensures result <= 10 { helper() machine helper() -> u64 ensures result <= 10 { 11 } }', 'GuaranteeUnproven'),
+        ('numeric_completion/saved_result_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: &mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; saved }', None),
+        ('numeric_completion/reread_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: &mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; cell.value }', 'GuaranteeUnproven'),
+        ('terminal_match_position/positive', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: &mut Cell, flag: bool) -> u64 {\n    transition { _ -> match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) } }\n}\n', None),
+        ('terminal_match_position/ordinary', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: &mut Cell, flag: bool) -> u64 {\n    let saved: u64 = match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) };\n    saved\n}\n', 'OverlappingArguments'),
+        ('terminal_match_position/fresh_mutable', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(flag: bool) -> u64 {\n    let mut cell: Cell = Cell { value: 1 };\n    transition { _ -> match flag { true -> update(&mut cell, observe(&cell)), false -> 0 } }\n}\n', 'OverlappingArguments'),
+        ('shared_reborrow/local_escape_with_input', b'data Cell { value:u64; } machine leak(input:&Cell)->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; shared }', "LoanEscapes"),
+        ('shared_reborrow/transitive_escape_with_input', b'data Cell { value:u64; } machine leak(input:&Cell)->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let inner:&mut Cell=writer; let shared:&Cell=inner; shared }', "LoanEscapes"),
+        ('shared_reborrow/parameter_backing_return', b'data Cell { value:u64; } machine view(cell:&mut Cell)->&Cell { let writer:&mut Cell=cell; let shared:&Cell=writer; shared }', None),
+        ('shared_reborrow/transitive_local_invalid_escape', b'data Cell { value:u64; } machine leak()->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let inner:&mut Cell=writer; let shared:&Cell=inner; shared }', 'LoanEscapes'),
+        ('shared_reborrow/local_backing_after_last_use', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; let saved:u64=shared.value; cell.value=9; saved }', None),
+        ('shared_reborrow/local_backing_before_last_use', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; cell.value=9; let saved:u64=shared.value; saved }', 'LoanConflict'),
+        ('shared_reborrow/mutable_local_backing', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; shared.value }', None),
+        ('shared_reborrow/mutable_local_invalid_write', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; cell.value=7; shared.value }', 'LoanConflict'),
+        ('shared_reborrow/mutable_local_invalid_escape', b'data Cell { value:u64; } machine leak()->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; shared }', 'LoanEscapes'),
+        ("shared_reborrow/write_only_same_access_view", b'machine length(bytes: &write [u8]) -> u64 { bytes.len } machine view(bytes: &write [u8;4]) -> u64 { length(&write bytes) }', None),
+        ('shared_reborrow/two_shared', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let first:&Cell=cell; let second:&Cell=cell; transition first.value == second.value { true->first.value false->second.value } }', None),
+        ('shared_reborrow/two_shared_invalid_write', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let first:&Cell=cell; let second:&Cell=cell; cell.value = 7; transition first.value == second.value { true->first.value false->second.value } }', 'LoanConflict'),
+        ('shared_reborrow/shared_local', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; shared.value }', None),
+        ('shared_reborrow/shared_local_invalid_write', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; cell.value=7; shared.value }', 'LoanConflict'),
+        ('signed_snapshot/positive', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 1\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', None),
+        ('signed_snapshot/invalid', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 2\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', 'GuaranteeUnproven'),
+        ('assignment_entry_rank/positive-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next - 1;\n        transition { _ -> countdown(next) }\n    }\n}\n', None),
+        ('assignment_entry_rank/invalid-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next;\n        transition { _ -> countdown(next) }\n    }\n}\n', 'RankUnproven'),
+        ('assignment_entry_rank/invalid-formation', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next - (value + 1);\n        transition { _ -> countdown(next) }\n    }\n}\n', 'ArithmeticOverflow'),
+    )
+    for name, source, diagnostic in cases:
+        status, payload = run(program, source)
+        observation = decode(payload)
+        if diagnostic is None:
+            assert status == 0 and observation.accepted, f"{name}: {observation}"
+        else:
+            assert status == 247 and not observation.accepted, f"{name}: status {status}"
+            assert any(code == diagnostic for code, span in observation.rejections), f"{name}: {observation}"
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_checking.py <checking-harness-executable>")
     program = sys.argv[1]
 
-    # Indexing: a guard's fact reaches the state it selects.
+    # Indexing: a guard's fact reaches the machine it selects.
     accepted(
         program,
         "guard-reaches-the-selected-state",
@@ -185,8 +266,8 @@ def main() -> None:
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    state found(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
-        b"    state missing() -> u8 { 0 }\n"
+        b"    machine found(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    machine missing() -> u8 { 0 }\n"
         b"}",
         {0: "?/"},
     )
@@ -206,8 +287,8 @@ def main() -> None:
         b"        _ -> found(a, i)\n"
         b"    }\n"
         b"\n"
-        b"    state found(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
-        b"    state missing() -> u8 { 0 }\n"
+        b"    machine found(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    machine missing() -> u8 { 0 }\n"
         b"}",
         "IndexOutOfBounds",
         b"a[i]",
@@ -222,8 +303,8 @@ def main() -> None:
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    state found(a: &[u8], i: u64) -> u8 { a[i] }\n"
-        b"    state missing() -> u8 { 0 }\n"
+        b"    machine found(a: &[u8], i: u64) -> u8 { a[i] }\n"
+        b"    machine missing() -> u8 { 0 }\n"
         b"}",
     )
 
@@ -240,7 +321,7 @@ def main() -> None:
         b"        _ -> {}\n"
         b"    }\n"
         b"\n"
-        b"    state sliced(a: &[u8], i: u64) { see(a[i..]); see(a[..i]); see(a[..=i]); see(a[0..i]); see(a[..]); }\n"
+        b"    machine sliced(a: &[u8], i: u64) { see(a[i..]); see(a[..i]); see(a[..=i]); see(a[0..i]); see(a[..]); }\n"
         b"}",
     )
     accepted(
@@ -306,8 +387,8 @@ def main() -> None:
         b"        _ -> same(x)\n"
         b"    }\n"
         b"\n"
-        b"    state more(x: u64) -> u64 { x + 1 }\n"
-        b"    state same(x: u64) -> u64 { x }\n"
+        b"    machine more(x: u64) -> u64 { x + 1 }\n"
+        b"    machine same(x: u64) -> u64 { x }\n"
         b"}",
     )
     accepted(
@@ -331,8 +412,8 @@ def main() -> None:
         b"        _ -> none()\n"
         b"    }\n"
         b"\n"
-        b"    state difference(i: u64, n: u64) -> u64 { n - i }\n"
-        b"    state none() -> u64 { 0 }\n"
+        b"    machine difference(i: u64, n: u64) -> u64 { n - i }\n"
+        b"    machine none() -> u64 { 0 }\n"
         b"}",
     )
     accepted(
@@ -369,8 +450,8 @@ def main() -> None:
         b"        _ -> none()\n"
         b"    }\n"
         b"\n"
-        b"    state divided(x: u64, d: u64) -> u64 { x / d }\n"
-        b"    state none() -> u64 { 0 }\n"
+        b"    machine divided(x: u64, d: u64) -> u64 { x / d }\n"
+        b"    machine none() -> u64 { 0 }\n"
         b"}",
     )
     rejected(
@@ -416,7 +497,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state g(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"    machine g(a: &[u8; 4], i: u64) -> u8 {\n"
         b"        let mut j: u64 = i;\n"
         b"        j = j + 1;\n"
         b"        a[j + 1]\n"
@@ -458,19 +539,19 @@ def main() -> None:
         b"machine sum(a: &[u8; 8]) -> u64 in Wrapping {\n"
         b"    transition { _ -> step(a, 0, 0) }\n"
         b"\n"
-        b"    state step(a: &[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
+        b"    machine step(a: &[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
         b"        transition i < 8 {\n"
         b"            true -> add(a, i, total)\n"
         b"            _ -> done(total)\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state add(a: &[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
+        b"    machine add(a: &[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
         b"        let element: u64 in Wrapping = a[i] as u64 in Wrapping;\n"
         b"        transition { _ -> step(a, i + 1, total + element) }\n"
         b"    }\n"
         b"\n"
-        b"    state done(total: u64 in Wrapping) -> u64 in Wrapping { total }\n"
+        b"    machine done(total: u64 in Wrapping) -> u64 in Wrapping { total }\n"
         b"}",
     )
     rejected(
@@ -479,14 +560,14 @@ def main() -> None:
         b"machine fill(a: &mut [u8; 8]) {\n"
         b"    transition { _ -> step(a, 0) }\n"
         b"\n"
-        b"    state step(a: &mut [u8; 8], i: u64) {\n"
+        b"    machine step(a: &mut [u8; 8], i: u64) {\n"
         b"        transition i <= 8 {\n"
         b"            true -> store(a, i)\n"
         b"            _ -> {}\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state store(a: &mut [u8; 8], i: u64) {\n"
+        b"    machine store(a: &mut [u8; 8], i: u64) {\n"
         b"        a[i] = 0;\n"
         b"        transition { _ -> step(a, i + 1) }\n"
         b"    }\n"
@@ -505,14 +586,14 @@ def main() -> None:
         b"    l.depth = 1;\n"
         b"    transition { _ -> scan(l) }\n"
         b"\n"
-        b"    state scan(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine scan(l: &mut L) -> u64 in Trapping {\n"
         b"        transition l.cursor < l.source.length {\n"
         b"            true -> pair(l)\n"
         b"            _ -> done(l)\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state pair(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine pair(l: &mut L) -> u64 in Trapping {\n"
         b"        l.index = l.cursor + 1;\n"
         b"        transition l.index < l.source.length {\n"
         b"            true -> open(l)\n"
@@ -520,18 +601,18 @@ def main() -> None:
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state open(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine open(l: &mut L) -> u64 in Trapping {\n"
         b"        l.depth = l.depth + 1;\n"
         b"        l.cursor = l.cursor + 2;\n"
         b"        transition { _ -> scan(l) }\n"
         b"    }\n"
         b"\n"
-        b"    state advance(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine advance(l: &mut L) -> u64 in Trapping {\n"
         b"        l.cursor = l.cursor + 1;\n"
         b"        transition { _ -> scan(l) }\n"
         b"    }\n"
         b"\n"
-        b"    state done(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine done(l: &mut L) -> u64 in Trapping {\n"
         b"        l.source.length as u64 in Trapping\n"
         b"    }\n"
         b"}",
@@ -549,14 +630,14 @@ def main() -> None:
         b"    use20(p.f0, p.f1, p.f2, p.f3, p.f4, p.f5, p.f6, p.f7, p.f8, p.f9, p.f10, p.f11, p.f12, p.f13, p.f14, p.f15, p.f16, p.f17, p.f18, p.f19);\n"
         b"    transition { _ -> root(p) }\n"
         b"\n"
-        b"    state root(p: &mut P) {\n"
+        b"    machine root(p: &mut P) {\n"
         b"        transition p.count < 16 {\n"
         b"            true -> bounded(p)\n"
         b"            _ -> {}\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state bounded(p: &mut P) {\n"
+        b"    machine bounded(p: &mut P) {\n"
         b"        p.items[p.count] = 1;\n"
         b"    }\n"
         b"}",
@@ -572,7 +653,7 @@ def main() -> None:
         b"        _ -> {}\n"
         b"    }\n"
         b"\n"
-        b"    state store(p: &mut P) {\n"
+        b"    machine store(p: &mut P) {\n"
         b"        use20(p.f0, p.f1, p.f2, p.f3, p.f4, p.f5, p.f6, p.f7, p.f8, p.f9, p.f10, p.f11, p.f12, p.f13, p.f14, p.f15, p.f16, p.f17, p.f18, p.f19);\n"
         b"        p.items[p.count] = 1;\n"
         b"    }\n"
@@ -589,8 +670,8 @@ def main() -> None:
         b"        _ -> {}\n"
         b"    }\n"
         b"\n"
-        b"    state later(t: &mut T) { transition { _ -> put(t) } }\n"
-        b"    state put(t: &mut T) { T::put(t); }\n"
+        b"    machine later(t: &mut T) { transition { _ -> put(t) } }\n"
+        b"    machine put(t: &mut T) { T::put(t); }\n"
         b"}",
     )
     # An established value's `where` facts hold on every path, so a field
@@ -605,7 +686,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state release(t: &mut Table, first: u64) -> u64\n"
+        b"    machine release(t: &mut Table, first: u64) -> u64\n"
         b"    requires first <= 16\n"
         b"    { (first) }\n"
         b"}",
@@ -624,7 +705,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -633,7 +714,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        L::set_b(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -649,7 +730,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -658,7 +739,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        L::set_a(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -676,7 +757,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -685,7 +766,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        L::reset(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -703,7 +784,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -712,7 +793,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        L::outer(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -730,7 +811,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -739,7 +820,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        L::via(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -757,7 +838,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -766,7 +847,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        set(&mut l.b);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -782,7 +863,7 @@ def main() -> None:
         b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
         b"machine L::via(l: &mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    state put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
         b"machine set(x: &mut u64) { x = 99; }\n"
         b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
@@ -791,7 +872,7 @@ def main() -> None:
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    state ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
         b"        set(&mut l.a);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -806,49 +887,47 @@ def main() -> None:
     accepted(
         program,
         "declared-trapping-site",
-        b"pub machine next(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ x + 1 }",
+        b'public machine next(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ x + 1 }',
         {0: "T/T"},
     )
     rejected(
         program,
         "undeclared-trapping-site",
-        b"pub machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }",
+        b'public machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }',
         "CrashNotDeclared",
-        b"pub machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }",
+        b'public machine next(x: u64 in Trapping) -> u64 in Trapping { x + 1 }',
     )
     accepted(
         program,
         "disproved-trapping-site",
-        b"pub machine next(x: u8) -> u64 in Trapping { (x as u64 in Trapping) + 1 }",
+        b'public machine next(x: u8) -> u64 in Trapping { (x as u64 in Trapping) + 1 }',
         {0: "/"},
     )
     accepted(
         program,
         "private-machine-infers-and-callers-derive",
-        b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"pub machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ bump(x) }",
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\npublic machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ bump(x) }',
         {0: "?/T", 1: "T/T"},
     )
     rejected(
         program,
         "public-caller-must-declare-a-callee-cause",
-        b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"pub machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }",
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\npublic machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }',
         "CrashNotDeclared",
-        b"pub machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }",
+        b'public machine bare(x: u64 in Trapping) -> u64 in Trapping { bump(x) }',
     )
     accepted(
         program,
         "crash-statement",
-        b"pub machine stop()\ncrashes Abort\n{ crash Abort; }",
+        b'public machine stop()\ncrashes Abort\n{ crash Abort; }',
         {0: "A/A"},
     )
     rejected(
         program,
         "undeclared-crash-statement",
-        b"pub machine stop()\ncrashes Trap\n{ crash Abort; }",
+        b'public machine stop()\ncrashes Trap\n{ crash Abort; }',
         "CrashNotDeclared",
-        b"pub machine stop()\ncrashes Trap\n{ crash Abort; }",
+        b'public machine stop()\ncrashes Trap\n{ crash Abort; }',
     )
 
     # Contract facts: `requires` facts hold in their body and are owed at
@@ -870,8 +949,8 @@ def main() -> None:
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    state found(a: &[u8; 4], i: u64) -> u8 { read(a, i) }\n"
-        b"    state missing() -> u8 { 0 }\n"
+        b"    machine found(a: &[u8; 4], i: u64) -> u8 { read(a, i) }\n"
+        b"    machine missing() -> u8 { 0 }\n"
         b"}",
     )
     rejected(
@@ -891,11 +970,11 @@ def main() -> None:
         b"        _ -> h()\n"
         b"    }\n"
         b"\n"
-        b"    state g(x: u64) -> u64\n"
+        b"    machine g(x: u64) -> u64\n"
         b"    requires x > 0\n"
         b"    { x - 1 }\n"
         b"\n"
-        b"    state h() -> u64 { 0 }\n"
+        b"    machine h() -> u64 { 0 }\n"
         b"}",
     )
     rejected(
@@ -904,7 +983,7 @@ def main() -> None:
         b"machine f(x: u64) -> u64 {\n"
         b"    transition { _ -> g(x) }\n"
         b"\n"
-        b"    state g(x: u64) -> u64\n"
+        b"    machine g(x: u64) -> u64\n"
         b"    requires x > 0\n"
         b"    { x }\n"
         b"}",
@@ -922,7 +1001,7 @@ def main() -> None:
         b"        _ -> capped()\n"
         b"    }\n"
         b"\n"
-        b"    state capped() -> u64 { 10 }\n"
+        b"    machine capped() -> u64 { 10 }\n"
         b"}",
     )
     rejected(
@@ -1006,8 +1085,8 @@ def main() -> None:
         b"        _ -> skipped()\n"
         b"    }\n"
         b"\n"
-        b"    state called(x: u64) -> u64 { F(x) }\n"
-        b"    state skipped() -> u64 { 0 }\n"
+        b"    machine called(x: u64) -> u64 { F(x) }\n"
+        b"    machine skipped() -> u64 { 0 }\n"
         b"}",
     )
     rejected(
@@ -1033,20 +1112,15 @@ def main() -> None:
     accepted(
         program,
         "static-machine-argument-within-contract-crash-causes",
-        b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }\n"
-        b"pub machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ apply<bump>(x) }",
+        b'machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }\npublic machine outer(x: u64 in Trapping) -> u64 in Trapping\ncrashes Trap\n{ apply<bump>(x) }',
         {0: "?/T", 1: "?/T", 2: "T/T"},
     )
     rejected(
         program,
         "binder-crash-causes-are-declared",
-        b"pub machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }",
+        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
         "CrashNotDeclared",
-        b"pub machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }",
+        b'public machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\nwhere machine F(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ F(x) }',
     )
     rejected(
         program,
@@ -1129,8 +1203,8 @@ def main() -> None:
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    state held(i: u64) -> u64 { take(i) }\n"
-        b"    state missing() -> u64 { 0 }\n"
+        b"    machine held(i: u64) -> u64 { take(i) }\n"
+        b"    machine missing() -> u64 { 0 }\n"
         b"}",
     )
     accepted(program, "qualified-argument-carries-its-domain", small + b"machine f(i: u64 in Small) -> u64 { take(i) }")
@@ -1262,8 +1336,8 @@ def main() -> None:
         b"        _ -> none()\n"
         b"    }\n"
         b"\n"
-        b"    state at(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
-        b"    state none() -> u8 { 0 }\n"
+        b"    machine at(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    machine none() -> u8 { 0 }\n"
         b"}",
     )
     rejected(
@@ -1273,7 +1347,7 @@ def main() -> None:
         "IndexOutOfBounds",
         b"a[i]",
     )
-    # Every state is checked: one no walk reaches from its parameters' carrier
+    # Every machine is checked: one no walk reaches from its parameters' carrier
     # ranges and its own `requires` facts.
     # A whole membership fact is its domain's predicates of the value; a
     # case membership must hold only where checking keeps case knowledge.
@@ -1305,14 +1379,14 @@ def main() -> None:
     rejected(
         program,
         "unreached-state-is-checked",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } state g(a: &[u8; 4], i: u64) -> u8 { a[i] } }",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } machine g(a: &[u8; 4], i: u64) -> u8 { a[i] } }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     accepted(
         program,
         "unreached-state-assumes-its-requires",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } state g(a: &[u8; 4], i: u64) -> u8 requires i < 4 { a[i] } }",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } machine g(a: &[u8; 4], i: u64) -> u8 requires i < 4 { a[i] } }",
     )
     rejected(
         program,
@@ -1363,12 +1437,10 @@ def main() -> None:
         b"items[0]",
     )
 
-    # Termination: a `terminates by` witness strictly descends on every
-    # cyclic transition (a state cycle or a self call), each subject read in
-    # the source as its state formal of that name and after the edge as the
-    # argument its target formal receives; a bare `terminates;` promise
-    # needs a witness for any cycle and terminating callees; a productive
-    # loop that promises nothing owes no rank.
+    # Each declaration owns its witness. Exact invocation components compare
+    # own entry snapshots with target witnesses over evaluated actuals. Every
+    # complete cycle must descend; an ordinary promise also needs terminating
+    # callees. An unpromised productive cycle owes no rank.
     countdown = (
         b"machine count(n: u64) -> u64\nterminates by n;\n{\n"
         b"    transition n > 0 {\n"
@@ -1376,14 +1448,14 @@ def main() -> None:
         b"        _ -> done()\n"
         b"    }\n"
         b"\n"
-        b"    state step(n: u64) -> u64 {\n"
+        b"    machine step(n: u64) -> u64\n    terminates by n;\n    {\n"
         b"        transition n > 0 {\n"
         b"            true -> STEP\n"
         b"            _ -> done()\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state done() -> u64 { 0 }\n"
+        b"    machine done() -> u64 { 0 }\n"
         b"}"
     )
     accepted(program, "ranked-state-cycle-descends", countdown.replace(b"STEP", b"step(n - 1)"))
@@ -1397,9 +1469,9 @@ def main() -> None:
     rejected(
         program,
         "promised-cycle-needs-a-witness",
-        countdown.replace(b"terminates by n;", b"terminates;").replace(b"STEP", b"step(n - 1)"),
-        "RankUnproven",
-        b"step(n - 1)!2",
+        countdown.replace(b"terminates by n;", b"terminates;", 1).replace(b"    terminates by n;\n", b"").replace(b"STEP", b"step(n - 1)"),
+        "ProgressUnproven",
+        b"terminates;",
     )
     accepted(
         program,
@@ -1467,9 +1539,9 @@ def main() -> None:
         b"machine count(n: u64, limit: u64) -> u64\nREQUIRES"
         b"terminates by n in 0..=limit;\n{\n"
         b"    transition n > 0 {\n        true -> step(n - 1, NEXT)\n        _ -> done()\n    }\n\n"
-        b"    state step(n: u64, limit: u64) -> u64 {\n"
+        b"    machine step(n: u64, limit: u64) -> u64\n    requires n <= limit\n    terminates by n in 0..=limit;\n    {\n"
         b"        transition n > 0 {\n            true -> step(n - 1, limit)\n            _ -> done()\n        }\n    }\n\n"
-        b"    state done() -> u64 { 0 }\n}"
+        b"    machine done() -> u64 { 0 }\n}"
     )
     accepted(program, "ranked-range-holds-at-entry-and-arrival", ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"limit"))
     rejected(
@@ -1482,9 +1554,9 @@ def main() -> None:
     rejected(
         program,
         "ranked-range-endpoints-are-pinned",
-        ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"0"),
+        ranged.replace(b"REQUIRES", b"requires n <= limit\n").replace(b"NEXT", b"limit").replace(b"        transition n > 0 {\n            true -> step(n - 1, limit)", b"        transition n > 0 {\n            true -> step(n - 1, limit - 1)"),
         "RankRangeUnproven",
-        b"step(n - 1, limit)",
+        b"step(n - 1, limit - 1)",
     )
     # A rank range is proved under the subject's data `where` facts, a
     # distance view's rank lies within its limit by construction, and a
@@ -1548,7 +1620,7 @@ def main() -> None:
     accepted(program, "a-write-only-call-replaces-a-holder's-loans", holders.replace(b"REPLACE", b"replace(&write held, incoming);"))
     # The ownership walk reads the body's own places: a body followed by a
     # transition into states keeps the origins its reference locals captured.
-    staged = holders.replace(b"    let observed: i64 = held.target.value;\n}", b"    let observed: i64 = held.target.value;\n    transition { _ -> done() }\n    state done() {}\n}")
+    staged = holders.replace(b"    let observed: i64 = held.target.value;\n}", b"    let observed: i64 = held.target.value;\n    transition { _ -> done() }\n    machine done() {}\n}")
     accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans-before-a-transition", staged.replace(b"REPLACE", b"let slot: &mut Held = &mut held;\n    slot = incoming;"))
     rejected(
         program,
@@ -1628,36 +1700,26 @@ def main() -> None:
         b"    transition remaining > 0 {\n        true -> walk(remaining - 1)\n        false -> remaining\n    }\n}",
     )
     rejected(program, "an-ordinary-body-owes-its-carrier", b"machine shift(value: u8) -> u8 { value + 1 }", "ArithmeticOverflow", b"value + 1")
-    # A state formal carries the entry subject every arrival passes it,
-    # whatever its spelling (wiki/spec/language/termination.md#subject-preservation);
-    # a formal receiving another parameter carries no subject.
+    # Every declaration ranks its own explicit arguments. Passing another
+    # caller parameter changes the invocation value, never the callee witness.
+    # Lexical ancestry supplies no runtime subject or ranking contract.
     carried = (
-        b"data Countdown { remaining: u64; }\n"
-        b"machine walk(countdown: Countdown, other: Countdown)\nterminates by countdown.remaining;\n-> u64 {\n"
-        b"    transition { _ -> iterate(ARRIVAL) }\n"
-        b"    state iterate(pending: Countdown) {\n        transition pending.remaining > 0 {\n"
-        b"            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}"
+        b'data Countdown { remaining: u64; }\nmachine walk(countdown: Countdown, other: Countdown)\nterminates by countdown.remaining;\n-> u64 {\n    transition { _ -> iterate(ARRIVAL) }\n    machine iterate(pending: Countdown) -> u64\n    terminates by pending.remaining;\n    {\n        transition pending.remaining > 0 {\n            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}'
     )
-    accepted(program, "a-state-formal-carries-the-subject-it-receives", carried.replace(b"ARRIVAL", b"countdown"))
-    rejected(program, "a-state-formal-receiving-another-parameter-ranks-nothing", carried.replace(b"ARRIVAL", b"other"), "RankUnproven", b"iterate(Countdown { remaining: pending.remaining - 1 })")
+    accepted(program, "an-own-rank-uses-the-explicit-record-argument", carried.replace(b"ARRIVAL", b"countdown"))
+    accepted(program, "an-own-rank-is-independent-of-the-caller-parameter", carried.replace(b"ARRIVAL", b"other"))
+    rejected(program, "an-own-record-rank-must-descend", carried.replace(b"ARRIVAL", b"other").replace(b"pending.remaining - 1", b"pending.remaining"), "RankUnproven", b"iterate(Countdown { remaining: pending.remaining })")
     accepted(
         program,
         "a-formal-carries-through-another-formal",
-        b"machine walk(count: u64)\nterminates by count;\n-> u64 {\n    transition { _ -> first(count) }\n"
-        b"    state first(pending: u64) {\n        transition { _ -> second(pending) }\n    }\n"
-        b"    state second(left: u64) {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}",
+        b'machine walk(count: u64)\nterminates by count;\n-> u64 {\n    transition { _ -> first(count) }\n    machine first(pending: u64) -> u64\n    terminates by pending;\n    {\n        transition { _ -> second(pending) }\n    }\n    machine second(left: u64) -> u64\n    terminates by left;\n    {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}',
     )
     # A `Slice::Length` witness rooted at a field path ranks the record's
     # slice by its live length. A rebuilt record's field takes the paths
     # below the view it was written from, so the view's shorter length
-    # arrives in the state's formal.
+    # arrives in the child's own formal.
     rebuilt = (
-        b"data Bag { items: &[u32]; }\n"
-        b"machine walk(bag: Bag, capacity: u64)\nrequires bag.items.len <= capacity;\n"
-        b"terminates by bag.items -> Slice::Length in 0..=capacity;\n-> u64 {\n"
-        b"    transition { _ -> step(bag, capacity) }\n"
-        b"    state step(current: Bag, bound: u64) {\n        transition current.items.len > 0 {\n"
-        b"            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}"
+        b'data Bag { items: &[u32]; }\nmachine walk(bag: Bag, capacity: u64)\nrequires bag.items.len <= capacity;\nterminates by bag.items -> Slice::Length in 0..=capacity;\n-> u64 {\n    transition { _ -> step(bag, capacity) }\n    machine step(current: Bag, bound: u64) -> u64\n    requires current.items.len <= bound\n    terminates by current.items -> Slice::Length in 0..=bound;\n    {\n        transition current.items.len > 0 {\n            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}'
     )
     accepted(program, "a-rebuilt-record-field-ranks-by-its-view-length", rebuilt.replace(b"RANGE", b"1.."))
     rejected(
@@ -1670,11 +1732,7 @@ def main() -> None:
     accepted(
         program,
         "a-nested-rebuilt-record-field-ranks-by-its-view-length",
-        b"data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\n"
-        b"machine walk(outer: Outer)\nterminates by outer.inner.items -> Slice::Length;\n-> u64 {\n"
-        b"    transition { _ -> step(outer) }\n"
-        b"    state step(current: Outer) {\n        transition current.inner.items.len > 0 {\n"
-        b"            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}",
+        b'data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\nmachine walk(outer: Outer)\nterminates by outer.inner.items -> Slice::Length;\n-> u64 {\n    transition { _ -> step(outer) }\n    machine step(current: Outer) -> u64\n    terminates by current.inner.items -> Slice::Length;\n    {\n        transition current.inner.items.len > 0 {\n            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}',
     )
     # A recast borrows its operand's storage under another shape
     # (wiki/spec/layouts/recasts.md): a write through the view reaches the
@@ -1749,8 +1807,8 @@ def main() -> None:
         b"machine set(context: &mut Context) -> bool { context.count = 5; true }\n"
         b"machine main(context: &mut Context) {\n"
         b"    transition set(context) && context.count < 6 { true -> bounded(context) false -> done() }\n"
-        b"    state bounded(context: &mut Context) requires context.count < 6 { context.count = context.count + 1; }\n"
-        b"    state done() {}\n}",
+        b"    machine bounded(context: &mut Context) requires context.count < 6 { context.count = context.count + 1; }\n"
+        b"    machine done() {}\n}",
     )
     # A source-order cutoff cannot decide whether a captured read is stale:
     # a disjoint write preserves the read, while a failed earlier guard may
@@ -1857,15 +1915,31 @@ def main() -> None:
         b"        _ -> done()\n"
         b"    }\n"
         b"\n"
-        b"    state emit(bytes: &[u8]) -> u64 {\n"
+        b"    machine emit(bytes: &[u8]) -> u64\n    terminates by bytes -> Slice::Length;\n    {\n"
         b"        transition bytes.len > 0 {\n"
         b"            true -> TAIL\n"
         b"            _ -> done()\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    state done() -> u64 { 0 }\n"
+        b"    machine done() -> u64 { 0 }\n"
         b"}"
+    )
+    # Ranking creates the synthetic length before the guard. Its captured
+    # value retains the admitted scalar type and equality to that live length.
+    accepted(
+        program,
+        "a-ranked-slice-keeps-its-captured-length",
+        b"machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length; "
+        b"{ transition bytes.len > 0 { true -> bytes[1..] false -> bytes } }",
+    )
+    rejected(
+        program,
+        "a-ranked-slice-still-needs-a-bound",
+        b"machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length; "
+        b"{ bytes[1..] }",
+        "IndexOutOfBounds",
+        b"bytes[1..]",
     )
     accepted(program, "slice-length-shrinks", shrink.replace(b"TAIL", b"emit(bytes[1..])"))
     rejected(
@@ -1891,7 +1965,7 @@ def main() -> None:
         b"machine spin(x: u64) -> u64 {\n"
         b"    transition { _ -> again(x) }\n"
         b"\n"
-        b"    state again(x: u64) -> u64 {\n"
+        b"    machine again(x: u64) -> u64 {\n"
         b"        transition { _ -> again(x) }\n"
         b"    }\n"
         b"}\n"
@@ -1927,7 +2001,7 @@ def main() -> None:
         b"trait Algebra { machine zero() -> u64 terminates; }",
     )
     # The product's own accessor and push shapes: a guard on a field and the
-    # field's `where` bound reach the state that indexes and stores.
+    # field's `where` bound reach the machine that indexes and stores.
     table = (
         b"data Table\nwhere\n    count <= 4,\n{ items: [u8; 4]; count: u64; }\n"
     )
@@ -1941,8 +2015,8 @@ def main() -> None:
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    state found(t: &Table, i: u64) -> u8 { t.items[i] }\n"
-        b"    state missing() -> u8 { 0 }\n"
+        b"    machine found(t: &Table, i: u64) -> u8 { t.items[i] }\n"
+        b"    machine missing() -> u8 { 0 }\n"
         b"}",
     )
     accepted(
@@ -1955,13 +2029,13 @@ def main() -> None:
         b"        _ -> full()\n"
         b"    }\n"
         b"\n"
-        b"    state store(t: &mut Table, value: u8) -> bool {\n"
+        b"    machine store(t: &mut Table, value: u8) -> bool {\n"
         b"        t.items[t.count] = value;\n"
         b"        t.count = t.count + 1;\n"
         b"        true\n"
         b"    }\n"
         b"\n"
-        b"    state full() -> bool { false }\n"
+        b"    machine full() -> bool { false }\n"
         b"}",
     )
     rejected(
@@ -1981,8 +2055,8 @@ def main() -> None:
         b"        _ -> empty()\n"
         b"    }\n"
         b"\n"
-        b"    state made(x: u64) -> Range { Range { lo: x, hi: x + 1 } }\n"
-        b"    state empty() -> Range { Range { lo: 0, hi: 0 } }\n"
+        b"    machine made(x: u64) -> Range { Range { lo: x, hi: x + 1 } }\n"
+        b"    machine empty() -> Range { Range { lo: 0, hi: 0 } }\n"
         b"}",
     )
     # A case's own `where` facts: construction proves the selected case's,
@@ -2120,11 +2194,7 @@ def main() -> None:
     # Machines check independently: each pass (bodies, then crash routes)
     # records the first rejection of every machine it rejects, in order.
     every = (
-        b"machine first(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
-        b"machine fine(a: &[u8; 4]) -> u8 { a[0] }\n"
-        b"pub machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
-        b"machine second(x: u64, y: u64) -> u64 { x / y }\n"
-        b"machine twice(a: &[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }"
+        b'machine first(a: &[u8; 4], i: u64) -> u8 { a[i] }\nmachine fine(a: &[u8; 4]) -> u8 { a[0] }\npublic machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine second(x: u64, y: u64) -> u64 { x / y }\nmachine twice(a: &[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }'
     )
     status, payload = run(program, every)
     observation = decode(payload)
@@ -2132,7 +2202,7 @@ def main() -> None:
         ("IndexOutOfBounds", located(every, b"a[i]")),
         ("DivisorMayBeZero", located(every, b"x / y")),
         ("IndexOutOfBounds", located(every, b"a[i]!2")),
-        ("CrashNotDeclared", located(every, b"pub machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }")),
+        ("CrashNotDeclared", located(every, b'public machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }')),
     )
     assert status == 247 and observation.rejections == expected, (
         f"every-machine-first-rejection: status {status}, {observation.rejections}"
@@ -2279,7 +2349,7 @@ def main() -> None:
         b"        Choice::Present { value } -> observe(value)\n"
         b"        _ -> (false)\n"
         b"    }\n"
-        b"    state observe(value: Token) -> bool { value.value == 42 }\n"
+        b"    machine observe(value: Token) -> bool { value.value == 42 }\n"
         b"}",
         "MoveOutOfBorrow",
         b"value!4",
@@ -2335,7 +2405,7 @@ def main() -> None:
         receipt + b"machine run() -> i32 {\n"
         b"    let receipt: Receipt = Receipt { code: 1 };\n"
         b"    transition { _ -> held(receipt) }\n"
-        b"    state held(receipt: Receipt) -> i32 { settle(receipt) }\n"
+        b"    machine held(receipt: Receipt) -> i32 { settle(receipt) }\n"
         b"}",
     )
     rejected(
@@ -2450,7 +2520,7 @@ def main() -> None:
         b"data Main { count: u64; }\n"
         b"machine Main::run(main: &mut Main) -> u64 {\n"
         b"    transition { _ -> next(main, main.count) }\n"
-        b"    state next(held: &mut Main, value: u64) -> u64 { value }\n"
+        b"    machine next(held: &mut Main, value: u64) -> u64 { value }\n"
         b"}",
     )
     rejected(
@@ -2459,7 +2529,7 @@ def main() -> None:
         b"data Main { count: u64; }\n"
         b"machine Main::run(main: &mut Main) -> u64 {\n"
         b"    transition { _ -> next(main, main) }\n"
-        b"    state next(first: &mut Main, second: &mut Main) -> u64 { first.count }\n"
+        b"    machine next(first: &mut Main, second: &mut Main) -> u64 { first.count }\n"
         b"}",
         "OverlappingArguments",
         b"main!3",
@@ -2470,7 +2540,7 @@ def main() -> None:
         b"data Inner { value: u64; }\ndata Main { inner: Inner; }\n"
         b"machine Main::run(main: &mut Main) -> u64 {\n"
         b"    transition { _ -> next(&mut main.inner, main.inner.value) }\n"
-        b"    state next(held: &mut Inner, value: u64) -> u64 { value }\n"
+        b"    machine next(held: &mut Inner, value: u64) -> u64 { value }\n"
         b"}",
         "OverlappingArguments",
         b"main.inner.value",
@@ -2664,8 +2734,8 @@ def main() -> None:
         b"        true -> calculate(value, count)\n"
         b"        false -> empty()\n"
         b"    }\n"
-        b"    state calculate(value: u64, count: u32) -> u64 { value >> count }\n"
-        b"    state empty() -> u64 { 0 }\n"
+        b"    machine calculate(value: u64, count: u32) -> u64 { value >> count }\n"
+        b"    machine empty() -> u64 { 0 }\n"
         b"}",
     )
     accepted(
@@ -2790,7 +2860,7 @@ def main() -> None:
         ("constructed", b"machine run() { let mut context: Context = Context { left: 1, right: 2 }; " + call + b"; }", call),
         ("copied", b"machine run() { let original: Context = Context { left: 1, right: 2 }; let mut context: Context = original; " + call + b"; }", call),
         ("field", b"data Holder { context: Context; }\nmachine run() { let mut holder: Holder = Holder { context: Context { left: 1, right: 2 } }; compare(holder.context, set_left(&mut holder.context)); }", b"compare(holder.context, set_left(&mut holder.context))"),
-        ("state", b"machine run() { transition { _ -> next(Context { left: 1, right: 2 }) } state next(context: Context) { " + call + b"; } }", call),
+        ("state", b"machine run() { transition { _ -> next(Context { left: 1, right: 2 }) } machine next(context: Context) { " + call + b"; } }", call),
         ("parameter", b"machine run(context: Context)\nrequires context.left == 1\n{ " + call + b"; }", call),
     )
     for path, body, spelling in record_paths:
@@ -2865,7 +2935,7 @@ def main() -> None:
         "jump-carries-a-construction",
         b"data Pair [copy] { first: u64; second: u64; }\nmachine run(value: u64) {\n"
         b"    transition { _ -> next(Pair { first: value, second: value }) }\n"
-        b"    state next(pair: Pair)\n    requires pair.first == pair.second\n    {}\n}",
+        b"    machine next(pair: Pair)\n    requires pair.first == pair.second\n    {}\n}",
     )
 
     # A Boolean is a subject, 1 when true and 0 when false: a stored literal
@@ -2893,13 +2963,13 @@ def main() -> None:
         program,
         "jump-carries-a-boolean",
         pick + b"machine run() -> u64 {\n    transition { _ -> next(5, true) }\n"
-        b"    state next(count: u64, flag: bool) -> u64\n    requires count == 5\n    { pick(flag) }\n}",
+        b"    machine next(count: u64, flag: bool) -> u64\n    requires count == 5\n    { pick(flag) }\n}",
     )
     rejected(
         program,
         "jump-carries-a-false-boolean",
         pick + b"machine run() -> u64 {\n    transition { _ -> next(5, false) }\n"
-        b"    state next(count: u64, flag: bool) -> u64 { pick(flag) }\n}",
+        b"    machine next(count: u64, flag: bool) -> u64 { pick(flag) }\n}",
         "RequirementUnproven",
         b"pick(flag)",
     )
@@ -2953,7 +3023,7 @@ def main() -> None:
         b'machine consume(token: Token) -> u64 requires token.value == 1 { token.value }\n'
         b'machine run() -> u64 {\n'
         b'transition { _ -> again(Token { value: 1 }, 0) }\n'
-        b'state again(token: Token, step: u64) -> u64 {\n'
+        b'machine again(token: Token, step: u64) -> u64 {\n'
         b'let saved: Token = Token { value: token.value };\n'
         b'transition { step == 0 -> again(Token { value: 9 }, 1) _ -> consume(saved) }\n'
         b'}\n'
@@ -3032,7 +3102,7 @@ def main() -> None:
         program,
         'boolean-join-keeps-both-arrivals',
         b'machine consume(flag: bool) requires flag {}\n'
-        b'machine run(choice: bool) { transition choice { true -> next(true) false -> next(false) } state next(flag: bool) { consume(flag); } }',
+        b'machine run(choice: bool) { transition choice { true -> next(true) false -> next(false) } machine next(flag: bool) { consume(flag); } }',
         'RequirementUnproven',
         b'consume(flag)',
     )
@@ -3475,6 +3545,9 @@ def main() -> None:
         b"sink!2",
     )
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
+
+    nested_machine_cases(program)
+    invocation_component_cases(program)
 
     determinism = b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }"
     first = run(program, determinism)

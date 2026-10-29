@@ -5,29 +5,23 @@
 //! every invocation before publishing a canonical value.
 
 use super::{
-    Identifier, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
+    HashSet, Identifier, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
 use syntax_trees::statement::StatementNode;
 
 pub(super) fn collect(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     selection: &ConstantSelection<'_>,
+    declaration_syntax: Option<&SyntaxTrees>,
     positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    public_positions: &HashSet<TypeReferenceHandle>,
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
+    let mut applications = Vec::new();
     let mut visit = |name: Identifier, arguments: &[StaticMachineArgument]| {
-        collect_application(
-            syntax,
-            selection,
-            &name,
-            arguments,
-            positions,
-            public_positions,
-            pending,
-        );
+        applications.push((name, arguments.to_vec()));
     };
     for (_, expression) in syntax.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
@@ -78,6 +72,19 @@ pub(super) fn collect(
             }
         }
     }
+    let positions = positions.iter().copied().collect::<HashSet<_>>();
+    for (name, arguments) in applications {
+        collect_application(
+            syntax,
+            selection,
+            declaration_syntax,
+            &name,
+            &arguments,
+            &positions,
+            public_positions,
+            pending,
+        );
+    }
 }
 
 fn has_const_expression_argument(
@@ -92,22 +99,20 @@ fn has_const_expression_argument(
                     .type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             ))
-            || argument
-                .application
-                .as_ref()
-                .is_some_and(|application| {
-                    has_const_expression_argument(syntax, &application.arguments)
-                })
+            || argument.application.as_ref().is_some_and(|application| {
+                has_const_expression_argument(syntax, &application.arguments)
+            })
     })
 }
 
 fn collect_application(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     selection: &ConstantSelection<'_>,
+    declaration_syntax: Option<&SyntaxTrees>,
     name: &Identifier,
     arguments: &[StaticMachineArgument],
-    positions: &[TypeReferenceHandle],
-    public_positions: &[TypeReferenceHandle],
+    positions: &HashSet<TypeReferenceHandle>,
+    public_positions: &HashSet<TypeReferenceHandle>,
     pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
 ) {
     if arguments.iter().any(|argument| {
@@ -118,13 +123,18 @@ fn collect_application(
                     .type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             )
-    }) && let Some(parameters) = selection.static_parameters(syntax, name)
-        && parameters.len() == arguments.len()
+    }) && let Some(parameters) = selection.const_parameter_carriers(
+        syntax,
+        declaration_syntax,
+        name,
+        &[
+            symbols::SymbolKind::Machine,
+            symbols::SymbolKind::Conformance,
+        ],
+    ) && parameters.len() == arguments.len()
     {
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            if let TypeParameterKind::Const {
-                type_reference: destination,
-            } = parameter.kind
+            if let Some(destination) = *parameter
                 && positions.contains(&argument.type_reference)
                 && matches!(
                     syntax
@@ -160,6 +170,7 @@ fn collect_application(
             collect_application(
                 syntax,
                 selection,
+                declaration_syntax,
                 &name,
                 &application.arguments,
                 positions,

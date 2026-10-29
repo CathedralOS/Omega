@@ -20,7 +20,7 @@ use typed_trees::statement::StatementNode;
 /// granular grant and stays `freestanding`-only. Consumer-defined
 /// publication authority stays receiver-side per the permissions spec and
 /// never enters this input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct AsmAuthorityAdmission {
     machine_owner: bool,
     port_io: bool,

@@ -3,7 +3,7 @@ use crate::types::TypeReference;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -43,20 +43,20 @@ pub struct DomainDefinition {
     pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DomainAliasDefinition {
     /// Nonempty by grammar. Symbols are assigned after all domain declarations
     /// have received their top-level symbols.
     pub constituents: Vec<DomainAliasConstituent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct DomainAliasConstituent {
     pub domain: HandleSpan<DiagnosticName>,
     pub domain_symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ProofFact {
     Expression(crate::expression::ExpressionHandle),
     Membership(ProofMembershipFact),
@@ -68,7 +68,7 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,

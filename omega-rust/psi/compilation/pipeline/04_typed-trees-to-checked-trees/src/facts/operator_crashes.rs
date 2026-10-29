@@ -4,6 +4,7 @@
 use super::crash_entry_values::{
     entry_operand_projected, formal_member_projection, substitute_entry_projected,
 };
+use super::declared_parameter_names;
 
 use checked_trees::{
     CheckedCrashOperatorSite, CheckedOperatorFacts, CheckedOperatorOccurrence,
@@ -294,10 +295,7 @@ fn retained_operator_crash_routes(
         operators,
         content_conservation,
     )?;
-    let parameter_names = parameters
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect::<Vec<_>>();
+    let parameter_names = declared_parameter_names(parameters);
     // A `Parameter` leaf below a member spine asks only for the operand's
     // provenance at that projection: a mutable carrier written only in a
     // sibling field still supplies the read field's entry operand, so the
@@ -404,9 +402,9 @@ fn retained_operator_crash_routes(
 }
 
 /// A named call's exact operands in operator-parameter order. Named resolution
-/// already fixed the arity: an `is_self` parameter binds the value receiver;
-/// without `is_self`, a receiver call binds its value receiver to the single
-/// leading parameter; a static namespace receiver carries no operand at all.
+/// already fixed the arity: one parameter more than argument binds the value
+/// receiver to that single leading parameter, and equal counts bind the
+/// arguments directly — a static namespace receiver carries no operand at all.
 /// The flow pass reuses this ordering when it captures operand-time evidence
 /// for a named use, so captured operand rows align with this list.
 pub(crate) fn named_call_operands(
@@ -415,17 +413,6 @@ pub(crate) fn named_call_operands(
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<Vec<ExpressionHandle>> {
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if parameters.iter().any(|_parameter| false) {
-        if !call.receiver.is_valid() {
-            return None;
-        }
-        let mut argument = arguments.iter().copied();
-        let operands = parameters
-            .iter()
-            .map(|_parameter| argument.next())
-            .collect::<Option<Vec<_>>>()?;
-        return argument.next().is_none().then_some(operands);
-    }
     if parameters.len() == arguments.len() + 1 {
         return call.receiver.is_valid().then(|| {
             std::iter::once(call.receiver)

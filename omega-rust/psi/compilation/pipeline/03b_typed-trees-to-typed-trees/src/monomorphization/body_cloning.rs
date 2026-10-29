@@ -97,6 +97,43 @@ pub(super) fn clone_single_specialized_machine(
         .map_err(|diagnostic| vec![diagnostic])?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
+    // Boolean constraints and source-probe equations retain pending closure.
+    // Derive it from the actual tuple before declaration-based substitution;
+    // a formal's own where definition cannot justify the supplied argument.
+    let predicates_closed = if source_machine.structural_type_equations_pending {
+        let input = source.unwrap_or(program);
+        let substitutions = candidate
+            .template
+            .type_parameters
+            .iter()
+            .zip(&candidate.type_bindings)
+            .filter_map(|((formal, _), actual)| actual.map(|actual| (*formal, actual)))
+            .chain(
+                candidate
+                    .template
+                    .const_parameters
+                    .iter()
+                    .zip(&candidate.const_bindings)
+                    .filter_map(|((formal, _, _), actual)| actual.map(|actual| (*formal, actual))),
+            )
+            .collect::<Vec<_>>();
+        let predicates = input
+            .expression_table
+            .expression_handles(source_machine.declared_type_predicates);
+        let mut complete = !predicates.is_empty();
+        for &predicate in predicates {
+            match input.applied_static_type_predicate_value(predicate, &substitutions) {
+                Some(true) => {}
+                Some(false) => return Err(vec![Diagnostic::error(format!(
+                    "machine `{}` where type predicate does not hold for the supplied arguments", source_machine.name
+                )).with_source_span(input.expression_table.source_span(predicate))]),
+                None => complete = false,
+            }
+        }
+        complete
+    } else {
+        false
+    };
     let source_states = source
         .unwrap_or(program)
         .machine_states(&source_machine)
@@ -337,6 +374,7 @@ pub(super) fn clone_single_specialized_machine(
     }
 
     let mut cloned = source_machine.clone();
+    cloned.structural_type_equations_pending &= !predicates_closed;
     // Published progress premises are declaration-owned identities, like
     // ordinary requires/ensures subjects. The fresh specialization cannot
     // retain its template's entry formals. External field symbols stay exact.
@@ -417,6 +455,19 @@ pub(super) fn clone_single_specialized_machine(
         })
         .collect::<Vec<_>>();
     cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
+    let predicates = source
+        .unwrap_or(program)
+        .expression_table
+        .expression_handles(source_machine.declared_type_predicates)
+        .to_vec();
+    let predicates = predicates
+        .into_iter()
+        .map(|expression| copy_expression(source, program, expression, &symbol_map))
+        .collect::<Vec<_>>();
+    cloned.declared_type_predicates = program
+        .expression_table
+        .insert_expression_handles(predicates);
+
     if capture.is_none() {
         cloned.conformance_bounds.clear();
     } else {
@@ -813,8 +864,7 @@ pub(super) fn clone_single_specialized_machine(
         let environment = scope.environment();
         let references = program
             .type_reference_table
-            .references()
-            .filter(|(handle, _)| handle.arena_index() as usize >= type_start)
+            .references_from(type_start)
             .map(|(handle, _)| handle)
             .collect::<Vec<_>>();
         for reference in references {
@@ -847,8 +897,16 @@ pub(super) fn clone_single_specialized_machine(
         &cloned_expression_roots,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    substitute_cloned_type_parameters(source, program, candidate, type_start, cloned.symbol)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    substitute_cloned_type_parameters(
+        source,
+        program,
+        candidate,
+        type_start,
+        expression_start,
+        std::slice::from_ref(&cloned.states),
+        cloned.symbol,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     // Range endpoints are value positions, not static positions: a binder
     // surviving in one names the realized trailing parameter so the clone's
     // declared `-> u64[0..=Bound]` keeps qualifying the captured subject.
@@ -1028,8 +1086,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
 ) {
     let query_carriers = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter(|(_, expression)| {
             matches!(expression, ExpressionNode::Call(call)
             if call.native_code_layout.is_some() || call.layout_query.is_some())
@@ -1053,8 +1110,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     // just like cast types. The clone cannot mutate its template's contract.
     let index_payloads = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, _)| {
             program
                 .expression_table
@@ -1086,8 +1142,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     }
     let calls = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| match expression {
             ExpressionNode::Call(call) => Some((
                 handle,
@@ -1140,8 +1195,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
     }
     let cast_payloads = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
@@ -1178,10 +1232,11 @@ pub(super) fn copy_cloned_expression_type_payloads(
 
     let zero_values = program
         .expression_table
-        .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
-            let ExpressionNode::ZeroValue(type_reference) = expression else {
+            let (ExpressionNode::ZeroValue(type_reference)
+            | ExpressionNode::TypeExpression(type_reference)) = expression
+            else {
                 return None;
             };
             Some((handle, *type_reference))
@@ -1189,7 +1244,8 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .collect::<Vec<_>>();
     for (handle, type_reference) in zero_values {
         let type_reference = copy_type_reference(source, program, type_reference, symbols);
-        let ExpressionNode::ZeroValue(current) = program.expression_table.expression_mut(handle)
+        let (ExpressionNode::ZeroValue(current) | ExpressionNode::TypeExpression(current)) =
+            program.expression_table.expression_mut(handle)
         else {
             unreachable!("collected zero-value expression changed kind")
         };

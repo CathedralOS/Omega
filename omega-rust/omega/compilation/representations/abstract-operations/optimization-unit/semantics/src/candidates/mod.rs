@@ -11,8 +11,8 @@
 //! land, rebuild the derived surfaces, hold the region, issue — and
 //! `rewrite_accounting` reconstructs provenance and custody for all of
 //! them, `observation` the closed scalar observation boundaries, and
-//! `structural_bindings` the block-parameter bindings replays may forward
-//! through.
+//! `optimization_unit::bound_place` the block-parameter bindings replays may
+//! forward through.
 
 use optimization_core::{OptimizationCandidateIdentity, OptimizationValidatorIdentity};
 use optimization_unit::{
@@ -36,7 +36,6 @@ pub(crate) mod proof_check_elision;
 pub(crate) mod rewrite_accounting;
 pub(crate) mod sparse_conditional_constant_propagation;
 pub(crate) mod state_specialization;
-mod structural_bindings;
 mod value_operand_rewrites;
 
 use case_membership_specialization::validate_case_membership_specialization_candidate;
@@ -381,55 +380,6 @@ pub(crate) fn realize_node_provenance<'node>(
         realized.push(realized_at_own_site(site, &node.provenance, &node.fuel));
     }
     Some(())
-}
-
-/// The shape a scalar-node retirement requires at its own coordinate: the node
-/// carries exactly the one result definition the patch names, no successors,
-/// no ownership events, and a following node to absorb the vacated custody.
-/// The caller keeps its own evidence reconstruction and its own rejection
-/// class, so the three families that remove one scalar node and substitute its
-/// live result decide admissibility here instead of re-deriving it.
-pub(crate) fn retirable_scalar_node(
-    block: &optimization_unit::OptimizationBlock,
-    node_index: usize,
-    node: &optimization_unit::OptimizationNode,
-    result: semantic_vocabulary::ValueId,
-    scalar_type: semantic_vocabulary::ScalarType,
-) -> bool {
-    let Ok(coordinate) = u32::try_from(node_index) else {
-        return false;
-    };
-    let definition = optimization_unit::ValueDefinition {
-        value: result,
-        scalar_type,
-        site: optimization_unit::ValueDefinitionSite::Node {
-            block: block.id,
-            node: coordinate,
-        },
-    };
-    node.definitions == [definition]
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
-        && node_index
-            .checked_add(1)
-            .is_some_and(|next| block.nodes.get(next).is_some())
-}
-
-/// The receiver of a vacated coordinate must not already carry any of the
-/// retired node's provenance sources, or the fuse counts one occurrence twice.
-pub(crate) fn receiver_custody_distinct(
-    block: &optimization_unit::OptimizationBlock,
-    node_index: usize,
-    node: &optimization_unit::OptimizationNode,
-) -> bool {
-    node_index.checked_add(1).is_some_and(|next| {
-        block.nodes.get(next).is_some_and(|receiver| {
-            !receiver
-                .provenance
-                .iter()
-                .any(|source| node.provenance.contains(source))
-        })
-    })
 }
 
 /// Retire one node of an accepted block and fuse its custody into the node

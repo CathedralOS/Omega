@@ -175,7 +175,14 @@ pub(crate) fn captured_values<'facts>(
     call: &FlowCallFact,
     actual: &Actual<'_>,
 ) -> Option<Vec<crate::flow::CapturedValue<'facts>>> {
-    let operand = captured_operand(program, facts, state, call, actual)?;
+    let operands = crate::flow::captured_call_operands(program, &facts.flow, state, call)?.0;
+    operands.get(actual.operand_position)?;
+    let operand = crate::flow::CapturedOperand::recorded(
+        &facts.flow.control,
+        call.operands
+            .handle_at(u32::try_from(actual.operand_position).ok()?),
+    )?;
+    let epoch = operands.last()?;
     let values = crate::flow::captured_operand_values(
         program,
         &facts.flow,
@@ -185,9 +192,6 @@ pub(crate) fn captured_values<'facts>(
         actual.parameter.type_reference,
         &actual.path,
     )?;
-    let epoch = crate::flow::captured_call_operands(program, &facts.flow, state, call)?
-        .0
-        .last()?;
     Some(crate::flow::observe_captured_values(
         program,
         &facts.flow,

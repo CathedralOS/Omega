@@ -1,3 +1,4 @@
+use super::normal_cleanup::CompletionBoundary;
 use crate::interpreter::evaluator::{
     BTreeMap, BuildEvaluationSponsor, CALL_DEPTH_BUDGET, Cell, CellMeter, CheckedTrees,
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
@@ -1061,15 +1062,33 @@ impl<'program> Evaluator<'program> {
 
             match next {
                 None => {
-                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
+                    self.execute_completion_cleanup(
+                        machine,
+                        state,
+                        &frame,
+                        exit,
+                        CompletionBoundary::NormalReturn,
+                    )?;
                     return Ok(tail_value);
                 }
                 Some(TransitionDecision::Value(value)) => {
-                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
+                    self.execute_completion_cleanup(
+                        machine,
+                        state,
+                        &frame,
+                        exit,
+                        CompletionBoundary::NormalReturn,
+                    )?;
                     return Ok(Some(value));
                 }
                 Some(TransitionDecision::Terminal) => {
-                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
+                    self.execute_completion_cleanup(
+                        machine,
+                        state,
+                        &frame,
+                        exit,
+                        CompletionBoundary::NormalReturn,
+                    )?;
                     return Ok(None);
                 }
                 Some(TransitionDecision::Named {
@@ -1077,7 +1096,13 @@ impl<'program> Evaluator<'program> {
                     machine: target_machine,
                     arguments,
                 }) => {
-                    self.execute_normal_cleanup(machine, state, &frame, exit)?;
+                    self.execute_completion_cleanup(
+                        machine,
+                        state,
+                        &frame,
+                        exit,
+                        CompletionBoundary::TerminalTransfer,
+                    )?;
                     if target_machine.symbol == machine.symbol {
                         // Carry this state's bindings forward to the sibling state.
                         carried = frame.locals;

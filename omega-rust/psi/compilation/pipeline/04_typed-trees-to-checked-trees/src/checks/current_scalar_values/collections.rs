@@ -44,7 +44,7 @@ impl CurrentScalarValues<'_> {
     pub(crate) fn postcondition(
         &self,
         expression: ExpressionHandle,
-        returned: ExpressionHandle,
+        returned: Option<ExpressionHandle>,
         origins: impl Iterator<Item = (SymbolHandle, SymbolHandle)>,
     ) -> Option<ScopedArithmeticExpression> {
         // The declaration's postcondition names invocation parameters, while
@@ -90,31 +90,12 @@ impl CurrentScalarValues<'_> {
         } else {
             &[]
         };
-        if !admitted(
-            self.program,
-            self.machine,
-            entry,
-            self.statement_index,
-            expression,
-            &bindings,
-            &lengths,
-            fields,
-            0,
-        ) {
+        let occurrence = self.occurrence_at(self.program, self.machine, entry, &lengths);
+        if !admitted(occurrence, expression, &bindings, fields, 0) {
             return None;
         }
-        let mut goal = scoped(
-            self.machine,
-            entry,
-            self.statement_index,
-            expression,
-            &bindings,
-            &lengths,
-            fields,
-            &self.hypotheses,
-            self.program,
-        )?;
-        if let Some(returned) = self.current(returned) {
+        let mut goal = scoped(occurrence, expression, &bindings, fields)?;
+        if let Some(returned) = returned.and_then(|returned| self.current(returned)) {
             goal.bindings.push(ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Result,
                 value: ScopedArithmeticValue::Term(returned),

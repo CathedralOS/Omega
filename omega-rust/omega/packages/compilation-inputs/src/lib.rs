@@ -50,13 +50,15 @@ pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use package_compilation::{
-    CompilerProductRetention, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
-    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
-    PackageGeneratedSourceBundle, PackageSourceBinding,
+    CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
+    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
+    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
+    PackageDependencyClosure, PackageSourceBinding,
 };
+#[doc(hidden)]
+pub use package_compilation::{native_output_codec, provider_selection_codec};
 pub use review_cache_digests::{
-    generated_source_bundle_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
+    package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
@@ -71,4 +73,33 @@ pub use source_consumption::{
 pub(crate) use source_snapshot::capture_scoped_source_input;
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
+};
+
+/// Capture the same complete anonymous namespace that source assembly consumes.
+/// Callers may compare a private checkpoint before parsing, then pass this exact
+/// capture into assembly. Capture grants neither Build nor package authority.
+pub fn capture_anonymous_compilation_source(
+    root_path: &std::path::Path,
+) -> Result<CapturedLocalSource, Vec<diagnostics::Diagnostic>> {
+    let root = if root_path.is_dir() {
+        root_path
+    } else {
+        root_path
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| std::path::Path::new("."))
+    };
+    package_source::local::operations::capture_local_source_input(
+        root,
+        package_source::LocalSourceLimits::default(),
+    )
+    .map_err(|reason| {
+        vec![diagnostics::Diagnostic::error(format!(
+            "cannot capture anonymous source: {reason}"
+        ))]
+    })
+}
+pub use package_compilation::{
+    NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,
+    PackageNativeBindingOrigin,
 };

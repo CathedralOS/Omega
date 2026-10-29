@@ -1,6 +1,5 @@
 //! Optimizer module role: executable entrance. Frames and dispatches the v11 function-relative realization manifest protocol.
 
-mod cursor;
 mod decoding;
 mod encoding;
 mod error;
@@ -8,10 +7,9 @@ mod post_allocation;
 mod target;
 
 use super::FunctionRelativeOptimizationRealizationManifest;
-use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
-
-use cursor::Cursor;
 pub(crate) use error::FunctionRelativeOptimizationRealizationManifestDecodeError;
+use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use optimization_core::cursor::Cursor;
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
 const MANIFEST_VERSION: u32 = 12;
@@ -39,7 +37,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
         encoded: &[u8],
     ) -> Result<Self, FunctionRelativeOptimizationRealizationManifestDecodeError> {
         let mut cursor = Cursor::new(encoded);
-        if cursor.take(MANIFEST_MAGIC.len())? != MANIFEST_MAGIC {
+        if cursor.take(MANIFEST_MAGIC.len())? != &MANIFEST_MAGIC[..] {
             return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic);
         }
         let version = cursor.u32()?;

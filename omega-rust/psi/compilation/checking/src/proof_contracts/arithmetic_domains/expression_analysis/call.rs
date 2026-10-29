@@ -276,13 +276,12 @@ fn declared_return_range(
     let return_type = call_return_type(program, call)?;
     let primitive = program.primitive_type_reference(return_type);
     let declared = range_constraint_interval(program, return_type);
-    let is_independent =
-        crate::machine_calls::contract_dependencies::independent_call_application(
-            program,
-            walk.lexical_owner,
-            call.target_symbol,
-            typed_trees::references::StaticArgumentCall::Expression(expression, call),
-        );
+    let is_independent = crate::machine_calls::contract_dependencies::independent_call_application(
+        program,
+        walk.lexical_owner,
+        call.target_symbol,
+        typed_trees::references::StaticArgumentCall::Expression(expression, call),
+    );
     let callee = is_independent
         .then(|| crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol))
         .flatten();

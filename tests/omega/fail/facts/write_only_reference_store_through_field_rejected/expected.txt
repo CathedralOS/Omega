@@ -1,0 +1,1 @@
+permits replacement or exact `&write` forwarding, never observation

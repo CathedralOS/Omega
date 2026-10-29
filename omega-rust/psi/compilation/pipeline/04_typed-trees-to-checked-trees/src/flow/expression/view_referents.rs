@@ -198,6 +198,7 @@ impl Execution<'_, '_, '_> {
                             .into_iter()
                             .flatten()
                             .map(|selected| checked_trees::FlowOperandRetainedSupplier {
+                                contract: None,
                                 operand: selected.capture,
                                 projection: self
                                     .context

@@ -4,7 +4,7 @@ use crate::BorrowLoanFact;
 
 use super::FlowInvalidationSource;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowBorrowWeakeningReason {
     #[default]
     LastUseExpired,
@@ -12,7 +12,7 @@ pub enum FlowBorrowWeakeningReason {
     LocalReassigned,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBorrowActivationFact {
     pub source: FlowInvalidationSource,
     pub loan: Handle<BorrowLoanFact>,
@@ -22,7 +22,7 @@ pub struct FlowBorrowActivationFact {
     pub formation_value: Handle<super::FlowOperandFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowBorrowWeakeningFact {
     pub source: FlowInvalidationSource,
     pub loan: Handle<BorrowLoanFact>,

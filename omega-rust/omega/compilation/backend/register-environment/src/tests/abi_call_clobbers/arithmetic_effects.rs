@@ -1,16 +1,15 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, named_view, produced_effects, scalar_abi_cases,
-    units_for_names, validate_effects,
+    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
+    scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 /// Every selected arithmetic rule key with the semantic families the effect
@@ -694,22 +693,6 @@ fn arithmetic_contract(
     }
 }
 
-/// Several arithmetic semantics share one constraint key, so arithmetic
-/// declarations are found by (key, semantic) rather than by key alone.
-fn arithmetic_declaration_mut(
-    catalog: &mut MachineEffectCatalog,
-    key: RegisterConstraintKey,
-    semantic: MachineSemanticKind,
-) -> &mut MachineEffectDeclaration {
-    catalog
-        .declarations
-        .iter_mut()
-        .find(|declaration| declaration.constraint == key && declaration.semantic == semantic)
-        .unwrap_or_else(|| {
-            panic!("effect catalog missing arithmetic declaration {key:?}/{semantic:?}")
-        })
-}
-
 /// Every selected arithmetic rule on every declared target/ABI pair is bound
 /// to the operand custody, condition-code custody, and fall-through encoding
 /// that pair's ABI declares.
@@ -979,7 +962,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     MachineEncodedControlEffect::HostedExitOrTrapV1,
                 ] {
                     let mut corrupted = catalog.clone();
-                    arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .encoded
                         .control = control;
                     assert_eq!(
@@ -994,7 +977,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // An arithmetic rule cannot grow a memory footprint or a
                 // stack lifecycle.
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .memory = MachineEncodedMemoryEffect::ReadPointerV1 {
                     pointer_operand: 0,
@@ -1008,7 +991,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} forged memory footprint must reject"
                 );
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .stack = MachineEncodedStackEffect::PopBytesV1 {
                     stack_pointer: stack_pointer.id,
@@ -1026,7 +1009,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // for both admitted values, so only canonical ISA replay
                 // rejects it; a hosted trap shape is outside that surface.
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .trap = if contract.faulting {
                     MachineEncodedTrapBehavior::NeverV1
@@ -1039,7 +1022,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} encoded trap drift must reject"
                 );
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .trap = MachineEncodedTrapBehavior::HostedWriteFailureV1;
                 assert_eq!(
@@ -1056,8 +1039,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 let expected = &contract.alternatives[index];
                 if let Some(&dropped) = expected.reads.last() {
                     let mut corrupted = catalog.clone();
-                    let reads = &mut arithmetic_declaration_mut(&mut corrupted, key, semantic)
-                        .alternatives[index]
+                    let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives
+                        [index]
                         .encoded
                         .external_operand_reads;
                     reads.retain(|read| *read != dropped);
@@ -1071,8 +1054,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 }
                 if let Some(&dropped) = expected.writes.last() {
                     let mut corrupted = catalog.clone();
-                    let writes = &mut arithmetic_declaration_mut(&mut corrupted, key, semantic)
-                        .alternatives[index]
+                    let writes = &mut declaration_mut(&mut corrupted, key, semantic).alternatives
+                        [index]
                         .encoded
                         .external_operand_writes;
                     writes.retain(|write| *write != dropped);
@@ -1095,8 +1078,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 });
                 if let Some(unread) = unread {
                     let mut corrupted = catalog.clone();
-                    let reads = &mut arithmetic_declaration_mut(&mut corrupted, key, semantic)
-                        .alternatives[index]
+                    let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives
+                        [index]
                         .encoded
                         .external_operand_reads;
                     reads.push(unread.operand);
@@ -1110,8 +1093,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     );
                 }
                 let mut corrupted = catalog.clone();
-                let reads = &mut arithmetic_declaration_mut(&mut corrupted, key, semantic)
-                    .alternatives[index]
+                let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .external_operand_reads;
                 reads.push(row.operands.len() as u16);
@@ -1134,8 +1116,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     .map(|operand| operand.operand)
                 {
                     let mut corrupted = catalog.clone();
-                    let reads = &mut arithmetic_declaration_mut(&mut corrupted, key, semantic)
-                        .alternatives[index]
+                    let reads = &mut declaration_mut(&mut corrupted, key, semantic).alternatives
+                        [index]
                         .encoded
                         .external_operand_reads;
                     reads.push(write_operand);
@@ -1159,8 +1141,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                         // writing it twice breaks canonical ordering instead.
                         expected.writes.first().copied().unwrap_or(0)
                     });
-                let writes = &mut arithmetic_declaration_mut(&mut corrupted, key, semantic)
-                    .alternatives[index]
+                let writes = &mut declaration_mut(&mut corrupted, key, semantic).alternatives
+                    [index]
                     .encoded
                     .external_operand_writes;
                 writes.push(forged);
@@ -1177,7 +1159,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // fails structural admission, and so does losing a declared
                 // one — the encoded lists restate the row exactly.
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .implicit_unit_uses
                     .push(stack_pointer.units[0]);
@@ -1189,7 +1171,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} forged implicit use must reject"
                 );
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .implicit_unit_defs
                     .push(stack_pointer.units[0]);
@@ -1201,7 +1183,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} forged implicit definition must reject"
                 );
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .encoded
                     .implicit_unit_clobbers
                     .push(stack_pointer.units[0]);
@@ -1214,7 +1196,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 );
                 if contract.flags == FlagsCustody::Use {
                     let mut corrupted = catalog.clone();
-                    arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .encoded
                         .implicit_unit_uses
                         .retain(|unit| !flags.units.contains(unit));
@@ -1228,7 +1210,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 }
                 if contract.flags == FlagsCustody::Def {
                     let mut corrupted = catalog.clone();
-                    arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .encoded
                         .implicit_unit_defs
                         .retain(|unit| !flags.units.contains(unit));
@@ -1242,7 +1224,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 }
                 if contract.flags == FlagsCustody::Clobber || !contract.extra_clobbers.is_empty() {
                     let mut corrupted = catalog.clone();
-                    arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .encoded
                         .implicit_unit_clobbers
                         .remove(0);
@@ -1261,7 +1243,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // row does admit but the form does not declare needs
                 // canonical replay.
                 let mut corrupted = catalog.clone();
-                let declaration = arithmetic_declaration_mut(&mut corrupted, key, semantic);
+                let declaration = declaration_mut(&mut corrupted, key, semantic);
                 declaration.alternatives[index].key.family =
                     if semantic == MachineSemanticKind::CopyI64 {
                         MachineSemanticKind::ExactAddI64.into()
@@ -1287,11 +1269,11 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} borrowed alternative family must reject"
                 );
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .applicability = MachineAlternativeApplicability::ResultAliasesOperand {
-                    result: 0,
-                    operand: 0,
-                };
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index].applicability =
+                    MachineAlternativeApplicability::ResultAliasesOperand {
+                        result: 0,
+                        operand: 0,
+                    };
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
                     Err(EffectRejection::Structural(
@@ -1322,7 +1304,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 });
                 if let Some((result, operand)) = admitted {
                     let mut corrupted = catalog.clone();
-                    arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                    declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                         .applicability =
                         MachineAlternativeApplicability::ResultAliasesOperand { result, operand };
                     // The drifted window contracts every input back into the
@@ -1358,8 +1340,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // Size knowledge: a degenerate bound fails admission, while a
                 // plausible drift needs canonical replay.
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .size = MachineSizeKnowledge::ExactBytes(0);
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index].size =
+                    MachineSizeKnowledge::ExactBytes(0);
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
                     Err(EffectRejection::Structural(
@@ -1368,8 +1350,8 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                     "{key:?} empty size bound must reject"
                 );
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
-                    .size = MachineSizeKnowledge::ExactBytes(997);
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index].size =
+                    MachineSizeKnowledge::ExactBytes(997);
                 assert_eq!(
                     validate_effects(case, environment.constraints(), corrupted),
                     Err(EffectRejection::SemanticMismatch),
@@ -1380,7 +1362,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 // under a variant drift; a multi-alternative roster breaks
                 // ordering first.
                 let mut corrupted = catalog.clone();
-                arithmetic_declaration_mut(&mut corrupted, key, semantic).alternatives[index]
+                declaration_mut(&mut corrupted, key, semantic).alternatives[index]
                     .key
                     .variant = (index + 1) as u32;
                 let expected_rejection = if index + 1 < alternatives {
@@ -1404,7 +1386,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
             // The alternative roster itself: an empty roster fails admission,
             // and a duplicated alternative breaks canonical ordering.
             let mut corrupted = catalog.clone();
-            arithmetic_declaration_mut(&mut corrupted, key, semantic)
+            declaration_mut(&mut corrupted, key, semantic)
                 .alternatives
                 .clear();
             assert_eq!(
@@ -1415,7 +1397,7 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
                 "{key:?} empty alternatives must reject"
             );
             let mut corrupted = catalog.clone();
-            let declaration = arithmetic_declaration_mut(&mut corrupted, key, semantic);
+            let declaration = declaration_mut(&mut corrupted, key, semantic);
             let first = declaration.alternatives[0].clone();
             declaration.alternatives.push(first);
             assert_eq!(

@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "reading_provider");
+    let mut other: Build;
+    Build::select_provider<Reading, FirstReading>(&mut other, windows_x86_64);
+    Build::select_provider<Reading, FirstReading>(&mut other, linux_x86_64);
+    Build::select_provider<Reading, SecondReading>(&mut other, macos_arm64);
+    Build::select_provider<Reading, SecondReading>(&mut other, linux_arm64);
+}

@@ -2,8 +2,9 @@
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
-    EffectLink, FuelSettlement, NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ValueDefinition, ValueDefinitionSite,
+    EffectLink, FuelSettlement, NodeLocation, OptimizationBlock, OptimizationNode,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
+    ValueDefinitionSite,
 };
 
 use crate::validation::ValidatedOptimizerCycleComponents;
@@ -191,6 +192,133 @@ pub(crate) fn validate_moved_constant_locations<E>(
         ));
     }
     Ok(())
+}
+
+/// The certificate-owned expectation one closed constant role names: the
+/// operation, result, scalar type and literal value the certified occurrence
+/// must spell.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ExpectedInvariantConstant {
+    pub operation: OperationId,
+    pub result: ValueId,
+    pub scalar_type: IntegerType,
+    pub value: IntegerValue,
+}
+
+/// The expectation a role names on its ranking certificate. Every leaf that
+/// resolves a role — the constants analysis on both sides, and the placement
+/// replay re-checking the rows it retains — reads the same mapping.
+pub(crate) fn expected_constant(
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    role: CountdownInvariantConstantRole,
+) -> ExpectedInvariantConstant {
+    let (operation, result, value) = match role {
+        CountdownInvariantConstantRole::PositiveGuardZero => (
+            certificate.guard.zero_operation,
+            certificate.guard.zero,
+            IntegerValue::Unsigned(0),
+        ),
+        CountdownInvariantConstantRole::BackedgeDecrementOne => (
+            certificate.descent.one_operation,
+            certificate.descent.one,
+            IntegerValue::Unsigned(1),
+        ),
+    };
+    ExpectedInvariantConstant {
+        operation,
+        result,
+        scalar_type: certificate.rank_type,
+        value,
+    }
+}
+
+/// The unique node `blocks` holds whose provenance names `operation` first:
+/// `None` when none or several carry it. The keyed discovery both replay
+/// leaves use; the proposal leaf reaches the same row through the operation
+/// shape instead, so the acceptance replay keeps its own path to it.
+pub(crate) fn sole_provenance_node<'function>(
+    blocks: impl Iterator<Item = &'function OptimizationBlock>,
+    operation: OperationId,
+) -> Option<(BlockId, u32, &'function OptimizationNode)> {
+    let mut matches = blocks
+        .flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .enumerate()
+                .map(move |(node, value)| (block.id, node, value))
+        })
+        .filter(|(_, _, node)| {
+            node.provenance
+                .first()
+                .is_some_and(|source| *source == PsiProvenance::Operation(operation))
+        });
+    let (block, node_index, node) = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some((block, u32::try_from(node_index).ok()?, node))
+}
+
+/// The exact invariant-constant row a certified occurrence must be: the
+/// `IntegerConstant` the role expects — its operation, result, scalar type
+/// and literal value — carrying exactly one definition of that result at its
+/// own site, and no uses, successors or ownership rows. One owner states the
+/// obligation; each leaf supplies the occurrence its own discovery admitted
+/// and maps `None` to its own rejection.
+pub(crate) fn invariant_constant_row(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node_index: u32,
+    node: &OptimizationNode,
+    role: CountdownInvariantConstantRole,
+    expected: ExpectedInvariantConstant,
+) -> Option<CountdownInvariantIntegerConstant> {
+    let O::IntegerConstant {
+        psi_operation,
+        result,
+        scalar_type: ScalarType::Integer(scalar_type),
+        value,
+    } = node.operation
+    else {
+        return None;
+    };
+    let [definition] = node.definitions.as_slice() else {
+        return None;
+    };
+    if psi_operation != expected.operation
+        || result != expected.result
+        || scalar_type != expected.scalar_type
+        || value != expected.value
+        || definition.value != result
+        || definition.scalar_type != ScalarType::Integer(scalar_type)
+        || definition.site
+            != (ValueDefinitionSite::Node {
+                block,
+                node: node_index,
+            })
+        || !node.uses.is_empty()
+        || !node.successors.is_empty()
+        || !node.ownership.is_empty()
+    {
+        return None;
+    }
+    Some(CountdownInvariantIntegerConstant {
+        role,
+        location: NodeLocation {
+            machine: function.machine,
+            block,
+            node: node_index,
+        },
+        psi_operation,
+        result,
+        scalar_type,
+        value,
+        definition: *definition,
+        provenance: node.provenance.clone(),
+        fuel: node.fuel.clone(),
+        effect: node.effect,
+    })
 }
 
 fn unsupported(

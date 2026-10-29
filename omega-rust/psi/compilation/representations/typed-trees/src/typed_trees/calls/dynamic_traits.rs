@@ -44,7 +44,7 @@ pub enum DynamicNonSignatureIneligibility {
 /// follow. Every analysis that pairs a call's operands with its target's
 /// formals therefore sees a concrete roster of the right arity, exactly as it
 /// does for a bodyless declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DynamicSlotSignature {
     /// The slot a selector call targets.
     pub symbol: SymbolHandle,
@@ -330,7 +330,8 @@ impl TypedTrees {
             ExpressionNode::Unary(unary) => {
                 self.collect_expression_symbols(unary.operand, symbols);
             }
-            ExpressionNode::ZeroValue(type_reference) => {
+            ExpressionNode::TypeExpression(type_reference)
+            | ExpressionNode::ZeroValue(type_reference) => {
                 collect_type_reference_symbols(self, *type_reference, symbols);
             }
             ExpressionNode::Boolean(_)

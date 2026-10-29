@@ -1,14 +1,9 @@
 use crate::RegisterHomeValidationReceipt;
 use optimization_core::PostAllocationOptimizationManifestIdentity;
 
-use selected_instructions_to_selected_instructions::{
-    StagedOptimizedAllocationLegalityCustodyReceipt,
-    StagedOptimizedSelectedReanalysisCustodyReceipt,
-};
+use selected_instructions_to_selected_instructions::StagedOptimizedAllocationLegalityCustodyReceipt;
 
-use super::{
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
-};
+use super::StagedOptimizedRegisterHomeCustodyReceipt;
 
 pub(super) fn custody_receipt(
     upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
@@ -22,20 +17,6 @@ pub(super) fn custody_receipt(
         liveness: upstream.liveness(),
         ranges: upstream.ranges(),
         legality: upstream.legality(),
-        homes: homes.identity(),
-        post_allocation_manifest: manifest,
-        function_count: homes.function_count(),
-        assignment_count: homes.assignment_count(),
-    }
-}
-
-pub(super) fn post_copy_custody_receipt(
-    source: StagedOptimizedSelectedReanalysisCustodyReceipt,
-    homes: RegisterHomeValidationReceipt,
-    manifest: PostAllocationOptimizationManifestIdentity,
-) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
-        source,
         homes: homes.identity(),
         post_allocation_manifest: manifest,
         function_count: homes.function_count(),

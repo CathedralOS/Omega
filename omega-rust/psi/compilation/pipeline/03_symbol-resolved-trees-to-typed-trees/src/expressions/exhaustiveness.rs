@@ -44,7 +44,17 @@ use symbol_resolved_trees as resolved;
 pub(crate) fn validate_case_dispatch_exhaustiveness(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
-    for machine in &program.machines {
+    validate_case_dispatch_exhaustiveness_in(program, &crate::lowerer::TypingCohort::default())
+}
+
+pub(crate) fn validate_case_dispatch_exhaustiveness_in(
+    program: &SymbolResolvedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+) -> Result<(), Diagnostic> {
+    for (ordinal, machine) in program.machines.iter().enumerate() {
+        if ordinal < cohort.machines && !cohort.completed_machines.contains(&machine.symbol) {
+            continue;
+        }
         for state_handle in program.machine_state_handles(machine.states) {
             let state = program.machine_state(*state_handle);
             let statements = program

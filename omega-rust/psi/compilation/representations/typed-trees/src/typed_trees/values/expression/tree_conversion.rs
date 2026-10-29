@@ -168,6 +168,7 @@ impl ExpressionTable {
                     .unwrap_or_else(ExpressionHandle::invalid);
                 let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: call.authored_call_selection,
                     authored_call_binding: call.authored_call_binding,
                     authored_machine_application: Default::default(),
                     requirement_application: call.requirement_application,
@@ -261,6 +262,9 @@ impl ExpressionTable {
                     operator: unary.operator,
                     operand,
                 }))
+            }
+            Expression::TypeExpression(type_reference) => {
+                self.insert(ExpressionNode::TypeExpression(*type_reference))
             }
             Expression::ZeroValue(type_reference) => {
                 self.insert(ExpressionNode::ZeroValue(*type_reference))

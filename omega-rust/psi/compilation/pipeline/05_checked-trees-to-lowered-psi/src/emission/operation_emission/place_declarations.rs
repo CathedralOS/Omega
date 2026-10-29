@@ -60,6 +60,24 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
     }
 }
 
+/// The operation-result place-declaration row: the place one operation
+/// establishes, with that operation as its producer and the place's structural
+/// type. A producing site already holds these three identities, so it names
+/// this row instead of re-spelling the declaration.
+pub(crate) fn operation_result_place(
+    place: semantic_vocabulary::PlaceId,
+    producer: semantic_vocabulary::OperationId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        },
+    }
+}
+
 /// Structural storage exists at an emitted result, independently of the source
 /// expression or body representation that selected its producer.
 /// The operation-result place-declaration row every structural-place scan
@@ -68,13 +86,11 @@ pub(crate) fn operation_result_declaration(
     operation: &terminal_psi::Operation,
 ) -> Option<StructuralPlaceDeclaration> {
     let result = operation.result.as_structural()?;
-    Some(StructuralPlaceDeclaration {
-        id: result.place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation.id,
-            structural_type: result.structural_type,
-        },
-    })
+    Some(operation_result_place(
+        result.place,
+        operation.id,
+        result.structural_type,
+    ))
 }
 
 pub(crate) fn operation_results<'a>(

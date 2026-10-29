@@ -200,7 +200,8 @@ impl GuardContext<'_> {
                         .iter()
                         .map(|field| field.value),
                 ),
-                typed_trees::spelled_literal_expression_pattern!() => {}
+                ExpressionNode::TypeExpression(_)
+                | typed_trees::spelled_literal_expression_pattern!() => {}
             }
         }
         true

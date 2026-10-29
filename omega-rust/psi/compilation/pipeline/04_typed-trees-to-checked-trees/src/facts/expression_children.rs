@@ -122,6 +122,6 @@ pub(crate) fn push_every_expression_child(
             );
         }
         ExpressionNode::Unary(unary) => pending.push(unary.operand),
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }

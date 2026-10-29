@@ -4,23 +4,32 @@
 //!
 //! The carriers a caller binds live in `bindings`; `construction` builds
 //! and revalidates the reconciled graph; `dependency_graph` answers edge,
-//! closure, and cycle questions over it; `generated_sources` attaches the
-//! checked generated-source handoffs of dependency builds; `errors` names
+//! closure, and cycle questions over it; `build_handoffs` attaches the
+//! complete source and Product-selection handoffs of dependency builds; `errors` names
 //! every construction and attachment rejection.
 
 mod bindings;
+mod build_handoffs;
 mod construction;
 mod dependency_graph;
 mod errors;
-mod generated_sources;
+mod native_bindings;
+mod native_evaluation;
+pub mod native_output_codec;
+pub mod provider_selection_codec;
+mod provider_selections;
+pub use native_bindings::{
+    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
+};
+pub use native_evaluation::NativeBuildEvaluation;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
+pub use build_handoffs::PackageBuildHandoff;
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;
-pub use generated_sources::PackageGeneratedSourceBundle;
 
 use crate::{AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
@@ -46,8 +55,8 @@ pub struct PackageCompilationInputs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationTargetInputs {
     purpose: DependencyPurpose,
-    dependency_generated_sources:
-        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageGeneratedSourceBundle>,
+    dependency_build_handoffs:
+        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageBuildHandoff>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
     semantic_role_discovery: bool,
     independent_component_descriptions:
@@ -88,7 +97,7 @@ impl Default for PackageCompilationTargetInputs {
     fn default() -> Self {
         Self {
             purpose: DependencyPurpose::Product,
-            dependency_generated_sources: BTreeMap::new(),
+            dependency_build_handoffs: BTreeMap::new(),
             accepted_semantic_bindings: BTreeMap::new(),
             semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
@@ -106,7 +115,7 @@ impl Default for PackageCompilationTargetInputs {
 /// being reused with a child whose source-routing inputs differ. Exact-target
 /// generated sources and accepted semantic bindings are excluded because they
 /// join only after that shared checkpoint forks.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageCompilationSourceInputs {
     filesystem: source::SourceFileSystem,
     root: PackageKeyIdentity,
@@ -117,7 +126,7 @@ pub struct PackageCompilationSourceInputs {
 
 /// A package-owned acquisition for an exact, purpose-local dependency request.
 /// The request is inert data, not an issued execution receipt or a host grant.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PackageDependencyAcquisition {
     pub request_ordinal: usize,
     pub request: build_declarations::BuildRequest,
@@ -130,7 +139,7 @@ pub struct PackageDependencyAcquisition {
 /// may bind different packages in each. Only the compilation root may hold
 /// build-scope edges — the compiled program executes exactly one package's
 /// build entry, and dependency build files never join it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct PackageCompilationSourceRecord {
     source_root: PathBuf,
     canonical_name: String,
@@ -256,9 +265,9 @@ impl PackageCompilationInputs {
                 .map(|error| Diagnostic::error(error.to_string()))
                 .collect::<Vec<_>>()
         };
-        self.validate_dependency_generated_source_execution_profile(build_profile)
+        self.validate_dependency_build_handoff_execution_profile(build_profile)
             .map_err(diagnostics)?;
-        self.validate_dependency_generated_source_target(selected_target)
+        self.validate_dependency_build_handoff_target(selected_target)
             .map_err(diagnostics)
     }
 
@@ -360,7 +369,7 @@ impl PackageCompilationInputs {
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let PackageCompilationTargetInputs {
             purpose,
-            dependency_generated_sources,
+            dependency_build_handoffs,
             accepted_semantic_bindings,
             semantic_role_discovery,
             independent_component_descriptions,
@@ -377,9 +386,9 @@ impl PackageCompilationInputs {
         };
         inputs = inputs
             .with_accepted_semantic_bindings(accepted_semantic_bindings.into_values().collect())?;
-        if !dependency_generated_sources.is_empty() {
-            inputs = inputs.with_complete_dependency_generated_sources(
-                dependency_generated_sources.into_values().collect(),
+        if !dependency_build_handoffs.is_empty() {
+            inputs = inputs.with_complete_dependency_build_handoffs(
+                dependency_build_handoffs.into_values().collect(),
             )?;
         }
         inputs = inputs.with_independent_component_descriptions(
@@ -532,6 +541,25 @@ impl PackageCompilationInputs {
 }
 
 impl build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        Some(
+            self.source
+                .packages
+                .iter()
+                .map(|(requester, record)| {
+                    let mut owners = vec![*requester];
+                    owners.extend(record.dependencies.values().copied());
+                    owners.extend(record.build_dependencies.values().copied());
+                    owners.sort_unstable();
+                    owners.dedup();
+                    (*requester, owners)
+                })
+                .collect(),
+        )
+    }
+
     fn allows_declaration_selection(
         &self,
         requester: PackageKeyIdentity,
@@ -612,5 +640,27 @@ mod acquisition_tests {
         wrong_package[0].package = root;
         assert!(inputs.with_dependency_acquisitions(wrong_package).unwrap_err().iter().any(|error| matches!(error,
             PackageCompilationInputError::InvalidDependencyAcquisition { reason, .. } if reason.contains("alias and purpose"))));
+    }
+}
+
+impl PackageCompilationSourceInputs {
+    /// Captured namespaces are immutable values. A metadata-only physical
+    /// package must reproduce its committed bytes now; location and old index
+    /// equality alone cannot attest unchanged source across invocations.
+    pub fn matches_current_source_identity(&self) -> Result<bool, String> {
+        for package in self.packages.values() {
+            if package.captured_source.is_some()
+                || self.filesystem.has_captured_namespace(&package.source_root)
+            {
+                continue;
+            }
+            let Some(expected) = &package.canonical_source_metadata else {
+                return Ok(false);
+            };
+            if crate::source_snapshot::capture(&package.source_root)? != *expected {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }

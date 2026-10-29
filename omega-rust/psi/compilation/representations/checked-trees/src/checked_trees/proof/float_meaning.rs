@@ -8,27 +8,27 @@
 use numerics::float_projection::FloatProjectionOperation;
 use typed_trees::types::PrimitiveType;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedProofValueId(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedProofPropositionId(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedFloatProjectionInputId(pub u32);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedFloatMeaningProjectionOccurrenceId(pub u32);
 
 pub type CheckedFloatProjectionContractIdentity =
     numerics::float_projection::FloatProjectionContractIdentity;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CheckedProofOnlyValueType {
     FloatMeaning,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct CheckedProofValueDeclaration {
     pub id: CheckedProofValueId,
     pub value_type: CheckedProofOnlyValueType,
@@ -38,7 +38,7 @@ pub struct CheckedProofValueDeclaration {
 /// share an ID assigned densely by first use. The retained row contains no
 /// source symbol, expression handle, or runtime bits; binding it to a landed
 /// artifact value remains a later producer step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFloatProjectionInput {
     pub id: CheckedFloatProjectionInputId,
     pub primitive: PrimitiveType,
@@ -48,7 +48,7 @@ pub struct CheckedFloatProjectionInput {
 /// top-level machine contract. The source handles remain checked-only custody:
 /// Terminal Psi deliberately receives `fallback` until it can represent an
 /// IEEE scalar parameter without claiming general float execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectMachineFloatParameter {
     pub owner_machine: symbols::SymbolHandle,
     pub parameter: symbols::SymbolHandle,
@@ -59,7 +59,7 @@ pub struct CheckedDirectMachineFloatParameter {
 /// top-level machine `ensures` clause. Omega's reserved `result` spelling has
 /// no source symbol of its own, so the owning machine plus exact primitive
 /// format is the complete checked identity before Terminal binding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectMachineFloatResult {
     pub owner_machine: symbols::SymbolHandle,
     pub fallback: CheckedFloatProjectionInput,
@@ -71,7 +71,7 @@ pub struct CheckedDirectMachineFloatResult {
 /// machine results. The owning machine and owning state symbols remain
 /// checked-only custody: Terminal lowering rejoins them to the emitted
 /// machine/block tables and exact scalar parameter membership.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectBlockFloatParameter {
     pub owner_machine: symbols::SymbolHandle,
     pub owner_state: symbols::SymbolHandle,
@@ -83,7 +83,7 @@ pub struct CheckedDirectBlockFloatParameter {
 /// machine parameter. Source handles remain checked-only; Terminal lowering
 /// rejoins the owner, parameter position, and complete retained member path to
 /// the emitted structural parameter/type tables.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectStructuralFloatLeaf {
     pub owner_machine: symbols::SymbolHandle,
     pub field: crate::CheckedStructuralParameterField,
@@ -95,7 +95,7 @@ pub struct CheckedDirectStructuralFloatLeaf {
 /// owning machine's authored statement. The coordinate joins the checked use
 /// to the emitted Terminal operation through the lowered occurrence tables;
 /// it names a use of a contract, never a declaration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFloatUseSite {
     pub owner_machine: symbols::SymbolHandle,
     pub owner_state: symbols::SymbolHandle,
@@ -109,7 +109,7 @@ pub struct CheckedFloatUseSite {
 /// carries the use-site coordinate. Source handles remain checked-only;
 /// Terminal lowering rejoins the coordinate to the emitted call operation's
 /// declared scalar result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectCallFloatResult {
     pub use_site: CheckedFloatUseSite,
     pub fallback: CheckedFloatProjectionInput,
@@ -121,7 +121,7 @@ pub struct CheckedDirectCallFloatResult {
 /// (selected IEEE fused multiply-add) occupies call ordinal zero of its
 /// statement, so the authored expression keeps two uses sharing a statement
 /// distinct before the lowered occurrence join runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDirectOperationFloatResult {
     pub use_site: CheckedFloatUseSite,
     pub use_expression: typed_trees::expression::ExpressionHandle,
@@ -133,7 +133,7 @@ pub struct CheckedDirectOperationFloatResult {
 /// Exact literals carry their landed raw bits directly. The transitional
 /// coordinate remains only for source forms whose artifact-relative carrier
 /// has not landed; it must never be treated as an exact-literal identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedFloatProjectionSource {
     TransitionalInput(CheckedFloatProjectionInput),
     DirectMachineParameter(CheckedDirectMachineFloatParameter),
@@ -163,7 +163,7 @@ impl CheckedFloatProjectionSource {
 }
 
 /// Exact proof-only projection selected from the shared closed catalog.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFloatMeaningProjection {
     pub result: CheckedProofValueDeclaration,
     pub source: CheckedFloatProjectionSource,
@@ -174,7 +174,7 @@ pub struct CheckedFloatMeaningProjection {
 /// Diagnostic provenance for one authored projection call. Multiple
 /// occurrences may name the same canonical proof value; the span is never
 /// part of that value's semantic identity and is erased before Terminal Psi.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFloatMeaningProjectionOccurrence {
     pub id: CheckedFloatMeaningProjectionOccurrenceId,
     pub value: CheckedProofValueId,
@@ -187,7 +187,7 @@ pub struct CheckedFloatMeaningProjectionOccurrence {
 /// projection-row index. The catalog's `Integer`, `Bool`, and `Class`
 /// parameters have no proof-value carrier, so an application that needs one
 /// produces no row rather than approximating the operand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedFloatSemanticApplicationOperand {
     Format(semantic_vocabulary::IeeeFloatFormat),
     Meaning(CheckedProofValueId),
@@ -203,7 +203,7 @@ pub enum CheckedFloatSemanticApplicationOperand {
 /// declared result format: the supplied `Format` operand's value, or the
 /// shared format of the `Meaning` operands on rows without a `Format`
 /// parameter.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFloatSemanticApplication {
     pub result: CheckedProofValueId,
     pub contract: numerics::float_semantics_catalog::FloatSemanticContractIdentity,
@@ -281,7 +281,7 @@ pub enum CheckedFloatSemanticApplicationError {
 
 /// One proof-only equality whose operands are exact results in the retained
 /// float-projection table. It is not a runtime Boolean or a machine operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedFloatMeaningEqualityProposition {
     pub id: CheckedProofPropositionId,
     pub left: CheckedProofValueId,

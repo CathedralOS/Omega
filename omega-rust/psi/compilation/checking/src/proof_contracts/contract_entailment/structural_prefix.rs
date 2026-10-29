@@ -8,7 +8,9 @@
 mod private_arrivals;
 
 pub(super) use private_arrivals::observe_private_arrivals;
-pub(crate) use private_arrivals::{ClosedArrivals, ProgramPrivateArrivalIndex};
+pub(crate) use private_arrivals::{
+    ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
+};
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
@@ -192,18 +194,51 @@ pub(super) trait StructuralPrefixVisitor {
         if self.is_complete() {
             return;
         }
+        let _arm_guard = phase_profile::guard("05.num.visit.1_arm_judge");
         let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
         if judge.hypotheses_contradictory {
             return;
         }
         guarantees.intake(&mut judge);
+        drop(_arm_guard);
         // Short-circuit guards can create numerically impossible alternatives
         // even when their constructor hypotheses are consistent. Refute only
         // from admitted prefix premises, before observing the requested value;
         // failed goal formation must never become evidence of unreachability.
-        if judge.integer_premises_contradictory() {
+        if phase_profile::scope("05.num.visit.2_contra", || {
+            judge.integer_premises_contradictory()
+        }) {
             return;
         }
+        let Some(state) = program.state_in_machine(machine, self.site().state) else {
+            self.unresolved(machine);
+            return;
+        };
+        self.observe((program, machine, state, judge, environment));
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn visit_non_contradictory<'program>(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        judge: &StructuralJudge<'program>,
+        environment: &[(String, StructuralTerm)],
+        hypotheses: &[(String, StructuralTerm)],
+        equations: &[(StructuralTerm, StructuralTerm)],
+        guarantees: &CitationFacts,
+    ) {
+        self.entered();
+        if self.is_complete() {
+            return;
+        }
+        let _arm_guard = phase_profile::guard("05.num.visit.1_arm_judge");
+        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
+        if judge.hypotheses_contradictory {
+            return;
+        }
+        guarantees.intake(&mut judge);
+        drop(_arm_guard);
         let Some(state) = program.state_in_machine(machine, self.site().state) else {
             self.unresolved(machine);
             return;

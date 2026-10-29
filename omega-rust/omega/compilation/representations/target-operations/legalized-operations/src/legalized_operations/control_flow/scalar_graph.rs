@@ -1507,7 +1507,15 @@ impl LegalizedScalarTerminator {
                 .iter()
                 .any(|argument| argument.source.source_value() == value),
             Self::Crash { .. } => false,
-            Self::StructuralCase { .. } => false,
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
+                .flat_map(|case| &case.structural_bindings)
+                .any(|binding| {
+                    binding
+                        .indices
+                        .iter()
+                        .any(|index| index.operand.value == value)
+                }),
             Self::Return(returned) | Self::ReturnCleanup { returned, .. } => {
                 matches!(returned.value,
                 LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value)

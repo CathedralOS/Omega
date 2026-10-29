@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "boundary_zero_origin_other_machine");
-    Build::select_provider<Io, Actual>(builder);
+    Build::select_provider<Io, Actual>(builder, linux_arm64);
+    Build::select_provider<Io, Actual>(builder, linux_x86_64);
+    Build::select_provider<Io, Actual>(builder, macos_arm64);
+    Build::select_provider<Io, Actual>(builder, macos_x86_64);
+    Build::select_provider<Io, Actual>(builder, windows_x86_64);
+    Build::select_provider<Io, Actual>(builder, uefi_x86_64);
+    Build::select_provider<Io, Actual>(builder, cross_platform_cli);
+    Build::select_provider<Io, Actual>(builder, local_unchecked);
+    Build::select_provider<Io, Actual>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

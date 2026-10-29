@@ -1,0 +1,29 @@
+// Expected exit: 0
+// A resolved machine transfer retains the exact field-window endpoints.
+data Wide { units: [u16; 2]; length: u64; }
+machine drive(output: &mut u64) {
+    transition { _ -> scan(output, 0) }
+    machine scan(output: &mut u64, lap: u64) {
+        let mut wide: Wide;
+        wide.units[0] = 71u16;
+        wide.units[1] = 72u16;
+        wide.length = 2;
+        transition lap < 1 {
+            true -> take(output, &wide.units[0..wide.length], lap)
+            false -> done()
+        }
+    }
+    machine take(output: &mut u64, text: &[u16], lap: u64)
+    requires text.len >= 2u64 && lap < 1u64 {
+        output = (text[0] as u64) + (text[1] as u64);
+        transition { _ -> scan(output, lap + 1) }
+    }
+    machine done() {}
+}
+machine main() crashes Trap {
+    let mut observed: u64 = 0;
+    drive(&mut observed);
+    transition observed == 143 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

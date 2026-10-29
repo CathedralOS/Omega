@@ -36,7 +36,7 @@ pub(crate) fn finalize_execution(
         .traits()
         .iter()
         .filter(|owner| owner.is_boundary)
-        .flat_map(|owner| program.trait_machine_instances(owner))
+        .flat_map(|owner| program.executable_trait_machine_instances(owner))
         .filter_map(|signature| {
             validation::boundary_signature_service_reach(program, signature.symbol).map(
                 |services| {

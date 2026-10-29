@@ -90,6 +90,7 @@ impl ReadWalk<'_, '_, '_> {
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::String(_)
+            | ExpressionNode::TypeExpression(_)
             | ExpressionNode::ZeroValue(_) => true,
             ExpressionNode::Binary(binary) => {
                 self.collect_reads(binary.left, depth + 1)

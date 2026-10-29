@@ -1,0 +1,37 @@
+// Expected exit: 0
+// A normal Unit call installs the incoming backing in the captured output slot after seven ranked increments, preserves its canary and stamp, and retires only the replaced slot generation.
+data Cell [copy] { value: u64; canary: u64; }
+data View<'storage> { cell: &'storage mut Cell; stamp: u64; }
+machine install<'storage>(slot: &mut View<'storage>, incoming: View<'storage>, remaining: u64) {
+    transition { _ -> relay(slot, incoming, remaining) }
+    machine relay(slot: &mut View<'storage>, incoming: View<'storage>, remaining: u64)
+    terminates;
+    terminates by remaining;
+    {
+        transition remaining > 0 {
+            true -> step(slot, incoming, remaining)
+            false -> finish(slot, incoming)
+        }
+        machine step(slot: &mut View<'storage>, incoming: View<'storage>, pending: u64)
+        requires pending > 0;
+        {
+            incoming.cell.value = ((incoming.cell.value as u64 in Wrapping) + 1) as u64;
+            transition { _ -> relay(slot, incoming, pending - 1) }
+        }
+        machine finish(slot: &mut View<'storage>, incoming: View<'storage>) { slot = incoming; }
+    }
+}
+machine forward<'storage>(slot: &mut View<'storage>, incoming: View<'storage>) { install(slot, incoming, 7); }
+machine main() crashes Trap {
+    let mut old: Cell = Cell { value: 17, canary: 11 };
+    let mut incoming: Cell = Cell { value: 3, canary: 7 };
+    let mut view: View = View { cell: &mut old, stamp: 13 };
+    forward(&mut view, View { cell: &mut incoming, stamp: 19 });
+    old.value = 23;
+    let correct: bool = view.cell.value == 10 && view.cell.canary == 7 && view.stamp == 19 && old.canary == 11;
+    transition correct && incoming.value == 10 && incoming.canary == 7 && old.value == 23 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

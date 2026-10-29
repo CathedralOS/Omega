@@ -470,6 +470,15 @@ pub(super) fn data_type_environments(
         // case adds only its active payload; no sibling's names or types enter
         // the owner of a nested projection or compiler-owned measure.
         let mut common = bindings;
+        if definition.predicate_subject_symbol.is_valid()
+            && definition.predicate_subject_type.is_valid()
+        {
+            common.push(Binding {
+                name: "self".to_owned(),
+                symbol: definition.predicate_subject_symbol,
+                type_reference: definition.predicate_subject_type,
+            });
+        }
         common.extend(
             program
                 .data_members(definition)

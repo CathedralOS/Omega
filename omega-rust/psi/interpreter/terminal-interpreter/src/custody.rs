@@ -1711,7 +1711,15 @@ pub(crate) fn validate_boundary_requirements<'value>(
 ) -> Result<(), TerminalInterpretError> {
     for requirement in &boundary.requires {
         let argument = argument(requirement.argument_index as usize).ok_or(malformed())?;
-        if !argument.qualifications.contains(&requirement.domain) {
+        let supplied = if requirement.path.is_empty() {
+            argument.qualifications.contains(&requirement.domain)
+        } else {
+            argument
+                .projected_qualifications
+                .iter()
+                .any(|row| row.path == requirement.path && row.domain == requirement.domain)
+        };
+        if !supplied {
             return Err(TerminalInterpretError::BoundaryQualificationMissing {
                 boundary: boundary.id,
                 argument_index: requirement.argument_index,

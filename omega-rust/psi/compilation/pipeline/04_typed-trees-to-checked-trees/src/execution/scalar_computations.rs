@@ -97,6 +97,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
+                    shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
                     operators,
                     semantic,
                     flow,

@@ -19,6 +19,7 @@ mod edge_transfers;
 mod element_view_homes;
 mod established_view_input;
 mod field_bytes;
+mod foreign_scalar_backings;
 mod identity;
 mod integer_conversion;
 mod literal_compare_input;

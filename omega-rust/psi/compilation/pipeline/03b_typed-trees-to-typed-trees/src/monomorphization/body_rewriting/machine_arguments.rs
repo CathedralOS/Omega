@@ -23,15 +23,20 @@ pub(crate) fn substitute_machine_parameter_type_references(
             .cloned()
             .or_else(|| state_by_symbol(program, binding.symbol).map(|state| state.name.clone()))
             .expect("admitted static machine argument has an entry name");
-        let occurrences: Vec<_> = program
-            .type_reference_table
-            .named_references()
-            .filter(|(handle, symbol, _)| {
-                type_start.is_none_or(|start| handle.arena_index() as usize >= start)
-                    && symbol == parameter_symbol
-            })
-            .map(|(handle, _, _)| handle)
-            .collect();
+        let occurrences: Vec<_> = match type_start {
+            Some(start) => program
+                .type_reference_table
+                .named_references_from(start)
+                .filter(|(_, symbol, _)| symbol == parameter_symbol)
+                .map(|(handle, _, _)| handle)
+                .collect(),
+            None => program
+                .type_reference_table
+                .named_references()
+                .filter(|(_, symbol, _)| symbol == parameter_symbol)
+                .map(|(handle, _, _)| handle)
+                .collect(),
+        };
         for occurrence in occurrences {
             program.type_reference_table.substitute_node(
                 occurrence,

@@ -159,6 +159,7 @@ pub(crate) fn requires_custody(
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }

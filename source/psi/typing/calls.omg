@@ -46,7 +46,6 @@ crashes Trap
         let statics: StaticArguments = StaticArguments { first: 0, count: 0 };
         transition binding {
             ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
-            ValueBinding::State { handle } -> state_target(typer, syntax, index, expression, handle)
             ValueBinding::Proposition { proposition } -> applied_proposition(typer, syntax, resolution, index, expression, proposition, statics)
             ValueBinding::GenericParameter { parameter } -> binder(typer, syntax, resolution, index, expression, parameter)
             ValueBinding::BytePredicate { predicate } -> byte_predicate(typer, syntax, index, expression)
@@ -165,23 +164,6 @@ crashes Trap
         }
     }
 
-    // A transition target names a state of its machine; its arguments are
-    // the state's parameters. The jump is not a value: its type is unit.
-    machine state_target(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, handle: u64 in Trapping) {
-        let target: StateItem = SyntaxTrees::state_item(syntax, handle);
-        Typing::set_selection(&mut typer.output, index, Selection::State { handle: handle });
-        let unit_type: u64 in Trapping = typer.output.unit;
-        Typing::set_expression_type(&mut typer.output, index, unit_type);
-        transition target.parameter_count == expression.count {
-            true -> state_arguments(typer, syntax, expression, target)
-            _ -> reject(typer, expression, TypeDiagnosticCode::TargetArgumentCount)
-        }
-    }
-
-    machine state_arguments(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, target: StateItem) {
-        Typer::bind_arguments(typer, syntax, expression, target.first_parameter, false, 0);
-    }
-
     machine not_callable(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
         let callee: Expression = SyntaxTrees::expression(syntax, expression.left);
         Typing::reject(&mut typer.output, TypeDiagnosticCode::NotCallable, callee.source_span);
@@ -296,7 +278,7 @@ crashes Trap
     let spelled: bool = Resolver::machine_spells(resolution, sources, item, candidate, path.has_owner, path.owner.source_span,
         representative.name.source_span);
     let unsupplied: bool = Typer::unsupplied_callee(syntax, resolution, candidate);
-    transition spelled && !unsupplied && item.parameter_count == expression.count {
+    transition item.parent == representative.parent && spelled && !unsupplied && item.parameter_count == expression.count {
         true -> visible(typer, sources, syntax, resolution, expression, statics, item, candidate)
         _ -> no()
     }

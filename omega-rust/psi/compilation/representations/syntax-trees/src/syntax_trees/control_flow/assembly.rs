@@ -8,7 +8,14 @@ use crate::statement::StatementHandle;
 use crate::syntax_trees::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct AssemblyControlFlow {
     /// The intersection of instruction and register-view catalog demands.
     pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
@@ -32,7 +39,9 @@ impl Default for AssemblyControlFlow {
     }
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub struct AssemblyBlock {
     pub label: Identifier,
     pub requires: HandleSpan<ExpressionHandle>,
@@ -41,7 +50,9 @@ pub struct AssemblyBlock {
     pub exit: AssemblyExit,
 }
 
-#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+#[derive(
+    Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+)]
 pub enum AssemblyExit {
     #[default]
     Fallthrough,

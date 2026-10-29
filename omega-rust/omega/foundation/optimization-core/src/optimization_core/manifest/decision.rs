@@ -124,10 +124,7 @@ impl OptimizationDecisionRecord {
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
         let consumed_analyses = AnalysisSet::decode(cursor.take(8)?)
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
-        let fact_count = cursor.u32()? as usize;
-        if fact_count > cursor.remaining().saturating_sub(1) / 33 {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
+        let fact_count = cursor.counted(OptimizationFactReference::ENCODED_LENGTH)?;
         let mut consumed_facts = Vec::with_capacity(fact_count);
         for _ in 0..fact_count {
             consumed_facts.push(

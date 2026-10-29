@@ -27,8 +27,8 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
     #[derive(Default)]
     struct SourceCalls {
         owner: SymbolHandle,
-        declaration_owners: Vec<SymbolHandle>,
-        visited: Vec<ExpressionHandle>,
+        declaration_owners: std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>,
+        visited: std::collections::HashSet<ExpressionHandle>,
         expressions: Vec<(ExpressionHandle, SymbolHandle)>,
     }
 
@@ -47,10 +47,9 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         }
 
         fn expression(&mut self, expression: ExpressionHandle) -> bool {
-            if self.visited.contains(&expression) {
+            if !self.visited.insert(expression) {
                 return false;
             }
-            self.visited.push(expression);
             self.expressions.push((expression, self.owner));
             true
         }

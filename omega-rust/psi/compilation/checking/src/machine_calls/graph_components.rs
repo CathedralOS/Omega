@@ -16,9 +16,7 @@
 /// from it, and its members ascend, so a component's first member is its
 /// least position. Every position lies in exactly one component, including a
 /// self edge, which keeps its node in its own component.
-pub(in crate::machine_calls) fn strongly_connected_components(
-    adjacency: &[Vec<usize>],
-) -> Vec<Vec<usize>> {
+pub(crate) fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
     fn finish_order(
         node: usize,
         adjacency: &[Vec<usize>],

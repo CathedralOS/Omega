@@ -10,7 +10,7 @@ struct PendingInstallationReachRow<'a> {
     requirement_identity: String,
     provider_plan_report_identity: u64,
     upper_bound: Vec<String>,
-    concrete_service_reach: Vec<String>,
+    resolved_service_reach: Vec<String>,
     unresolved: Vec<flow_effects::InstallationReachRequirement>,
     plan: &'a ProviderPlan,
     realization: &'a checked_trees::typed_trees::machine::Machine,
@@ -33,6 +33,20 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let top_level_requirement_schemas = typed
+        .machines()
+        .iter()
+        .filter(|requirement| {
+            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+        .filter_map(|requirement| {
+            let schema = crate::service_schema::from_typed_boundary_requirement(
+                provider_context,
+                requirement,
+            )?;
+            Some((requirement, schema))
+        })
+        .collect::<Vec<_>>();
     for plan in selected.plans() {
         // A sealed catalog scalar declaration publishes its own concrete reach.
         // Rejoin its whole plan rather than treating it as a trait requirement.
@@ -45,19 +59,9 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             }
         }
 
-        let top_level_requirements = typed
-            .machines()
+        let top_level_requirements = top_level_requirement_schemas
             .iter()
-            .filter(|requirement| {
-                requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && crate::service_schema::from_typed_boundary_requirement(
-                        provider_context,
-                        requirement,
-                    )
-                    .as_ref()
-                        == Some(&plan.schema)
-            })
+            .filter_map(|(requirement, schema)| (*schema == plan.schema).then_some(*requirement))
             .collect::<Vec<_>>();
         match top_level_requirements.as_slice() {
             [requirement] => {
@@ -327,7 +331,7 @@ fn record_installation_reach_row<'a>(
             requirement_identity,
             provider_plan_report_identity: plan.report_fingerprint(),
             upper_bound,
-            concrete_service_reach: envelope.concrete_service_reach.clone(),
+            resolved_service_reach: envelope.concrete_service_reach.clone(),
             unresolved: envelope.unresolved_installation_reaches.clone(),
             plan,
             realization,
@@ -378,7 +382,7 @@ fn substitute_nested_installation_reaches(
         let mut next = Vec::new();
         let mut progressed = false;
         for mut row in pending.drain(..) {
-            let mut resolved_row = row.concrete_service_reach.clone();
+            let mut resolved_row = std::mem::take(&mut row.resolved_service_reach);
             row.unresolved.retain(|reach| {
                 let resolved =
                     nested_requirement_identity(typed, reach.requirement).and_then(|identity| {
@@ -409,6 +413,9 @@ fn substitute_nested_installation_reaches(
                 });
                 progressed = true;
             } else {
+                // Consumed dependencies leave `unresolved`; their contribution
+                // must survive while this row waits for another selected row.
+                row.resolved_service_reach = resolved_row;
                 next.push(row);
             }
         }

@@ -216,6 +216,7 @@ fn collect_state_numeric_observations_batch(
     let mut statement_results = vec![Vec::new(); statements.len()];
     let mut state_candidates = Vec::new();
 
+    let _scan_guard = phase_profile::guard("05.num.1_scan");
     let mut statement_has_integer_read = vec![false; statements.len()];
     for (index, statement) in statements.iter().enumerate() {
         if !demand.scalar_values && !needs_relations {
@@ -285,10 +286,7 @@ fn collect_state_numeric_observations_batch(
                         program.expression_table.expression(expression),
                         typed_trees::expression::ExpressionNode::Integer(_)
                     ) && crate::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        expression,
+                        program, machine, state, expression,
                     )
                     .and_then(|reference| program.primitive_type_reference(reference))
                     .is_some_and(|primitive| primitive.is_fixed_integer())
@@ -343,17 +341,18 @@ fn collect_state_numeric_observations_batch(
         });
     }
 
+    drop(_scan_guard);
     let mut results = vec![CapturedNumericObservations::default(); total_sites];
     if visitors.is_empty() {
         return results;
     }
-    let valid = {
+    let valid = phase_profile::scope("05.num.2_observe_prefixes", || {
         let mut refs: Vec<&mut dyn StructuralPrefixVisitor> = visitors
             .iter_mut()
             .map(|visitor| visitor as &mut dyn StructuralPrefixVisitor)
             .collect();
         observe_runtime_state_prefixes(program, machine, state, &mut refs)
-    };
+    });
     for ((statement_index, visitor), is_valid) in
         visitor_indices.into_iter().zip(visitors).zip(valid)
     {
@@ -634,6 +633,7 @@ impl Observations {
         {
             return;
         }
+        let _reads_guard = phase_profile::guard("05.num.assoc.1_reads");
         let mut current_reads = Vec::new();
         for (read, value) in judge.current_scalar_reads() {
             let Some(carrier) =
@@ -641,8 +641,7 @@ impl Observations {
             else {
                 continue;
             };
-            let Some(place) =
-                scalar_operand(program, machine, state, read, judge.frame_resolver())
+            let Some(place) = scalar_operand(program, machine, state, read, judge.frame_resolver())
             else {
                 continue;
             };
@@ -651,19 +650,32 @@ impl Observations {
                 current_reads.push(entry);
             }
         }
+        drop(_reads_guard);
         if current_reads.is_empty() {
             for &expression in expressions {
                 self.intersect_associations(expression, Vec::new());
             }
             return;
         }
-        let has_no_rewrites = judge.has_no_rewrites();
+        let _build_guard = phase_profile::guard("05.num.assoc.2_build_preds");
         let has_no_rewrites_or_subs = judge.has_no_rewrites_or_substitutions();
+        let mut consistent_premise_atoms: Option<Option<Vec<StructuralTerm>>> = None;
         let is_simple_leaf = |term: &StructuralTerm| {
             !matches!(
                 term,
                 StructuralTerm::MathematicalBinary { .. } | StructuralTerm::ScalarBinary { .. }
             )
+        };
+        let is_uncorrelated_simple_leaf = |term: &StructuralTerm, atoms: &[StructuralTerm]| {
+            is_simple_leaf(term)
+                && !matches!(term, StructuralTerm::Integer(_))
+                && !matches!(
+                    term,
+                    StructuralTerm::BoundValue(symbol)
+                        if program.symbols.builtin_type_member(*symbol)
+                            == Some(symbols::BuiltinTypeMember::AddressBound)
+                )
+                && !atoms.contains(term)
         };
         let is_trivial_identity_leaf = |term: &StructuralTerm| {
             matches!(
@@ -683,11 +695,7 @@ impl Observations {
                 judge.resolved_completed_semantic_value(value)
             }
         };
-        let mut read_semantics: Vec<Option<StructuralTerm>> = if has_no_rewrites {
-            vec![None; current_reads.len()]
-        } else {
-            Vec::new()
-        };
+        let mut read_semantics: Vec<Option<StructuralTerm>> = Vec::new();
         let mut current = vec![Vec::new(); expressions.len()];
         let mut predicates = Vec::new();
         let mut destinations = Vec::new();
@@ -715,17 +723,27 @@ impl Observations {
             else {
                 continue;
             };
-            let result_sem = has_no_rewrites.then(|| resolve_sem(result));
+            let mut result_sem: Option<StructuralTerm> = None;
             for (read_index, (place, value, reference)) in current_reads.iter().enumerate() {
                 if prior.is_some_and(|previous| !previous.contains(place)) {
                     continue;
                 }
-                if let Some(ref result_sem) = result_sem
-                    && is_simple_leaf(result_sem)
-                {
+                let atoms_opt = consistent_premise_atoms
+                    .get_or_insert_with(|| judge.prepared_integer_premise_atoms_when_consistent());
+                if let Some(atoms) = atoms_opt.as_deref() {
+                    if read_semantics.is_empty() {
+                        read_semantics.resize(current_reads.len(), None);
+                    }
+                    let result_sem = result_sem.get_or_insert_with(|| resolve_sem(result));
                     let read_sem =
                         read_semantics[read_index].get_or_insert_with(|| resolve_sem(value));
-                    if is_simple_leaf(read_sem) && result_sem != read_sem {
+                    if result_sem != read_sem
+                        && (is_uncorrelated_simple_leaf(result_sem, atoms)
+                            || is_uncorrelated_simple_leaf(read_sem, atoms)
+                            || (atoms.is_empty()
+                                && is_simple_leaf(result_sem)
+                                && is_simple_leaf(read_sem)))
+                    {
                         continue;
                     }
                 }
@@ -743,11 +761,12 @@ impl Observations {
                 destinations.push((position, read_index));
             }
         }
+        drop(_build_guard);
         if !predicates.is_empty() {
-            for ((position, read_index), proven) in destinations
-                .into_iter()
-                .zip(judge.prove_observed_predicates(&predicates, 0))
-            {
+            let proven_list = phase_profile::scope("05.num.assoc.3_prove", || {
+                judge.prove_observed_predicates(&predicates, 0)
+            });
+            for ((position, read_index), proven) in destinations.into_iter().zip(proven_list) {
                 let place = &current_reads[read_index].0;
                 if proven && !current[position].contains(place) {
                     current[position].push(place.clone());
@@ -945,26 +964,30 @@ impl StructuralPrefixVisitor for Observations {
             let reference =
                 crate::expression_result_type_reference(program, machine, state, last_root)
                     .unwrap_or(state.return_type);
-            if let Some(observations) = judge.completed_observations(
-                self.statement_index,
-                last_root,
-                environment,
-                (machine, state, reference),
-                &requested,
-                &self.operations,
-            ) {
+            if let Some(observations) = phase_profile::scope("05.num.2a.1_completed_obs", || {
+                judge.completed_observations(
+                    self.statement_index,
+                    last_root,
+                    environment,
+                    (machine, state, reference),
+                    &requested,
+                    &self.operations,
+                )
+            }) {
                 for entry in observations.operations {
                     let Some(arguments) = entry.observed_arguments() else {
                         continue;
                     };
-                    self.collect_ordering(
-                        program,
-                        machine,
-                        state,
-                        entry.expression,
-                        &arguments,
-                        &entry.judge,
-                    );
+                    phase_profile::scope("05.num.2a.2_collect_ordering", || {
+                        self.collect_ordering(
+                            program,
+                            machine,
+                            state,
+                            entry.expression,
+                            &arguments,
+                            &entry.judge,
+                        );
+                    });
                 }
                 let results = self
                     .results
@@ -980,7 +1003,9 @@ impl StructuralPrefixVisitor for Observations {
                     if self.wants_scalar_values {
                         self.collect(program, machine, state, &outcome);
                     }
-                    self.collect_associations(program, machine, state, &results, &outcome);
+                    phase_profile::scope("05.num.2a.3_collect_assoc", || {
+                        self.collect_associations(program, machine, state, &results, &outcome);
+                    });
                 }
                 return;
             }
@@ -991,14 +1016,16 @@ impl StructuralPrefixVisitor for Observations {
             let reference =
                 crate::expression_result_type_reference(program, machine, state, expression)
                     .unwrap_or(state.return_type);
-            let Some(observations) = judge.completed_observations(
-                self.statement_index,
-                expression,
-                environment,
-                (machine, state, reference),
-                &requested,
-                &self.operations,
-            ) else {
+            let Some(observations) = phase_profile::scope("05.num.2a.1_completed_obs", || {
+                judge.completed_observations(
+                    self.statement_index,
+                    expression,
+                    environment,
+                    (machine, state, reference),
+                    &requested,
+                    &self.operations,
+                )
+            }) else {
                 // Unknown completion of a potentially evaluated root cannot
                 // leave a convenient sibling-path capture behind. Earlier
                 // snapshots outside this root retain their completed custody.
@@ -1009,14 +1036,16 @@ impl StructuralPrefixVisitor for Observations {
                 let Some(arguments) = entry.observed_arguments() else {
                     continue;
                 };
-                self.collect_ordering(
-                    program,
-                    machine,
-                    state,
-                    entry.expression,
-                    &arguments,
-                    &entry.judge,
-                );
+                phase_profile::scope("05.num.2a.2_collect_ordering", || {
+                    self.collect_ordering(
+                        program,
+                        machine,
+                        state,
+                        entry.expression,
+                        &arguments,
+                        &entry.judge,
+                    );
+                });
             }
             // Root containment depends only on the requested expression
             // identities, not an individual normal path's captured values.
@@ -1032,7 +1061,9 @@ impl StructuralPrefixVisitor for Observations {
                 if self.wants_scalar_values {
                     self.collect(program, machine, state, &outcome);
                 }
-                self.collect_associations(program, machine, state, &results, &outcome);
+                phase_profile::scope("05.num.2a.3_collect_assoc", || {
+                    self.collect_associations(program, machine, state, &results, &outcome);
+                });
             }
         }
     }

@@ -9,6 +9,7 @@ name = "build_time_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../foundation/compiler-storage" }
 typed-trees-to-typed-trees = { path = "../pipeline/03b_typed-trees-to-typed-trees" }
 build-time-values = { path = "../../foundation/build-time-values" }
 checked-trees = { path = "../representations/checked-trees" }

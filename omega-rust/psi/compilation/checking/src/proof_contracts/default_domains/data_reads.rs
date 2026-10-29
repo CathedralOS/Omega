@@ -180,63 +180,69 @@ fn scan_expression_use(
         consumes_value,
         diagnostics,
     );
-    if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
-        // Dynamic selectors overlap every possible element. A nominal value
-        // also consumes a covering window; a raw scalar projection does not.
-        let mut cached_definition = None;
-        let mut lookup_definition = || {
-            *cached_definition.get_or_insert_with(|| {
-                data_definition_for_expression(program, machine, Some(state), expression)
-            })
-        };
-        if matches!(
+    if consumes_value {
+        let is_name = matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Name(_)
-        ) && let Some(definition) = lookup_definition()
-            && crate::value_custody::data::data_requires_establishment(program, definition)
-        {
-            // Passing or borrowing the whole nominal value cannot bypass the
-            // same establishment gate a projected observation must satisfy.
-            validate_data_read(
-                program,
-                state,
-                definition,
-                &spelling,
-                "<whole value>",
-                expression_root_symbol(program, expression),
-                tracked,
-                entry_established,
-                call_established,
-                inherited_windows,
-                diagnostics,
-            );
-        }
+        );
         let has_open_window =
             !inherited_windows.is_empty() || tracked.iter().any(TrackedPlace::any_window_open);
-        if has_open_window {
-            let consumes_record = lookup_definition().is_some();
-            let overlaps_consumed_value = |place: &str| {
-                place_spelling_covers(&spelling, place)
-                    || (consumes_record && place_spelling_covers(place, &spelling))
+        if (is_name || has_open_window)
+            && let Some(spelling) = write_place_spelling(program, expression)
+        {
+            // Dynamic selectors overlap every possible element. A nominal value
+            // also consumes a covering window; a raw scalar projection does not.
+            let mut cached_definition = None;
+            let mut lookup_definition = || {
+                *cached_definition.get_or_insert_with(|| {
+                    data_definition_for_expression(program, machine, Some(state), expression)
+                })
             };
-            if let Some(place) = tracked
-                .iter()
-                .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
+            if is_name
+                && let Some(definition) = lookup_definition()
+                && crate::value_custody::data::data_requires_establishment(program, definition)
             {
-                diagnostics.push(Diagnostic::error(format!(
-                    "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
-                     window: a prior write left data `{}`'s default domain FALSE -- \
-                     restore the facts before copying or exposing the value (ch11)",
-                    place.definition.name.as_str()
-                )));
-            } else if let Some((_, data_name, _)) = inherited_windows
-                .iter()
-                .find(|(place, _, _)| overlaps_consumed_value(place))
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
-                     window carried from a predecessor state for data `{data_name}`"
-                )));
+                // Passing or borrowing the whole nominal value cannot bypass the
+                // same establishment gate a projected observation must satisfy.
+                validate_data_read(
+                    program,
+                    state,
+                    definition,
+                    &spelling,
+                    "<whole value>",
+                    expression_root_symbol(program, expression),
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+            if has_open_window {
+                let consumes_record = lookup_definition().is_some();
+                let overlaps_consumed_value = |place: &str| {
+                    place_spelling_covers(&spelling, place)
+                        || (consumes_record && place_spelling_covers(place, &spelling))
+                };
+                if let Some(place) = tracked
+                    .iter()
+                    .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                         window: a prior write left data `{}`'s default domain FALSE -- \
+                         restore the facts before copying or exposing the value (ch11)",
+                        place.definition.name.as_str()
+                    )));
+                } else if let Some((_, data_name, _)) = inherited_windows
+                    .iter()
+                    .find(|(place, _, _)| overlaps_consumed_value(place))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                         window carried from a predecessor state for data `{data_name}`"
+                    )));
+                }
             }
         }
     }
@@ -312,8 +318,18 @@ fn scan_expression_use(
                             call_established,
                         )
                     });
+                let raw_current_field = definition.is_some_and(|definition| {
+                    independently_present_scalar_field(
+                        program,
+                        definition,
+                        member,
+                        &receiver_spelling,
+                        tracked,
+                    )
+                });
                 if consumes_value
                     && !established_child
+                    && !raw_current_field
                     && let Some(definition) = definition
                     && crate::value_custody::data::data_requires_establishment(program, definition)
                 {
@@ -731,6 +747,53 @@ fn validate_qualified_place_read(
             program.display_type_reference_with_constraints(reference),
         )));
     }
+}
+
+/// An open parent coupling does not erase its present primitive cells. This
+/// only avoids consuming that coupling: selected-field qualifications and the
+/// ordinary content/ownership checks still independently police the read.
+/// Initial unestablished storage and an unknown active payload stay fenced.
+fn independently_present_scalar_field(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    member: &typed_trees::expression::TableMemberExpression,
+    receiver_spelling: &str,
+    tracked: &[TrackedPlace<'_>],
+) -> bool {
+    let symbol =
+        crate::value_custody::places::effective_member_symbol(program, member.receiver, member);
+    if !symbol.is_valid() {
+        return false;
+    }
+    let Some(field) = crate::value_custody::places::exact_data_member_field(
+        program,
+        definition,
+        symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    ) else {
+        return false;
+    };
+    if !matches!(
+        program
+            .type_reference_table
+            .type_reference(field.type_reference),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+    ) || program
+        .primitive_type_reference(field.type_reference)
+        .is_none()
+        || crate::value_custody::data::type_requires_establishment(program, field.type_reference)
+    {
+        return false;
+    }
+    let parent = program.symbols.get(field.symbol).parent;
+    tracked.iter().any(|place| {
+        place.spelling == receiver_spelling
+            && place.definition.symbol == definition.symbol
+            && place.established
+            && (program.symbols.get(parent).kind != symbols::SymbolKind::Variant
+                || place.active_case == Some(parent))
+    })
 }
 
 fn validate_data_read(

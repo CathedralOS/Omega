@@ -6,7 +6,7 @@ use validation::collect_statement_expression_trees;
 
 use crate::monomorphization::body_cloning::copy_type_reference;
 use crate::monomorphization::body_rewriting::const_substitution::{
-    fixed_array_const_replacements, fold_closed_const_machine_arguments,
+    fixed_array_const_replacements, fold_closed_const_machine_arguments_in,
     substitute_const_index_expression_parameters, substitute_fixed_array_const_parameters,
 };
 use crate::monomorphization::body_rewriting::machine_arguments::substitute_machine_parameter_type_references;
@@ -20,6 +20,8 @@ pub(crate) fn substitute_cloned_type_parameters(
     program: &mut TypedTrees,
     candidate: &Candidate,
     type_start: usize,
+    expression_start: usize,
+    cloned_states: &[arena::HandleSpan<typed_trees::state::State>],
     instance: SymbolHandle,
 ) -> Result<(), Diagnostic> {
     // Equations belong to the declaration, while supplied types belong to its
@@ -79,10 +81,8 @@ pub(crate) fn substitute_cloned_type_parameters(
     for (parameter_symbol, replacement_handle) in replacements {
         let occurrences: Vec<_> = program
             .type_reference_table
-            .named_references()
-            .filter(|(handle, symbol, _)| {
-                handle.arena_index() as usize >= type_start && *symbol == parameter_symbol
-            })
+            .named_references_from(type_start)
+            .filter(|(_, symbol, _)| *symbol == parameter_symbol)
             .map(|(handle, _, _)| handle)
             .collect();
         for occurrence in occurrences {
@@ -111,10 +111,8 @@ pub(crate) fn substitute_cloned_type_parameters(
     {
         let occurrences: Vec<_> = program
             .type_reference_table
-            .named_references()
-            .filter(|(handle, symbol, _)| {
-                handle.arena_index() as usize >= type_start && symbol == parameter_symbol
-            })
+            .named_references_from(type_start)
+            .filter(|(_, symbol, _)| symbol == parameter_symbol)
             .map(|(handle, _, _)| handle)
             .collect();
         let replacement_handle = copy_type_reference(
@@ -144,7 +142,8 @@ pub(crate) fn substitute_cloned_type_parameters(
     // Binder substitution rewrites `Degree` to a decimal spelling inside the
     // cloned call. Fold that closed arithmetic before the next selection, or
     // `step<Degree - 1>` never becomes `step<1>`.
-    fold_closed_const_machine_arguments(program).map_err(Diagnostic::error)?;
+    fold_closed_const_machine_arguments_in(program, expression_start, cloned_states)
+        .map_err(Diagnostic::error)?;
     Ok(())
 }
 
@@ -161,6 +160,12 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
         return Ok(());
     }
     let mut roots = Vec::new();
+    for &predicate in program
+        .expression_table
+        .expression_handles(cloned.declared_type_predicates)
+    {
+        collect_expression_type_roots(program, predicate, &mut roots);
+    }
     for equation in program
         .declared_type_equations
         .span_or_empty(cloned.declared_type_equations)
@@ -361,7 +366,10 @@ pub(crate) fn cloned_expression_roots(
     program: &dyn ::validation::CheckingInput,
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
-    let mut roots = Vec::new();
+    let mut roots = program
+        .expression_table
+        .expression_handles(cloned.declared_type_predicates)
+        .to_vec();
     for equation in program
         .declared_type_equations
         .span_or_empty(cloned.declared_type_equations)
@@ -453,7 +461,8 @@ pub(crate) fn collect_expression_type_roots(
                     collect_static_argument_type_roots(std::slice::from_ref(&query.operand), roots);
                 }
             }
-            ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
+            ExpressionNode::TypeExpression(type_reference)
+            | ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
             _ => {}
         }
     }

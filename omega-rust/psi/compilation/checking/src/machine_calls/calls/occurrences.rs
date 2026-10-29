@@ -45,8 +45,10 @@ impl<'program> CallSite<'program> {
                     path: destination, ..
                 },
             ) => std::ptr::eq(*path, destination),
-            (Self::Expression { expression, .. }, TransitionTargetNode::Value(root)) => {
-                expression == root
+            (Self::Expression { expression, .. }, TransitionTargetNode::Value(_)) => {
+                super::topology::completing_transition_invocations(program, target)
+                    .iter()
+                    .any(|invocation| invocation.expression == *expression)
             }
             _ => false,
         }

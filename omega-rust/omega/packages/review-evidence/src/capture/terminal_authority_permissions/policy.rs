@@ -17,7 +17,15 @@ pub fn project_checked_terminal_permission_policy<'a>(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = input.into();
+    let services = input
+        .service_declarations
+        .is_none()
+        .then(|| input.project_service_declarations());
+    let compilation = &PackageReviewInput {
+        service_declarations: input.service_declarations.or(services.as_ref()),
+        ..input
+    };
     if compilation.custody.sources().package_identity() != Some(package)
         || compilation.custody.execution().selected_target_profile != Some(target)
         || compilation.custody.execution().selected_native_target() != Some(target.native_target())

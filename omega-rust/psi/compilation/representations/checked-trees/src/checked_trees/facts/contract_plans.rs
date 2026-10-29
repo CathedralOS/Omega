@@ -55,7 +55,9 @@ pub use contract_identity::{
     DeclaredTermination, contract_declarations_commitment, contract_identity,
     declared_termination_commitment,
 };
-pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
+pub use crash_plans::{
+    CheckedRuntimeMembershipSubject, CheckedTrappingSite, CrashPlan, CrashRouteBucket,
+};
 pub use crash_predicates::{
     CrashCause, CrashInterface, CrashPredicateExpression, CrashPredicateIdentity,
     CrashRouteBucketId, CrashRouteGuard,
@@ -76,7 +78,7 @@ pub use scalar_contracts::{
 use std::hash::Hash;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineContractPlans {
     /// One entry per machine, in machine order.
     pub machines: Vec<MachineContractPlan>,
@@ -195,7 +197,7 @@ pub fn contract_plan_by_machine<'plans>(
     plans.iter().find(|plan| plan.machine == machine)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
     /// Projection of unbound requires/ensures clauses into the closed

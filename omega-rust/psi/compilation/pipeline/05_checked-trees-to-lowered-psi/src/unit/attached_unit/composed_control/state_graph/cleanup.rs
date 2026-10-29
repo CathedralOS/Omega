@@ -25,11 +25,21 @@ fn source<'a>(
     control: &'a checked_trees::CheckedCleanupControlPlans,
 ) -> NormalExitSource<'a> {
     NormalExitSource {
+        completion: state.normal_exit_cleanups.completion,
         cleanups: control.normal_exits(state.normal_exit_cleanups),
         trivial_affine_discards: &[],
         operations: &state.operations,
         parameters: &state.structural_parameters,
     }
+}
+
+pub(super) fn optional_coordinate(
+    control: &checked_trees::CheckedCleanupControlPlans,
+    state: &CheckedComposedUnitControlStatePlan,
+    statement_index: usize,
+    continuation: bool,
+) -> Result<Option<FlowClaimJoinExit>, LoweringError> {
+    completion_cleanup::optional_coordinate(source(state, control), statement_index, continuation)
 }
 
 pub(super) fn destination(

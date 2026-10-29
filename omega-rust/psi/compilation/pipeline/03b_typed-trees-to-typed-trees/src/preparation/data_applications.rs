@@ -66,8 +66,7 @@ pub(super) fn elaborate_new_types(
     let type_start = program.type_reference_table.type_reference_count();
     let applications = program
         .type_reference_table
-        .type_reference_rows()
-        .filter(|(reference, _)| reference.arena_index() as usize > first_type)
+        .references_from(first_type.saturating_add(1))
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     for reference in applications {
@@ -96,8 +95,7 @@ fn finalize_produced_types(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let produced = program
         .type_reference_table
-        .type_reference_rows()
-        .filter(|(reference, _)| reference.arena_index() as usize > type_start)
+        .references_from(type_start.saturating_add(1))
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     crate::monomorphization::finalize_type_domain_instance_identities(program, produced)
@@ -199,6 +197,10 @@ fn elaborate_value_fields(
         )
     }));
     if active.iter().any(|(ancestor, _)| *ancestor == owner) {
+        *active = ancestors;
+        return;
+    }
+    if program.data_application_definition(reference).is_some() {
         *active = ancestors;
         return;
     }
@@ -383,6 +385,15 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         instantiated.push(member);
     }
     let mut application = template;
+    if application.predicate_subject_type.is_valid() {
+        application.predicate_subject_type = instantiate_type(
+            program,
+            application.predicate_subject_type,
+            &substitutions,
+            &lifetimes,
+            scope,
+        );
+    }
     application.members = program.data_members.insert_many(instantiated);
     application.type_parameters = HandleSpan::empty();
     application.lifetime_parameters.clear();

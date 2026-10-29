@@ -376,7 +376,16 @@ pub(super) fn build(
         // each selected case retains that same plan. Replanning here used to
         // give one wildcard call several generated result identities, defeating
         // the emitter's common completion and duplicating its source coordinate.
+        // Both named and applied arrivals into the recursive component are
+        // state edges. Returning an applied arrival as a scalar expression
+        // would introduce a native call and grow the stack on each cycle.
+        let arrival = validation::completing_transition_transfer(program, transition.target)
+            .and_then(|arrival| {
+                super::fused_target_index(program, fused, arrival.target)
+                    .map(|index| (index, arrival))
+            });
         let returning_arm = match program.statement_table.transition_target(transition.target) {
+            _ if arrival.is_some() => None,
             _ if terminal_calls::external_callable(program, machine, fused, transition)
                 .is_some() =>
             {
@@ -474,20 +483,10 @@ pub(super) fn build(
                     Vec::new(),
                 )
             } else {
-                let TransitionTargetNode::Named {
-                    path, arguments, ..
-                } = program.statement_table.transition_target(transition.target)
-                else {
-                    return None;
-                };
-                let target_index =
-                    crate::execution::terminal_unit::state_graph::fused_target_index(
-                        program,
-                        fused,
-                        path.symbol,
-                    )?;
+                let (target_index, arrival) = arrival.as_ref()?;
+                let target_index = *target_index;
                 let &(_, target) = fused.get(target_index)?;
-                let arguments = program.statement_table.expression_handles(*arguments);
+                let arguments = arrival.arguments;
                 let target_parameters = program.state_parameters(target);
                 let mut payloads = Vec::new();
                 for (parameter_index, parameter) in signatures[target_index].1.iter().enumerate() {
@@ -821,6 +820,7 @@ fn subject_call(
     };
     let operation = crate::execution::terminal_unit::calls::build_call_operation(
         program,
+        shapes,
         facts,
         Some(scalar_callees),
         machine,

@@ -301,7 +301,7 @@ pub(crate) fn build_static_boundary_requirements(
         .iter()
         .filter(|definition| definition.is_boundary)
     {
-        for signature in program.trait_machine_instances(definition) {
+        for signature in program.executable_trait_machine_instances(definition) {
             // The declaration's outer telescope remains authored and open.
             // Prepared instances retain its exact application and substituted
             // formals; publish those instances without admitting the open head
@@ -316,7 +316,7 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: open trait application",
+                        std::borrow::Cow::Borrowed("boundary requirement: open trait application"),
                     ),
                 ));
                 continue;
@@ -392,7 +392,9 @@ pub(crate) fn build_static_boundary_requirements(
                         signature.symbol,
                         crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                         checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                            "boundary requirement: unresolved invocation telescope",
+                            std::borrow::Cow::Borrowed(
+                                "boundary requirement: unresolved invocation telescope",
+                            ),
                         ),
                     ));
                     continue;
@@ -417,7 +419,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: result shape or domain authorization",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: result shape or domain authorization",
+                        ),
                     ),
                 ));
                 continue;
@@ -435,7 +439,7 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: parameter signature",
+                        std::borrow::Cow::Borrowed("boundary requirement: parameter signature"),
                     ),
                 ));
                 continue;
@@ -449,7 +453,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: checked contract commitment",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: checked contract commitment",
+                        ),
                     ),
                 ));
                 continue;
@@ -466,7 +472,7 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: published service reach",
+                        std::borrow::Cow::Borrowed("boundary requirement: published service reach"),
                     ),
                 ));
                 continue;
@@ -489,7 +495,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: structural precondition representation",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: structural precondition representation",
+                        ),
                     ),
                 ));
                 continue;
@@ -521,7 +529,9 @@ pub(crate) fn build_static_boundary_requirements(
                     signature.symbol,
                     crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
                     checked_trees::CheckedUnitPlanGapReason::Unsupported(
-                        "boundary requirement: scalar precondition representation",
+                        std::borrow::Cow::Borrowed(
+                            "boundary requirement: scalar precondition representation",
+                        ),
                     ),
                 ));
                 continue;
@@ -551,7 +561,9 @@ pub(crate) fn build_static_boundary_requirements(
                             program,
                             signature.symbol,
                             crate::execution::terminal_unit::plan_gaps::GapSite::Machine,
-                            checked_trees::CheckedUnitPlanGapReason::Unsupported(reason),
+                            checked_trees::CheckedUnitPlanGapReason::Unsupported(
+                                std::borrow::Cow::Borrowed(reason),
+                            ),
                         ));
                         continue;
                     }

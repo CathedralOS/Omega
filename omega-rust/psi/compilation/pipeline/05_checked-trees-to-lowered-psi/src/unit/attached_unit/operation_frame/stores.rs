@@ -28,10 +28,11 @@
 
 use super::{
     OperationFrame, StructuralTypeRoster, allocate_structural_result, last_operation_id,
-    operation_result_declaration, structural_type_declaration, window_place,
+    structural_type_declaration, window_place,
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::indexed_write::IndexedWriteTarget;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::unit::{
@@ -1564,7 +1565,7 @@ impl OperationFrame<'_, '_> {
         let move_id =
             last_operation_id(self.operations, "sum field store move emitted no operation")?;
         self.private_places
-            .push(operation_result_declaration(moved, move_id, hole_type));
+            .push(operation_result_place(moved, move_id, hole_type));
         self.emit_window_store(
             identities,
             store.statement_index,
@@ -1621,7 +1622,7 @@ impl OperationFrame<'_, '_> {
             },
         )?;
         self.private_places
-            .push(operation_result_declaration(copied_place, copy, hole_type));
+            .push(operation_result_place(copied_place, copy, hole_type));
         Ok(copied_place)
     }
 
@@ -1781,7 +1782,7 @@ impl OperationFrame<'_, '_> {
                 fields: initialized.into_iter().map(|(_, field)| field).collect(),
             },
         )?;
-        self.private_places.push(operation_result_declaration(
+        self.private_places.push(operation_result_place(
             copied_place,
             establishment,
             hole_type,

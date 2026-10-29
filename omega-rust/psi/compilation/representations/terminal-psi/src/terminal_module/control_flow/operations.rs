@@ -95,6 +95,26 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
+impl Operation {
+    /// The plain form: no static reach binding and no suspension crossing.
+    /// Every non-call operation and every call that never suspends carries
+    /// neither provenance slot, so a producer names this form instead of
+    /// re-spelling both absent fields.
+    pub const fn unsuspended(
+        id: OperationId,
+        result: OperationResult,
+        kind: OperationKind,
+    ) -> Self {
+        Self {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result,
+            kind,
+        }
+    }
+}
+
 /// Runtime result of one operation. Unit creates no `ValueId` or structural
 /// place. A structural result establishes its declared place only after the
 /// operation succeeds.

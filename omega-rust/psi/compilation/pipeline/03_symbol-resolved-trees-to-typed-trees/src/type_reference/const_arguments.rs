@@ -7,6 +7,8 @@ use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
 
+mod closed_applications;
+
 /// Authored names and pre-normalized arguments retain the selected Const
 /// symbol through resolution. Their declaration supplies the actual carrier;
 /// the receiving formal and encoded schema labels supply no nominal authority.
@@ -68,5 +70,5 @@ pub(crate) fn normalize_const_argument_carriers(
             },
         );
     }
-    Ok(())
+    closed_applications::normalize(program, frontier)
 }

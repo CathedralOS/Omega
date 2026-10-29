@@ -1,5 +1,13 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<HostedProbe, HostedProbeBody>(builder);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, linux_arm64);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, linux_x86_64);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, macos_arm64);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, macos_x86_64);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, windows_x86_64);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, uefi_x86_64);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, cross_platform_cli);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, local_unchecked);
+    Build::select_provider<HostedProbe, HostedProbeBody>(builder, alpha_bootstrap);
     Build::application(builder, "wrapping_index_target_body_invalid");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

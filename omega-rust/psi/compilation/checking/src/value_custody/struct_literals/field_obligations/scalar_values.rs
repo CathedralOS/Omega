@@ -6,8 +6,8 @@
 
 use super::super::observations::ConstructionObservations;
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDecisions, Interval, ValueEnvironment, check_validated_value_narrowing,
-    immutable_integer_expression_interval, validate_value_range_retaining_decisions,
+    Interval, ValueEnvironment, check_validated_value_narrowing,
+    immutable_integer_expression_interval, validate_value_range_retaining_obligations,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
@@ -135,8 +135,7 @@ fn analyze_scalar_value(
         environment_for(expression)
     };
     let before = diagnostics.len();
-    let mut decisions = ArithmeticDecisions::default();
-    let (interval, primitive, source_domain) = validate_value_range_retaining_decisions(
+    let (interval, primitive, source_domain) = validate_value_range_retaining_obligations(
         program,
         machine,
         Some(state),
@@ -146,9 +145,8 @@ fn analyze_scalar_value(
         numerics::arithmetic::ArithmeticDomain::Exact,
         owner,
         diagnostics,
-        &mut decisions,
+        formation_obligations,
     );
-    formation_obligations.extend(decisions.integer_range_obligations);
     if diagnostics.len() != before {
         return None;
     }

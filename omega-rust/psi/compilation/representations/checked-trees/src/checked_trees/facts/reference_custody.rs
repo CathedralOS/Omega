@@ -24,7 +24,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// That encoding rests on the type table's own invariant that a `Reference`
 /// node names a live referee, so no admitted leaf family can carry the zero
 /// handle as its referent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct ReferenceCustodyRow {
     /// The primitive referent beneath an exclusive stored `&mut` leaf — the
     /// whole-return reference-result shape. Invalid when the carrier is not
@@ -77,7 +77,7 @@ impl ReferenceCustodyRow {
 }
 
 /// Every type reference's custody row, dense by arena index.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ReferenceCustodyFacts {
     /// Indexed by `TypeReferenceHandle::arena_index`. Index 0 is the invalid
     /// handle, and unoccupied interior indices carry that same row.

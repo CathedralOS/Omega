@@ -2,10 +2,12 @@
 use super::Diagnostic;
 use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;
-use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
+use crate::capture::semantics::declarations::{
+    premise_projections, progress_profile, project_service_progress_routes,
+};
 use crate::capture::semantics::services::rejected;
-use crate::record::{PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute};
-use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use crate::record::PackagePolicyServiceProgressPremise;
+use effects::provider_plan::ServiceProgressSubject;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -17,22 +19,7 @@ pub(super) fn project(
     };
     let mut projected = Vec::new();
     for premise in premises {
-        let profiles = compilation
-            .domain_definitions()
-            .iter()
-            .filter(|domain| domain.semantic_id == premise.profile)
-            .collect::<Vec<_>>();
-        let [profile] = profiles.as_slice() else {
-            return Err(rejected(
-                "progress premise has no unique exact profile declaration",
-            ));
-        };
-        if profile.classification != Some(language_semantics::DomainClassification::ProgressProfile)
-        {
-            return Err(rejected(
-                "progress premise names another domain classification",
-            ));
-        }
+        let profile = progress_profile(compilation, premise.profile, "progress premise")?;
         let subjects = parameters
             .iter()
             .filter(|parameter| parameter.symbol == premise.subject.root)
@@ -45,51 +32,15 @@ pub(super) fn project(
         let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)
             .ok_or_else(|| rejected("progress subject has no source parameter ordinal"))?;
         let subject = ServiceProgressSubject::Parameter(ordinal);
-        // Progress profiles project only requirement routes; exact-machine
-        // routes are ineligible for admitted boundary progress profiles.
-        let mut establishment_routes = profile
-            .establishment_routes
-            .iter()
-            .filter(|route| {
-                !matches!(
-                    route,
-                    language_semantics::DomainEstablishmentRoute::ExactMachine { .. }
-                )
-            })
-            .map(|route| {
-                Ok(PackagePolicyServiceProgressRoute {
-                    kind: match route {
-                        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-                            ..
-                        } => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                            ..
-                        } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                        language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
-                            unreachable!("exact-machine routes are filtered above")
-                        }
-                    },
-                    requirement_owner: nominal_identity(compilation, route.source_symbol())?,
-                    requirement: trait_requirement_identity_from_symbols(
-                        compilation,
-                        route.source_symbol(),
-                        route.requirement_symbol(),
-                        "selected provider progress establishment",
-                    )?,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        establishment_routes.sort();
-        establishment_routes.dedup();
+        let establishment_routes = project_service_progress_routes(
+            compilation,
+            profile,
+            "selected provider progress establishment",
+        )?;
         projected.push(PackagePolicyServiceProgressPremise {
             profile: nominal_identity(compilation, profile.symbol)?,
             subject,
-            subject_projections: premise
-                .subject
-                .projections
-                .iter()
-                .map(|symbol| nominal_identity(compilation, *symbol))
-                .collect::<Result<Vec<_>, _>>()?,
+            subject_projections: premise_projections(compilation, premise)?,
             establishment_routes,
         });
     }

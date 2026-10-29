@@ -17,13 +17,22 @@ pub struct BuildSession {
 }
 
 impl BuildSession {
-    /// Reserve one resource grant and one reusable compiler for the invocation.
+    /// Reserve one resource grant and one reusable in-memory compiler.
+    /// Embedders own this lifetime and need no process-wide storage policy.
     pub fn create(workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
         let packages = PackageBuildSession::create(workspace)?;
         Ok(Self {
             compiler: CompilationSession::default(),
             packages,
         })
+    }
+
+    /// Application invocations retain their compiler inputs across processes.
+    /// Select storage before source preparation, while the session is empty.
+    pub fn create_retained(workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
+        let mut session = Self::create(workspace)?;
+        session.compiler = compiler_session();
+        Ok(session)
     }
 
     /// Reuse the invocation's compiler without transferring it to package policy.
@@ -47,5 +56,20 @@ impl BuildSession {
         Error: std::fmt::Display + From<CompileResolvedPackageReviewsError>,
     {
         self.packages.dispose(result)
+    }
+}
+
+/// Both standalone requests and package workflows configure the same optional
+/// compiler-private store before source preparation. Cache setup never admits
+/// source or prevents a cold compilation.
+pub(crate) fn compiler_session() -> CompilationSession {
+    match package_manager::retain_compiler_source_storage(None) {
+        Ok(storage) => CompilationSession::default().with_source_retention(storage),
+        Err(reason) => {
+            if std::env::var_os("OMEGA_PHASE_PROFILE").is_some_and(|value| value != "0") {
+                eprintln!("compiler source retention unavailable: {reason}");
+            }
+            CompilationSession::default()
+        }
     }
 }

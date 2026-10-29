@@ -49,7 +49,11 @@ pub(super) fn solve<'program>(
             program,
             owner,
             state,
-            expected_result,
+            if state.return_type.is_valid() {
+                state.return_type
+            } else {
+                expected_result
+            },
             symbols,
             inference,
             include_shared,

@@ -79,6 +79,9 @@ pub(crate) fn project_contract_expression_with_substitutions(
     };
     let node = compilation.expression_table.expression(expression);
     match node {
+        ExpressionNode::TypeExpression(_) => Err(vec![Diagnostic::error(
+            "a type operand is not a standalone contract value",
+        )]),
         ExpressionNode::SavedSubject(_) => Err(vec![Diagnostic::error(
             "package contract projection requires a scoped structural-match capture representation; a saved runtime subject is not a free denotational value",
         )]),
@@ -193,6 +196,25 @@ pub(crate) fn project_contract_expression_with_substitutions(
             })
         })(),
         ExpressionNode::Binary(binary) => (|| {
+            if let Some((left, right, negated)) =
+                compilation.static_type_predicate_operands(expression)
+            {
+                let identity = |reference| {
+                    review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
+                        compilation,
+                        reference,
+                        binders,
+                        context.lifetime_binders,
+                        &[],
+                        context.lifetime_substitutions,
+                    )
+                };
+                return Ok(PackageReviewContractExpression::TypeEquality {
+                    left: identity(left)?,
+                    right: identity(right)?,
+                    negated,
+                });
+            }
             if is_case_membership(compilation, expression, binary) {
                 let case = checked_case_classifier(compilation, context, expression, binary)?;
                 return Ok(PackageReviewContractExpression::CaseMembership {

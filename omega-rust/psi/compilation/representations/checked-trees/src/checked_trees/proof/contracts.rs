@@ -4,14 +4,14 @@ use typed_trees::expression::ExpressionHandle;
 
 use crate::CheckedValueOrigin;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContractProofFactKind {
     #[default]
     Requires,
     Ensures,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContractProofFactOwner {
     #[default]
     Unknown,
@@ -43,7 +43,7 @@ pub enum ContractProofFactOwner {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryQualificationAuthorization {
     /// The boundary trait that owns the admitted requirement.
     pub requirement_symbol: SymbolHandle,
@@ -51,7 +51,7 @@ pub struct BoundaryQualificationAuthorization {
     pub signature_symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractProofFact {
     pub kind: ContractProofFactKind,
     pub owner: ContractProofFactOwner,
@@ -76,7 +76,7 @@ pub struct ContractProofFact {
 /// families, carrier types, and requirement parameters are all schema-level in
 /// the authored row; the recorded trait arguments plus the satisfying state
 /// (the fact's owner) instantiate them without consulting display names.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct InheritedContractScope {
     /// Machine bearing the `satisfies` edge the fact migrated through.
     pub conformance_machine: SymbolHandle,
@@ -94,7 +94,7 @@ pub struct InheritedContractScope {
 /// output identity so the producer can discharge it; a caller receives that
 /// identity only at an exact guarded result-case arm that selects the row by
 /// `public_selector`, where it lands as the arm row's `selected_term`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeSpecificGuaranteeFact {
     pub machine_symbol: SymbolHandle,
     pub result_data: SymbolHandle,
@@ -112,7 +112,7 @@ pub struct OutcomeSpecificGuaranteeFact {
 /// Caller-side availability for the guarded guarantees of one exact result
 /// arm. The arm coordinate is the scope boundary: rows are never installed at
 /// the producer call's unconditional ensures point.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeSpecificArmFact {
     pub caller_machine_symbol: SymbolHandle,
     pub caller_state_symbol: SymbolHandle,
@@ -127,7 +127,7 @@ pub struct OutcomeSpecificArmFact {
     pub rows: Vec<OutcomeSpecificArmRowFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeSpecificArmRowFact {
     pub guarantee: Handle<OutcomeSpecificGuaranteeFact>,
     /// Canonical caller-side proposition after call arguments and the concrete
@@ -155,7 +155,7 @@ pub struct OutcomeSpecificArmRowFact {
     pub selected_term: Option<Handle<CheckedEvidenceTerm>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeSpecificValidityFact {
     pub result_occurrence: ExpressionHandle,
     pub referenced_occurrences: Vec<OutcomeReferencedOccurrence>,
@@ -166,7 +166,7 @@ pub struct OutcomeSpecificValidityFact {
 /// proposition's carrierless evidence interface. Type handles preserve the
 /// interface's exact reference-region nodes; retained occurrences name the
 /// value scopes intersected with them at the caller arm.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeSpecificEvidenceInterfaceScopeFact {
     pub interface: crate::CheckedEvidenceInterfaceIdentity,
     pub evidence_type: typed_trees::types::TypeReferenceHandle,
@@ -178,13 +178,13 @@ pub struct OutcomeSpecificEvidenceInterfaceScopeFact {
 /// validity depends on, classified by the root the caller re-anchors it to.
 /// Lowering publishes the root's place as a validity dependency; it never
 /// reads the occurrence itself.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct OutcomeReferencedOccurrence {
     pub occurrence: ExpressionHandle,
     pub root: OutcomeOccurrenceRoot,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum OutcomeOccurrenceRoot {
     /// The callee's reserved `result`, which the caller's call result
     /// replaces under contract import.
@@ -204,7 +204,7 @@ pub enum OutcomeOccurrenceRoot {
     Other,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedEvidenceTerm {
     /// Public output-field name for `ensures`, local input alias for `requires`.
     pub name: String,
@@ -241,7 +241,7 @@ impl Default for CheckedEvidenceTerm {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractProofFactRef {
     pub fact: Handle<ContractProofFact>,
 }
@@ -249,7 +249,7 @@ pub struct ContractProofFactRef {
 /// One explicit erased call-lane binding. Both ends are exact checked term
 /// identities; position is semantic and source names are never matched to
 /// callee names.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractEvidenceArgument {
     pub source: Handle<CheckedEvidenceTerm>,
     pub parameter: Handle<CheckedEvidenceTerm>,
@@ -259,7 +259,7 @@ pub struct ContractEvidenceArgument {
 /// One exact erased binding on a call occurrence nested in a checked proof
 /// fact. Unlike `ContractCallFact`, this is denotational proof-expression
 /// custody and has no executable statement coordinate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractExpressionEvidenceArgumentFact {
     pub source: Handle<CheckedEvidenceTerm>,
     pub parameter: Handle<CheckedEvidenceTerm>,
@@ -270,7 +270,7 @@ pub struct ContractExpressionEvidenceArgumentFact {
 /// Checked identity for one evidence-bearing call occurrence inside one exact
 /// proof fact. `expression` is the private occurrence join; package projection
 /// must replace every handle and symbol with stable semantic identities.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractExpressionEvidenceCallFact {
     pub owner: ContractProofFactOwner,
     pub fact: Handle<typed_trees::domain::ProofFact>,
@@ -284,7 +284,7 @@ pub struct ContractExpressionEvidenceCallFact {
 /// call occurrence nested in a checked proof fact. The expression and ordinal
 /// are private occurrence joins; downstream portable evidence must replace
 /// every handle and symbol in the closed application with semantic identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractExpressionStaticConformanceApplicationFact {
     pub owner: ContractProofFactOwner,
     pub fact: Handle<typed_trees::domain::ProofFact>,
@@ -294,7 +294,7 @@ pub struct ContractExpressionStaticConformanceApplicationFact {
 }
 
 /// The exact checked source of one erased outgoing evidence assignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum EvidenceAssignmentSource {
     /// Preserve the identity of one exact incoming term.
     Forwarded { term: Handle<CheckedEvidenceTerm> },
@@ -319,7 +319,7 @@ impl Default for EvidenceAssignmentSource {
 /// One erased outgoing evidence slot assigned from an exact incoming term or
 /// an explicit producer conformance. `output` retains the public field and
 /// proposition identity.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvidenceForwardingFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -331,7 +331,7 @@ pub struct EvidenceForwardingFact {
 /// One immediate call whose selected proof outputs are bound to
 /// fresh caller-local evidence terms. A scalar Type result additionally
 /// names the exact ordinary runtime call coordinate.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputCallFact {
     pub caller_machine_symbol: SymbolHandle,
     pub caller_state_symbol: SymbolHandle,
@@ -351,7 +351,7 @@ pub struct ProofOutputCallFact {
     pub outputs: Vec<ProofOutputFact>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticRequirementDispatchFact {
     pub selection_application: typed_trees::static_applications::StaticMachineApplicationHandle,
     /// Compact report coordinate; authority uses `application_commitment`.
@@ -380,7 +380,7 @@ impl From<&typed_trees::typed_trees::StaticRequirementDispatch> for StaticRequir
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputEvidenceArgumentFact {
     pub input_position: usize,
     pub callee_input: Handle<CheckedEvidenceTerm>,
@@ -389,7 +389,7 @@ pub struct ProofOutputEvidenceArgumentFact {
     pub instantiated_label: String,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputRuntimeCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -399,7 +399,7 @@ pub struct ProofOutputRuntimeCallFact {
 /// `callee_output` is the published lane declaration. `output` is the distinct
 /// term introduced in the caller, or `None` when the copyable proposition is
 /// omitted or explicitly discarded.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofOutputFact {
     pub output_position: usize,
     pub callee_output: Handle<CheckedEvidenceTerm>,
@@ -414,7 +414,7 @@ pub struct ProofOutputFact {
 /// Source-owned logical signature snapshot. This is checking derivation data,
 /// not provider selection or normal-return authority. Every requires/ensures
 /// clause and named proof lane belongs to this same exact occurrence.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CallContractSignature {
     pub caller_machine_symbol: SymbolHandle,
     pub caller_state_symbol: SymbolHandle,
@@ -427,7 +427,7 @@ pub struct CallContractSignature {
     pub signature: typed_trees::signature::StateSignature,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractCallFact {
     pub caller_machine_symbol: SymbolHandle,
     pub caller_state_symbol: SymbolHandle,
@@ -443,7 +443,7 @@ pub struct ContractCallFact {
     pub evidence_arguments: HandleSpan<ContractEvidenceArgument>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractExitFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
@@ -453,7 +453,7 @@ pub struct ContractExitFact {
     pub ensures: HandleSpan<ContractProofFactRef>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContractOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,

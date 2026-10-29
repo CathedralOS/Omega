@@ -23,202 +23,150 @@ impl SelectedLoweringRuleCatalogPayload {
 pub(crate) type SelectedLoweringRuleCatalogEntry =
     OptimizationCatalogDescriptor<SelectedLoweringRuleCatalogPayload>;
 
+/// One selected-lowering catalog row. Every family in this catalog is
+/// target-independent; the payload still records that applicability.
+const fn row(
+    optimization: Optimization,
+    policy: LiteralFoldPolicy,
+    pairs: &'static [SelectedInstructionPairRule],
+) -> SelectedLoweringRuleCatalogEntry {
+    SelectedLoweringRuleCatalogEntry::new(
+        optimization,
+        SelectedLoweringRuleCatalogPayload {
+            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
+            policy,
+            pairs,
+        },
+    )
+}
+
 /// The single selected-lowering enable/order catalog.
 pub(crate) const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23] = [
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingU12ExactAddImmediate,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::EXACT_ADD_V1,
-            pairs: &[
-                SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
-                SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
-            ],
-        },
+        LiteralFoldPolicy::EXACT_ADD_V1,
+        &[
+            SelectedInstructionPairRule::EXACT_ADD_IMMEDIATE_U12,
+            SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
+        ],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingU12ExactSubtractImmediate,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::EXACT_SUBTRACT_V1,
-            pairs: &[SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12],
-        },
+        LiteralFoldPolicy::EXACT_SUBTRACT_V1,
+        &[SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingU12CompareImmediate,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::COMPARE_V1,
-            pairs: &[
-                SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
-                SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
-                SelectedInstructionPairRule::COMPARE_ZERO,
-                SelectedInstructionPairRule::COMPARE_LEFT_ZERO,
-            ],
-        },
+        LiteralFoldPolicy::COMPARE_V1,
+        &[
+            SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+            SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
+            SelectedInstructionPairRule::COMPARE_ZERO,
+            SelectedInstructionPairRule::COMPARE_LEFT_ZERO,
+        ],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingLiteralExtensionElimination,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::EXTENSION_V1,
-            pairs: &SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS,
-        },
+        LiteralFoldPolicy::EXTENSION_V1,
+        &SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingU12Load8IndexedOffset,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::LOAD8_INDEXED_V1,
-            pairs: &[SelectedInstructionPairRule::LOAD8_INDEXED_U12],
-        },
+        LiteralFoldPolicy::LOAD8_INDEXED_V1,
+        &[SelectedInstructionPairRule::LOAD8_INDEXED_U12],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingLiteralCopyMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::COPY_V1,
-            pairs: &[SelectedInstructionPairRule::COPY_LITERAL_FOLD],
-        },
+        LiteralFoldPolicy::COPY_V1,
+        &[SelectedInstructionPairRule::COPY_LITERAL_FOLD],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingU12ByteViewAddressOffset,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
-            pairs: &[
-                SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
-                SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_BACKING_U12,
-            ],
-        },
+        LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
+        &[
+            SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
+            SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_BACKING_U12,
+        ],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingExactDivideIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::EXACT_DIVIDE_V1,
-            pairs: &[SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY],
-        },
+        LiteralFoldPolicy::EXACT_DIVIDE_V1,
+        &[SelectedInstructionPairRule::EXACT_DIVIDE_ONE_COPY],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingWrappingRemainderOneZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
-            pairs: &[SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE],
-        },
+        LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+        &[SelectedInstructionPairRule::WRAPPING_REMAINDER_ONE_MATERIALIZE],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingBitwiseAndZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
-            pairs: &SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS,
-        },
+        LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+        &SelectedInstructionPairRule::BITWISE_AND_ZERO_FOLDS,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingBitwiseXorZeroIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
-            pairs: &SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPIES,
-        },
+        LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
+        &SelectedInstructionPairRule::BITWISE_XOR_ZERO_COPIES,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
-            pairs: &SelectedInstructionPairRule::WRAPPING_ADD_ZERO_COPIES,
-        },
+        LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
+        &SelectedInstructionPairRule::WRAPPING_ADD_ZERO_COPIES,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::BITWISE_AND_ONES_V1,
-            pairs: &SelectedInstructionPairRule::BITWISE_AND_ONES_COPIES,
-        },
+        LiteralFoldPolicy::BITWISE_AND_ONES_V1,
+        &SelectedInstructionPairRule::BITWISE_AND_ONES_COPIES,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
-            pairs: &[SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE],
-        },
+        LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+        &[SelectedInstructionPairRule::WRAPPING_REMAINDER_ZERO_DIVIDEND_MATERIALIZE],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingExactDivideZeroDividendZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
-            pairs: &[SelectedInstructionPairRule::EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE],
-        },
+        LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
+        &[SelectedInstructionPairRule::EXACT_DIVIDE_ZERO_DIVIDEND_MATERIALIZE],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingAddZeroIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPIES,
-        },
+        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+        &SelectedInstructionPairRule::SATURATING_ADD_ZERO_COPIES,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingSubtractZeroIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES,
-        },
+        LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
+        &SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_COPIES,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingDivideOneIdentityCopy,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES,
-        },
+        LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+        &SelectedInstructionPairRule::SATURATING_DIVIDE_ONE_COPIES,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS,
-        },
+        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+        &SelectedInstructionPairRule::SATURATING_DIVIDE_ZERO_DIVIDEND_MATERIALIZATIONS,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS,
-        },
+        LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+        &SelectedInstructionPairRule::SATURATING_SUBTRACT_ZERO_MINUEND_MATERIALIZATIONS,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingAddUpperBoundMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS,
-        },
+        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+        &SelectedInstructionPairRule::SATURATING_ADD_UPPER_BOUND_MATERIALIZATIONS,
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
-            pairs: &[SelectedInstructionPairRule::WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE],
-        },
+        LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
+        &[SelectedInstructionPairRule::WRAPPING_REMAINDER_MINUS_ONE_MATERIALIZE],
     ),
-    SelectedLoweringRuleCatalogEntry::new(
+    row(
         Optimization::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization,
-        SelectedLoweringRuleCatalogPayload {
-            target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
-            pairs: &SelectedInstructionPairRule::SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS,
-        },
+        LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+        &SelectedInstructionPairRule::SATURATING_SUBTRACT_UPPER_BOUND_MATERIALIZATIONS,
     ),
 ];
 

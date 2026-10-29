@@ -22,7 +22,6 @@
 //! result appears to leak its claim, or retirement removes a fresh binding.
 
 use crate::runtime_rows::RuntimeRows;
-use evaluation_accounting::EvaluationInvocationAccount;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
@@ -97,16 +96,6 @@ impl BlockBindings {
             retained.byte_binding(binding);
         }
         self.aggregate_payload.retain_storage(retained);
-    }
-
-    pub(crate) fn from_scalars(
-        scalars: Vec<(ValueId, TerminalScalarValue)>,
-        account: Option<&EvaluationInvocationAccount>,
-    ) -> Result<Self, TerminalInterpretError> {
-        Ok(Self {
-            scalars: RuntimeRows::from_rows(account, scalars)?,
-            ..Self::default()
-        })
     }
 
     /// All operands have been captured, including descriptors whose source
@@ -354,15 +343,14 @@ impl TerminalExecution<'_> {
     pub(crate) fn prepare_block_bindings(
         &self,
         target: BlockId,
-        arguments: &[ValueId],
+        scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[StructuralArgument],
     ) -> Result<BlockBindings, TerminalInterpretError> {
         let machine = self.program.verified_machine(self.current_machine)?;
         let block = machine
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-        let scalar_arguments = self.scalar_values_at(arguments)?;
-        let scalars = bind_arguments(&block.parameters, &scalar_arguments, self.account.as_ref())?;
+        let scalars = bind_arguments(&block.parameters, scalar_arguments, self.account.as_ref())?;
         if block.structural_parameters.len() != structural_arguments.len() {
             return Err(TerminalInterpretError::StructuralArgumentCount {
                 expected: block.structural_parameters.len(),

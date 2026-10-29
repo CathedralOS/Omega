@@ -14,6 +14,7 @@ use crate::emission::operation_emission::buffer::{
     OperationBuffer, StructuralBinding, scalar_result_declaration,
 };
 
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use checked_trees::{CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
@@ -868,13 +869,7 @@ pub(crate) fn emit_owned_literal(
         return unsupported("owned literal materialization has no owned result");
     };
     Ok((
-        StructuralPlaceDeclaration {
-            id: literal.place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        },
+        operation_result_place(literal.place, producer, structural_type),
         result,
     ))
 }
@@ -1014,13 +1009,7 @@ impl ByteEmission<'_> {
             self.next_obligation,
             self.operations,
         )?;
-        let declaration = StructuralPlaceDeclaration {
-            id: source,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type,
-            },
-        };
+        let declaration = operation_result_place(source, id, structural_type);
         Ok((declaration, result))
     }
 }

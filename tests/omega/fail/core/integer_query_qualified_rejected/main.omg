@@ -1,0 +1,3 @@
+// Unsupported or qualified carriers cannot acquire unqualified extrema.
+use omega::language::core::integer;
+machine main() { _ = integer::max<u32 in Wrapping>(); }

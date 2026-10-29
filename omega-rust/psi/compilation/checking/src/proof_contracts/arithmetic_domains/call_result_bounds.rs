@@ -105,6 +105,9 @@ fn project_possible(
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Option<Interval> {
+    if let Some(value) = program.static_boolean_value(expression) {
+        return value.then_some(Interval::UNBOUNDED);
+    }
     if program
         .prepared_mathematics()
         .is_some_and(|view| view.application(expression).is_some())
@@ -417,6 +420,7 @@ fn operand_interval(
             None,
             super::ArithmeticDomain::Exact,
             "normal-return contract",
+            false,
             false,
             &mut diagnostics,
         );

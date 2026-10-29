@@ -6,6 +6,7 @@
 
 use super::super::NativeCompilerBuiltinSettlement;
 use diagnostics::Diagnostic;
+use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderPlan, ServiceSchema};
 
 /// A projected callable keeps its original semantic contract. Ordinary plans
@@ -26,8 +27,14 @@ enum CompilerIntrinsicSemanticSchema {
 /// calls) omits it with the rest of its out-of-scope occurrences.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalCompilerBuiltinSettlement {
-    /// The catalog execution the local target lowerer admits.
-    Execution(target_operations::CompilerBuiltinExecution),
+    /// The exact closed intrinsic identity derivation selected for this row and
+    /// the catalog execution the local target lowerer admits. Derivation
+    /// records both on the value it emits; admission reads them instead of
+    /// re-deriving the identity from the execution.
+    Execution {
+        identity: CompilerIntrinsicExecutionIdentity,
+        execution: target_operations::CompilerBuiltinExecution,
+    },
     /// The selected row's execution has no closed native catalog identity.
     NoClosedCatalogIdentity,
     /// The closed identity has no native boundary realization in the catalog.

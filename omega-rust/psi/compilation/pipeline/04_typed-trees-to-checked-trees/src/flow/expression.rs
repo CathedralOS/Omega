@@ -2140,6 +2140,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
+            | ExpressionNode::TypeExpression(_)
             | ExpressionNode::ZeroValue(_) => {}
         }
         None

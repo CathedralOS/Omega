@@ -7,7 +7,7 @@ use super::{
     ProviderSelectionIdentity, ProviderSelectionSubject, identities,
 };
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolKind;
 
 pub(super) struct ProviderDeclarations {
     subject: ProviderSelectionSubject,
@@ -106,18 +106,17 @@ pub(super) fn admit(
     boundary_identity: ProviderSelectionIdentity,
     provider_type: ProviderSelectionIdentity,
     composition_mode: CompositionMode,
-    machine: SymbolHandle,
-    source_span: source::SourceSpan,
+    target: Option<language_semantics::declaration_selection::ProductTarget>,
+    origin: language_semantics::declaration_selection::BuildSelectionOrigin,
     previous: &[ProviderSelection],
 ) -> Result<ProviderSelection, Diagnostic> {
     let ProviderDeclarations {
         subject,
         provider_type,
     } = form(context, boundary_identity, provider_type)?;
-    if let Some(existing) = previous
-        .iter()
-        .find(|selection| selection.subject.same_declaration_as(&subject))
-    {
+    if let Some(existing) = previous.iter().find(|selection| {
+        selection.target == target && selection.subject.same_declaration_as(&subject)
+    }) {
         if existing.provider_type.symbol != provider_type.symbol {
             return Err(Diagnostic::error(format!(
                 "build selects two provider types for slot `{}`: `{}` and `{}`",
@@ -137,10 +136,10 @@ pub(super) fn admit(
         }
     }
     Ok(ProviderSelection {
+        target,
         subject,
         provider_type,
         composition_mode,
-        selecting_machine: machine,
-        source_span,
+        origin,
     })
 }

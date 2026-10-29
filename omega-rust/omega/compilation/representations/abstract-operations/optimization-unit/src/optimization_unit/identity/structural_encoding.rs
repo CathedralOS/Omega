@@ -131,6 +131,10 @@ pub(super) fn encode_boundary_machine(
     );
     encode_boundary_result(bytes, &declaration.result);
     bytes.slice(&declaration.requires, encode_domain_requirement);
+    bytes.slice(
+        &declaration.normal_qualifications,
+        encode_domain_requirement,
+    );
     bytes.slice(&declaration.reference_outputs, |bytes, output| {
         match output.destination {
             terminal_psi::BoundaryReferenceDestination::Parameter(position) => {
@@ -260,6 +264,7 @@ pub(super) fn encode_domain_requirement(
     requirement: &StructuralDomainRequirement,
 ) {
     bytes.u32(requirement.argument_index);
+    bytes.slice(&requirement.path, encode_structural_path_segment);
     bytes.id(requirement.domain);
 }
 
@@ -975,3 +980,6 @@ pub(super) fn encode_boundary_result(bytes: &mut CanonicalBytes, result: &Bounda
         }
     }
 }
+
+#[cfg(test)]
+mod normal_qualification_tests;

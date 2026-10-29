@@ -64,6 +64,7 @@ pub struct AssembledSyntax {
 
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
+#[derive(compiler_storage::Record)]
 pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
@@ -75,6 +76,7 @@ pub struct ImmutableSourceParseCheckpoint {
 
 /// The captured source namespace and Build parse prefix, not a Product judgment.
 /// Loading Product imports consumes this continuation after the Build join.
+#[derive(compiler_storage::Record)]
 pub struct DeferredProductSources {
     checkpoint: ImmutableSourceParseCheckpoint,
 }
@@ -232,6 +234,11 @@ impl DeferredProductSources {
         for root in roots.iter() {
             imports.seed(root.clone(), source::DependencyScope::Product);
         }
+        if let Some(inputs) = package_inputs {
+            for source in inputs.product_selection_source_seeds()? {
+                imports.seed(source, source::DependencyScope::Product);
+            }
+        }
         let mut package_imports = checkpoint.package_imports.to_vec();
         package_imports.extend(load_imports(
             &mut storage,
@@ -249,6 +256,31 @@ impl DeferredProductSources {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Source capture normalizes the physical root before parsing. The public
+    /// request may keep a relative or symlink spelling of that same entry;
+    /// resolve both through the retained capture, never through reopened bytes.
+    pub fn admit_root(&self, root: &Path) -> Result<(), Vec<Diagnostic>> {
+        if root == self.root_path {
+            return Ok(());
+        }
+        let resolve = |path: &Path| {
+            self.source_storage
+                .filesystem
+                .canonicalize(path)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "cannot resolve prepared source entry: {reason}"
+                    ))]
+                })
+        };
+        if resolve(root)? != resolve(&self.root_path)? {
+            return Err(vec![Diagnostic::error(
+                "checked child compilation root does not match its prepared source checkpoint",
+            )]);
+        }
+        Ok(())
+    }
+
     fn admit_product_inputs(
         &mut self,
         package_inputs: Option<&PackageCompilationInputs>,
@@ -430,7 +462,7 @@ impl ImmutableSourceParseCheckpoint {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
         let mut generated_source_custody = match package_inputs {
-            Some(package_inputs) => append_dependency_generated_sources_to_storage(
+            Some(package_inputs) => append_dependency_build_handoffs_to_storage(
                 &mut source_storage,
                 &mut imports,
                 package_inputs,
@@ -847,7 +879,7 @@ impl GeneratedSourceExtension {
     }
 }
 
-fn append_dependency_generated_sources_to_storage(
+fn append_dependency_build_handoffs_to_storage(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
@@ -856,7 +888,7 @@ fn append_dependency_generated_sources_to_storage(
     catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
     let entries =
-        crate::source_imports::admit_dependency_generated_sources(package_inputs, source_scope)?;
+        crate::source_imports::admit_dependency_build_handoffs(package_inputs, source_scope)?;
 
     for entry in &entries {
         imports.mark_loaded(&entry.logical_path, entry.scope);

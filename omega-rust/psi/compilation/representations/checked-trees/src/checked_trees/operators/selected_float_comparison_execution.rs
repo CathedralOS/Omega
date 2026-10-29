@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedSelectedFloatComparisonExecution {
     operator_use: CheckedOperatorUseHandle,
     selected: CheckedOperatorUseFact,

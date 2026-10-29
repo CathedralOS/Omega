@@ -18,16 +18,20 @@ pub(super) fn retain_completions(
     checked: &CheckedTrees,
     selected: &mut [crate::SelectedProviderReviewProvenance],
     target: Option<&str>,
-    candidates: &[crate::DerivedProviderPlan],
+    candidates: &[&crate::DerivedProviderPlan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for provider in selected {
         let mut rows = Vec::with_capacity(provider.plan.rows.len());
-        for (&requirement, &realization) in provider
+        for (&requirement, realization) in provider
             .provider
             .row_requirements
             .iter()
             .zip(&provider.provider.row_realizations)
         {
+            let Some(realization) = realization.authored() else {
+                rows.push(Vec::new());
+                continue;
+            };
             let completion =
                 checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
                     &checked.typed,
@@ -119,7 +123,7 @@ pub(super) fn checked_completion(
     machine: SymbolHandle,
     requirement: SymbolHandle,
     target: Option<&str>,
-    candidates: &[crate::DerivedProviderPlan],
+    candidates: &[&crate::DerivedProviderPlan],
 ) -> Result<Vec<SymbolHandle>, String> {
     let mut review = CompletionReview {
         checked,
@@ -139,7 +143,7 @@ struct CompletionReview<'a> {
     checked: &'a CheckedTrees,
     requirement: SymbolHandle,
     target: Option<&'a str>,
-    candidates: &'a [crate::DerivedProviderPlan],
+    candidates: &'a [&'a crate::DerivedProviderPlan],
     active: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
@@ -158,7 +162,7 @@ impl CompletionReview<'_> {
             let requirement = self.requirement;
             let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
                 candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {
-                    (candidate.provenance.row_realizations.get(position) == Some(&machine.symbol)
+                    (candidate.provenance.row_realizations.get(position).and_then(crate::ProviderRowRealization::authored) == Some(machine.symbol)
                         && candidate.provenance.row_requirements.get(position) == Some(&requirement)
                         && matches!(row.binding, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                             | effects::provider_plan::ProviderBinding::Import { .. }))

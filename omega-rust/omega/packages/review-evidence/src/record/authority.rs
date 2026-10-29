@@ -6,6 +6,7 @@ pub(crate) use super::authority_expressions::{
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
+use crate::record::accessors::field_projection_accessors;
 
 /// Core critical-service or consuming-root audit policy for a reviewed package.
 ///
@@ -45,27 +46,14 @@ pub struct PackageReviewDangerousAuthoritySlack {
 }
 
 impl PackageReviewDangerousAuthoritySlack {
-    pub const fn class(&self) -> PackageReviewDangerousAuthorityClass {
-        self.class
-    }
-
-    pub const fn callable(&self) -> &PackageReviewNominalIdentity {
-        &self.callable
-    }
-
-    pub const fn service(&self) -> &PackageReviewNominalIdentity {
-        &self.service
-    }
+    field_projection_accessors!(copied class: PackageReviewDangerousAuthorityClass);
+    field_projection_accessors!(borrowed callable: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed service: &PackageReviewNominalIdentity);
 }
 
 impl PackageReviewDangerousAuthority {
-    pub const fn class(&self) -> PackageReviewDangerousAuthorityClass {
-        self.class
-    }
-
-    pub const fn service(&self) -> &PackageReviewNominalIdentity {
-        &self.service
-    }
+    field_projection_accessors!(copied class: PackageReviewDangerousAuthorityClass);
+    field_projection_accessors!(borrowed service: &PackageReviewNominalIdentity);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -75,10 +63,8 @@ pub struct PackageReviewInstallationReach {
 }
 
 impl PackageReviewInstallationReach {
-    crate::record::accessors::record_accessors!(requirement);
-    pub fn upper_bound(&self) -> &[PackageReviewNominalIdentity] {
-        &self.upper_bound
-    }
+    field_projection_accessors!(borrowed requirement: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced upper_bound: &[PackageReviewNominalIdentity]);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

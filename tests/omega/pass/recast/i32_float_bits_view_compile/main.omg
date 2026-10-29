@@ -7,7 +7,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) {
-    main.raw = 1065353216;
+    main.raw = 0x3F80_0000;
     transition (&main.raw as &f32) == 1.0 {
         true -> good(main)
         _ -> bad(main)

@@ -136,5 +136,3 @@ pub enum SpillChoiceError {
 }
 
 failed_display!(SpillChoiceError, "Terminal recovery-victim choice failed");
-
-impl std::error::Error for SpillChoiceError {}

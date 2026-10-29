@@ -2,6 +2,7 @@
 
 use super::PackagePolicyServiceMethod;
 use crate::record::PackageReviewNominalIdentity;
+use crate::record::package::callable_policy::validation::signature::owned_pair;
 use target::TargetProfile;
 
 impl PackagePolicyServiceMethod {
@@ -12,10 +13,8 @@ impl PackagePolicyServiceMethod {
     ) -> Result<(), &'static str> {
         self.validate_signature()?;
         self.validate_authority()?;
-        self.requirement_owner.validate_resolved()?;
-        self.requirement.validate_resolved()?;
-        if self.requirement.owner != self.requirement_owner.owner
-            || self.name.is_empty()
+        owned_pair(&self.requirement_owner, &self.requirement)?;
+        if self.name.is_empty()
             || self.parameter_count != self.parameter_type_identities.len()
             || self.parameter_type_identities.iter().any(String::is_empty)
             || self.has_result != self.result_type_identity.is_some()

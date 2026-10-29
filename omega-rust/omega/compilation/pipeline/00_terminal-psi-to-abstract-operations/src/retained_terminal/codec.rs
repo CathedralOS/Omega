@@ -21,7 +21,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 
 // Entry records no longer contain synthetic application-record service fields.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI02";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI03";
 
 #[cfg(test)]
 mod tests {
@@ -95,7 +95,13 @@ fn capture(
     write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
     write_values(family_realizations, &mut output)?;
-    boundaries.selected_provider_plans.write(&mut output)?;
+    // Canonical Terminal owns checked-body associations. Persist only the
+    // independent source selections; recovery closes their instances normally.
+    boundaries
+        .selected_provider_plans
+        .clone()
+        .without_checked_specializations()
+        .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
     for crate::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
@@ -179,7 +185,7 @@ impl DerivationInputs {
         }
         let evaluated_binding_identities =
             Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);
-        input.set_binding_identities(Arc::clone(&evaluated_binding_identities));
+        input.context.binding_identities = Some(Arc::clone(&evaluated_binding_identities));
         let checked_entry = RecordValue::read(input)?;
         let physical_adapter_requested = RecordValue::read(input)?;
         let provider_proposals = RecordValue::read(input)?;

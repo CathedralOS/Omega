@@ -985,7 +985,7 @@ pub(super) fn input_claim(
     let qualified = contexts.iter().any(|context| {
         facts.semantic.context_view(facts.semantic.contexts.get(*context)).facts().any(|fact| {
             matches!(fact.payload,
-                facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain)
+                facts::domain_membership_pattern!(domain_symbol, semantic_domain)
                 if domain_symbol == projection.domain && semantic_domain == projection.semantic_domain)
                 && matches!(fact.place, FactPlace::Place(place)
                     if facts.semantic.places.get(place).root == actual.root

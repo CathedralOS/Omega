@@ -340,13 +340,14 @@ pub(super) fn field_is_where_mentioned(
     definition: &DataDefinition,
     field: &str,
 ) -> bool {
-    fact_span_mentions_field(program, definition.where_facts, field)
+    fact_span_mentions_field(program, definition, definition.where_facts, field)
 }
 
 /// Whether any fact in `facts` names `field` -- the write-target test shared
 /// by type-wide `where` facts and a constrained case's own fact span.
 pub(super) fn fact_span_mentions_field(
     program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
     field: &str,
 ) -> bool {
@@ -354,71 +355,253 @@ pub(super) fn fact_span_mentions_field(
         .proof_facts
         .span_or_empty(facts)
         .iter()
-        .any(|fact| fact_names_field(program, fact, field))
+        .any(|fact| fact_names_field(program, definition, fact, field))
 }
 
-/// Whether a single fact names any FIELD of `definition`. A `where` fact that
-/// names none is a constraint over the declaration's const parameters alone:
-/// `FixedBuffer<const N: u64> where N > 0 && N <= 8` is decided once, when the
-/// specialization substitutes 4, and it is not a runtime invariant the
-/// synthesized record's field writes re-prove. Folding such a fact against a
-/// FIELD valuation can only answer "unknown".
+/// Field-store dependencies, including active payload projections. A tag-only
+/// clause has no scalar field dependency: field stores preserve the tag, while
+/// whole-value replacement retires it and proves construction independently.
+/// Const-only clauses likewise need no field-store reproof.
 pub(super) fn fact_mentions_any_field(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: &typed_trees::domain::ProofFact,
 ) -> bool {
-    program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str()),
-            _ => None,
-        })
-        .any(|field| fact_names_field(program, fact, field))
+    !predicate_read_set(program, definition, fact)
+        .fields
+        .is_empty()
 }
 
 pub(super) fn fact_names_field(
     program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
     fact: &typed_trees::domain::ProofFact,
     field: &str,
 ) -> bool {
-    match fact {
-        typed_trees::domain::ProofFact::Expression(expression) => {
-            expression_mentions_name(program, *expression, field)
+    let reads = predicate_read_set(program, definition, fact);
+    declared_predicate_fields(program, definition)
+        .into_iter()
+        .any(|declared| declared.name.as_str() == field && reads.fields.contains(&declared.symbol))
+}
+
+#[derive(Default)]
+struct PredicateReadSet {
+    fields: Vec<symbols::SymbolHandle>,
+}
+
+fn declared_predicate_fields<'program>(
+    program: &'program dyn crate::CheckingInput,
+    definition: &'program DataDefinition,
+) -> Vec<&'program typed_trees::data::DataField> {
+    program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .chain(
+            program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_variant())
+                .flat_map(|variant| program.data_payload_fields(variant)),
+        )
+        .collect()
+}
+
+#[derive(Default)]
+struct PredicateArgumentReferences {
+    symbols: Vec<symbols::SymbolHandle>,
+    expressions: Vec<ExpressionHandle>,
+    types: Vec<TypeReferenceHandle>,
+}
+
+impl Extend<symbols::SymbolHandle> for PredicateArgumentReferences {
+    fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if !self.symbols.contains(&symbol) {
+                self.symbols.push(symbol);
+            }
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            membership_field_name(program, membership.value) == Some(field)
-        }
-        typed_trees::domain::ProofFact::Proposition(_) => false,
     }
 }
 
-pub(super) fn membership_field_name(
-    program: &dyn crate::CheckingInput,
-    value: ExpressionHandle,
-) -> Option<&str> {
-    crate::expression_traversal::name_path_last_member(program, value)
+impl typed_trees::references::TypedReferences for PredicateArgumentReferences {
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.expressions.push(expression);
+        false
+    }
+    fn type_expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.expressions.push(expression);
+        false
+    }
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        if self.types.contains(&reference) {
+            false
+        } else {
+            self.types.push(reference);
+            true
+        }
+    }
 }
 
-/// Whether any `Name` path `expression` contains spells `name` as its last
-/// member (`count`, `sample.count`). The child roster belongs to
-/// [`crate::expression_traversal::visit_pre_order`]; this query adds only the
-/// member predicate.
-fn expression_mentions_name(
+/// A source field and a logical-subject projection read their exact receiving
+/// declaration. A qualified constant sharing the last spelling is never a field.
+fn predicate_read_set(
     program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    name: &str,
-) -> bool {
-    crate::expression_traversal::visit_pre_order(program, vec![expression], |_, node| {
-        matches!(
-            node,
-            ExpressionNode::Name(path)
-                if program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .last()
-                    .is_some_and(|member| member.as_str() == name)
-        )
-    })
+    definition: &DataDefinition,
+    fact: &typed_trees::domain::ProofFact,
+) -> PredicateReadSet {
+    let declared = declared_predicate_fields(program, definition);
+    let receiving_field = |symbol| {
+        if let Some(field) = declared.iter().find(|field| field.symbol == symbol) {
+            return Some(field.symbol);
+        }
+        let reference = definition
+            .generic_instance
+            .unwrap_or(definition.predicate_subject_type);
+        if !reference.is_valid() {
+            return None;
+        }
+        let (source, _) = program.any_field_owner(symbol)?;
+        let selected = program.data_constructor_field(reference, source.symbol, symbol)?;
+        declared
+            .iter()
+            .any(|field| field.symbol == selected.symbol)
+            .then_some(selected.symbol)
+    };
+    let mut reads = PredicateReadSet::default();
+    let mut pending = match fact {
+        typed_trees::domain::ProofFact::Expression(expression) => vec![(*expression, true)],
+        typed_trees::domain::ProofFact::Membership(membership) => vec![(membership.value, true)],
+        typed_trees::domain::ProofFact::Proposition(application) => program
+            .expression_table
+            .expression_handles(application.arguments)
+            .iter()
+            .map(|value| (*value, true))
+            .collect(),
+    };
+    let mut static_references = PredicateArgumentReferences::default();
+    if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+        for argument in program
+            .type_reference_table
+            .type_reference_handles(membership.domain_arguments)
+        {
+            typed_trees::references::visit_type_reference(
+                program,
+                &mut static_references,
+                *argument,
+            );
+        }
+    }
+    pending.extend(
+        static_references
+            .expressions
+            .drain(..)
+            .map(|expression| (expression, true)),
+    );
+    for symbol in static_references.symbols.drain(..) {
+        if let Some(field) = receiving_field(symbol) {
+            if !reads.fields.contains(&field) {
+                reads.fields.push(field);
+            }
+        }
+    }
+    let mut visited = Vec::new();
+    while let Some((expression, whole_subject)) = pending.pop() {
+        if !expression.is_valid() || visited.contains(&(expression, whole_subject)) {
+            continue;
+        }
+        visited.push((expression, whole_subject));
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                if let Some(symbol) = receiving_field(path.symbol) {
+                    if !reads.fields.contains(&symbol) { reads.fields.push(symbol); }
+                } else if definition.predicate_subject_symbol.is_valid()
+                    && path.symbol == definition.predicate_subject_symbol && whole_subject
+                {
+                    for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
+                }
+            }
+            ExpressionNode::Member(member) => {
+                let logical_receiver = program.expression_table.name_path_node(member.receiver)
+                    .is_some_and(|path| definition.predicate_subject_symbol.is_valid()
+                        && path.symbol == definition.predicate_subject_symbol);
+                if logical_receiver {
+                    if let Some(field) = crate::value_custody::places::exact_data_member_field(
+                        program, definition, receiving_field(member.member_symbol).unwrap_or(member.member_symbol), member.member.as_str(),
+                        member.case_variant.as_ref().map(|case| case.as_str()),
+                    ) {
+                        if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); }
+                    } else {
+                        // Unknown selection cannot be classified as static.
+                        // Formation owns its refusal; invalidation stays conservative.
+                        for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
+                    }
+                } else { pending.push((member.receiver, false)); }
+            }
+            ExpressionNode::Call(call) => {
+                crate::expression_traversal::children(program, program.expression_table.expression(expression), |child| pending.push((child, true)));
+                let call = typed_trees::references::StaticArgumentCall::Expression(expression, call);
+                for argument in call.arguments(program) {
+                    typed_trees::references::visit_static_argument(program, &mut static_references, argument);
+                }
+                typed_trees::references::visit_static_machine_bindings(program, &mut static_references, call.application());
+                typed_trees::references::visit_static_machine_bindings(program, &mut static_references, call.selection_application());
+                pending.extend(static_references.expressions.drain(..).map(|expression| (expression, true)));
+                for symbol in static_references.symbols.drain(..) {
+                    if let Some(field) = receiving_field(symbol) { if !reads.fields.contains(&field) { reads.fields.push(field); } }
+                    else if definition.predicate_subject_symbol.is_valid() && symbol == definition.predicate_subject_symbol {
+                            for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
+                    }
+                }
+            }
+            ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership
+                || program.expression_table.authored_selection_occurrences(expression).any(|occurrence| {
+                    program.authored_declaration_selections().get(occurrence).is_some_and(|selection|
+                        selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::CaseMembership)
+                }) =>
+            {
+                pending.push((binary.left, false));
+            }
+            node => crate::expression_traversal::children(program, node, |child| pending.push((child, true))),
+        }
+    }
+    reads
+}
+
+/// Resolve the selected field before treating a membership operand as supplied
+/// or omitted. A non-field selector is never an implicit zero field.
+pub(crate) fn membership_field<'program>(
+    program: &'program dyn crate::CheckingInput,
+    definition: &'program DataDefinition,
+    value: ExpressionHandle,
+) -> Option<&'program typed_trees::data::DataField> {
+    let symbol = match program.expression_table.expression(value) {
+        ExpressionNode::Name(path) => path.symbol,
+        ExpressionNode::Member(member) => {
+            let path = program.expression_table.name_path_node(member.receiver)?;
+            let (source, _) = program.any_field_owner(member.member_symbol)?;
+            if !source.predicate_subject_symbol.is_valid()
+                || path.symbol != source.predicate_subject_symbol
+            {
+                return None;
+            }
+            member.member_symbol
+        }
+        _ => return None,
+    };
+    let declared = declared_predicate_fields(program, definition);
+    if let Some(field) = declared.iter().find(|field| field.symbol == symbol) {
+        return Some(*field);
+    }
+    let reference = definition
+        .generic_instance
+        .unwrap_or(definition.predicate_subject_type);
+    if !reference.is_valid() {
+        return None;
+    }
+    let (source, _) = program.any_field_owner(symbol)?;
+    let selected = program.data_constructor_field(reference, source.symbol, symbol)?;
+    declared
+        .into_iter()
+        .find(|field| field.symbol == selected.symbol)
 }

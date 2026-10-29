@@ -27,8 +27,6 @@ pub enum WorkDefect {
 
 failed_display!(WorkDefect, "bounded work accounting refused");
 
-impl std::error::Error for WorkDefect {}
-
 /// Convert one `usize` visit count into its exact chargeable amount.
 pub(crate) fn count(value: usize) -> Result<u64, WorkDefect> {
     u64::try_from(value).map_err(|_| WorkDefect::Overflow)

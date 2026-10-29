@@ -171,12 +171,13 @@ fn retire_borrowed_descriptor_arrivals(
                     scheduled_deaths.insert(*source);
                 }
             }
-            let record_owned = |argument: &terminal_psi::StructuralArgument,
-                                set: &mut std::collections::HashSet<PlaceId>| {
-                if argument.path.is_empty() && argument.access == StructuralAccess::Owned {
-                    set.insert(argument.place);
-                }
-            };
+            let record_owned =
+                |argument: &terminal_psi::StructuralArgument,
+                 set: &mut std::collections::HashSet<PlaceId>| {
+                    if argument.path.is_empty() && argument.access == StructuralAccess::Owned {
+                        set.insert(argument.place);
+                    }
+                };
             match &block.terminator {
                 Terminator::Jump {
                     structural_arguments,
@@ -203,6 +204,11 @@ fn retire_borrowed_descriptor_arrivals(
                         record_owned(arg, &mut scheduled_deaths);
                     }
                 }
+                Terminator::StructuralCase { cases, .. } => {
+                    for arg in cases.iter().flat_map(|case| &case.structural_arguments) {
+                        record_owned(arg, &mut scheduled_deaths);
+                    }
+                }
                 _ => {}
             }
         }
@@ -218,7 +224,8 @@ fn retire_borrowed_descriptor_arrivals(
             while cursor < reachable.len() {
                 let current = reachable[cursor];
                 cursor += 1;
-                let Some(block_index) = blocks.binary_search_by_key(&current, |block| block.id).ok()
+                let Some(block_index) =
+                    blocks.binary_search_by_key(&current, |block| block.id).ok()
                 else {
                     continue;
                 };
@@ -451,7 +458,9 @@ fn complete_carriers(
     // A selected whole death is already source-authorized. Track its actual
     // home in the same frontier equations so a completed move can withdraw
     // that receipt. This is not permission to schedule another death: these
-    // homes remain outside the disposal capability roster.
+    // homes remain outside the disposal capability roster. Earlier projected
+    // replacements do not exempt a home from a later whole transfer; residual
+    // completion still owns the surviving regions when the home remains live.
     let disposal_capability = managed.clone();
     let disposal_capability_set: std::collections::HashSet<PlaceId> =
         disposal_capability.iter().copied().collect();
@@ -474,7 +483,6 @@ fn complete_carriers(
             .copied()
             .filter(|place| {
                 !disposal_capability_set.contains(place)
-                    && !partial_transfers_set.contains(place)
                     && owned_affine_types.get(place).copied().flatten().is_some()
                     && !non_discard_root_places.contains(place)
             })

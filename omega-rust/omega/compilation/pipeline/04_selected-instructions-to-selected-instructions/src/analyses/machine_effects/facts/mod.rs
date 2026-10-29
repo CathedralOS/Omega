@@ -128,8 +128,6 @@ pub enum MachineEffectError {
 
 failed_display!(MachineEffectError, "machine-effect analysis failed");
 
-impl std::error::Error for MachineEffectError {}
-
 fn receipt(plan: &PreAllocationMachineEffectPlan) -> PreAllocationMachineEffectReceipt {
     PreAllocationMachineEffectReceipt {
         identity: plan.identity,

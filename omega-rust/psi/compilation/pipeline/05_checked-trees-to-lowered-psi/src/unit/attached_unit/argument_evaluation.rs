@@ -330,6 +330,22 @@ impl Evaluation {
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
             .with_place_observations(&self.place_observations)
+            .with_physical_root_types(
+                self.structural_root_parameters()
+                    .map(|parameter| (parameter.place, parameter.structural_type))
+                    .chain(
+                        self.structural_value_owners
+                            .iter()
+                            .map(|owner| (owner.value.place, owner.value.structural_type)),
+                    )
+                    .chain(
+                        self.blocks
+                            .iter()
+                            .flat_map(|block| block.operations.iter())
+                            .filter_map(|operation| operation.result.structural())
+                            .map(|result| (result.place, result.structural_type)),
+                    ),
+            )
     }
 
     /// Observe completed producer homes before final machine assembly publishes

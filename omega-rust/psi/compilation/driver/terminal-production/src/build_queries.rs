@@ -1,6 +1,6 @@
 //! Source-issued lexical authority beside exact Product query operations.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TerminalBuildQueryOperation {
     Entry,
     Schema,
@@ -9,7 +9,7 @@ pub enum TerminalBuildQueryOperation {
     ProviderPath,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildQueryCall {
     pub operation: semantic_vocabulary::OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,

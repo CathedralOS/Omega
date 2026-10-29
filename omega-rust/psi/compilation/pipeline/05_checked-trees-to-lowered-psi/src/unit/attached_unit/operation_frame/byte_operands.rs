@@ -3,6 +3,8 @@
 //! and ranges use the same producers as other byte operands. A projected leaf
 //! is copied as a descriptor, never as bytes or fabricated owned capacity.
 use super::*;
+use crate::emission::operation_emission::buffer::structural_result_declaration;
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::structural_byte_sequence_store as byte_store;
 use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourcePlan as Source};
 
@@ -161,31 +163,23 @@ impl OperationFrame<'_, '_> {
         );
         let destination = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
-        self.operations.push(Operation {
-            id: producer,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                place: destination,
+        self.operations.push(Operation::unsuspended(
+            producer,
+            structural_result_declaration(
+                destination,
                 structural_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                qualification_establishments: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::StructuralLeafCopy {
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+            ),
+            OperationKind::StructuralLeafCopy {
                 source: place,
                 path,
             },
-        });
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: destination,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        });
+        ));
+        self.private_places.push(operation_result_place(
+            destination,
+            producer,
+            structural_type,
+        ));
         Ok(destination)
     }
 }

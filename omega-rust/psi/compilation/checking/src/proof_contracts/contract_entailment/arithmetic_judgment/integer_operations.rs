@@ -216,23 +216,54 @@ impl Engine<'_> {
         primitive: PrimitiveType,
         value: &Polynomial,
     ) -> bool {
+        let queries = super::LowerBoundQueries::direct(self);
+        self.integer_value_lands_with_queries(&queries, primitive, value)
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn integer_value_lands_with_queries(
+        &self,
+        queries: &super::LowerBoundQueries<'_, '_>,
+        primitive: PrimitiveType,
+        value: &Polynomial,
+    ) -> bool {
         if primitive == PrimitiveType::Addr {
             let Some(bound) = self.address_model_bound_value() else {
                 return false;
             };
-            return self.prove_at_least(&self.substituted(value), &BigInt::zero())
-                && self.prove_at_least(&self.substituted(&bound.sub(value)), &BigInt::from_i64(1));
+            return queries.prove_at_least(&self.substituted(value), &BigInt::zero())
+                && queries.prove_at_least(
+                    &self.substituted(&bound.sub(value)),
+                    &BigInt::from_i64(1),
+                );
         }
         let Some((minimum, maximum)) = primitive.integer_bounds() else {
             return false;
         };
-        self.prove_at_least(
+        queries.prove_at_least(
             &self.substituted(&value.sub(&Polynomial::constant(BigInt::from_i128(minimum)))),
             &BigInt::zero(),
-        ) && self.prove_at_least(
+        ) && queries.prove_at_least(
             &self.substituted(&Polynomial::constant(BigInt::from_i128(maximum)).sub(value)),
             &BigInt::zero(),
         )
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn linear_integer_operation_lands_with_queries(
+        &self,
+        queries: &super::LowerBoundQueries<'_, '_>,
+        operator: BinaryOperator,
+        primitives: [PrimitiveType; 2],
+        left: &Polynomial,
+        right: &Polynomial,
+        value: &Polynomial,
+    ) -> bool {
+        let [primitive, right_primitive] = primitives;
+        let Some(result) = builtin_integer_result_carrier(operator, primitives) else {
+            return false;
+        };
+        self.integer_value_lands_with_queries(queries, primitive, left)
+            && self.integer_value_lands_with_queries(queries, right_primitive, right)
+            && self.integer_value_lands_with_queries(queries, result, value)
     }
 
     /// Only independently available operand facts can justify creating a

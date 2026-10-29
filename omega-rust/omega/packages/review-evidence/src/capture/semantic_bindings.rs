@@ -149,43 +149,16 @@ pub fn candidate_service_bindings(
         };
         let binding = checked
             .execution()
-            .candidate_service_binding(
-                &checked.providers().boundary_calling_plan_realizations,
-                *role,
-                **package,
-                path,
-            )
+            .candidate_service_binding(*role, **package, path)
             .map_err(|_| SemanticBindingProjectionError::Invalid { role: *role })?;
-        let definitions = checked
-            .traits()
-            .iter()
-            .filter(|definition| {
-                checked
-                    .typed
-                    .symbols
-                    .symbol_package_identity(definition.symbol)
-                    == Some(**package)
-                    && checked.symbols.display_path(definition.symbol, "::") == *path
-            })
-            .collect::<Vec<_>>();
-        let [definition] = definitions.as_slice() else {
-            return Err(SemanticBindingProjectionError::Invalid { role: *role });
-        };
-        let Some(service_schema) = provider_planning::service_schema::from_typed(
-            provider_planning::ProviderPlanningContext::new(
-                checked,
-                source::DependencyScope::Product,
-            ),
-            &checked.providers().boundary_calling_plan_realizations,
-            definition,
-        ) else {
-            return Err(SemanticBindingProjectionError::Invalid { role: *role });
-        };
-        if package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
-            != binding.normalized_schema_digest()
-        {
-            return Err(SemanticBindingProjectionError::Invalid { role: *role });
-        }
+        let service_schema = checked
+            .execution()
+            .service_declarations
+            .select(**package, path)
+            .map_err(|_| SemanticBindingProjectionError::Invalid { role: *role })?
+            .declaration
+            .schema
+            .clone();
         bindings.push(SemanticBindingReviewCandidate::new(binding, service_schema));
     }
     Ok(bindings)
@@ -227,19 +200,16 @@ pub fn candidate_target_entry_binding(
     let path = checked.symbols.display_path(definition.symbol, "::");
     let binding = checked
         .execution()
-        .candidate_service_binding(
-            &checked.providers().boundary_calling_plan_realizations,
-            role,
-            owner,
-            &path,
-        )
+        .candidate_service_binding(role, owner, &path)
         .map_err(|_| SemanticBindingProjectionError::Invalid { role })?;
-    let service_schema = provider_planning::service_schema::from_typed(
-        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
-        &checked.providers().boundary_calling_plan_realizations,
-        definition,
-    )
-    .ok_or_else(|| SemanticBindingProjectionError::Invalid { role })?;
+    let service_schema = checked
+        .execution()
+        .service_declarations
+        .select(owner, &path)
+        .map_err(|_| SemanticBindingProjectionError::Invalid { role })?
+        .declaration
+        .schema
+        .clone();
     Ok(Some(SemanticBindingReviewCandidate::new(
         binding,
         service_schema,

@@ -231,6 +231,23 @@ pub enum PredicateIntegerOperand {
     Integer(i128),
 }
 
+/// One typed Boolean leaf of the predicate's exact formal telescope.
+#[derive(Clone)]
+pub struct PredicateBooleanSubject {
+    pub expression: ExpressionHandle,
+    pub projection: Vec<facts::PlaceSegment>,
+}
+
+/// An entire predicate condition retains Boolean typing alongside integer
+/// relations. This list is publishable only after its independent converse.
+pub enum PredicateCondition {
+    Ordering(PredicateOrderingConsequence),
+    Boolean {
+        subject: PredicateBooleanSubject,
+        holds: bool,
+    },
+}
+
 /// A relation proved on every true return, retaining exact caller actuals.
 pub struct PredicateOrderingConsequence {
     pub left: PredicateIntegerOperand,
@@ -256,7 +273,7 @@ pub fn exact_predicate_conjunction(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
-) -> Option<Vec<PredicateOrderingConsequence>> {
+) -> Option<Vec<PredicateCondition>> {
     let application = predicate_application(program, owner, expression)?;
     implication::exact_conjunction(program, &application)
 }
@@ -298,6 +315,26 @@ pub fn predicate_integer_operand(
         expression: *arguments.get(position)?,
         projection,
     }))
+}
+
+fn predicate_boolean_subject(
+    program: &dyn crate::CheckingInput,
+    predicate: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> Option<PredicateBooleanSubject> {
+    let position = exploration::admitted_predicate_machine(program, predicate, false)?;
+    let machine = &program.machines()[position];
+    let entry = program.machine_states(machine).first()?;
+    if program.state_parameters(entry).len() != arguments.len() {
+        return None;
+    }
+    let (position, projection) =
+        crate::immutable_entry_boolean_projection(program, predicate, expression)?;
+    Some(PredicateBooleanSubject {
+        expression: *arguments.get(position)?,
+        projection,
+    })
 }
 
 /// Recover integer relations from a positive, already-available predicate

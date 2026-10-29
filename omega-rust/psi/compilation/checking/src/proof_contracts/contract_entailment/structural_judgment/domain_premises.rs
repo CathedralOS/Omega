@@ -14,6 +14,101 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
+    /// Expression and transition matches share the same admitted-case owner.
+    /// The completed subject supplies the complete pattern view; a classifier
+    /// alone never manufactures a payload value or imports nominal validity.
+    pub(super) fn intake_completed_match_case(
+        &mut self,
+        condition: ExpressionHandle,
+        subject_expression: ExpressionHandle,
+        subject: &StructuralTerm,
+        subject_type: TypeReferenceHandle,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        environment: &[(String, StructuralTerm)],
+    ) {
+        let program = self.program;
+        let Some((source_definition, source_variant)) =
+            super::super::structural_terms::case_guard_classifier(
+                program,
+                machine,
+                Some(state),
+                condition,
+            )
+        else {
+            return;
+        };
+        let Some(comparison) = program.expression_table.binary_node(condition) else {
+            return;
+        };
+        let same_place =
+            crate::value_custody::places::canonical_place_from_expression(program, comparison.left)
+                .zip(
+                    crate::value_custody::places::canonical_place_from_expression(
+                        program,
+                        subject_expression,
+                    ),
+                )
+                .is_some_and(|(left, right)| left == right);
+        let same_observation = self
+            .callee_term_in_scope(
+                Some((machine, state, subject_type)),
+                comparison.left,
+                environment,
+                0,
+            )
+            .map(|value| self.resolve(value))
+            .and_then(|value| value.observation_identity_key())
+            .zip(self.resolve(subject.clone()).observation_identity_key())
+            .is_some_and(|(left, right)| left == right);
+        if comparison.left != subject_expression && !same_place && !same_observation {
+            return;
+        }
+        if !self.has_admitted_nominal_subject(subject_expression, subject, subject_type) {
+            return;
+        }
+        let Some(definition) =
+            program.data_constructor_definition(subject_type, source_definition.symbol)
+        else {
+            return;
+        };
+        let Some(variant) = program.data_constructor_case(
+            subject_type,
+            source_definition.symbol,
+            source_variant.symbol,
+        ) else {
+            return;
+        };
+        let Some(view) = super::super::structural_terms::captured_constructor_term(
+            program,
+            definition,
+            Some(variant),
+            |field| {
+                super::super::observed_projections::project_observed_value(
+                    program,
+                    subject_type,
+                    subject.clone(),
+                    &[facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }],
+                )
+            },
+        ) else {
+            return;
+        };
+        self.intake_selected_case_predicates(
+            definition,
+            variant,
+            &view,
+            subject_expression,
+            subject,
+            subject_type,
+            machine,
+            state,
+            environment,
+        );
+    }
+
     /// A successful nominal guard establishes only the selected case's facts.
     /// Its fresh common/payload terms identify this observed value, so later
     /// state substitution transports the predicate without rereading storage.
@@ -22,6 +117,8 @@ impl StructuralJudge<'_> {
         definition: &typed_trees::data::DataDefinition,
         variant: &typed_trees::data::DataVariant,
         value: &StructuralTerm,
+        subject_expression: ExpressionHandle,
+        admitted_subject: &StructuralTerm,
         subject_type: TypeReferenceHandle,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
@@ -34,12 +131,18 @@ impl StructuralJudge<'_> {
         // Active-case predicates belong to this exact application, including
         // its enclosing Value indices. The constructor's fresh descriptor
         // fields must denote those indices, not unrelated fresh integers.
-        if program
-            .data_constructor_case(subject_type, definition.symbol, variant.symbol)
-            .is_none()
-        {
+        let Some(selected_definition) =
+            program.data_constructor_definition(subject_type, definition.symbol)
+        else {
             return;
-        }
+        };
+        let Some(selected_variant) =
+            program.data_constructor_case(subject_type, definition.symbol, variant.symbol)
+        else {
+            return;
+        };
+        let definition = selected_definition;
+        let variant = selected_variant;
         let Some(indices) =
             self.selected_case_indices(definition, subject_type, machine, state, environment)
         else {
@@ -97,6 +200,76 @@ impl StructuralJudge<'_> {
             });
             bindings.push((parameters.last().unwrap().name.to_string(), value.clone()));
         }
+        // The tag guard alone supplies no default-domain admission. Retain
+        // the original observed subject identity; the fresh constructor is a
+        // pattern view of that value's selected fields, not a new owner.
+        if !definition.where_facts.is_empty()
+            && self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type)
+        {
+            let mut complete = true;
+            let mut projections = Vec::new();
+            for field in program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+                .chain(program.data_payload_fields(variant))
+            {
+                let Some((_, captured)) =
+                    fields.iter().find(|(name, _)| name == field.name.as_str())
+                else {
+                    complete = false;
+                    break;
+                };
+                let Some(projected) = super::super::observed_projections::project_observed_value(
+                    program,
+                    subject_type,
+                    admitted_subject.clone(),
+                    &[facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }],
+                ) else {
+                    complete = false;
+                    break;
+                };
+                projections.push((projected, captured.clone()));
+            }
+            if complete {
+                self.intake_case_guarantee(&super::CaseGuarantee {
+                    subject: admitted_subject.clone(),
+                    data: definition.symbol,
+                    case: variant.symbol,
+                });
+                for (projected, captured) in projections {
+                    self.intake_equation(projected, captured, 0);
+                }
+                if definition.predicate_subject_symbol.is_valid()
+                    && definition.predicate_subject_type.is_valid()
+                {
+                    let name = format!(
+                        "\0data_subject_{}_{}",
+                        definition.predicate_subject_symbol.arena_index(),
+                        definition.predicate_subject_symbol.generation()
+                    );
+                    parameters.push(StateParameter {
+                        symbol: definition.predicate_subject_symbol,
+                        name: name.as_str().into(),
+                        type_reference: definition.predicate_subject_type,
+                        ..Default::default()
+                    });
+                    bindings.push((name, admitted_subject.clone()));
+                }
+                for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                    if let ProofFact::Expression(expression) = fact {
+                        self.intake_instantiated_predicate(
+                            definition.symbol,
+                            &parameters,
+                            *expression,
+                            &bindings,
+                        );
+                    }
+                }
+            }
+        }
         for fact in program.proof_facts.span_or_empty(variant.where_facts) {
             if let ProofFact::Expression(expression) = fact {
                 self.intake_instantiated_predicate(
@@ -107,6 +280,115 @@ impl StructuralJudge<'_> {
                 );
             }
         }
+    }
+
+    pub(super) fn has_admitted_nominal_subject(
+        &self,
+        expression: ExpressionHandle,
+        subject: &StructuralTerm,
+        reference: TypeReferenceHandle,
+    ) -> bool {
+        if !self.runtime_body_values
+            || !self.declaration_state.is_valid()
+            || super::super::structural_terms::term_is_unobserved_descriptor(self.program, subject)
+        {
+            return false;
+        }
+        if self.completed_match_nominal_admission(expression, subject, reference) {
+            return true;
+        }
+        if self.storage_observation_invalidated(expression) {
+            return false;
+        }
+        let program = self.program;
+        let same_application = |candidate| {
+            let Some(candidate) = crate::field_domains::readable_type_reference(program, candidate)
+            else {
+                return false;
+            };
+            let Some(reference) = crate::field_domains::readable_type_reference(program, reference)
+            else {
+                return false;
+            };
+            let candidate_identity = program.normalized_type_identity(candidate);
+            candidate_identity.is_valid()
+                && candidate_identity == program.normalized_type_identity(reference)
+        };
+        let Some(identity) = subject.observation_identity_key() else {
+            return false;
+        };
+        let place =
+            crate::value_custody::places::canonical_place_from_expression(program, expression);
+        if self.declaration_state.is_valid()
+            && !self.storage_observation_invalidated(expression)
+            && let Some(place) = &place
+            && let facts::PlaceRoot::Symbol(root) = place.root
+            && let Some((_, state)) = self.runtime_declaration_scope()
+            && let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == root)
+            && let Some(projected_type) = crate::project_type_reference_from_segments(
+                program,
+                parameter.type_reference,
+                &place.segments,
+            )
+            && crate::field_domains::owned_nominal_data_definition(program, projected_type)
+                .is_some()
+            && same_application(projected_type)
+            && let Some(captured) = self.captured_place_projection(
+                place,
+                language_semantics::content::ContentPlaceVersion::Entry,
+            )
+            && captured.observation_identity_key().as_ref() == Some(&identity)
+        {
+            return true;
+        }
+        self.normal_results.iter().any(|(_, value)| {
+            let StructuralTerm::CapturedValue {
+                callable,
+                result_type,
+                ..
+            } = value
+            else {
+                return false;
+            };
+            if !callable.is_valid() || crate::reference_shell(program, *result_type).is_some() {
+                return false;
+            }
+            if crate::field_domains::owned_nominal_data_definition(program, *result_type).is_some()
+                && same_application(*result_type)
+                && value.observation_identity_key().as_ref() == Some(&identity)
+            {
+                return true;
+            }
+            let Some(place) = &place else {
+                return false;
+            };
+            if place.segments.is_empty() {
+                return false;
+            }
+            let Some(projected_type) =
+                crate::project_type_reference_from_segments(program, *result_type, &place.segments)
+            else {
+                return false;
+            };
+            if crate::field_domains::owned_nominal_data_definition(program, projected_type)
+                .is_none()
+                || !same_application(projected_type)
+            {
+                return false;
+            }
+            super::super::observed_projections::project_observed_value(
+                program,
+                *result_type,
+                value.clone(),
+                &place.segments,
+            )
+            .and_then(|projected| projected.observation_identity_key())
+            .as_ref()
+                == Some(&identity)
+        })
     }
 
     /// Rejoin only retained scalar Value operands. Unsupported type/const
@@ -591,7 +873,10 @@ impl StructuralJudge<'_> {
             });
             bindings.push((name, index));
         }
-        let has_where_facts = !program.proof_facts.span_or_empty(definition.where_facts).is_empty();
+        let has_where_facts = !program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .is_empty();
         // Unknown case identity admits only common fields. Payload predicates
         // enter through the separately authenticated selected-case arm; reading
         // every variant here would project inactive same-named payloads onto
@@ -655,7 +940,10 @@ impl StructuralJudge<'_> {
         if active.contains(&definition.symbol) {
             return false;
         }
-        if !program.proof_facts.span_or_empty(definition.where_facts).is_empty()
+        if !program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .is_empty()
             || !program.data_application_value_fields(reference).is_empty()
         {
             return true;
@@ -669,10 +957,11 @@ impl StructuralJudge<'_> {
                 let path = [facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 }];
-                crate::project_type_reference_from_segments(program, reference, &path)
-                    .is_some_and(|projected_type| {
+                crate::project_type_reference_from_segments(program, reference, &path).is_some_and(
+                    |projected_type| {
                         Self::nominal_type_has_data_predicates(program, projected_type, active)
-                    })
+                    },
+                )
             });
         active.pop();
         has_nested
@@ -919,6 +1208,26 @@ impl StructuralJudge<'_> {
             if binary.operator == BinaryOperator::And {
                 self.intake_instantiated_predicate(owner, parameters, binary.left, bindings);
                 self.intake_instantiated_predicate(owner, parameters, binary.right, bindings);
+                return;
+            }
+            if binary.operator == BinaryOperator::Or {
+                let judgment = |operand| {
+                    super::super::refuted_requires::instantiated_selected_fact_judgment(
+                        program,
+                        self,
+                        owner,
+                        parameters,
+                        operand,
+                        bindings,
+                        &[],
+                        None,
+                    )
+                };
+                if matches!(judgment(binary.left), super::StructuralJudgment::Refuted) {
+                    self.intake_instantiated_predicate(owner, parameters, binary.right, bindings);
+                } else if matches!(judgment(binary.right), super::StructuralJudgment::Refuted) {
+                    self.intake_instantiated_predicate(owner, parameters, binary.left, bindings);
+                }
                 return;
             }
             if super::super::structural_terms::has_identity_equality_meaning(

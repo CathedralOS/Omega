@@ -79,7 +79,7 @@ impl CompletedPureBuildInputs {
                 activation.build_execution_profile(),
             ),
             dependencies: packages
-                .dependency_generated_source_instances()
+                .dependency_build_handoff_instances()
                 .map(|(consumer_scope, bundle)| CompletedPureBuildDependency {
                     consumer_scope,
                     package: bundle.package(),

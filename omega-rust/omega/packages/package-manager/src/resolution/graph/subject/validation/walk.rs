@@ -21,9 +21,8 @@ pub(super) fn validate(
         let selected = selected_edges(edges, &packages[*package]);
         if let Some(edge) = selected.get(*next) {
             *next += 1;
-            let target = packages
-                .binary_search_by(|source| source.key().cmp(edge.selected.key()))
-                .map_err(|_| invalid())?;
+            let target = ResolvedSourceIdentity::index_in(packages, edge.selected.key())
+                .ok_or_else(invalid)?;
             match states[target] {
                 1 => return Err(invalid()),
                 2 => {}

@@ -1,0 +1,6 @@
+{
+  "rejection_contains": [
+    "return value expects `Other<>`, but the value is delivered as `View<>`"
+  ],
+  "notes": "Whole completing call keeps ordinary result type/access admission; returned-origin equations grant neither type equality nor mutable authority."
+}

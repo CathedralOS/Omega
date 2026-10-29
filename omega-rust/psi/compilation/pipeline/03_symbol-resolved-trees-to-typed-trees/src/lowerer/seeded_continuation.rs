@@ -22,7 +22,7 @@ pub enum SeededContinuationError {
 /// before either continuation allocates further IDs. Source selection stays exact.
 /// Forks share the immutable pair. Mutation detaches typed storage before a
 /// continuation changes it; retaining a frontier does not copy its whole graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct SeededTypingBase {
     resolved: Arc<SymbolResolvedTrees>,
     typed: Arc<TypedTrees>,
@@ -329,7 +329,8 @@ pub fn lower_seeded_extension(
         ));
     }
 
-    if let Err(error) = super::validate_resolved_semantics(&source) {
+    let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
+    if let Err(error) = super::validate_resolved_semantics_in(&source, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     let mut candidate = retained.typed.as_ref().clone();
@@ -343,7 +344,6 @@ pub fn lower_seeded_extension(
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
-    let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
     if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
@@ -424,8 +424,9 @@ fn lower_body_completion(
             "authored-body completion changed retained normalized statement, transition target or type storage",
         ));
     }
-    super::validate_resolved_semantics(&source)?;
-    let mut candidate = retained.typed.as_ref().clone();
+    let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
+    super::validate_resolved_semantics_in(&source, &cohort)?;
+    let mut candidate = Arc::unwrap_or_clone(retained.typed);
     join_resolved_semantics(&source, &predecessor, &mut candidate)?;
     let mut lowerer = Lowerer {
         typed_trees: candidate,
@@ -435,7 +436,6 @@ fn lower_body_completion(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
         ),
     };
-    let cohort = TypingCohort::continuing(&predecessor, &retained.typed).completing(&selected);
     type_resolved_cohort(&mut lowerer, &cohort)?;
     for forwarding in source
         .evidence_forwardings

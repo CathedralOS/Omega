@@ -143,12 +143,20 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
-        | O::StructuralCase { source, .. }
         | O::ElementViewRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {
             places.insert(*source);
+        }
+        O::StructuralCase { source, cases, .. } => {
+            places.insert(*source);
+            places.extend(
+                cases
+                    .iter()
+                    .flat_map(|case| &case.structural_bindings)
+                    .flat_map(|binding| [binding.parameter, binding.argument.place]),
+            );
         }
         O::AtomicEvent { event, .. } => {
             // The accessed atomic location joins place custody; a fence

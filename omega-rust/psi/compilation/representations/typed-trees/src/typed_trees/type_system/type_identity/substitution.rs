@@ -109,9 +109,9 @@ pub(super) fn index_argument(
             {
                 return index_name(program, argument.symbol, spelling.as_str(), context);
             }
-            if let Some(identity) =
-                super::identity_context::static_nominal_argument_identity(program, argument, context)
-            {
+            if let Some(identity) = super::identity_context::static_nominal_argument_identity(
+                program, argument, context,
+            ) {
                 return identity;
             }
             if !argument.symbol.is_valid() || argument.evidence_projection.is_some() {
