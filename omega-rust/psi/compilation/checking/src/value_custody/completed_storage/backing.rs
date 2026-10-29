@@ -26,6 +26,27 @@ pub fn reference_backing_places(
         unchanged_loan,
         active: Vec::new(),
         active_profiles: Vec::new(),
+        projectable: false,
+    }
+    .places(operand, path)
+}
+
+/// Complete coordinates which retain the selected value's structural
+/// dimensions. Coarse enclosures and permission suppliers bound interference,
+/// but cannot accept a relative field or element projection.
+pub fn projectable_reference_places(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    operand: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+) -> Option<Vec<CapturedPlace>> {
+    Resolver {
+        program,
+        control,
+        unchanged_loan: &mut |_, _| None,
+        active: Vec::new(),
+        active_profiles: Vec::new(),
+        projectable: true,
     }
     .places(operand, path)
 }
@@ -36,6 +57,7 @@ struct Resolver<'a, 'resolver> {
     unchanged_loan: &'resolver mut UnchangedLoan<'a>,
     active: Vec<Query>,
     active_profiles: Vec<Handle<checked_trees::FlowOperandRetention>>,
+    projectable: bool,
 }
 
 /// Scratch result of a complete retention profile. Unchanged is distinct from
@@ -272,7 +294,7 @@ impl Resolver<'_, '_> {
         if row.descriptor.is_valid() {
             return Some(ProfileBacking::Known(self.places(row.descriptor, &[])?));
         }
-        if row.suppliers.is_empty() {
+        if self.projectable || row.suppliers.is_empty() {
             return Some(ProfileBacking::Unchanged);
         }
         let suppliers = self
@@ -302,6 +324,9 @@ impl Resolver<'_, '_> {
         &mut self,
         regions: HandleSpan<checked_trees::FlowOperandRetainedRegion>,
     ) -> Option<Vec<CapturedPlace>> {
+        if self.projectable {
+            return None;
+        }
         let regions = self
             .control
             .operand_retained_regions
@@ -323,6 +348,9 @@ impl Resolver<'_, '_> {
     }
 
     fn enclosing(&mut self, enclosing: Handle<FlowOperandFact>) -> Option<Vec<CapturedPlace>> {
+        if self.projectable {
+            return None;
+        }
         if !self.control.operands.is_valid(enclosing) {
             return None;
         }

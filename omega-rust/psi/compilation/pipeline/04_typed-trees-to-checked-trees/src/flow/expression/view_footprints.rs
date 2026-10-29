@@ -98,6 +98,21 @@ impl Execution<'_, '_, '_> {
         &mut self,
         value: &FlowOperandFact,
     ) -> Option<Vec<validation::CanonicalPlace>> {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE projectable-backing machine={:?} statement={} expression={:?} exact_count={} retention={:?} completion={:?}",
+                self.machine.symbol,
+                self.statement_index,
+                value.expression,
+                value.referents.count(),
+                self.context
+                    .control
+                    .operand_retentions
+                    .is_valid(value.retention)
+                    .then(|| self.context.control.operand_retentions.get(value.retention)),
+                value.completion
+            );
+        }
         let places = if !value.referents.is_empty() {
             validation::completed_storage::direct_referent_places(
                 &self.context.control,
@@ -105,12 +120,11 @@ impl Execution<'_, '_, '_> {
             )?
         } else {
             let operand = self.context.control.operands.insert(*value);
-            validation::completed_storage::reference_backing_places(
+            validation::completed_storage::projectable_reference_places(
                 self.program,
                 &self.context.control,
                 operand,
                 &[],
-                &mut |_, _| None,
             )?
         };
         Some(
@@ -139,7 +153,22 @@ impl Execution<'_, '_, '_> {
             return None;
         }
         let source = self.program.expression_table.call_node(value.expression)?;
-        if !source.carries_only_positional_arguments() || !source.selects_only_nominal_route() {
+        let checked_dispatch =
+            source
+                .static_requirement_dispatch
+                .as_ref()
+                .is_some_and(|dispatch| {
+                    self.program
+                        .machine_by_symbol(dispatch.realization_machine)
+                        .is_some_and(|machine| {
+                            machine.body_is_present
+                                && machine.supply_mode
+                                    == language_semantics::MachineSupplyMode::CheckedBody
+                        })
+                });
+        if !source.carries_only_positional_arguments()
+            || (!source.selects_only_nominal_route() && !checked_dispatch)
+        {
             return None;
         }
         let output = validation::reference_shell(self.program, value.type_reference)?;
