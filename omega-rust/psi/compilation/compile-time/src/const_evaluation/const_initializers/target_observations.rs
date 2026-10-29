@@ -42,34 +42,35 @@ pub(crate) fn settle(
     while !declarations.is_empty() {
         let mut ready = None;
         for (ordinal, (declaration, _)) in declarations.iter().enumerate() {
-            let mut probes =
-                crate::machine_execution::selected_operators::prepare_selected_execution(
-                    typed,
-                    selected.provider_bodies,
-                    selected.operators,
-                )
-                .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?
-                .unwrap_or_else(|| typed.clone());
+            let mut source_probes = typed.clone();
             let owner = append_probe(
-                &mut probes,
+                &mut source_probes,
                 declaration.symbol,
                 format!("@target-constant-{ordinal}"),
                 declaration.materialized_initializer,
                 declaration.declared_type,
             );
+            let execution_probes =
+                crate::machine_execution::selected_operators::prepare_selected_execution(
+                    &source_probes,
+                    selected.provider_bodies,
+                    selected.operators,
+                )
+                .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?
+                .unwrap_or_else(|| source_probes.clone());
             let mut work = domain.clone();
             work.include(owner);
-            let work = work.demanded_roots(&probes, &[owner]);
+            let work = work.demanded_roots(&execution_probes, &[owner]);
             // Source selections, including helper bodies and unexecuted arms,
             // order aliases before consumers. A provisional value is never a
             // canonical dependency, regardless of declaration order in source.
-            let references = work.references(&probes);
+            let references = work.references(&execution_probes);
             let pending_dependency =
                 references
                     .authored_selection_occurrences
                     .iter()
                     .any(|occurrence| {
-                        probes
+                        execution_probes
                             .authored_declaration_selections()
                             .get(*occurrence)
                             .and_then(|selection| {
@@ -78,15 +79,15 @@ pub(crate) fn settle(
                                     .as_resolved()
                                     .map(|selected| selected.selected_symbol())
                             })
-                            .and_then(|symbol| probes.const_declaration_by_symbol(symbol))
+                            .and_then(|symbol| execution_probes.const_declaration_by_symbol(symbol))
                             .is_some_and(|dependency| dependency.evaluated_value.is_none())
                     });
             if !pending_dependency {
-                ready = Some((ordinal, probes, owner, work));
+                ready = Some((ordinal, source_probes, execution_probes, owner, work));
                 break;
             }
         }
-        let Some((ordinal, mut probes, owner, work)) = ready else {
+        let Some((ordinal, mut source_probes, mut execution_probes, owner, work)) = ready else {
             return Err(super::failure(
                 declarations[0].0.initializer_source_span,
                 "target constant dependency cycle or unavailable canonical input",
@@ -100,13 +101,56 @@ pub(crate) fn settle(
         ] {
             if root.is_valid() {
                 crate::const_evaluation::const_generic_expressions::retain_current_initializer_calls(
-                    &mut probes, owner, root,
+                    &mut source_probes, owner, root,
                 ).map_err(&failure)?;
             }
         }
+        // The probe collected the whole source call closure before provider
+        // substitution and private specialization. Return the attachments using
+        // their original ledger identities; a private selection cannot become source authority.
+        for root in [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ] {
+            if !root.is_valid() {
+                continue;
+            }
+            for occurrence in source_probes
+                .expression_table
+                .authored_selection_occurrences(root)
+            {
+                let selection = source_probes
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        failure("target constant lost its call roster selection".into())
+                    })?;
+                if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call {
+                    continue;
+                }
+                if typed.authored_declaration_selections().get(occurrence) != Some(selection)
+                    || execution_probes
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        != Some(selection)
+                {
+                    return Err(failure(
+                        "target constant call roster contains a selection outside its source graph"
+                            .into(),
+                    ));
+                }
+                typed
+                    .expression_table
+                    .attach_authored_selection_occurrences(root, [occurrence]);
+                execution_probes
+                    .expression_table
+                    .attach_authored_selection_occurrences(root, [occurrence]);
+            }
+        }
+        let work = work.demanded_roots(&execution_probes, &[owner]);
         // Extending work with a private probe preserves the original execution
         // selection: a Product description in a Build forest grants no body demand.
-        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probes, &work)?;
+        let prepared = crate::PreparedBuildMachineProgram::prepare_in(&execution_probes, &work)?;
         let checked = CheckedInitializers::prepare(
             &prepared,
             authority.clone(),
@@ -138,37 +182,6 @@ pub(crate) fn settle(
             eprintln!("{warning}");
         }
         let completed = value.declaration_value();
-        // The probe collected the whole source call closure before private
-        // specialization. Return those attachments using their original ledger
-        // identities; a private selection cannot become source authority.
-        for root in [
-            declaration.authored_initializer,
-            declaration.materialized_initializer,
-        ] {
-            if !root.is_valid() {
-                continue;
-            }
-            for occurrence in probes.expression_table.authored_selection_occurrences(root) {
-                let selection = probes
-                    .authored_declaration_selections()
-                    .get(occurrence)
-                    .ok_or_else(|| {
-                        failure("target constant lost its call roster selection".into())
-                    })?;
-                if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call {
-                    continue;
-                }
-                if typed.authored_declaration_selections().get(occurrence) != Some(selection) {
-                    return Err(failure(
-                        "target constant call roster contains a selection outside its source graph"
-                            .into(),
-                    ));
-                }
-                typed
-                    .expression_table
-                    .attach_authored_selection_occurrences(root, [occurrence]);
-            }
-        }
         let materialized = match &value {
             value::ScalarValue::UndeterminedNaN(format) => {
                 typed_trees::expression::ExpressionNode::UndeterminedNaN(*format)
