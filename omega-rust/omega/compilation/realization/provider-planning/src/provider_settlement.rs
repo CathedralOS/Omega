@@ -333,8 +333,6 @@ impl ProviderSettlement {
     }
 }
 
-/// Limit selection to executable demands and explicitly authored choices.
-/// Merely declaring an implementation does not install its boundary slots.
 /// Discover only this target's executable applications. Candidate traversal is
 /// conservative until ordinary whole-map selection below: it supplies no authority.
 /// An explicit nomination narrows its schema's candidate edges and retains the
@@ -347,29 +345,24 @@ fn provider_application_declarations(
     requested: &[ProviderSelection],
     application_roots: &[symbols::SymbolHandle],
 ) -> checked_trees::typed_trees::references::DeclarationSelection {
-    let applicable: Vec<_> = defaults
-        .iter()
-        .chain(requested)
-        .filter(|selection| {
-            selection
-                .target
-                .is_none_or(|profile| profile.canonical_name() == target)
-        })
-        .collect();
     let mut roots = application_roots.to_vec();
     let mut edges = Vec::new();
     for candidate in candidates {
-        let choices: Vec<_> = applicable
-            .iter()
-            .filter(|selection| {
-                candidate.plan.rows.iter().any(|row| {
+        let covers_schema = |selection: &&ProviderSelection| {
+            selection
+                .target
+                .is_none_or(|profile| profile.canonical_name() == target)
+                && candidate.plan.rows.iter().any(|row| {
                     selection.subject.selects_schema(
                         candidate.provenance.schema.symbol(),
                         candidate.plan.identity_text(row.requirement_identity),
                     )
                 })
-            })
-            .collect();
+        };
+        let mut choices: Vec<_> = requested.iter().filter(covers_schema).collect();
+        if choices.is_empty() {
+            choices.extend(defaults.iter().filter(covers_schema));
+        }
         let nominated = choices.iter().any(|selection| {
             candidate.provenance.provider_type == Some(selection.provider_type.symbol)
         });
@@ -384,7 +377,21 @@ fn provider_application_declarations(
         {
             if let Some(machine) = realization.machine() {
                 edges.push((*requirement, machine));
-                if nominated {
+                // A target default supplies a demanded slot. Only an authored
+                // Build nomination introduces an application independently.
+                if requested.iter().any(|selection| {
+                    selection
+                        .target
+                        .is_none_or(|profile| profile.canonical_name() == target)
+                        && candidate.provenance.provider_type
+                            == Some(selection.provider_type.symbol)
+                        && candidate.plan.rows.iter().any(|row| {
+                            selection.subject.selects_schema(
+                                candidate.provenance.schema.symbol(),
+                                candidate.plan.identity_text(row.requirement_identity),
+                            )
+                        })
+                }) {
                     roots.push(machine);
                 }
             }
@@ -664,6 +671,27 @@ pub fn settle_checked_providers(
         build_provider_selections,
         application_roots,
     );
+    crate::provider_planning::validate_provider_default_declarations(
+        planning_target.unwrap_or_else(target::TargetProfile::host),
+        &target_provider_defaults,
+        build_provider_selections,
+    )?;
+    let uses = demanded_requirement_uses(checked, &application_declarations);
+    let target_provider_defaults = target_provider_defaults
+        .into_iter()
+        .filter_map(|selection| {
+            match crate::target_machines::provider_selection_roots(
+                context,
+                std::iter::once(&selection),
+            ) {
+                Ok(roots) => roots
+                    .iter()
+                    .any(|root| uses.contains(root))
+                    .then_some(Ok(selection)),
+                Err(diagnostics) => Some(Err(diagnostics)),
+            }
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     validate_native_binding_demand(
         checked,
         admitted_native_bindings,

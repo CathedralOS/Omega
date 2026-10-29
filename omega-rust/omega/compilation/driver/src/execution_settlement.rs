@@ -348,10 +348,14 @@ fn prepare_target_provider_selection(
     );
     let profile = selected_target_profile.unwrap_or_else(target::TargetProfile::host);
     let application_roots = if build_config.root_bindings.is_empty() {
+        // A reusable library has no executable entry. Retained constant
+        // applications still have actual callees; metadata bodies remain
+        // Source-checked without installing every service they describe.
         typed
-            .machines()
+            .constant_recipes
             .iter()
-            .map(|machine| machine.symbol)
+            .map(|(_, recipe)| recipe.machine)
+            .filter(|machine| machine.is_valid())
             .collect::<Vec<_>>()
     } else if build_config.root_bindings.iter().any(|binding| {
         binding.slot.rsplit_once("::").is_some_and(|(owner, _)| {

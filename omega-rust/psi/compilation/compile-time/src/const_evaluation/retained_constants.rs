@@ -112,11 +112,10 @@ impl<Layouts: LayoutQueryProvider> ConstantValueClosureRequest<'_, Layouts> {
         if has_queries {
             // Preparation can append specialized queries. Close those actual
             // checked subjects, never read their handles in the authored forest.
-            let selection = DeclarationSelection::from_program(&closed);
             super::data_layout_queries::fold_data_layout_queries(
                 &mut closed,
                 false,
-                &selection,
+                self.selection,
                 &self.layouts,
             )?;
             closed

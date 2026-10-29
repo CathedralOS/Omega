@@ -148,3 +148,5 @@ pub fn select_derived_provider_plans(
             .collect()
     })
 }
+
+pub(crate) use selection_provenance::validate_provider_default_declarations;

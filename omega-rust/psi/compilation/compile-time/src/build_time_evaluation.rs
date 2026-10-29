@@ -759,6 +759,16 @@ impl PreCheckEvaluation {
     /// const positions (range endpoints, concrete domain-fact memberships, and
     /// retained const-generic applications) observe the same rows when the
     /// continuation resumes.
+    /// Narrow the retained continuation's value jobs to this exact application.
+    /// Execution descriptions and recorded Source authority stay unchanged.
+    pub(crate) fn within_work(
+        mut self,
+        work: &typed_trees::references::DeclarationSelection,
+    ) -> Self {
+        self.domain.work = self.domain.work.intersect(work);
+        self
+    }
+
     pub(crate) fn with_layout_targets(
         mut self,
         targets: &[layout_plans::LayoutTargetFacts],

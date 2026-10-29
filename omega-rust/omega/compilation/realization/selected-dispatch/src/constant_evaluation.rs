@@ -43,6 +43,13 @@ impl SelectedConstantEvaluation {
         self
     }
 
+    /// Exact checked invocation and metadata owners of this value application.
+    /// Unselected bodies remain Source-checked descriptions, not query jobs.
+    pub fn with_work(mut self, work: typed_trees::references::DeclarationSelection) -> Self {
+        self.selection = self.selection.intersect(&work);
+        self
+    }
+
     /// Resume pending Psi evaluation under the exact selected providers.
     /// Consume continuations in their original order against canonical storage.
     /// Preparation may select an executable declaration projection of that same

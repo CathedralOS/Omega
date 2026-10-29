@@ -85,6 +85,8 @@ pub(crate) fn close_constant_recipes(
             selected_target_profile,
             opaque_representation_selections,
             selected_provider_plan_facts,
+            selected_provider_provenance,
+            &applications.roots,
             layout_inputs,
         )?
     } else {
@@ -109,7 +111,7 @@ pub(crate) fn close_constant_recipes(
         closed_typed,
         selected_target_profile.target_name(),
     )
-    .with_target_applications(applications.roots);
+    .with_target_applications(applications.roots.clone());
     let proof_targets = proof_closure
         .target_scopes()
         .into_iter()
@@ -168,6 +170,8 @@ pub(crate) fn close_constant_recipes(
                 target,
                 opaque_representation_selections,
                 &selected.facts,
+                &selected.provenance,
+                &applications.roots,
                 layout_inputs,
             )?),
         };
@@ -215,6 +219,8 @@ fn close_constant_values(
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
+    provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
+    applications: &[checked_trees::applications::TargetApplicationRoots],
     layout_inputs: &[build_time_evaluation::LayoutApplicationTargetInput],
 ) -> Result<typed_trees::TypedTrees, Vec<Diagnostic>> {
     // The continuation folds on the authored source it was deferred from,
@@ -234,6 +240,18 @@ fn close_constant_values(
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
     )?;
+    let evaluation = match applications
+        .iter()
+        .find(|application| application.target == selected_target_profile.target_name())
+    {
+        Some(application) => evaluation.with_work(psi_compiler::target_application_declarations(
+            &source.program,
+            selected_target_profile.target_name(),
+            &application.machines,
+            &layout_applications::provider_edges(provider_provenance),
+        )),
+        None => evaluation,
+    };
     evaluation
         .with_layout_applications(layout_inputs)
         .close_constants(constants, &source.program.typed)

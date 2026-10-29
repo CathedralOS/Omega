@@ -366,6 +366,54 @@ fn resolve_provider_selection_slots<'selection>(
     (resolved, diagnostics)
 }
 
+/// Defaults are supplier preferences rather than executable roots. Their
+/// declaration-level consistency remains mandatory even for an undemanded slot;
+/// an explicit owner override has the same precedence as ordinary selection.
+pub(crate) fn validate_provider_default_declarations(
+    selected_target: target::TargetProfile,
+    defaults: &[crate::ProviderSelection],
+    requested: &[crate::ProviderSelection],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let applies = |selection: &&crate::ProviderSelection| {
+        selection
+            .target
+            .is_none_or(|target| target.canonical_name() == selected_target.target_name())
+    };
+    let overrides: std::collections::BTreeSet<_> = requested
+        .iter()
+        .filter(applies)
+        .flat_map(selected_subject_keys)
+        .collect();
+    let mut slots =
+        std::collections::BTreeMap::<ProviderSelectionKey, Vec<ProviderSelectionKey>>::new();
+    for selection in defaults.iter().filter(applies) {
+        for key in selected_subject_keys(selection) {
+            if !overrides.contains(&key) {
+                slots
+                    .entry(key)
+                    .or_default()
+                    .push(selected_provider_key(selection));
+            }
+        }
+    }
+    let mut diagnostics = Vec::new();
+    for ((_, slot), mut providers) in slots {
+        providers.sort_unstable();
+        providers.dedup();
+        if providers.len() > 1 {
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "slot `{slot}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
+                providers.iter().map(|(_, provider)| format!("`{provider}`")).collect::<Vec<_>>().join(", "),
+            )));
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 pub(crate) fn select_provider_plan_indices(
     plans: &[effects::provider_plan::ProviderPlan],
     selected_target: target::TargetProfile,

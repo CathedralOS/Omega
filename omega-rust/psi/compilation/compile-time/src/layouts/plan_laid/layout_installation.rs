@@ -40,9 +40,17 @@ pub(crate) fn compute_plan_laid_layouts_in(
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     let mut requests = Vec::new();
-    for occurrence in
-        typed_trees::references::collect_selected_program_type_occurrences(typed, domain.work())
-    {
+    // Product closure supplies a complete application roster, including the
+    // absence of a target demand. Retain every owned description under that
+    // roster, independently from one capsule's narrower constant-value jobs.
+    // A host evaluation has no such roster and keeps its original work domain.
+    let occurrences = match &domain.layout_applications {
+        Some(_) => typed_trees::references::collect_program_type_occurrences(typed),
+        None => {
+            typed_trees::references::collect_selected_program_type_occurrences(typed, domain.work())
+        }
+    };
+    for occurrence in occurrences {
         let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
             continue;
         };
