@@ -533,6 +533,7 @@ impl Builder<'_, '_> {
         {
             return self.quotient_call_value(expression, expected);
         }
+        let reference_capture = self.reference_capture_source(expression, expected);
         let kind = if let ExpressionNode::Call(call) =
             self.program.expression_table.expression(expression)
             && let Some(query) = &call.native_code_layout
@@ -670,21 +671,7 @@ impl Builder<'_, '_> {
             // capture lends sized storage, including fixed byte arrays; it
             // cannot replace a slice's authored range with a whole-root loan.
             && validation::slice_view_shell(self.program, expected, &[]).is_none()
-            && match self.program.expression_table.expression(expression) {
-                // Borrowed formals denote ingress referents; unlike retained
-                // locals, they do not own stored descriptor values to move.
-                ExpressionNode::Name(name) => {
-                    self.structural_parameter(name.symbol)
-                        .is_some_and(|(_, declared)| {
-                            validation::reference_result_custody::stored_loan_parts(
-                                self.program,
-                                declared,
-                            )
-                            .is_some()
-                        })
-                }
-                _ => validation::reference_formation_source(self.program, expression).is_some(),
-            }
+            && reference_capture.is_some()
         {
             let state = self
                 .program
@@ -692,9 +679,7 @@ impl Builder<'_, '_> {
                 .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
             let mut selectors = Vec::new();
             let mut source_value = CheckedStructuralValueHandle::invalid();
-            if let Some(formation) =
-                validation::reference_formation_source(self.program, expression)
-            {
+            if let Some(formation) = reference_capture.as_ref() {
                 let place = validation::canonical_place_from_expression_in_state(
                     self.program,
                     self.state,
@@ -757,33 +742,17 @@ impl Builder<'_, '_> {
                     )
                 })
             };
+            let capture = crate::values::reference_sources::capture_source(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                state,
+                self.statement_index,
+                reference_capture?,
+                expected,
+                &selector,
+            )?;
             let (mut source, storage, backing_type) =
-                if validation::reference_formation_source(self.program, expression).is_some() {
-                    let capture = crate::values::reference_sources::capture(
-                        self.program,
-                        self.program.machine_by_symbol(self.machine)?,
-                        state,
-                        self.statement_index,
-                        expression,
-                        expected,
-                        &selector,
-                    )?;
-                    (capture.source, capture.storage, capture.backing_type)
-                } else {
-                    (
-                        crate::values::reference_sources::plan(
-                            self.program,
-                            self.program.machine_by_symbol(self.machine)?,
-                            state,
-                            self.statement_index,
-                            expression,
-                            expected,
-                            &selector,
-                        )?,
-                        checked_trees::CheckedReferenceStorage::Declared,
-                        validation::reference_shell(self.program, expected)?.referee,
-                    )
-                };
+                (capture.source, capture.storage, capture.backing_type);
             let projection_evaluations = if selectors.is_empty() {
                 Default::default()
             } else {

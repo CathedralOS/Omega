@@ -744,6 +744,36 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Complete exact storage sources for an already selected coordinate.
+    /// Matched frozen loads authenticate each supported reference boundary;
+    /// declaration geometry alone cannot. Consumers compare typed namespaces
+    /// for identity and use presentation paths only for invalidation. This
+    /// grants no loan or access beyond the independently admitted operation.
+    pub fn coordinate_sources_before_statement(
+        &self,
+        machine: &Machine,
+        state: &State,
+        index: usize,
+        root: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+        let source = super::FrameSourcePlace {
+            root,
+            segments: path.to_vec(),
+            builtin_coordinates: true,
+            ..super::FrameSourcePlace::default()
+        };
+        super::reference_subjects::coordinate_sources_before_statement(
+            self.program,
+            machine,
+            state,
+            &self.tables.symbols,
+            index,
+            &source,
+            &self.caches.state_write_shared_collections,
+        )
+    }
+
     /// Complete conservative backing reads for invalidation. Unlike exact
     /// origins, these may name a whole collection for a window. Callers may
     /// compare overlap only, never derive predicate or storage identity.

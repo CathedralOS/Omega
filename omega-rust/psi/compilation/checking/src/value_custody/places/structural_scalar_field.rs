@@ -134,6 +134,23 @@ pub fn structural_scalar_field_at_coordinate(
     let mut selected_case = SymbolHandle::invalid();
     for (ordinal, segment) in coordinate.iter().enumerate() {
         carrier = readable_projection_carrier(program, carrier, &mut path)?;
+        let declared = program
+            .type_reference_table
+            .unconstrained_type_reference(carrier);
+        // Equal layout does not authorize ordinary reads of atomic or placed
+        // storage, including carriers reached through a loaded descriptor.
+        if program
+            .placed_view_plan_for_type_reference(declared)
+            .is_some()
+            || program
+                .placed_view_field_plan_for_type_reference(declared)
+                .is_some()
+            || matches!(program.type_reference_table.type_reference(declared),
+                TypeReferenceNode::Named { symbol, .. }
+                    if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_atomic()))
+        {
+            return None;
+        }
         match segment {
             facts::PlaceSegment::Case { variant } => {
                 if selected_case.is_valid() {
@@ -269,19 +286,16 @@ pub fn structural_scalar_field_at_element_coordinate(
                 .find(|local| local.symbol == parameter)
                 .map(|local| local.type_reference)
         })?;
-    let source_type =
-        match program
-            .type_reference_table
-            .type_reference(crate::peel_declared_constraints(
-                program,
-                source_type,
-            )) {
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } if access.is_readable() => *referee,
-            TypeReferenceNode::Reference { .. } => return None,
-            _ => source_type,
-        };
+    let source_type = match program
+        .type_reference_table
+        .type_reference(crate::peel_declared_constraints(program, source_type))
+    {
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } if access.is_readable() => *referee,
+        TypeReferenceNode::Reference { .. } => return None,
+        _ => source_type,
+    };
     let mut carrier = source_type;
     let mut path = Vec::new();
     let mut selected_case = SymbolHandle::invalid();
