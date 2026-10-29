@@ -203,6 +203,10 @@ pub struct CheckedStructuralControlTransferPlan {
     /// Reference construction syntax and intermediate descriptors do not name
     /// the ultimate home; operand-completion provenance does.
     pub retained_loan_backing: Option<u32>,
+    /// Complete whole-operand ingress provenance from checked loan resources.
+    /// Empty supplies no ingress judgment. Descriptor storage is not ownership
+    /// of its referent; payload evaluation and retained parent debts stay separate.
+    pub incoming_loan_resources: Vec<arena::Handle<crate::CheckedCallBorrowLoanResource>>,
     /// Owned storage reached through the captured backing's contained loans.
     /// Each pair names the exact dependent and parent in the source frame.
     /// These lifetime edges grant neither relocation nor disposal authority.
@@ -222,6 +226,7 @@ impl Default for CheckedStructuralControlTransferPlan {
             source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
             target_parameter_index: 0,
             retained_loan_backing: None,
+            incoming_loan_resources: Vec::new(),
             retained_loan_parents: Vec::new(),
             retained_operand_parents: Vec::new(),
         }

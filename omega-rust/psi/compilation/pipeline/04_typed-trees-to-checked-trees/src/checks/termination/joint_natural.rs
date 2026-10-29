@@ -260,16 +260,29 @@ fn coordinates(
                 });
             }
         }
-        // The entry seed walks owned inline records only. Borrowed storage
-        // and erased/static parameters cannot acquire a private read here.
+        // Entry seeds retain ordinary fields under their admitted root access.
+        // The runtime projection owner independently authenticates each selected
+        // scalar path, including erasure and exact declaration identities.
         if observation == validation::RankPremiseObservation::Value {
             for (path, primitive, value) in values.scalar_field_observations(parameter.symbol) {
+                let path = path
+                    .iter()
+                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                    .collect::<Vec<_>>();
+                let Some(field) = validation::structural_scalar_field_at_coordinate(
+                    program,
+                    program.state_parameters(state),
+                    parameter.symbol,
+                    &path,
+                ) else {
+                    continue;
+                };
+                if field.primitive_type != primitive {
+                    continue;
+                }
                 coordinates.push(Coordinate {
                     parameter: parameter.symbol,
-                    path: path
-                        .iter()
-                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                        .collect(),
+                    path,
                     entry_value: value.clone(),
                     position,
                     primitive,

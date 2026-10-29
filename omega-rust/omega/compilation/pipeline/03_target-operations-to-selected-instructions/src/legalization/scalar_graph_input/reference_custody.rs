@@ -3229,6 +3229,12 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            borrowed_arrivals::complete_cleanup(
+                function,
+                &mut exit,
+                types,
+                retirements::DisposalEvent::Edge(edge),
+            )?;
             exit.prune_retired();
             exit.validate_occurrences()?;
             exits.push((
