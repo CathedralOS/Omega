@@ -231,7 +231,10 @@ impl ElementView {
             // not as an unsized view. Only its exact complete collection can be
             // replaced whole; a slice descriptor never owns its backing array.
             let home = self.descriptor_home.as_ref().ok_or_else(malformed)?;
-            let StructuralTypeShape::FixedArray { length, .. } = types
+            let StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = types
                 .get(&collection.structural_type)
                 .ok_or_else(malformed)?
                 .shape
@@ -284,7 +287,10 @@ impl ElementView {
         let (collection, projection) =
             self.structural_projection(types, path, self.access != StructuralAccess::SharedBorrow)?;
         let projected = crate::custody::project_structural_value(types, &collection, &projection)?;
-        let StructuralTypeShape::FixedArray { length, .. } = types
+        let StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        } = types
             .get(&selected.structural_type)
             .ok_or_else(malformed)?
             .shape
@@ -409,7 +415,11 @@ impl ElementView {
         let (depth, place, root) = home.storage.scalar_array_frame();
         let selected =
             terminal_semantics::runtime_structural_path_tip(types.values(), root, &home.path)?;
-        let StructuralTypeShape::FixedArray { length, .. } = selected.shape else {
+        let StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        } = selected.shape
+        else {
             return None;
         };
         (selected.id == collection.structural_type
@@ -491,7 +501,10 @@ impl ElementView {
             let ElementViewBacking::Structural { collection } = &self.backing else {
                 return Err(malformed());
             };
-            let StructuralTypeShape::FixedArray { length, .. } = types
+            let StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = types
                 .get(&collection.structural_type)
                 .ok_or_else(malformed)?
                 .shape
@@ -865,7 +878,7 @@ impl TerminalExecution<'_> {
         if let Some(window) = &selected_window {
             let StructuralTypeShape::FixedArray {
                 element: source_element,
-                length,
+                length: terminal_psi::ArrayExtent::Literal(length),
             } = *collection_shape
             else {
                 return Err(malformed());
@@ -956,7 +969,7 @@ impl TerminalExecution<'_> {
         }
         if let StructuralTypeShape::FixedArray {
             element: source_element,
-            length,
+            length: terminal_psi::ArrayExtent::Literal(length),
         } = *collection_shape
             && source_element != element
         {
@@ -1445,8 +1458,7 @@ impl TerminalExecution<'_> {
         // Read the selected descriptor through the live-path owner. Reference
         // crossings retain their captured backing; this observation attenuates
         // access without copying an exclusive descriptor.
-        let selected =
-            self.resolve_live_projection(source.place, &source.path, metadata_access)?;
+        let selected = self.resolve_live_projection(source.place, &source.path, metadata_access)?;
         if !self
             .program
             .structural_types()

@@ -29,6 +29,11 @@ mod blocking;
 mod checked_crash_operator_site;
 mod content;
 mod contract_plans;
+mod declaration_descriptions;
+pub use declaration_descriptions::{
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+};
 mod mutation;
 mod qualifications;
 mod service_reaches;

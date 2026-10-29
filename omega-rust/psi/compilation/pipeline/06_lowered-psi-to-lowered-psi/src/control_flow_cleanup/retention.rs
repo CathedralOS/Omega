@@ -206,6 +206,34 @@ pub(super) fn retained_machines_with_roots(
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
+    // Evaluation entries and conditional subjects are portable references,
+    // even when no executable call in the program uses them directly.
+    for application in module.scalar_applications.declarations() {
+        if let terminal_psi::ScalarApplication::Evaluate {
+            entry: terminal_psi::TargetMachineCallable::Machine(machine),
+            ..
+        } = application
+        {
+            roots.insert(*machine);
+        }
+    }
+    for condition in module.scalar_applications.conditions.ranges() {
+        if let terminal_psi::ScalarRangeCondition::Range {
+            subject:
+                terminal_psi::ScalarConditionSubject::Callable(
+                    terminal_psi::TargetMachineCallable::Machine(machine),
+                ),
+            ..
+        } = condition
+        {
+            roots.insert(*machine);
+        }
+    }
+    for observation in module.scalar_applications.conditions.observations() {
+        if let terminal_psi::ScalarRangeObservation::EntryResult { machine, .. } = observation {
+            roots.insert(*machine);
+        }
+    }
     for operation in &module.quotients.operations {
         roots.insert(operation.public_machine);
         roots.insert(operation.representative_machine);

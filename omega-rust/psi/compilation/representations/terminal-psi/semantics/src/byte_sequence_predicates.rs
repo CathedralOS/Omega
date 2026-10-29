@@ -888,7 +888,10 @@ pub fn scalar_array_qualifications_hold<'row>(
     if qualifications.is_empty() {
         return true;
     }
-    let Some(StructuralTypeShape::FixedArray { element, length }) = types
+    let Some(StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    }) = types
         .clone()
         .find(|row| row.id == carrier)
         .map(|row| &row.shape)

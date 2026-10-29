@@ -39,6 +39,14 @@ pub(crate) fn encode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::Application {
+            application,
+            scalar_type,
+        } => {
+            writer.u8(41);
+            writer.id(*application);
+            encode_scalar_type(writer, *scalar_type);
+        }
         ScalarTerm::StructuralRead {
             root,
             path,
@@ -406,6 +414,10 @@ pub(crate) fn decode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     Ok(match reader.u8()? {
+        41 => ScalarTerm::Application {
+            application: reader.id("ScalarApplicationId")?,
+            scalar_type: decode_scalar_type(reader)?,
+        },
         1 => ScalarTerm::value(reader.id("ValueId")?, decode_scalar_type(reader)?),
         2 => ScalarTerm::boolean(reader.boolean()?),
         3 => {

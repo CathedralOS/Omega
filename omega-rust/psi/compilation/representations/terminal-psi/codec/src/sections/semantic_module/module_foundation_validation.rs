@@ -18,6 +18,7 @@ mod call_foundations;
 mod declaration_foundations;
 mod machine_foundations;
 mod reference_outputs;
+mod scalar_applications;
 mod scalar_boundary_contracts;
 mod scalar_fields;
 mod scalar_observations;
@@ -116,6 +117,7 @@ pub(super) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDe
 /// carrier relationships, signatures, operation/result shape, and bounded
 /// activation custody. Independent qualification and reach proofs follow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module
         .folded_constants
@@ -654,7 +656,10 @@ fn validate_reference_origin_path(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) => {
-                if index >= length {
+                let Some(length) = length.literal() else {
+                    return malformed("fixed-index validation requires a closed array extent");
+                };
+                if *index >= length {
                     return malformed("structural path fixed index is out of bounds");
                 }
                 *element
@@ -768,6 +773,22 @@ fn validate_operation_foundation(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
+    if let OperationKind::ReadScalarApplication { application } = operation.kind {
+        let Some(carrier) = module
+            .scalar_applications
+            .declaration(application)
+            .and_then(|declaration| declaration.scalar_type())
+        else {
+            return malformed("scalar application read has no catalog declaration");
+        };
+        if operation
+            .result
+            .scalar_ref()
+            .is_none_or(|result| result.scalar_type != carrier)
+        {
+            return malformed("scalar application read result differs from its declared carrier");
+        }
+    }
     // Interpretation steps belong to a returned-origin recipe, never an
     // executable operand. Only an actual EstablishReference operation can
     // introduce a view; a path cannot mint its representation authority.

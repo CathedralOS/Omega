@@ -2,6 +2,7 @@ use semantic_vocabulary::{BlockId, MachineId};
 use terminal_codec::CodecError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
     /// A caller-activation operation lost its authenticated carrier or custody.
     InvalidActivationStorage(semantic_vocabulary::OperationId),
     /// Native publication must retain executable reference loan custody before

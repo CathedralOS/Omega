@@ -35,6 +35,11 @@ pub(crate) struct RecordNamedRows {
 /// all of them, so a carrier added here reaches every consumer at once.
 pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> RecordNamedRows {
     let mut rows = RecordNamedRows::default();
+    for observation in module.scalar_applications.conditions.observations() {
+        if let terminal_psi::ScalarRangeObservation::EntryResult { result, .. } = observation {
+            rows.values.insert(*result);
+        }
+    }
     for machine in &module.machines {
         for invocation in machine.module_invocations() {
             proof_values::retain_invocation_inputs(invocation.inputs, &mut rows.values);

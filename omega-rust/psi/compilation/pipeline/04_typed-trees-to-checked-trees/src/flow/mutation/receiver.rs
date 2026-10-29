@@ -168,9 +168,7 @@ pub(crate) fn family_attached_data_symbol(
             return machine.attached_data_symbol;
         }
         let parent = program.symbols.get(scope).parent;
-        if !parent.is_valid()
-            || program.symbols.get(parent).kind != symbols::SymbolKind::Machine
-        {
+        if !parent.is_valid() || program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
             return SymbolHandle::invalid();
         }
         scope = parent;

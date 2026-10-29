@@ -14,6 +14,7 @@ fn geometry_error(
         }
         Geometry::UnknownStructuralType(identity) => LoweringError::UnknownStructuralType(identity),
         Geometry::UnclosedTargetLayout(identity) => LoweringError::UnclosedTargetLayout(identity),
+        Geometry::UnclosedArrayExtent(identity) => LoweringError::UnclosedArrayExtent(identity),
         Geometry::StructuralTypeTooLarge(identity) => {
             LoweringError::StructuralTypeTooLarge(identity)
         }
@@ -432,7 +433,11 @@ pub(super) fn root_array_projection_metadata(
     let declaration = declarations
         .get(&root)
         .ok_or(LoweringError::UnknownStructuralType(root))?;
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    else {
         return Ok((None, None));
     };
     let shape = structural_shape(element, declarations, cache, active)?;
@@ -930,7 +935,10 @@ pub(super) fn runtime_storage_projection<'types>(
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
                 let element = match &declaration.shape {
-                    StructuralTypeShape::FixedArray { element, length } => {
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => {
                         if matches!(segment, StructuralPathSegment::FixedIndex(index) if index >= length)
                         {
                             return Err(LoweringError::UnknownStructuralType(structural_type));

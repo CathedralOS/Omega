@@ -18,12 +18,12 @@ struct LoweredBoundaryApplicationOccurrence {
     terminal_operation: OperationId,
 }
 
-pub(super) fn retain(
+pub(super) fn retain<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
+    checked: &'a CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     lowered: &mut LoweredPsi,
-) -> Result<(), &'static str> {
+) -> Result<(), &'a str> {
     let mut occurrences = Vec::new();
     for comparison in &lowered.selected_comparison_occurrences {
         occurrences.push(application_occurrence(

@@ -107,7 +107,11 @@ impl TargetRun {
                         && loan.is_some_and(|loan| self.forwards(program, entry.parameter, loan))
                 })
                 .flat_map(move |(idx, entry)| {
-                    let start = seen_held.get(idx).copied().unwrap_or(0).min(entry.accesses.len());
+                    let start = seen_held
+                        .get(idx)
+                        .copied()
+                        .unwrap_or(0)
+                        .min(entry.accesses.len());
                     &entry.accesses[start..]
                 }),
         )

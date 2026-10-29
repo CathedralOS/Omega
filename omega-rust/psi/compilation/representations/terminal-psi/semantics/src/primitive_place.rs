@@ -89,7 +89,11 @@ pub fn fixed_array_place_shape<'a>(
         return None;
     }
     let declaration = canonical_structural_path_tip(declarations.clone(), root, path)?;
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    else {
         return None;
     };
     let mut matching = declarations.filter(|declaration| declaration.id == element);
@@ -480,7 +484,10 @@ impl<'path> StructuralStorageSelection<'path> {
             if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
                 let current =
                     runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
-                let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = current.shape
+                let terminal_psi::StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } = current.shape
                 else {
                     return None;
                 };
@@ -534,7 +541,11 @@ pub fn stored_descriptor_paths<'a>(
         if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             let current =
                 runtime_structural_path_tip(declarations.clone(), root, &path[..position])?;
-            let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = current.shape else {
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = current.shape
+            else {
                 return None;
             };
             let length = usize::try_from(length).ok()?;
@@ -766,7 +777,10 @@ fn walk_primitive_projection_with_policy<'a>(
             }
             (
                 StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => {
                 step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));
                 Position::Declared(*element)

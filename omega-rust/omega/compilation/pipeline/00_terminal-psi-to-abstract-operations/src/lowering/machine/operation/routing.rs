@@ -27,6 +27,9 @@ pub(super) fn lower(
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::ReadScalarApplication { application } => {
+            Err(LoweringError::UnclosedScalarApplication(*application))
+        }
         OperationKind::EstablishActivationClaim {
             bound,
             committed,

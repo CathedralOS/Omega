@@ -1061,6 +1061,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 self.validate_case_projections(operation)?;
                 let flow = dispatch_operations!(self, operation, operation.kind;
                                     literal {
+                                    OperationKind::ReadScalarApplication { application } => {
+                                        return Err(TerminalInterpretError::UnclosedScalarApplication(application));
+                                    }
                                     OperationKind::EstablishNativeCodeLayout { machine } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::NativeCodeLayout { machine }));
                                     }

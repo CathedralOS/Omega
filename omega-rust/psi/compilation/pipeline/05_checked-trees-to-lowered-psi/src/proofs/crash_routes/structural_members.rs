@@ -16,7 +16,10 @@ fn indexed_element_type(
     element_index: u64,
 ) -> Result<StructuralTypeId, LoweringError> {
     match shape {
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             if element_index >= *length {
                 return unsupported("structural contract fixed index is out of bounds");
             }

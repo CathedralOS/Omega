@@ -30,14 +30,12 @@ pub(super) fn build_owned_affine_types(
     // State per PlaceId: None = seen invalid/multiple providers, Some(ty) = seen exactly one valid provider
     let mut map: std::collections::HashMap<PlaceId, Option<StructuralTypeId>> =
         std::collections::HashMap::new();
-    let mut record = |place: PlaceId, valid_type: Option<StructuralTypeId>| {
-        match map.entry(place) {
-            std::collections::hash_map::Entry::Vacant(vacant) => {
-                vacant.insert(valid_type);
-            }
-            std::collections::hash_map::Entry::Occupied(mut occupied) => {
-                *occupied.get_mut() = None;
-            }
+    let mut record = |place: PlaceId, valid_type: Option<StructuralTypeId>| match map.entry(place) {
+        std::collections::hash_map::Entry::Vacant(vacant) => {
+            vacant.insert(valid_type);
+        }
+        std::collections::hash_map::Entry::Occupied(mut occupied) => {
+            *occupied.get_mut() = None;
         }
     };
     for parameter in parameters

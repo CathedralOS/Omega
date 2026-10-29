@@ -169,7 +169,10 @@ pub fn structural_read_scalar_type<'a>(
                 };
                 if let Target::Declaration(root) = target {
                     target = match &declaration(root)?.shape {
-                        StructuralTypeShape::FixedArray { element, length } => {
+                        StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => {
                             if *length == 0 || fixed.is_some_and(|index| index >= *length) {
                                 return None;
                             }

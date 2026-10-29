@@ -505,7 +505,11 @@ fn aggregate_chunks(
         .as_structural()
         .and_then(|root| terminal_psi::find_structural_type(declarations, root))
         .ok_or_else(|| failure("resident aggregate lost its structural type"))?;
-    if let StructuralTypeShape::FixedArray { element, length } = declaration.shape {
+    if let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    {
         let element_shape = structural_reference_input::shape(element, declarations)
             .ok_or_else(|| failure("resident array element has no native storage"))?;
         let element_size = u64::from(element_shape.byte_size);

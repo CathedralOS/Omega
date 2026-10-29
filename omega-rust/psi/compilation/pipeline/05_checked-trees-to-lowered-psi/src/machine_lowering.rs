@@ -181,7 +181,7 @@ pub fn lower_machine(
             &mut lowered,
         )
     })
-    .map_err(LoweringError::Unsupported)?;
+    .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
     match external_declarations {
         Some(declarations) => declarations.retain(
             checked,

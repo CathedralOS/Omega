@@ -431,7 +431,10 @@ fn resolve_structural_path(
             }
             (
                 StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => *element,
             // The element's bound is the store's own verified obligation.
             (

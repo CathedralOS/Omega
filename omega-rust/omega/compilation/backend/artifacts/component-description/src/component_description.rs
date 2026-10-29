@@ -629,7 +629,8 @@ pub(crate) fn derive_component_inventory(
                 // callee's operations are scanned by this same enumeration and
                 // they carry no authority past the component closure.
                 match &operation.kind {
-                    OperationKind::EstablishNativeCodeLayout { .. } => {},
+                    OperationKind::EstablishNativeCodeLayout { .. }
+                    | OperationKind::ReadScalarApplication { .. } => {},
                     OperationKind::BoundaryCall {
                         boundary,
                         completion_receipts,

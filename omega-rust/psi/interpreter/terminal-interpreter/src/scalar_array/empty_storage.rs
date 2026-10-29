@@ -128,8 +128,10 @@ impl EmptyArrayStorage {
             {
                 continue;
             }
-            let StructuralTypeShape::FixedArray { element, length } =
-                types.get(&structural_type).ok_or_else(malformed)?.shape
+            let StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = types.get(&structural_type).ok_or_else(malformed)?.shape
             else {
                 return Err(malformed());
             };
@@ -267,8 +269,10 @@ fn select(
         let StructuralPathSegment::FixedIndex(index) = segment else {
             return Err(malformed());
         };
-        let StructuralTypeShape::FixedArray { element, length } =
-            types.get(&structural_type).ok_or_else(malformed)?.shape
+        let StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } = types.get(&structural_type).ok_or_else(malformed)?.shape
         else {
             return Err(malformed());
         };

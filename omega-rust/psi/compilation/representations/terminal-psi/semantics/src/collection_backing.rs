@@ -116,7 +116,7 @@ fn collection_shape_backing<'types>(
         }),
         StructuralTypeShape::FixedArray {
             element: actual,
-            length,
+            length: terminal_psi::ArrayExtent::Literal(length),
         } if actual == element => Some(CollectionBacking {
             extent: CollectionExtent::Fixed(length),
             storage: CollectionStorage::Inline,
@@ -184,7 +184,7 @@ pub(crate) fn collection_shape_view_backing<'a>(
     }
     let StructuralTypeShape::FixedArray {
         element: source,
-        length,
+        length: terminal_psi::ArrayExtent::Literal(length),
     } = *shape
     else {
         return None;

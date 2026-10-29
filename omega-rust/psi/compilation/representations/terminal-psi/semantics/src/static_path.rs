@@ -350,9 +350,10 @@ fn canonical_projection_type<'a>(
                     return None;
                 }
                 root = match shape {
-                    StructuralTypeShape::FixedArray { element, length } if index < length => {
-                        *element
-                    }
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } if index < length => *element,
                     // This query resolves only type identity. A view's live
                     // bound and backing access remain independent obligations.
                     StructuralTypeShape::ElementView { element, .. } => *element,

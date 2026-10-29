@@ -412,6 +412,7 @@ impl OperationKind {
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::AtomicFence { .. }
             | call_and_scalar_constant_operations!()
+            | Self::ReadScalarApplication { .. }
             | scalar_predicate_operations!() => {}
         }
     }
@@ -542,6 +543,7 @@ impl OperationKind {
             | call_and_scalar_constant_operations!()
             | Self::BooleanStructuralField { .. }
             | Self::ScalarStructuralField { .. }
+            | Self::ReadScalarApplication { .. }
             | scalar_predicate_operations!() => {}
         }
         projections

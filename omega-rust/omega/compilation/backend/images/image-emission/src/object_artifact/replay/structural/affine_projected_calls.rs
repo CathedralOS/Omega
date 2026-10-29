@@ -167,7 +167,7 @@ fn exact_owned_projection_from_root(
         return false;
     };
     let metadata_matches = match root.shape {
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } => {
             crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(element, declarations)
                 .and_then(|shape| {
                     shape.byte_size.checked_next_multiple_of(u32::from(shape.alignment))

@@ -76,6 +76,7 @@ impl ModuleInvocationArguments {
 pub(super) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
@@ -153,8 +154,13 @@ pub(super) fn prepare(
                 expression,
                 caller_scalar_values,
                 caller_erased_scalar_parameters,
-                caller_observation_parameters,
-                structural_types,
+                &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    scalar_applications,
+                    constant_values: &checked.typed.constant_recipe_closure.values,
+                    parameters: caller_observation_parameters,
+                    structural_types,
+                    ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
+                },
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

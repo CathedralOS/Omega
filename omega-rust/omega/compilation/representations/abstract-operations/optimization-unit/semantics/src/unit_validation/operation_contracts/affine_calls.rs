@@ -106,9 +106,10 @@ fn finite_owned_shape(
                     _ => false,
                 }
         }),
-        terminal_psi::StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
-            finite_owned_shape(types, *element, active, complete)
-        }
+        terminal_psi::StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length > 0 => finite_owned_shape(types, *element, active, complete),
         terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
             .iter()
             .chain(cases.iter().flat_map(|case| case.fields.iter()))

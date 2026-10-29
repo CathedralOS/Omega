@@ -712,9 +712,17 @@ pub(crate) fn prepare_establishment_claims(
                     && source.claim_identity == event.claim_identity
                     && claim_established_here(machine, state, statement, source)
             });
-            let path = validation::structural_claim_path(&checked.typed, type_reference,
-                &checked.facts.flow.ownership.segments.span_or_empty(event.segments)[receiving_path.len()..])
-                .map_err(LoweringError::Unsupported)?;
+            let path = validation::structural_claim_path(
+                &checked.typed,
+                type_reference,
+                &checked
+                    .facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)[receiving_path.len()..],
+            )
+            .map_err(LoweringError::Unsupported)?;
             let claim = PreparedClaim {
                 identity: event.claim_identity,
                 path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
@@ -730,7 +738,9 @@ pub(crate) fn prepare_establishment_claims(
             };
             if let Some(previous) = prepared.iter().find(|previous| previous.path == claim.path) {
                 if previous != &claim {
-                    return unsupported("completed construction has conflicting claim correspondences");
+                    return unsupported(
+                        "completed construction has conflicting claim correspondences",
+                    );
                 }
             } else {
                 prepared.push(claim);
@@ -936,8 +946,7 @@ pub(crate) fn lower_owned_operand_claims(
         .collect::<Vec<_>>();
     let ownership = &checked.facts.flow.ownership;
     let mut selected_transfer = None;
-    let state_selections =
-        ownership.with_state_owned_selections(state, |handles| handles.to_vec());
+    let state_selections = ownership.with_state_owned_selections(state, |handles| handles.to_vec());
     for handle in state_selections {
         let receipt = ownership.owned_selections.get(handle);
         if !(receipt.machine == machine

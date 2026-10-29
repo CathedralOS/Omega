@@ -47,6 +47,10 @@ pub use borrow::{
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
+    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
+    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+};
+pub use facts::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,

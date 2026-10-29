@@ -30,7 +30,9 @@ pub(crate) mod placed_plan_wire;
 pub(crate) mod placed_view_wire;
 pub(crate) mod placement_lifecycle_wire;
 mod proof_output_wire;
+mod scalar_application_wire;
 mod scalar_block_invariant_wire;
+mod scalar_condition_wire;
 mod target_family_wire;
 mod target_layout_wire;
 mod task_activation_wire;
@@ -100,6 +102,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     quotient_wire::encode(&mut writer, &module.quotients)?;
     folded_constant_wire::encode(&mut writer, &module.folded_constants)?;
+    scalar_application_wire::encode(&mut writer, &module.scalar_applications)?;
     writer.counted(
         "structural types",
         &module.structural_types,
@@ -334,6 +337,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let quotients = quotient_wire::decode(reader)?;
     let folded_constants = folded_constant_wire::decode(reader)?;
+    let scalar_applications = scalar_application_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_referents = decode_counted(reader, |reader| {
         Ok(terminal_psi::StructuralReferentIdentity {
@@ -394,6 +398,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, boundary_application_wire::decode_candidate)?;
     let task_activation_demands = decode_demands(reader)?;
     Ok(TerminalModule {
+        scalar_applications,
         folded_constants,
         indexed_theorems,
         mathematical_carriers,

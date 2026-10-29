@@ -106,7 +106,7 @@ pub enum StructuralTypeShape {
     },
     FixedArray {
         element: StructuralTypeId,
-        length: u64,
+        length: crate::ArrayExtent,
     },
     /// A closed pure sum. Case and payload-field declaration order is semantic;
     /// their IDs are strictly increasing in the canonical encoding.
@@ -808,7 +808,7 @@ fn structural_type_contains_by<'types>(
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 // An empty carrier stores no element payload.
-                if *length != 0 {
+                if *length != crate::ArrayExtent::Literal(0) {
                     pending.push(*element);
                 }
             }

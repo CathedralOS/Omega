@@ -15,6 +15,15 @@ pub mod boundary;
 pub use boundary::*;
 pub mod folded_constants;
 pub use folded_constants::*;
+pub mod scalar_applications;
+pub mod scalar_conditions;
+pub use scalar_applications::{
+    ArrayExtent, LayoutMeasurement, ScalarApplication, ScalarApplications,
+};
+pub use scalar_conditions::{
+    ScalarConditionSubject, ScalarConditions, ScalarRangeCondition, ScalarRangeObservation,
+    ScalarRangeRequirement,
+};
 pub mod control_flow;
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
@@ -80,6 +89,9 @@ pub struct TerminalIndexedTheorem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
+    /// Pending target-dependent values and their complete source-free meanings.
+    /// Their answers and conditional admission belong to the target closure.
+    pub scalar_applications: ScalarApplications,
     /// Historical semantic compatibility consumed by folding. This supplies
     /// no executable boundary demand, provider installation or host authority.
     pub folded_constants: FoldedConstantClosure,
@@ -259,6 +271,7 @@ impl TerminalModule {
     /// producer's literal.
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
+            scalar_applications: Default::default(),
             folded_constants: Default::default(),
             indexed_theorems: Vec::new(),
             mathematical_carriers: Vec::new(),

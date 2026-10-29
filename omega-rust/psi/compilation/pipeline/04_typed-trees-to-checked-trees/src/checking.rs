@@ -538,5 +538,6 @@ fn check_program(
         },
     )?;
     drop(final_guard);
+    crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
     Ok((checked, dependency_body_judgments))
 }

@@ -82,6 +82,7 @@ pub(crate) fn find(
 pub(super) fn lower(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     bodies: &[AdmittedBody<'_>],
     qualifications: &PreparedScalarQualifications,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -205,6 +206,7 @@ pub(super) fn lower(
         let requirements = super::entry_requirements::lower(
             identities,
             checked,
+            scalar_applications,
             signature.source,
             &signature.scalar_parameters,
             &signature.erased_scalar_parameters,

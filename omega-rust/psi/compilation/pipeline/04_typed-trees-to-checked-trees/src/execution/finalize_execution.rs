@@ -212,5 +212,7 @@ pub fn settle_closed_constant_execution(
                 .collect::<Vec<_>>()
         ))]);
     }
-    Ok(checked_trees::CheckedTrees::with_roots(typed, facts))
+    let mut checked = checked_trees::CheckedTrees::with_roots(typed, facts);
+    crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
+    Ok(checked)
 }

@@ -172,7 +172,7 @@ fn indexed_carrier_length(
 ) -> Option<u64> {
     let shape = &declaration(types, structural_type)?.shape;
     match shape {
-        StructuralTypeShape::FixedArray { length, .. } => Some(*length),
+        StructuralTypeShape::FixedArray { length, .. } => length.literal(),
         StructuralTypeShape::ByteSequence(
             ByteSequenceCarrier::BoundedView { capacity, .. }
             | ByteSequenceCarrier::BoundedOwned { capacity },
@@ -282,9 +282,10 @@ fn fields(
 /// the operation independently proves readable/writable extent and custody.
 fn fixed_element(shape: &StructuralTypeShape, index: u64) -> Option<Option<StructuralTypeId>> {
     match shape {
-        StructuralTypeShape::FixedArray { element, length } if index < *length => {
-            Some(Some(*element))
-        }
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if index < *length => Some(Some(*element)),
         StructuralTypeShape::ByteSequence(
             ByteSequenceCarrier::BoundedView { capacity, .. }
             | ByteSequenceCarrier::BoundedOwned { capacity },

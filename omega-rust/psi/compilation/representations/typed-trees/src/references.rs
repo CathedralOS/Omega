@@ -1411,6 +1411,24 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_type_reference(program, retained, declaration.declared_type);
         visit_expression(program, retained, declaration.authored_initializer);
         visit_expression(program, retained, declaration.materialized_initializer);
+        // The pending declaration owns its complete checked computation, not
+        // merely whichever helper appears first in the initializer. This edge
+        // preserves that body's plans through post-check product pruning.
+        if declaration.evaluated_value.is_none()
+            && program
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+        {
+            visit_symbol(
+                retained,
+                program
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol,
+            );
+        }
     }
 
     for operator in program
@@ -2137,6 +2155,12 @@ fn visit_machine_with_sidecars(
     sidecars: Option<&MachineSidecarIndex>,
 ) {
     retained.enter_lexical_scope(machine.symbol);
+    if let Some(declaration) = program.const_declaration_for_evaluation_entry(machine.symbol) {
+        // Entry eligibility belongs to its source declaration. A demanded
+        // projection must preserve that association, not infer it from a
+        // generated name or from stale backing arena rows.
+        visit_symbol(retained, declaration.symbol);
+    }
     visit_owned_implementation_arguments(program, retained, machine.symbol);
     for signature in program.requirement_invocation_signatures(machine.symbol) {
         visit_signature(program, retained, signature);

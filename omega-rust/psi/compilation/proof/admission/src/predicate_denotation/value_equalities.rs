@@ -202,7 +202,8 @@ impl<'input> ValueEqualities<'input> {
                 **left = self.scalar(left, budget, depth + 1, active)?;
                 **right = self.scalar(right, budget, depth + 1, active)?;
             }
-            ScalarTerm::Value { .. }
+            ScalarTerm::Application { .. }
+            | ScalarTerm::Value { .. }
             | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }

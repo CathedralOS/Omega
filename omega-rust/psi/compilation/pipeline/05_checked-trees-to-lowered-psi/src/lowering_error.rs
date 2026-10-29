@@ -75,6 +75,7 @@ pub enum LoweringError {
     InvalidServiceIdentity(String),
     /// Preserve the declaration and provenance reason from source identity closure.
     InvalidDeclarationIdentity(String),
+    InvalidBoundaryApplication(String),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     InvalidUnitMachinePlan {
@@ -103,6 +104,12 @@ pub enum LoweringError {
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    /// Retained conditional arithmetic must preserve the failed source join.
+    UnpublishedScalarCondition {
+        owner: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        reason: String,
+    },
     /// Preserve the actual graph entry rather than merging duplicate edge,
     /// argument-frame, and ordered-cleanup failures into one static message.
     InvalidSelectedCleanupEntry(Box<SelectedCleanupEntryMismatch>),

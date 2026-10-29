@@ -10,6 +10,8 @@ use crate::{CheckedFactCallProjection, CheckedPlacedViewInput};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckFacts {
+    /// Complete checked callable descriptions, independent of executable roots.
+    pub declaration_descriptions: crate::CheckedDeclarationDescriptions,
     pub quotient_formations: Vec<super::CheckedQuotientFormation>,
     pub quotient_operations: Vec<super::CheckedQuotientOperation>,
     /// Portable specialization identities derived from checked machine contracts.

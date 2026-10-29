@@ -548,7 +548,16 @@ pub(super) fn encode_structural_type(
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.u8(3);
             bytes.id(*element);
-            bytes.u64(*length);
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.u8(0);
+                    bytes.u64(*length);
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.u8(1);
+                    bytes.id(*application);
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.u8(4);

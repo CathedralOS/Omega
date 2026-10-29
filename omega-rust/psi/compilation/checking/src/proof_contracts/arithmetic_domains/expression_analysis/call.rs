@@ -49,7 +49,23 @@ pub(super) fn analyze(
         .unwrap_or(NEUTRAL)
     });
     let mut analysis = with_result_carrier(walk, expression, analysis);
-    if call.layout_query.is_some() {
+    // A complete constant entry has no runtime inputs. Keep each actual call
+    // occurrence as an observation so enclosing arithmetic can retain its
+    // outstanding formation condition. This is not a bound or permission to
+    // execute the call: selection, invocation and result admission remain due.
+    // Authored helper bodies keep their ordinary universal range checking.
+    let constant_entry = walk.machine.is_some_and(|machine| {
+        walk.program
+            .const_declaration_for_evaluation_entry(machine.symbol)
+            .is_some()
+    });
+    if call.layout_query.is_some()
+        || (constant_entry
+            && analysis.recipe.is_none()
+            && analysis
+                .primitive
+                .is_some_and(|primitive| integer_bit_width(primitive).is_some()))
+    {
         analysis.recipe = Some(checked_trees::IntegerRangeRecipe::observation(
             expression,
             walk.lexical_owner,

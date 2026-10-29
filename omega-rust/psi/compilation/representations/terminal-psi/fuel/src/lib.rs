@@ -92,6 +92,7 @@ impl TerminalFuelSchedule {
             | OperationKind::PortWrite { .. }
             | OperationKind::RegisterAccess { .. }
             | OperationKind::IntegerConstant { .. }
+            | OperationKind::ReadScalarApplication { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
             | OperationKind::IeeeFloatCompare { .. }

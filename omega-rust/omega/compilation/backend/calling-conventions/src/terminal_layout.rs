@@ -10,6 +10,7 @@ pub enum TerminalLayoutError {
     RecursiveStructuralType(StructuralTypeId),
     UnknownStructuralType(StructuralTypeId),
     UnclosedTargetLayout(StructuralTypeId),
+    UnclosedArrayExtent(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),
     UnsupportedStructuralSum(StructuralTypeId),
@@ -107,6 +108,9 @@ pub fn structural_shape(
                 Ok(ValueShape::integer(byte_size, alignment))
             }
             StructuralTypeShape::FixedArray { element, length } => {
+                let length = length
+                    .literal()
+                    .ok_or(TerminalLayoutError::UnclosedArrayExtent(structural_type))?;
                 // The complete primitive-array chain is still checked below
                 // empty dimensions. Its canonical zero-byte ABI must not need
                 // an addressable element layout or overflow an unused extent.
@@ -117,12 +121,12 @@ pub fn structural_shape(
                 let stride = checked_align_up_u32(element.byte_size, u32::from(element.alignment))
                     .ok_or(TerminalLayoutError::StructuralTypeTooLarge(structural_type))?;
                 let byte_size = u64::from(stride)
-                    .checked_mul(*length)
+                    .checked_mul(length)
                     .and_then(|size| u32::try_from(size).ok())
                     .ok_or(TerminalLayoutError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(
                     byte_size,
-                    if *length == 0 { 1 } else { element.alignment },
+                    if length == 0 { 1 } else { element.alignment },
                 ))
             }
             StructuralTypeShape::Sum { cases } => conventional_sum_layout_from_parts(
@@ -357,7 +361,10 @@ fn empty_primitive_array(
             .map(|declaration| &declaration.shape)
         {
             Some(StructuralTypeShape::FixedArray { element, length }) => {
-                empty |= *length == 0;
+                let Some(length) = length.literal() else {
+                    return false;
+                };
+                empty |= length == 0;
                 current = *element;
             }
             Some(StructuralTypeShape::PrimitiveScalar(scalar)) => {

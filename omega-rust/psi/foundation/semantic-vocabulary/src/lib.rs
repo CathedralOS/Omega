@@ -57,9 +57,9 @@ pub use identity::{
     ClaimId, ContentDomainId, ContractId, CycleComponentId, DomainSemanticId, EdgeId,
     EvidenceIdentity, EvidenceTermId, ExternalCompletionKind, FuelScheduleIdentity, InvocationSite,
     MachineId, ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId,
-    PropositionId, PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarDomainId,
-    ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, SuspensionCrossingId, ValueId,
+    PropositionId, PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarApplicationId,
+    ScalarDomainId, ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, SuspensionCrossingId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

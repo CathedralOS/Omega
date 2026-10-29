@@ -58,6 +58,9 @@ impl From<&StructuralBinding> for StructuralValueStorage {
 }
 
 pub(crate) struct Evaluation {
+    /// Every body and branch reads the closure's one application namespace.
+    pub(crate) scalar_applications:
+        std::sync::Arc<super::scalar_applications::SourceScalarApplications>,
     pub(crate) current_claims: crate::emission::current_claims::CurrentClaimNames,
     /// The enclosing emission unit's scalar qualification namespace. A call
     /// result publishes the callee's qualified result in it, so argument
@@ -367,6 +370,7 @@ impl Evaluation {
     ) -> Result<crate::scalar_lowering::computations::Expansion<'a>, LoweringError> {
         Ok(crate::scalar_lowering::computations::Expansion::new(
             checked,
+            &self.scalar_applications,
             qualifications,
             machine,
             1,
@@ -610,6 +614,7 @@ impl Evaluation {
     /// can then move or rebind owners without changing the sibling's frontier.
     pub(crate) fn branch(&self, block: BlockId, operation_start: usize) -> Self {
         Self {
+            scalar_applications: std::sync::Arc::clone(&self.scalar_applications),
             current_claims: self.current_claims.clone(),
             shared_qualifications: self.shared_qualifications.clone(),
             machine: self.machine,
@@ -1057,7 +1062,11 @@ impl Evaluation {
                 "local refinement lost its completed subject",
             ))?),
             &self.erased_scalar_formals,
-            &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+            &crate::scalar_lowering::contracts::ContractViewNamespace {
+                scalar_applications: &self.scalar_applications,
+                constant_values: &checked.typed.constant_recipe_closure.values,
+                ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
+            },
         )?
         .ok_or(LoweringError::Unsupported(
             "local refinement lost its predicate",
@@ -1076,9 +1085,13 @@ impl Evaluation {
         Ok(())
     }
 
-    pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
+    pub(crate) fn new(
+        next_block: &mut u64,
+        scalar_applications: std::sync::Arc<super::scalar_applications::SourceScalarApplications>,
+    ) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            scalar_applications,
             current_claims: Default::default(),
             shared_qualifications:
                 crate::expression_preparation::qualifications::PreparedScalarQualifications::empty(),
@@ -1595,6 +1608,7 @@ impl Evaluation {
             // staging an expanded computation's binding receives.
             let mut expansion = crate::scalar_lowering::computations::Expansion::new(
                 checked,
+                &self.scalar_applications,
                 &qualifications,
                 machine,
                 1,

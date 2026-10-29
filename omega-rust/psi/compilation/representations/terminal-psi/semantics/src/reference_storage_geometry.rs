@@ -84,7 +84,10 @@ fn geometry<'types>(
             }
             Some((align(size, alignment)?, alignment))
         }
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             let (size, alignment) = geometry(types.clone(), *element, active)?;
             Some((align(size, alignment)?.checked_mul(*length)?, alignment))
         }
@@ -246,7 +249,10 @@ fn storage_path<'types>(
                 carrier = child;
             }
             (
-                StructuralTypeShape::FixedArray { element, length },
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
                 StructuralPathSegment::FixedIndex(index),
             ) if index < length => {
                 let (size, alignment) = geometry(types.clone(), *element, &mut Vec::new())?;

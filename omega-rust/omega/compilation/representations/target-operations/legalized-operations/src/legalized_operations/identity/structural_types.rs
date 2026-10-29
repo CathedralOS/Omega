@@ -435,7 +435,16 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.push(0);
+                    crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, application.get().to_le_bytes());
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);

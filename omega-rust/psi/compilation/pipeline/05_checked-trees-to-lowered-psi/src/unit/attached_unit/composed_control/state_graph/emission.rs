@@ -910,6 +910,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &state_values[position],
             &state_erased[position],
             &crate::scalar_lowering::contracts::ContractViewNamespace {
+                scalar_applications: catalogs.scalar_applications,
                 constant_values: &checked.typed.constant_recipe_closure.values,
                 result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
                 parameters: view_roster,

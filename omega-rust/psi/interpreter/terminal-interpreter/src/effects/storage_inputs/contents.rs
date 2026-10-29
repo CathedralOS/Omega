@@ -278,7 +278,14 @@ fn collect(
             leaves,
             false,
         )?,
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Application(_),
+            ..
+        } => return Err(TerminalInterpretError::UnclosedArrayExtent(root)),
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             // Validate every dimension and the terminal primitive declaration
             // before pruning instance work. An empty payload is not a shortcut
             // for opaque/reference/cyclic element schemas. Compact a selected

@@ -505,7 +505,10 @@ pub(super) fn element_selection(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(ProjectionStep, StructuralTypeId), LoweringError> {
     let (element, view) = match &owner.shape {
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             if matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(index) if index >= length)
             {
                 return unsupported("structural element index is out of bounds");

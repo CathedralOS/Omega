@@ -88,14 +88,16 @@ fn replay_structural_shape(
         }
         // An empty array is the canonical zero-byte value with alignment one,
         // as the lowering layout walk defines it; it needs no element layout.
-        terminal_psi::StructuralTypeShape::FixedArray { length: 0, .. } => {
-            ValueShape::integer(0, 1)
-        }
+        terminal_psi::StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(0),
+            ..
+        } => ValueShape::integer(0, 1),
         terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            let length = length.literal()?;
             let element = replay_structural_shape(*element, declarations, cache, active)?;
             let stride = checked_align_up(element.byte_size, u32::from(element.alignment))?;
             let byte_size = u64::from(stride)
-                .checked_mul(*length)
+                .checked_mul(length)
                 .and_then(|size| u32::try_from(size).ok())?;
             ValueShape::integer(byte_size, element.alignment)
         }
@@ -257,8 +259,10 @@ pub(crate) fn replay_structural_projection(
             }
             terminal_psi::StructuralPathSegment::FixedIndex(index) => {
                 let declaration = declarations.get(&structural_type)?;
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                    declaration.shape
+                let terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = declaration.shape
                 else {
                     return None;
                 };
@@ -299,8 +303,10 @@ pub(crate) fn replay_runtime_projection(
     while let Some(segment) = segments.next() {
         if let terminal_psi::StructuralPathSegment::RuntimeIndex { .. } = segment {
             let declaration = terminal_psi::find_structural_type(declarations, structural_type)?;
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                declaration.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = declaration.shape
             else {
                 return None;
             };
@@ -380,7 +386,10 @@ pub(crate) fn replay_bounded_byte_field(
             }
             (
                 terminal_psi::StructuralPathSegment::FixedIndex(index),
-                terminal_psi::StructuralTypeShape::FixedArray { element, length },
+                terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => {
                 let shape =
                     replay_structural_shape(*element, &declarations, &mut cache, &mut active)?;
