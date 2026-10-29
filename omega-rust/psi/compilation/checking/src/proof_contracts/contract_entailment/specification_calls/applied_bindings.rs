@@ -178,7 +178,7 @@ impl AppliedProofBindings {
                 program
                     .trait_type_parameters(meaning.trait_definition)
                     .iter()
-                    .chain(program.state_signature_type_parameters(meaning.requirement))
+                    .chain(program.requirement_invocation_contract_parameters(meaning.requirement))
                     .collect(),
                 meaning.substitutions.as_slice(),
                 meaning.constants.as_slice(),
@@ -187,7 +187,7 @@ impl AppliedProofBindings {
                 program
                     .trait_type_parameters(meaning.trait_definition)
                     .iter()
-                    .chain(program.state_signature_type_parameters(meaning.requirement))
+                    .chain(program.requirement_invocation_contract_parameters(meaning.requirement))
                     .collect(),
                 meaning.substitutions.as_slice(),
                 meaning.constants.as_slice(),
@@ -196,7 +196,7 @@ impl AppliedProofBindings {
                 program
                     .trait_type_parameters(meaning.trait_definition)
                     .iter()
-                    .chain(program.state_signature_type_parameters(meaning.requirement))
+                    .chain(program.requirement_invocation_contract_parameters(meaning.requirement))
                     .collect(),
                 bindings.types.as_slice(),
                 bindings.constants.as_slice(),
@@ -607,7 +607,7 @@ impl AppliedProofBindings {
             SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
             SelectedCallContract::Signature(signature)
             | SelectedCallContract::DynamicSlot { signature, .. } => {
-                program.state_signature_type_parameters(signature)
+                program.requirement_invocation_contract_parameters(signature)
             }
         };
         let conformance_bounds = match owner {
@@ -1035,7 +1035,7 @@ impl AppliedProofBindings {
             slot_binders.push((selected.symbol, identity));
         }
         let requires_header = !program
-            .state_signature_type_parameters(signature)
+            .requirement_invocation_contract_parameters(signature)
             .is_empty()
             || !self.types.is_empty()
             || !self.constants.is_empty()
