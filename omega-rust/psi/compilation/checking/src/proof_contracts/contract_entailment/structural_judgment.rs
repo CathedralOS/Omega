@@ -3346,8 +3346,8 @@ impl<'program> StructuralJudge<'program> {
         comparison: &typed_trees::expression::TableBinaryExpression,
     ) -> bool {
         if !self.runtime_body_values {
-            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
-                self.program, &self.declaration_parameters, expression, comparison,
+            return crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
+                self.program, self.machine_symbol, &self.declaration_parameters, expression, comparison,
             );
         }
         self.program
@@ -3397,8 +3397,8 @@ impl<'program> StructuralJudge<'program> {
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return StructuralJudgment::Unknown;
         };
-        if !crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
-            self.program, parameters, fact, binary,
+        if !crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
+            self.program, scope, parameters, fact, binary,
         ) {
             return StructuralJudgment::Unknown;
         }
