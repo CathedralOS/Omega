@@ -297,7 +297,17 @@ impl StructuralJudge<'_> {
         if self.completed_match_nominal_admission(expression, subject, reference) {
             return true;
         }
-        if self.storage_observation_invalidated(expression) {
+        let Some(identity) = subject.observation_identity_key() else {
+            return false;
+        };
+        // Earlier writes retire entry observations, including declarations
+        // initialized later. Only that binding's still-current completed value
+        // can bridge the entry fence; normal-result admission below must still
+        // establish this exact value's nominal validity.
+        let current = self
+            .stored_value_observation(self.runtime_declaration_scope(), expression)
+            .and_then(|value| value.observation_identity_key());
+        if self.storage_observation_invalidated(expression) && current.as_ref() != Some(&identity) {
             return false;
         }
         let program = self.program;
@@ -313,9 +323,6 @@ impl StructuralJudge<'_> {
             let candidate_identity = program.normalized_type_identity(candidate);
             candidate_identity.is_valid()
                 && candidate_identity == program.normalized_type_identity(reference)
-        };
-        let Some(identity) = subject.observation_identity_key() else {
-            return false;
         };
         let place =
             crate::value_custody::places::canonical_place_from_expression(program, expression);
