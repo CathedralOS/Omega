@@ -76,6 +76,7 @@ fn reconcile_copy_targets(
             Ok(CandidateTarget::Resolved(earlier_symbol(left, right)))
         }
         (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right)) => {
+            trace_inconsistent_copy_targets(program, source_span, kind, left, right);
             Err(Diagnostic::error(format!(
                 "compiler-derived copies of one authored {kind:?} selection resolved inconsistently: `{}` versus `{}`",
                 program.symbols.display_path(left, "::"),
@@ -87,6 +88,75 @@ fn reconcile_copy_targets(
             "compiler-derived copies of one authored {kind:?} selection resolved inconsistently"
         ))
         .with_source_span(source_span)),
+    }
+}
+
+/// Temporary observation of a rejected copy correspondence. It records the
+/// current declarations and exact retained state slots without reconciling or
+/// granting either target an identity it did not already carry.
+fn trace_inconsistent_copy_targets(
+    program: &SymbolResolvedTrees,
+    source_span: SourceSpan,
+    kind: Kind,
+    left: SymbolHandle,
+    right: SymbolHandle,
+) {
+    if std::env::var_os("OMEGA_CALL_SIGNATURE_TRACE").is_none() {
+        return;
+    }
+    eprintln!("AUTHORED_CALL_COPY kind={kind:?} occurrence={source_span:?}");
+    for (side, target) in [("retained", left), ("candidate", right)] {
+        let declaration = program.symbols.get(target);
+        let owner = declaration.parent;
+        eprintln!(
+            "AUTHORED_CALL_COPY side={side} target={target:?} path={} kind={:?} parent={owner:?} declaration_owner={:?} direct_span={:?} provenance_span={:?} generated_from={:?} authored_origin={:?}",
+            program.symbols.display_path(target, "::"),
+            declaration.kind,
+            declaration.declaration_owner,
+            program.symbols.symbol_source_span(target),
+            program.symbols.symbol_provenance_source_span(target),
+            declaration.generated_from,
+            program.symbols.authored_origin(target),
+        );
+        if !owner.is_valid() {
+            continue;
+        }
+        let owner_declaration = program.symbols.get(owner);
+        eprintln!(
+            "AUTHORED_CALL_COPY side={side} owner={owner:?} kind={:?} parent={:?} declaration_owner={:?} direct_span={:?} provenance_span={:?} generated_from={:?} authored_origin={:?}",
+            owner_declaration.kind,
+            owner_declaration.parent,
+            owner_declaration.declaration_owner,
+            program.symbols.symbol_source_span(owner),
+            program.symbols.symbol_provenance_source_span(owner),
+            owner_declaration.generated_from,
+            program.symbols.authored_origin(owner),
+        );
+        let owner_rows = program
+            .machines
+            .iter()
+            .enumerate()
+            .filter(|(_, machine)| machine.symbol == owner)
+            .collect::<Vec<_>>();
+        let mut matches = Vec::new();
+        for (machine_ordinal, machine) in &owner_rows {
+            for (state_ordinal, state_handle) in program
+                .machine_state_handles(machine.states)
+                .iter()
+                .copied()
+                .enumerate()
+            {
+                if program.machine_state(state_handle).symbol == target {
+                    matches.push((*machine_ordinal, state_ordinal, state_handle));
+                }
+            }
+        }
+        eprintln!(
+            "AUTHORED_CALL_COPY side={side} owner_rows={} state_memberships={} exact_state_slots={:?}",
+            owner_rows.len(),
+            matches.len(),
+            &matches[..matches.len().min(16)],
+        );
     }
 }
 
