@@ -585,6 +585,16 @@ mod tests {
             AtomicCompareExchangeOutcomePayload as Payload,
         };
 
+        macro_rules! case {
+            ($case:ident => $tag:literal => $payload:expr) => {
+                CaseSchema {
+                    case: Case::$case,
+                    tag: $tag,
+                    payload: $payload,
+                }
+            };
+        }
+
         let expected = [
             (
                 Identity::AtomicCompareExchangeOutcome,
@@ -592,16 +602,8 @@ mod tests {
                 Attempt::Decisive,
                 Observation::Observing,
                 vec![
-                    CaseSchema {
-                        case: Case::Mismatched,
-                        tag: 0,
-                        payload: Some(Payload::Observed),
-                    },
-                    CaseSchema {
-                        case: Case::Exchanged,
-                        tag: 1,
-                        payload: None,
-                    },
+                    case!(Mismatched => 0 => Some(Payload::Observed)),
+                    case!(Exchanged => 1 => None),
                 ],
             ),
             (
@@ -610,21 +612,9 @@ mod tests {
                 Attempt::SingleAttempt,
                 Observation::Observing,
                 vec![
-                    CaseSchema {
-                        case: Case::Mismatched,
-                        tag: 0,
-                        payload: Some(Payload::Observed),
-                    },
-                    CaseSchema {
-                        case: Case::Exchanged,
-                        tag: 1,
-                        payload: None,
-                    },
-                    CaseSchema {
-                        case: Case::Uncommitted,
-                        tag: 2,
-                        payload: Some(Payload::Observed),
-                    },
+                    case!(Mismatched => 0 => Some(Payload::Observed)),
+                    case!(Exchanged => 1 => None),
+                    case!(Uncommitted => 2 => Some(Payload::Observed)),
                 ],
             ),
             (
@@ -633,16 +623,8 @@ mod tests {
                 Attempt::Decisive,
                 Observation::NonObserving,
                 vec![
-                    CaseSchema {
-                        case: Case::Mismatched,
-                        tag: 0,
-                        payload: Some(Payload::Proposed),
-                    },
-                    CaseSchema {
-                        case: Case::Exchanged,
-                        tag: 1,
-                        payload: Some(Payload::Displaced),
-                    },
+                    case!(Mismatched => 0 => Some(Payload::Proposed)),
+                    case!(Exchanged => 1 => Some(Payload::Displaced)),
                 ],
             ),
             (
@@ -651,21 +633,9 @@ mod tests {
                 Attempt::SingleAttempt,
                 Observation::NonObserving,
                 vec![
-                    CaseSchema {
-                        case: Case::Mismatched,
-                        tag: 0,
-                        payload: Some(Payload::Proposed),
-                    },
-                    CaseSchema {
-                        case: Case::Exchanged,
-                        tag: 1,
-                        payload: Some(Payload::Displaced),
-                    },
-                    CaseSchema {
-                        case: Case::Uncommitted,
-                        tag: 2,
-                        payload: Some(Payload::Proposed),
-                    },
+                    case!(Mismatched => 0 => Some(Payload::Proposed)),
+                    case!(Exchanged => 1 => Some(Payload::Displaced)),
+                    case!(Uncommitted => 2 => Some(Payload::Proposed)),
                 ],
             ),
         ];
