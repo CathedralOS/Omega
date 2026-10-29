@@ -693,6 +693,8 @@ pub(crate) fn lower_unit_closure(
                 &lowered_boundary_parameters,
                 scalar_applications::EmittedScalars {
                     checked,
+                    identities,
+                    sources: exact_toolchain_sources,
                     calls: &occurrences.source_calls,
                     machines: &machines,
                 },

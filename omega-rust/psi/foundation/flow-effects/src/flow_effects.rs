@@ -4,6 +4,7 @@
 pub mod capabilities;
 pub mod invocations;
 pub mod operational;
+mod proof_applications;
 pub mod service_reach;
 
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};

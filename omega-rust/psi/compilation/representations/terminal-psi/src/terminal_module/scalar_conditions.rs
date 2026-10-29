@@ -10,14 +10,14 @@ use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, StructuralTypeId, ValueId};
 
-use super::TargetMachineCallable;
+use super::ProofDeclarationId;
 
 /// The declaration use which demands this condition. Module-wide requirements
 /// are explicit; failed owner lookup must never become module-wide ownership.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarConditionSubject {
     Module,
-    Callable(TargetMachineCallable),
+    Declaration(ProofDeclarationId),
     StructuralType(StructuralTypeId),
     Application(ScalarApplicationId),
 }

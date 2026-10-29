@@ -29,6 +29,7 @@ mod content;
 pub mod fnv1a;
 mod identity;
 mod ieee_float_comparison_operation;
+pub mod proof_applications;
 mod proposition;
 mod qualified_scalar_type;
 mod reference_origins;

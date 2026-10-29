@@ -30,6 +30,7 @@ pub(crate) mod placed_plan_wire;
 pub(crate) mod placed_view_wire;
 pub(crate) mod placement_lifecycle_wire;
 mod proof_output_wire;
+mod proof_scope_wire;
 mod scalar_application_wire;
 mod scalar_block_invariant_wire;
 mod scalar_condition_wire;

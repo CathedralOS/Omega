@@ -138,7 +138,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Target-dependent scalar applications retain their portable computation roots.
 // Pending scalar applications and explicit array extents have their own wire
 // form. Marker 204 is already used upstream for structural case bindings.
-pub(crate) const FORMAT_MARKER: u16 = 206;
+// Proof conditions retain declarations independently of emitted bodies, beside
+// the source-free application scope graph.
+pub(crate) const FORMAT_MARKER: u16 = 207;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

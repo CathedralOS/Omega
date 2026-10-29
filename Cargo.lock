@@ -714,6 +714,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-semantics",
+ "semantic-vocabulary",
  "symbols",
 ]
 

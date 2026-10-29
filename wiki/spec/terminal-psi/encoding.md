@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 203 even when every table
+order below. This layout uses semantic format marker 207 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -136,6 +136,42 @@ same-carrier addition or subset erasure under the
 An ordinary qualification-change edge introduces only predicate-free, route-free
 atoms; introducing predicate or routed membership requires its checked return
 completion instead. Erasure retains the existing strict subset rule.
+
+### Retained scalar conditions and application scope
+
+The reference compiler's target-closure migration retains scalar applications,
+captured integer conditions, and their declaration scope before the folded
+constant table. These rows are outstanding requirements, not successful proof
+or execution authority. The migration's unresolved-execution fences remain
+until a receiving target can discharge the complete requirements.
+
+A condition subject is tagged as module-wide (1), a `u32` proof-declaration
+coordinate (2), a structural type (3), or a scalar application (4). Declaration
+coordinates are one-based positions in this artifact's scope catalog; zero is
+absence. They are neither executable machine IDs nor source arena coordinates.
+Each declaration retains a nominal identity (tag 1), the complete checked
+callable description (tag 2), or an unavailable-description reason (tag 3).
+Equal nominal names do not merge distinct graph coordinates. An unavailable
+description cannot supply an exact external callable join.
+
+Scope publication retains, in order: declaration descriptions; obligation flags;
+machine/state/binder and legacy target-family relationships; declaration
+formation dependencies; declaration and obligation-owner rosters; discovery-only
+provider candidates; and operational call summaries. Each summary retains calls,
+recursive static argument bindings, and cleanup dependencies. Every repeated
+collection is counted; spans encode their contents, never arena generations.
+Machine summaries may be absent, which differs from a present empty summary.
+Static binding nesting has the ordinary 256-level encoding bound.
+
+Membership consumes explicitly settled provider edges, not discovery candidates.
+Product eligibility is independent of retained descriptions. Declaring a proof
+owner does not root an executable body; actual evaluation entries and observed
+entry results still retain their bodies. Receiving validation rejects dangling
+coordinates, ambiguous state ownership, repeated static parameters, malformed
+family correspondence, and missing spans. The legacy family rows remain
+migration metadata, not authorization to retain target-prefixed source syntax.
+
+### Scalar and structural operation rows
 
 IEEE scalar comparison uses operation tag 65, followed by a one-byte relation
 (`Equal`, `NotEqual`, `Less`, `LessOrEqual`, `Greater`, `GreaterOrEqual` as 0–5)

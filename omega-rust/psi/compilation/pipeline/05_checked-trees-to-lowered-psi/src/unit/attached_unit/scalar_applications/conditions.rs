@@ -110,8 +110,23 @@ fn subject(
     owner: SymbolHandle,
 ) -> Result<Subject, String> {
     let program = &checked.typed;
-    if let Some(machine) = program.machine_by_own_or_state_symbol(owner) {
-        return Ok(Subject::Callable(machine.symbol));
+    if let Some((_, machine)) =
+        checked
+            .facts
+            .proof_applications
+            .machines
+            .iter()
+            .find(|(_, machine)| {
+                machine.machine == owner
+                    || checked
+                        .facts
+                        .proof_applications
+                        .symbols
+                        .span_or_empty(machine.states)
+                        .contains(&owner)
+            })
+    {
+        return Ok(Subject::Callable(machine.machine));
     }
     if let Some(declaration) = program.const_declaration_by_symbol(owner) {
         return applications
@@ -125,7 +140,7 @@ fn subject(
             .map(Subject::StructuralType)
             .ok_or_else(|| "scalar condition's data owner has no exact type identity".to_owned());
     }
-    Err("scalar condition has no live callable, constant or data owner".to_owned())
+    Err("scalar condition has no retained callable, constant or data owner".to_owned())
 }
 
 fn observation(
@@ -171,6 +186,8 @@ fn observation(
 /// Borrow the emitter's associations before source coordinates are discarded.
 pub(crate) struct EmittedScalars<'a> {
     pub(crate) checked: &'a CheckedTrees,
+    pub(crate) identities: &'a mut terminal_psi::TerminalIdentityTableBuilder,
+    pub(crate) sources: &'a [(source::SourceId, [u8; 32])],
     pub(crate) calls: &'a [LoweredSourceCallOccurrence],
     pub(crate) machines: &'a [TerminalMachine],
 }
@@ -180,13 +197,22 @@ pub(super) fn publish(
     types: &[(TypeIdentityId, StructuralTypeId)],
     machines: &[(SymbolHandle, MachineId)],
     boundaries: &[BoundaryParameters],
+    declarations: &[(SymbolHandle, terminal_psi::ProofDeclarationId)],
     emitted: EmittedScalars<'_>,
 ) -> Result<ScalarConditions, LoweringError> {
     let mut result = ScalarConditions::default();
     for range in ranges {
         let subject = match range.subject {
-            Subject::Callable(source) => ScalarConditionSubject::Callable(
-                target_families::callable(source, machines, boundaries)?,
+            Subject::Callable(source) => ScalarConditionSubject::Declaration(
+                declarations
+                    .iter()
+                    .find(|(owner, _)| *owner == source)
+                    .map(|(_, identity)| *identity)
+                    .ok_or_else(|| {
+                        range.error(
+                            "scalar condition lost its retained declaration coordinate".into(),
+                        )
+                    })?,
             ),
             Subject::StructuralType(source) => {
                 ScalarConditionSubject::StructuralType(lookup_type_id(types, &source)?)

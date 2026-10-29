@@ -17,6 +17,7 @@
 mod call_foundations;
 mod declaration_foundations;
 mod machine_foundations;
+mod proof_scope;
 mod reference_outputs;
 mod scalar_applications;
 mod scalar_boundary_contracts;

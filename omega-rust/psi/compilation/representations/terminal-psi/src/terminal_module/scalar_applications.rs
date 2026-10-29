@@ -16,6 +16,7 @@ use crate::TargetMachineCallable;
 pub struct ScalarApplications {
     declarations: Arena<ScalarApplication>,
     pub conditions: super::ScalarConditions,
+    pub proof_scope: super::ProofApplicationScope,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

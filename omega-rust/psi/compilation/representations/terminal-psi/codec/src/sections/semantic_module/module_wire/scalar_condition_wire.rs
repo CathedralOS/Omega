@@ -3,7 +3,6 @@
 use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::wire::{Reader, Writer};
-use super::target_family_wire::{decode_callable, encode_callable};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use terminal_psi::{
@@ -45,9 +44,9 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
         };
         match subject {
             ScalarConditionSubject::Module => writer.u8(1),
-            ScalarConditionSubject::Callable(callable) => {
+            ScalarConditionSubject::Declaration(declaration) => {
                 writer.u8(2);
-                encode_callable(writer, *callable);
+                writer.u32(declaration.0);
             }
             ScalarConditionSubject::StructuralType(subject) => {
                 writer.u8(3);
@@ -130,7 +129,9 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
     for _ in 0..count {
         let subject = match reader.u8()? {
             1 => ScalarConditionSubject::Module,
-            2 => ScalarConditionSubject::Callable(decode_callable(reader)?),
+            2 => {
+                ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(reader.u32()?))
+            }
             3 => ScalarConditionSubject::StructuralType(reader.id("StructuralTypeId")?),
             4 => ScalarConditionSubject::Application(reader.id("ScalarApplicationId")?),
             tag => return Err(CodecError::InvalidTag("ScalarConditionSubject", tag)),
@@ -186,7 +187,7 @@ mod tests {
         IntegerSign, IntegerType, MachineId, ScalarApplicationId, ScalarType, StructuralTypeId,
         ValueId,
     };
-    use terminal_psi::TargetMachineCallable;
+    use terminal_psi::ProofDeclarationId;
 
     #[test]
     fn scalar_conditions_round_trip_subjects_observations_and_bound_operations() {
@@ -225,7 +226,7 @@ mod tests {
         let mut conditions = ScalarConditions::default();
         for subject in [
             ScalarConditionSubject::Module,
-            ScalarConditionSubject::Callable(TargetMachineCallable::Machine(machine)),
+            ScalarConditionSubject::Declaration(ProofDeclarationId(7)),
             ScalarConditionSubject::StructuralType(StructuralTypeId::new(13).unwrap()),
             ScalarConditionSubject::Application(application),
         ] {

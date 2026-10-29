@@ -14,6 +14,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityId;
 
 mod conditions;
+mod proof_scope;
 
 /// Invocation-local construction storage, shared by all bodies in one closure.
 #[derive(Default)]
@@ -339,6 +340,8 @@ impl SourceScalarApplications {
         emitted: conditions::EmittedScalars<'_>,
     ) -> Result<ScalarApplications, LoweringError> {
         let mut result = ScalarApplications::default();
+        let scope = proof_scope::publish(emitted.checked, emitted.identities, emitted.sources)?;
+        result.proof_scope = scope.scope;
         for row in &self.rows {
             let declaration = match row.definition {
                 Definition::Layout {
@@ -359,8 +362,14 @@ impl SourceScalarApplications {
                 .insert(declaration)
                 .map_err(LoweringError::Unsupported)?;
         }
-        result.conditions =
-            conditions::publish(&self.conditions, types, machines, boundaries, emitted)?;
+        result.conditions = conditions::publish(
+            &self.conditions,
+            types,
+            machines,
+            boundaries,
+            &scope.coordinates,
+            emitted,
+        )?;
         Ok(result)
     }
 }

@@ -40,7 +40,8 @@ pub(super) fn encode(
             }
         }
     }
-    super::scalar_condition_wire::encode(writer, &applications.conditions)
+    super::scalar_condition_wire::encode(writer, &applications.conditions)?;
+    super::proof_scope_wire::encode(writer, &applications.proof_scope)
 }
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarApplications, CodecError> {
@@ -69,5 +70,6 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarApplications, Code
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
     applications.conditions = super::scalar_condition_wire::decode(reader)?;
+    applications.proof_scope = super::proof_scope_wire::decode(reader)?;
     Ok(applications)
 }

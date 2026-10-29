@@ -10,6 +10,7 @@ use terminal_psi::{
 };
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
+    super::proof_scope::validate(&module.scalar_applications.proof_scope, &module.identities)?;
     for declaration in &module.structural_types {
         if let terminal_psi::StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Application(application),
@@ -86,12 +87,11 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         };
         let has_subject = match subject {
             ScalarConditionSubject::Module => true,
-            ScalarConditionSubject::Callable(TargetMachineCallable::Machine(machine)) => {
-                module.machine(*machine).is_some()
-            }
-            ScalarConditionSubject::Callable(TargetMachineCallable::Boundary(boundary)) => {
-                module.boundary_machine(*boundary).is_some()
-            }
+            ScalarConditionSubject::Declaration(declaration) => module
+                .scalar_applications
+                .proof_scope
+                .declaration(*declaration)
+                .is_some(),
             ScalarConditionSubject::StructuralType(subject) => {
                 module.structural_type(*subject).is_some()
             }
