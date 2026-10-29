@@ -197,6 +197,9 @@ pub(crate) fn current_predicates(
                     place,
                     Some(frames),
                 )?;
+                if std::env::var_os("OMEGA_STORAGE_CAPTURE_TRACE").is_some() {
+                    eprintln!("CAPTURE binding={:?} invocation={}:{} flow_call={} stable={}", binding, invocation.statement, invocation.ordinal, invocation_fact(facts, caller, invocation).is_some(), crate::flow::operand_binds_stable_copy(program, parameters[position].type_reference));
+                }
                 // A detached actual owns its captured predicates. Rebind them
                 // at that exact read epoch, independently of current referents.
                 // Retain every alternative; the transport owner decides coverage.
@@ -215,6 +218,9 @@ pub(crate) fn current_predicates(
                     )
                 {
                     for value in &values {
+                        if std::env::var_os("OMEGA_STORAGE_CAPTURE_TRACE").is_some() {
+                            eprintln!("CAPTURE value observation={:?} source={:?} epoch={:?} observation_projection={:?} projection={:?}", value.observation.row(), value.operand.row(), value.producer_epoch.map(|epoch| epoch.row()), value.observation_projection, value.projection);
+                        }
                         super::super::captured_predicates::retain_bindings(
                             program,
                             facts,
@@ -238,6 +244,9 @@ pub(crate) fn current_predicates(
                 &[],
                 None,
             );
+            if std::env::var_os("OMEGA_STORAGE_CAPTURE_TRACE").is_some() {
+                eprintln!("CAPTURE guarantee={:?} captures={} transported={:?}", predicate, captures.len(), transported.predicates);
+            }
             let mut predicates = transported.predicates;
             predicates.push(predicate);
             Some(predicates)
