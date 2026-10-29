@@ -35,11 +35,19 @@ pub fn complete_scalar_applications(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,
     requested: &[ScalarApplicationId],
+    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     accounting: &mut crate::SourceCompletionAccounting,
     mut select: impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
     let mut records = Vec::new();
-    let result = complete_scopes(artifact, primary, requested, &mut records, &mut select);
+    let result = complete_scopes(
+        artifact,
+        primary,
+        requested,
+        sponsor,
+        &mut records,
+        &mut select,
+    );
     // Partial executions survive failure; a refused scope is not free work.
     accounting.append_scalar_evaluations(records);
     result
@@ -49,6 +57,7 @@ fn complete_scopes(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,
     requested: &[ScalarApplicationId],
+    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     records: &mut Vec<crate::evaluation_accounting::CanonicalScalarEvaluationReceipt>,
     select: &mut impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
@@ -75,9 +84,14 @@ fn complete_scopes(
         )?;
         let conditions =
             evaluate_scope(&mut observations, primary, demand, |job, observations| {
-                let mut meter = TerminalFuelMeter::with_allowance(
-                    crate::evaluation_accounting::PURE_TERMINAL_FUEL_CEILING,
-                );
+                let ceiling = crate::evaluation_accounting::PURE_TERMINAL_FUEL_CEILING;
+                let mut meter = match sponsor {
+                    Some(account) => {
+                        TerminalFuelMeter::with_invocation(account.clone(), Some(ceiling))
+                            .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?
+                    }
+                    None => TerminalFuelMeter::with_allowance(ceiling),
+                };
                 let values = observations.values().observed().collect();
                 let result = execute_entry(job, observations, &mut meter);
                 let outcome = match &result {

@@ -1,0 +1,25 @@
+use omega::language::core::program_image;
+
+data Pair { left: u64; right: u64; }
+machine identity(value: u64) -> u64 { value }
+machine table_size() -> u64 { identity(size_of<Pair>()) }
+data Table { before: u64; slots: [u64; table_size()]; after: u64; }
+
+public SelectedImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr {
+        let mut table: Table;
+        table.before = 11u64;
+        table.after = 23u64;
+        table.slots[0] = 7u64;
+        table.slots[16] = 57u64;
+        transition table.before == 11u64 && table.after == 23u64
+            && table.slots[0] == 7u64 && table.slots[16] == 57u64 {
+            true -> 64
+            _ -> 128
+        }
+    }
+}
+
+public OtherImage satisfies ProgramImage {
+    machine retained_suffix_start() -> addr { 128 }
+}

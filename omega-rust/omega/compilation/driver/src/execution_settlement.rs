@@ -16,8 +16,6 @@ use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
-pub(crate) mod constant_recipe_closure;
-
 /// One target's complete provider selection beside the shared source custody.
 /// Terminal production borrows this record to mint the target-neutral artifact.
 /// All source-dependent selected execution is already complete; no later

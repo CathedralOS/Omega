@@ -14,6 +14,7 @@ pub struct PreparedBuildExecution {
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
     host_issued: bool,
+    execution_profile: Option<target::TargetProfile>,
 }
 
 impl PreparedBuildExecution {
@@ -23,6 +24,7 @@ impl PreparedBuildExecution {
             machine,
             filesystem_scope,
             evaluation_sponsor,
+            execution_profile,
             artifact_only: _,
         } = admitted;
         let refuse = |reason: String| {
@@ -80,6 +82,7 @@ impl PreparedBuildExecution {
             machine: Arc::new(machine),
             filesystem_scope,
             host_issued: false,
+            execution_profile,
         })
     }
 
@@ -95,6 +98,7 @@ impl PreparedBuildExecution {
             &self.account,
             Arc::clone(&self.machine),
             &self.filesystem_scope,
+            self.execution_profile,
         )
         .map_err(|reason| {
             vec![Diagnostic::error(format!(

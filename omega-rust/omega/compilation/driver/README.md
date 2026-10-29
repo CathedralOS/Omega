@@ -58,8 +58,12 @@ rootless declarations when scalar obligations require completion, and otherwise
 stops before Terminal production. `--compare-single-targets --run` additionally
 compares shared-product bytes with independent compilation and executes the host
 image and reloaded Terminal artifact. Build-helper production in
-[package compilation](src/checked/package_compilation.rs) still uses the legacy
-source constant closure; this shared Product path does not retire that helper path.
+[package compilation](src/checked/package_compilation.rs) publishes the same
+checked source without private constant replay. The waiting Build activation
+owns exact slot admission, canonical scalar completion and component installation
+in [provider installation](../build-evaluation/src/terminal_execution/provider_installation.rs).
+Its live account pays the evaluation, and installed components retain completed
+scalar inputs for the rest of that invocation.
 
 The coordinator retains an ordered roster of completed outputs, errors and
 pending Terminal work. It borrows only the pending work for shared production,

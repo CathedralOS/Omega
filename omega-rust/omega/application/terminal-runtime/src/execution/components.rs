@@ -71,7 +71,9 @@ pub(super) fn prepare<'host, 'artifact>(
         component.selection().clone(),
         program.clone(),
         supplies,
-        runtime.scalar_applications(),
+        runtime
+            .scalar_applications()
+            .map(std::borrow::Cow::Borrowed),
     )
     .map_err(TerminalRuntimeError::ComponentBinding)?;
     let imports = binding.unbound_imports().collect::<Vec<_>>();

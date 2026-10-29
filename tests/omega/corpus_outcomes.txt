@@ -2003,6 +2003,12 @@ fail/build/explicit_lifetime_entry_context_unestablished_reference rejected 2336
 	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
 fail/build/explicit_provider_readiness_private rejected 1288ms expected @f229bab668eb
 	Build backing names no public implementation in its exact dependency package
+fail/build/explicit_provider_scalar_budget rejected 1389ms expected @ceaee13ac49a+wt
+	Build helper scalar completion: scalar evaluation execution: Execution(ExecutionSite { machine: MachineId(4), block: BlockId(36), operation: Some(OperationId(32)), cause: Fuel(InvocationCharge { site: Operation(OperationId(32)), reason: AllowanceExhausted(Fuel) }) })
+fail/build/explicit_provider_scalar_completion rejected 1357ms expected @ceaee13ac49a+wt
+	Build helper scalar completion: scalar predicate is false: requires contract for call require_offset from SelectedImage::retained_suffix_start: identity(size_of()) + 48 == 65
+fail/build/explicit_provider_storage_extent rejected 1317ms expected @ceaee13ac49a+wt
+	Build helper scalar completion: scalar predicate is false: index `16` of `table.slots`
 fail/build/generated_resolution_source_location rejected 345ms expected @a92f16431042
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 1021ms expected published:none @a92f16431042
@@ -24519,6 +24525,8 @@ pass/build/entry_schema_same_leaf_exit checked 1937ms check-target:macos_arm64 @
 pass/build/executed_exclusion_values_exit checked 1864ms check-target:macos_arm64 @5dd6fab9e76b
 pass/build/explicit_lifetime_entry_context_exit checked 1898ms check-target:macos_arm64 @a92f16431042
 pass/build/explicit_provider_readiness_exit checked 2301ms check-target:macos_arm64 interpreter-exit:0 @f229bab668eb
+pass/build/explicit_provider_scalar_completion_exit checked 2222ms check-target:macos_arm64 @ceaee13ac49a+wt
+pass/build/explicit_provider_storage_extent_exit checked 2214ms check-target:macos_arm64 @ceaee13ac49a+wt
 pass/build/freestanding_unselected_completion checked 5583ms @a92f16431042
 pass/build/generated_source_selects_authored checked 4405ms published:files/generated.omg @a92f16431042
 pass/build/installed_entry_ram_stack_occurrence_exit checked 6380ms check-target:macos_arm64 @3c5cd09b7f5d
