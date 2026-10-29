@@ -403,6 +403,18 @@ fn validate_structural_field_range_authority(
 ) -> Result<(), OptimizationUnitValidationError> {
     use abstract_operations::AbstractOperation as O;
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
+    macro_rules! require_operation {
+        ($operation:expr, $obligation:expr, $goal:expr) => {
+            require_accepted_goal_fact(
+                unit,
+                function.machine,
+                optimization_unit::PsiProvenance::Operation(*$operation),
+                Some(*$obligation),
+                Some($goal),
+            )?
+        };
+    }
+
     for node in function.block_nodes() {
         // Edge-owned receivers use the same immutable source-cut catalog as
         // instruction paths. Equal numeric edge/operation IDs are distinct
@@ -479,13 +491,7 @@ fn validate_structural_field_range_authority(
                 .ok_or_else(|| invalid.clone())?;
                 // Rewrites retain the accepted bounds and tiling fact only
                 // when it still proves this operation's exact current region.
-                require_accepted_goal_fact(
-                    unit,
-                    function.machine,
-                    optimization_unit::PsiProvenance::Operation(*psi_operation),
-                    Some(*obligation),
-                    Some(&goal),
-                )?;
+                require_operation!(psi_operation, obligation, &goal);
             }
             O::ElementViewWrite {
                 psi_operation,
@@ -541,13 +547,7 @@ fn validate_structural_field_range_authority(
                     *value,
                 )
                 .ok_or_else(|| invalid.clone())?;
-                require_accepted_goal_fact(
-                    unit,
-                    function.machine,
-                    optimization_unit::PsiProvenance::Operation(*psi_operation),
-                    Some(*obligation),
-                    Some(&goal),
-                )?;
+                require_operation!(psi_operation, obligation, &goal);
             }
             abstract_operations::byte_sequence_write_pair_pattern!(
                 psi_operation,
@@ -604,13 +604,7 @@ fn validate_structural_field_range_authority(
                     goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }
-                require_accepted_goal_fact(
-                    unit,
-                    function.machine,
-                    optimization_unit::PsiProvenance::Operation(*psi_operation),
-                    Some(*obligation),
-                    Some(&goal),
-                )?;
+                require_operation!(psi_operation, obligation, &goal);
             }
             O::EstablishByteSequenceConcatenation {
                 psi_operation,
@@ -655,13 +649,7 @@ fn validate_structural_field_range_authority(
                     ),
                     IntegerMathTerm::literal(IntegerValue::Unsigned(u128::from(*capacity))),
                 );
-                require_accepted_goal_fact(
-                    unit,
-                    function.machine,
-                    optimization_unit::PsiProvenance::Operation(*psi_operation),
-                    Some(*capacity_obligation),
-                    Some(&goal),
-                )?;
+                require_operation!(psi_operation, capacity_obligation, &goal);
             }
             abstract_operations::byte_sequence_store_pair_pattern!(
                 psi_operation,
@@ -692,13 +680,7 @@ fn validate_structural_field_range_authority(
                         value: IntegerValue::Unsigned(u128::from(capacity)),
                     },
                 );
-                require_accepted_goal_fact(
-                    unit,
-                    function.machine,
-                    optimization_unit::PsiProvenance::Operation(*psi_operation),
-                    Some(*obligation),
-                    Some(&goal),
-                )?;
+                require_operation!(psi_operation, obligation, &goal);
             }
             O::StructuralByteViewFieldStore {
                 psi_operation,
@@ -748,13 +730,7 @@ fn validate_structural_field_range_authority(
                         *source,
                         &[],
                     );
-                    require_accepted_goal_fact(
-                        unit,
-                        function.machine,
-                        optimization_unit::PsiProvenance::Operation(*psi_operation),
-                        Some(*obligation),
-                        Some(&goal),
-                    )?;
+                    require_operation!(psi_operation, obligation, &goal);
                 } else if !established.implies(required) {
                     return Err(invalid);
                 }
