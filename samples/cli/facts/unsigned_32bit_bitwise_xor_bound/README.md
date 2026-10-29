@@ -138,10 +138,21 @@ Non-singleton intervals are never evaluated only at their endpoints.
 All original exact subtractions and the final sum subtraction execute before
 an additional runtime check for the transported value 52. This makes a wrong
 join arm or wrong in-range value observable without a caller guard supplying
-the proof. Reject twins still change only the XOR mask to127, producing68;
-they must reject the original40..63 bound obligation before that runtime check.
+the proof. Reject twins still change only the XOR mask to 127, producing 68;
+they must reject the original 40..63 bound obligation before that runtime check.
 The target-body place uses ordinary X86/ARM implementations selected by explicit
-Build rows and separate17/29 entry/body guards; all nine places bind five hosted
+Build rows and separate 17/29 entry/body guards; all nine places bind five hosted
 profiles and request same-artifact Terminal installations. Fresh execution and
 rejection evidence is retained in the qualification record; historical claims
 above do not establish other-host native execution or parent-task closure.
+
+Fresh scoped comparison uses identical source and oracle bytes for 39 fixtures:
+16 original positive refusals become checked, three existing positive checks
+remain accepted, and all 20 intended rejects remain rejects. All nine places and
+root witnesses exit 0 in native execution and Terminal Psi on the observed host;
+the 19-positive corpus cohort also exits 0 natively on macOS ARM and X86 and runs
+all five Terminal installations against each unchanged artifact. Four wrong-join
+or wrong-field counterfactuals produce typed Terminal Trap. Native Trap
+termination is unverified because macOS leaves the negative processes exiting;
+those incomplete attempts are retained separately. Windows/Linux native runs
+and full parent migration acceptance remain open.
