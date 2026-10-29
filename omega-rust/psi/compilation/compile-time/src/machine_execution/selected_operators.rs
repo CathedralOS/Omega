@@ -134,14 +134,10 @@ pub(crate) fn prepare_selected_execution(
     }) {
         return Err("selected build-time expression has competing executable supplies".into());
     }
-    if selected.is_empty()
-        && operators.iter().all(|row| {
-            matches!(
-                program.expression_table.expression(row.expression),
-                ExpressionNode::Binary(_)
-            )
-        })
-    {
+    // Even an already-binary operation owes its authored selection below.
+    // Skipping that publication loses the source occurrence when preparation
+    // later copies this body into a concrete static application.
+    if selected.is_empty() && operators.is_empty() {
         return Ok(None);
     }
     let mut program = program.clone();
@@ -874,7 +870,7 @@ pub(crate) fn retain_specialized_operators(
             let Some(source_owner) = source.origin.machine_symbol() else {
                 continue;
             };
-            if !specialization_preserves_application(program, source_owner, owner)? {
+            if !specialization_copies_template(program, source_owner, owner)? {
                 continue;
             }
             let Some(occurrence) =
@@ -969,72 +965,50 @@ fn direct_operator_occurrence(
     selected
 }
 
-fn specialization_preserves_application(
+fn specialization_copies_template(
     program: &TypedTrees,
     source: symbols::SymbolHandle,
     instance: symbols::SymbolHandle,
 ) -> Result<bool, String> {
-    if source == instance {
+    if source == instance || program.machine_specialization(source).is_some() {
+        // A selected use in a closed instance is not a template receipt for
+        // another tuple. Its exact existing use remains in the supplied roster.
         return Ok(false);
     }
-    let mut source_rows = program
-        .machine_specializations
-        .iter()
-        .filter(|row| row.instance == source);
-    let mut instance_rows = program
+    let mut instances = program
         .machine_specializations
         .iter()
         .filter(|row| row.instance == instance);
-    let (Some(original), Some(application)) = (source_rows.next(), instance_rows.next()) else {
-        // A source occurrence alone is not a qualified execution application.
+    let Some(application) = instances.next() else {
         return Ok(false);
     };
-    if source_rows.next().is_some() || instance_rows.next().is_some() {
+    if instances.next().is_some() {
         return Err("selected operator copy has ambiguous specialization provenance".into());
     }
-    let (Some(source_machine), Some(instance_machine)) =
-        (program.machine(source), program.machine(instance))
-    else {
+    if application.template != source {
+        return Ok(false);
+    }
+    let (Some(template), Some(copy)) = (program.machine(source), program.machine(instance)) else {
         return Ok(false);
     };
-    if !original.binding_application.is_valid() || !application.binding_application.is_valid() {
-        return Err("selected operator copy lacks its exact specialization application".into());
-    }
-    let original_binding = program
-        .expression_table
-        .static_machine_applications()
-        .find(|(handle, _)| *handle == original.binding_application)
-        .map(|(_, binding)| binding)
-        .ok_or("selected operator source lost its exact specialization binding")?;
-    let current_binding = program
+    let binding = program
         .expression_table
         .static_machine_applications()
         .find(|(handle, _)| *handle == application.binding_application)
         .map(|(_, binding)| binding)
-        .ok_or("selected operator copy lost its exact specialization binding")?;
-    // The first closed application can reuse its template's symbol. Neither
-    // that representation nor a shared authored occurrence grants a different
-    // tuple the original application's execution selection.
-    Ok(original.template == application.template
-        && original.template_parameters == application.template_parameters
-        && original.type_argument_identities == application.type_argument_identities
-        && original.const_argument_identities == application.const_argument_identities
-        && original.machine_arguments == application.machine_arguments
-        && original.conformance_arguments == application.conformance_arguments
-        && original.conformance_applications == application.conformance_applications
-        && original.operator_realizations == application.operator_realizations
-        && original.normalized_template_identity == application.normalized_template_identity
-        && original.accepted_template_commitment == application.accepted_template_commitment
-        && original_binding.binding_declaration == original.template
-        && current_binding.binding_declaration == application.template
-        && original_binding.registration_operation == current_binding.registration_operation
-        && original_binding.conformance_selection == current_binding.conformance_selection
-        && program
-            .expression_table
-            .static_machine_application_lifetimes(original.binding_application)
-            == program
-                .expression_table
-                .static_machine_application_lifetimes(application.binding_application)
-        && program.source_target_context(source_machine)
-            == program.source_target_context(instance_machine))
+        .ok_or("selected operator copy lost its producer-owned static application")?;
+    if application.template_parameters != template.type_parameters
+        || binding.binding_declaration != source
+        || binding.registration_operation != source
+        || !binding.lexical_owner.is_valid()
+    {
+        return Err(
+            "selected operator copy does not retain its original template application".into(),
+        );
+    }
+    // This is the producer's body-copy edge, not equality of two invocation
+    // tuples. The copied operation keeps the same provider/requirement meaning;
+    // ordinary checking and invocation admission still judge its actual tuple,
+    // lexical lifetime arguments, requires, and executable body independently.
+    Ok(program.source_target_context(template) == program.source_target_context(copy))
 }
