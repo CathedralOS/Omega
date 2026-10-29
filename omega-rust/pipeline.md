@@ -424,6 +424,12 @@ Application artifact before publishing descriptions or entering the component
 cache. They do not first produce a disposable declaration artifact per target.
 Lazy review retains its earlier checking boundary because review evidence may
 be consumed without ever requesting a component.
+Named inspection joins the same batch with its selected machine as part of
+production identity. Equal selections share portable code and source-issued
+Build companions; different inspected roots remain distinct. Inspection completes
+declaration scalar and task obligations against that product without a
+ProgramEntry or native installation. External artifact inspection retains only
+the admitted artifact and cannot recreate the source-issued companions.
 
 Build-helper production publishes the checked source unchanged. The waiting
 Build activation admits each explicitly named provider slot, discovers its
