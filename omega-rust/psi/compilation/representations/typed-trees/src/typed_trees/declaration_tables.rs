@@ -47,6 +47,41 @@ impl TypedTrees {
         rows.next().is_none().then_some((implementation, row))
     }
 
+    /// A resolved named implementation qualifier calls its exact owned member,
+    /// including before executable preparation routes requirement syntax. This
+    /// is call classification, not conformance or provider admission. Runtime
+    /// bindings and same-shaped bodies cannot supply this declaration role.
+    pub fn direct_named_implementation_member(
+        &self,
+        implementation: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+    ) -> Option<symbols::SymbolHandle> {
+        let declaration = self
+            .product_declarations()
+            .conformance_by_symbol(implementation)?;
+        let mut rows = declaration
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization() && row.requirement == requirement);
+        let row = rows.next()?;
+        if rows.next().is_some() {
+            return None;
+        }
+        let (trait_owner, _) = self
+            .product_declarations()
+            .trait_machine_signature(requirement)?;
+        if row.declaring_trait != trait_owner.symbol {
+            return None;
+        }
+        let (owner, owned) = self.owned_conformance_realization(row.realization_machine)?;
+        if owner.symbol != implementation || owned != row {
+            return None;
+        }
+        let machine = self.machine_by_symbol(row.realization_machine)?;
+        let entry = self.machine_states(machine).first()?;
+        (entry.symbol == row.realization_state).then_some(entry.symbol)
+    }
+
     /// Nominal authority of one exact owned map member. The selected row,
     /// declaring trait, overload and authored entry must all agree; callable
     /// shape or another map referencing the same body grants no membership.

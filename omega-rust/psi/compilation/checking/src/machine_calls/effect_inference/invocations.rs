@@ -303,7 +303,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             call.static_machine_parameter,
             InvocationReceiver {
                 binding: receiver,
-                declaration: static_trait_receiver(self.program, call.receiver_symbol),
+                declaration: static_call_receiver(self.program, call.receiver_symbol),
             },
             self.program
                 .statement_table
@@ -336,7 +336,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             call.static_machine_parameter,
             InvocationReceiver {
                 binding: receiver,
-                declaration: expression_static_trait_receiver(self.program, call.receiver),
+                declaration: expression_static_call_receiver(self.program, call.receiver),
             },
             self.program
                 .expression_table
@@ -389,7 +389,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             static_machine_parameter,
             InvocationReceiver {
                 binding: receiver,
-                declaration: static_trait_receiver(self.program, path.receiver_symbol),
+                declaration: static_call_receiver(self.program, path.receiver_symbol),
             },
             arguments,
             direct,
@@ -431,19 +431,25 @@ impl InvocationCallSites<'_> {
     }
 }
 
-// Resolution owns declaration role. A binding value's type may name this
-// same trait, but its local/parameter/field symbol is never the trait symbol.
+// Resolution owns declaration role. A runtime binding may have a trait type,
+// but its local/parameter/field symbol is neither that trait nor a named map.
 // Do not reconstruct this fact from a collapsed InvocationTarget::Service.
-fn static_trait_receiver(
+fn static_call_receiver(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     program
         .trait_definition_by_symbol(symbol)
         .map(|owner| owner.symbol)
+        .or_else(|| {
+            program
+                .product_declarations()
+                .conformance_by_symbol(symbol)
+                .map(|owner| owner.symbol)
+        })
 }
 
-fn expression_static_trait_receiver(
+fn expression_static_call_receiver(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -453,7 +459,7 @@ fn expression_static_trait_receiver(
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
-    static_trait_receiver(program, path.symbol)
+    static_call_receiver(program, path.symbol)
 }
 
 fn origin_for_statement_receiver(
@@ -549,6 +555,16 @@ fn push_call(
     calls: &mut Vec<CallWork>,
     state_to_machine: &StateToMachine,
 ) {
+    // A source-qualified named map is an ordinary static call even when its
+    // syntax still names the requirement. Retained evaluation validates the
+    // authored graph before executable routing; recover only the exact owned
+    // member, never a shape, trait default or runtime binding's receiver type.
+    let target = receiver
+        .declaration
+        .and_then(|implementation| {
+            program.direct_named_implementation_member(implementation, target)
+        })
+        .unwrap_or(target);
     // A direct request for an exact Core catalogue arithmetic meaning is a
     // compiler semantic primitive, rather than a user-selected component
     // invocation. Ordinary copies and same-shaped traits do not authenticate.
