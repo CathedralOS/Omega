@@ -254,6 +254,9 @@ impl StateGraphEmission<'_, '_> {
                     &state.operations,
                     transfer,
                 );
+                if loan_backing.is_some() && !transfer.incoming_loan_resources.is_empty() {
+                    return unsupported("state loan ingress contradicts local owned backing");
+                }
                 let mut loan_backing_home = None;
                 let mut place = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations: ref selected } => {
@@ -844,7 +847,12 @@ impl StateGraphEmission<'_, '_> {
                 // Shared loan subjects keep their backing local's storage
                 // for the loan's duration exactly like mutable ones: the
                 // activation-entry home dies once at the machine's return.
+                // Complete incoming provenance denotes caller/provider backing.
+                // A local descriptor over it is not a locally owned lender home.
+                // Its recorded parent/operand debts above and selected carrier
+                // cleanup remain independent of this referent-home judgment.
                 if chain_arrival.is_none()
+                    && transfer.incoming_loan_resources.is_empty()
                     && matches!(
                         target_parameter.access,
                         checked_trees::CheckedStructuralAccess::MutableBorrow
