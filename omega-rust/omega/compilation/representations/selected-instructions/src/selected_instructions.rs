@@ -37,6 +37,7 @@ pub use functions::SelectedFunctions;
 pub mod effects;
 pub mod identity;
 pub mod instructions;
+pub mod kind_encoding;
 mod packed_byte_width;
 pub use packed_byte_width::PackedByteWidth;
 pub mod live_ranges;
