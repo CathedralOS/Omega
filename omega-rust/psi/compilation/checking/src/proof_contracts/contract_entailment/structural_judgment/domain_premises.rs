@@ -203,9 +203,15 @@ impl StructuralJudge<'_> {
         // The tag guard alone supplies no default-domain admission. Retain
         // the original observed subject identity; the fresh constructor is a
         // pattern view of that value's selected fields, not a new owner.
-        if !definition.where_facts.is_empty()
-            && self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type)
-        {
+        let admitted =
+            self.has_admitted_nominal_subject(subject_expression, admitted_subject, subject_type);
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT case-domain data={} case={} admitted={} reference={:?} subject={:?}",
+                definition.name, variant.name, admitted, subject_type, admitted_subject
+            );
+        }
+        if !definition.where_facts.is_empty() && admitted {
             let mut complete = true;
             let mut projections = Vec::new();
             for field in program
@@ -228,6 +234,12 @@ impl StructuralJudge<'_> {
                         symbol: field.symbol,
                     }],
                 ) else {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT case-domain projection-refused data={} field={} reference={:?}",
+                            definition.name, field.name, subject_type
+                        );
+                    }
                     complete = false;
                     break;
                 };
