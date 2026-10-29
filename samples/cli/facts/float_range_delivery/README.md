@@ -119,5 +119,7 @@ producer keeps its actual source revision. Source hashes and raw engine records
 are retained with the qualification evidence. Same-artifact multi-target
 installation, matching x86 execution, override/availability/spoof controls,
 canonical corpus recording, and the complete repository prefix/family migration
-remain open. Earlier execution claims above describe the pre-migration
+remain open. The [user-authored catalogue-shaped claim](../../../../tests/omega/pass/providers/copied_numeric_catalogue_claim/main.omg)
+keeps an exact canonical float contract but receives no implicit compiler supply;
+its build-only pin expects native publication to refuse, never a runtime pass. Earlier execution claims above describe the pre-migration
 implementation; these observations establish only this continuation's range row.
