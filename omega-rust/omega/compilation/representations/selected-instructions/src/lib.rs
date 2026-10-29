@@ -8,6 +8,8 @@
 mod codec_bytes;
 
 pub(crate) use optimization_core::digest_encoder;
+#[cfg(feature = "test-support")]
+pub mod fixture;
 pub use terminal_psi::{
     ControlRegister, InterruptControlKind, MemoryFenceKind, RegisterOperation,
     RegisterTargetApplicability, SystemRegister,

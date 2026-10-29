@@ -20,10 +20,20 @@ pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> Machine
 
 #[cfg(test)]
 mod tests {
+    use crate::selected_form_encoding::ValidatedX86_64SelectedFormEncoding;
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-        SelectedInstructionKind,
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, fixture,
     };
+
+    impl fixture::EncodedWord for ValidatedX86_64SelectedFormEncoding {
+        fn encoded_bytes(&self) -> &[u8] {
+            self.bytes()
+        }
+
+        fn encoded_effects(&self) -> &MachineEncodedEffects {
+            &self.footprint().encoded
+        }
+    }
 
     #[test]
     fn crash_rejects_changed_bytes_operands_and_alternatives() {
@@ -31,92 +41,29 @@ mod tests {
             crate::x86_64_physical_register_model(),
         )
         .unwrap();
-        let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::Crash,
-            variant: 0,
-        };
-        let encode = |physical, alternative, operands| {
-            crate::encode_x86_64_selected_form(
-                physical,
-                SelectedInstructionKind::Crash,
-                alternative,
-                operands,
-            )
-        };
-        let validate = |physical, alternative, operands, bytes| {
-            crate::validate_x86_64_selected_form_encoding(
-                physical,
-                SelectedInstructionKind::Crash,
-                alternative,
-                operands,
-                bytes,
-            )
-        };
-        let encoded = crate::encode_x86_64_selected_form(
-            &physical,
-            SelectedInstructionKind::Crash,
-            alternative,
-            &[],
-        )
-        .unwrap();
-        assert_eq!(encoded.bytes(), &[0x0f, 0x0b]);
-        assert_eq!(
-            encoded.footprint().encoded,
-            MachineEncodedEffects::crash_v1(&physical.model().view_named("rip").unwrap().units)
-        );
-        for bit in 0..16 {
-            let mut bytes = encoded.bytes().to_vec();
-            bytes[bit / 8] ^= 1 << (bit % 8);
-            assert!(
+        fixture::assert_crash_refusals(
+            fixture::CrashWord {
+                physical: &physical,
+                bytes: &[0x0f, 0x0b],
+                program_counter: "rip",
+                foreign_operand: "rax",
+            },
+            MachineAlternativeKey {
+                family: MachineAlternativeFamily::Crash,
+                variant: 0,
+            },
+            |kind, alternative, operands| {
+                crate::encode_x86_64_selected_form(&physical, kind, alternative, operands)
+            },
+            |kind, alternative, operands, bytes| {
                 crate::validate_x86_64_selected_form_encoding(
                     &physical,
-                    SelectedInstructionKind::Crash,
+                    kind,
                     alternative,
-                    &[],
-                    &bytes,
+                    operands,
+                    bytes,
                 )
-                .is_err()
-            );
-        }
-        let mut extended = encoded.bytes().to_vec();
-        extended.push(0);
-        for bytes in [&extended[..], &encoded.bytes()[..1]] {
-            assert!(validate(&physical, alternative, &[], bytes).is_err());
-        }
-        let view = physical.model().view_named("rax").unwrap().id;
-        let unexpected_operands = [view];
-        assert!(encode(&physical, alternative, &unexpected_operands).is_err());
-        assert!(
-            encode(
-                &physical,
-                MachineAlternativeKey {
-                    variant: 1,
-                    ..alternative
-                },
-                &[]
-            )
-            .is_err()
-        );
-        assert!(
-            encode(
-                &physical,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::ReturnUnit,
-                    variant: 0
-                },
-                &[]
-            )
-            .is_err()
-        );
-        assert!(
-            crate::validate_x86_64_selected_form_encoding(
-                &physical,
-                SelectedInstructionKind::ReturnUnit,
-                alternative,
-                &[],
-                encoded.bytes(),
-            )
-            .is_err()
+            },
         );
     }
 }
