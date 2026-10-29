@@ -204,10 +204,7 @@ pub(crate) fn declaration(
         ) {
             MachineSizeKnowledge::ExactBytes(1)
         } else {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 1,
-                maximum_bytes: Some(40),
-            }
+            crate::encoder_resolved(1, Some(40))
         },
         effects(operation),
     )

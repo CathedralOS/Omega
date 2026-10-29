@@ -940,14 +940,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::SystemRegisterRead
         | MachineSemanticKind::SystemRegisterWrite
         | MachineSemanticKind::ControlRegisterRead
-        | MachineSemanticKind::ControlRegisterWrite => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 1,
-            maximum_bytes: Some(40),
-        },
-        MachineSemanticKind::PlacedScalarAccess(_) => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 7,
-            maximum_bytes: Some(9),
-        },
+        | MachineSemanticKind::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
+        MachineSemanticKind::PlacedScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
         MachineSemanticKind::PortWrite => {
             MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16)
         }
@@ -958,10 +952,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)
         }
-        MachineSemanticKind::AtomicAccess(_) => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 1,
-            maximum_bytes: None,
-        },
+        MachineSemanticKind::AtomicAccess(_) => crate::encoder_resolved(1, None),
         MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic uses its dedicated declaration")
         }
@@ -979,10 +970,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::CopyI64 => MachineSizeKnowledge::ExactBytes(3),
         MachineSemanticKind::CompareI64Immediate => MachineSizeKnowledge::ExactBytes(7),
         MachineSemanticKind::Float32ToBits | MachineSemanticKind::BitsToFloat32 => {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 4,
-                maximum_bytes: Some(5),
-            }
+            crate::encoder_resolved(4, Some(5))
         }
         MachineSemanticKind::Float64ToBits | MachineSemanticKind::BitsToFloat64 => {
             MachineSizeKnowledge::ExactBytes(5)
@@ -1024,32 +1012,15 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseOrI64
         | MachineSemanticKind::BitwiseNotI64
-        | MachineSemanticKind::BitwiseXorI64 => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 3,
-            maximum_bytes: Some(6),
-        },
+        | MachineSemanticKind::BitwiseXorI64 => crate::encoder_resolved(3, Some(6)),
         MachineSemanticKind::ByteViewAddress
         | MachineSemanticKind::WrappingAddI64
-        | MachineSemanticKind::ExactAddI64 => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 4,
-            maximum_bytes: Some(5),
-        },
-        MachineSemanticKind::ExactAddI64Immediate => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 4,
-            maximum_bytes: Some(8),
-        },
-        MachineSemanticKind::ExactSubtractI64Immediate => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 4,
-            maximum_bytes: Some(8),
-        },
+        | MachineSemanticKind::ExactAddI64 => crate::encoder_resolved(4, Some(5)),
+        MachineSemanticKind::ExactAddI64Immediate => crate::encoder_resolved(4, Some(8)),
+        MachineSemanticKind::ExactSubtractI64Immediate => crate::encoder_resolved(4, Some(8)),
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan => {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 2,
-                maximum_bytes: Some(6),
-            }
-        }
+        | MachineSemanticKind::ConditionalBranchI64LessThan => crate::encoder_resolved(2, Some(6)),
         MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::ReturnUnit => MachineSizeKnowledge::ExactBytes(1),

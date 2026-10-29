@@ -8,7 +8,7 @@ use selected_instructions::{
     LocalStorageSlotId, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    MachineSemanticKind, MachineTrapBehavior, SelectedInstructionKind,
 };
 
 pub(crate) fn effects(restore: bool) -> MachineEncodedEffects {
@@ -66,10 +66,7 @@ pub(crate) fn declaration(
         MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineBarrier::ExternalEffect,
         semantic.into(),
-        MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 4,
-            maximum_bytes: Some(8),
-        },
+        crate::encoder_resolved(4, Some(8)),
         effects(restore),
     )
 }
