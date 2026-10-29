@@ -66,4 +66,154 @@ impl Execution<'_, '_, '_> {
             *retention = Some(self.reinterpreted_view_retention(source, lifetime));
         }
     }
+    /// A complete conservative footprint is separate from the exact pointer
+    /// roster. Preserve it with the descriptor through stores and forwarding.
+    pub(super) fn retain_possible_storage(
+        &mut self,
+        value: &mut FlowOperandFact,
+        places: &[validation::CanonicalPlace],
+    ) {
+        if places.is_empty()
+            || !self
+                .context
+                .control
+                .operand_retentions
+                .is_valid(value.retention)
+        {
+            return;
+        }
+        let possible_storage = self.append_referent_places(places);
+        let profile = *self.context.control.operand_retentions.get(value.retention);
+        value.retention = self
+            .context
+            .control
+            .operand_retentions
+            .insert(FlowOperandRetention {
+                possible_storage,
+                ..profile
+            });
+    }
+
+    pub(super) fn completed_backing_places(
+        &mut self,
+        value: &FlowOperandFact,
+    ) -> Option<Vec<validation::CanonicalPlace>> {
+        let places = if !value.referents.is_empty() {
+            validation::completed_storage::direct_referent_places(
+                &self.context.control,
+                value.referents,
+            )?
+        } else {
+            let operand = self.context.control.operands.insert(*value);
+            validation::completed_storage::reference_backing_places(
+                self.program,
+                &self.context.control,
+                operand,
+                &[],
+                &mut |_, _| None,
+            )?
+        };
+        Some(
+            places
+                .into_iter()
+                .map(|place| validation::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments,
+                })
+                .collect(),
+        )
+    }
+
+    pub(super) fn capture_invocation_backing(
+        &mut self,
+        invocation: Handle<checked_trees::FlowCallFact>,
+        value: &FlowOperandFact,
+    ) -> Option<Vec<validation::CanonicalPlace>> {
+        if !self.context.control.calls.is_valid(invocation) {
+            return None;
+        }
+        let call = self.context.control.calls.get(invocation).clone();
+        if call.authored_expression != value.expression
+            || call.statement_index != self.statement_index
+        {
+            return None;
+        }
+        let source = self.program.expression_table.call_node(value.expression)?;
+        if !source.carries_only_positional_arguments() || !source.selects_only_nominal_route() {
+            return None;
+        }
+        let output = validation::reference_shell(self.program, value.type_reference)?;
+        let state = validation::call_target_state(self.program, call.target_symbol)?;
+        let machine = self.program.machine_holding_state(state.symbol)?;
+        if !machine.body_is_present
+            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || machine.attached_data.is_some()
+        {
+            return None;
+        }
+        let parameters = self.program.state_parameters(state);
+        let actuals = self
+            .context
+            .control
+            .operands
+            .span_or_empty(call.operands)
+            .to_vec();
+        if actuals.len() != parameters.len() {
+            return None;
+        }
+        let origins = self
+            .context
+            .call_frames?
+            .reference_result_leaf_origins(state.symbol)?;
+        let mut backing = Vec::new();
+        for origin in origins {
+            let source = origin.source;
+            if !origin.result_path.is_empty()
+                || source.is_image_storage
+                || source.invocation_output.is_some()
+                || !source.recasts.is_empty()
+                || source.representation.is_some()
+            {
+                return None;
+            }
+            let argument_index = parameters
+                .iter()
+                .position(|parameter| parameter.symbol == source.root)?;
+            let actual = actuals.get(argument_index)?;
+            let input = validation::reference_shell(self.program, actual.type_reference)?;
+            let mut segments = source
+                .segments
+                .into_iter()
+                .map(|segment| {
+                    segment.erase_runtime_selector(|expression| {
+                        self.program
+                            .expression_table
+                            .range_node(expression)
+                            .is_some()
+                    })
+                })
+                .collect();
+            crate::flow::compose_captured_view_segments(&mut segments)?;
+            // A field below an unobserved stored pointer belongs to another
+            // namespace. Refuse that crossing instead of treating its home as
+            // the referee. Lifetime correspondence supplies no missing origin.
+            let selected = validation::owned_projection_type_reference(
+                self.program,
+                input.referee,
+                &segments,
+            )?;
+            if !validation::storage_origin_types_match(self.program, selected, output.referee) {
+                return None;
+            }
+            let addresses = self.completed_backing_places(actual)?;
+            if addresses.is_empty() {
+                return None;
+            }
+            for address in addresses {
+                let place = crate::flow::project_captured_view_place(address, &segments)?;
+                crate::collections::push_unique(&mut backing, place);
+            }
+        }
+        (!backing.is_empty()).then_some(backing)
+    }
 }

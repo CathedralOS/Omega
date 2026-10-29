@@ -1,0 +1,42 @@
+// Borrowed results retain their checked field domains and selected element, so inspection reads that element.
+// Expected exit: 0
+public domain [u8; 4]::Ascii requires ascii_only(self);
+public data Cell [copy] { storage: [u8; 4] in Ascii; stamp: u64; }
+public data Table [copy] { cells: [Cell; 2]; }
+public machine choose(table: &mut Table, index: u64) -> &mut Cell
+requires index < 2 {
+    let cells: &mut [Cell] = &mut table.cells[..];
+    &mut cells[index]
+}
+public machine relay(table: &mut Table, index: u64) -> &mut Cell
+requires index < 2 { choose(table, index) }
+machine inspect(cell: &Cell) -> u8 { cell.storage[0] }
+boundary trait Probe {
+    machine get(table: &mut Table, index: u64) -> &mut Cell reaches
+    requires index < 2;
+}
+Selected satisfies Probe {
+    machine get(table: &mut Table, index: u64) -> &mut Cell
+    requires index < 2 { relay(table, index) }
+}
+machine observe(table: &mut Table, index: u64) -> u8
+requires index < 2 {
+    let selected: &mut Cell = Probe::get(table, index);
+    selected.stamp = 0xF1;
+    inspect(selected)
+}
+machine main() crashes Trap {
+    let mut table: Table = Table { cells: [Cell { storage: [65u8, 0u8, 0u8, 0u8], stamp: 11 }, Cell { storage: [66u8, 0u8, 0u8, 0u8], stamp: 13 }] };
+    let first: u8 = observe(&mut table, 0);
+    let first_written: u64 = table.cells[0].stamp;
+    let first_neighbor: u64 = table.cells[1].stamp;
+    let second: u8 = observe(&mut table, 1);
+    transition first == 65 && second == 66 && first_written == 0xF1 && first_neighbor == 13
+        && table.cells[0].stamp == 0xF1 && table.cells[1].stamp == 0xF1
+        && table.cells[0].storage[0] == 65 && table.cells[1].storage[0] == 66
+        && table.cells[0].storage[1] == 0 && table.cells[0].storage[2] == 0 && table.cells[0].storage[3] == 0
+        && table.cells[1].storage[1] == 0 && table.cells[1].storage[2] == 0 && table.cells[1].storage[3] == 0 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}

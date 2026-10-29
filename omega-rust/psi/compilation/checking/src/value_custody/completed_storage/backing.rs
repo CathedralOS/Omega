@@ -80,6 +80,13 @@ impl Resolver<'_, '_> {
             }
             return Some(output);
         }
+        if path.is_empty()
+            && let Some(profile) = self.profile(&capture)
+            && !profile.possible_storage.is_empty()
+            && profile.alternatives.is_empty()
+        {
+            return super::direct_referent_places(self.control, profile.possible_storage);
+        }
         match frozen_reference_leaf(self.program, self.control, operand, path) {
             FrozenReferenceSelection::Unavailable => return None,
             FrozenReferenceSelection::Endpoint { leaf, .. } => {
@@ -247,6 +254,12 @@ impl Resolver<'_, '_> {
         // retained signature lifetime debts; alternatives were joined above.
         if row.immutable_image {
             return Some(ProfileBacking::Known(Vec::new()));
+        }
+        if !row.possible_storage.is_empty() {
+            return Some(ProfileBacking::Known(super::direct_referent_places(
+                self.control,
+                row.possible_storage,
+            )?));
         }
         if row.enclosing_storage.is_valid() {
             return Some(ProfileBacking::Known(
