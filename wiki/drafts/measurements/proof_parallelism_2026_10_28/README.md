@@ -188,3 +188,5 @@ Follow-up: [remaining scans and joins](scans_joins/README.md) attributes retirem
 Follow-up: [shared predicate membership hoist](shared_membership/README.md) removes 93.4% of shared comparisons and preserves exact payload maps, but six paired whole-compile observations remain mixed. The compiler change is parked.
 
 Follow-up: [snapshot intersection fusion](snapshot_fusion/README.md) removes 14.76% of membership-row visits while preserving exact intersections and COW counts. Six paired observations reject promotion: replay is slower in 5/6 and whole compile in 4/6. The candidate is preserved as a patch.
+
+Follow-up: [snapshot handle-copying cost](handle_copy_cost/README.md) measures 16.87-18.87 ms of immediate COW materialization for 5.08 million copied handles, with 0.37-0.47 ms empty-clock interval references. Filtering costs 203-231 ms; no optimization is applied.
