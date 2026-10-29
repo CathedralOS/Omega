@@ -15,6 +15,16 @@
         "name": "refresh",
         "value": "refresh .35s ease-out",
         "purpose": "Tonal flash from #332b20, disabled for reduced motion."
+      },
+      {
+        "name": "cohort",
+        "value": "550ms ease",
+        "purpose": "Reveal bar lengths; disabled for reduced motion."
+      },
+      {
+        "name": "tab",
+        "value": "200ms ease",
+        "purpose": "Fade the selected panel; disabled for reduced motion."
       }
     ],
     "breakpoints": [
@@ -34,13 +44,13 @@
       "kind": "button",
       "refersTo": "cell-pass",
       "description": "A symbol and accessible label accompany semantic color in the dark fact grid.",
-      "html": "<button class=\"ds-cell\" aria-label=\"Local: recorded positive pass and reject controls at this clean revision\">✓</button>",
+      "html": "<button class=\"ds-cell\" aria-label=\"Local: recorded positive pass and reject controls at this clean revision\">\u2713</button>",
       "css": ".ds-cell{display:inline-grid;place-items:center;min-height:25px;width:29px;padding:0;border:1px solid transparent;border-radius:5px;background:#1b322b;color:#75d8b0;font:500 13px/1.55 -apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-cell:focus-visible{outline:2px solid #71adff;outline-offset:4px}"
     }
   ],
   "narrative": {
     "northStar": "User-supplied Claude host comparison, with Mebius control grouping",
-    "overview": "Charcoal evidence workspace centered on one shared native execution chart. Direct host labels and stable colors make the comparison readable; exact counts, dates and source revisions remain inspectable.",
+    "overview": "Chart-first Overview compares the fixed September 30 cohort, current corpus and growth sources. Facts, Work and Evidence details reveal focused information on demand.",
     "keyCharacteristics": [
       "Shared host/date/count axes",
       "Direct separated endpoint labels",

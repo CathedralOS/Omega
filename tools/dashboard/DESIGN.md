@@ -1,6 +1,6 @@
 ---
 name: Omega Compiler Observatory
-description: A dark evidence workspace centered on a shared host comparison.
+description: A chart-first workspace with fixed-cohort comparison and focused evidence tabs.
 colors:
   paper: "#101318"
   card: "#191d24"
@@ -75,17 +75,19 @@ remain at least 12px, and provenance uses monospace. Names and notes wrap.
 
 ## Layout
 
-The workspace caps at 1440px with 32px desktop gutters. A short introduction and
-revision strip precede the full-width host comparison. Three compact metrics,
-expandable native receipts, then a fact grid with a secondary outcome chart and
-full-width claims follow. At 1100px the evidence workspace stacks; at 700px the
-whole page uses one column and 16px gutters. The nine-place table scrolls locally.
+The workspace caps at 1440px with 32px desktop gutters. Icon tabs show one view
+at a time. Overview pairs run-rate and growth-source charts above host history.
+Facts contains the grid and observation chart; Work contains claims. Evidence
+details opens a native dialog for methods, receipts and provenance. At 1100px
+the workspace stacks; at 700px it uses one column and 16px gutters. The nine-place
+table scrolls locally.
 
 ## Elevation & Depth
 
 Thin neutral borders and a faint 0 6px 24px shadow separate panels. The chart's
 charcoal gradient is subtle. Controls brighten on hover; panels do not move.
-Refresh uses a short tonal flash; reduced-motion mode disables transitions.
+Refresh uses a short tonal flash, bars enter over 550ms, and tabs fade over
+200ms. Reduced-motion mode disables animations and transitions.
 
 ## Shapes
 
@@ -94,6 +96,11 @@ Avoid extra decorative badges or artwork around the data.
 
 ## Components
 
+- Run rates uses baseline, same-set-now and all-now bars on a percentage axis.
+  Growth sources separates recovered old IDs from new running IDs with direct
+  numeric labels; the muted new-program fill is #5b7698.
+- Tabs support arrow keys and maintain one selected panel. Evidence details
+  uses native dialog focus handling and Escape dismissal.
 - The shared chart defaults to all available hosts on common zero-based count
   and date axes. Desktop end labels separate vertically and use leader lines
   when values are close. Mobile labels move below the plot without shrinking.

@@ -27,3 +27,6 @@ The user selected Mebius Charts as the visual reference.
 The user subsequently supplied a Claude dashboard screenshot and artifact text
 as the preferred comparison: shared host axes, direct series labels and clear
 separation of counts, cohort sizes and evidence dates.
+The latest request adds Claude's fixed-cohort comparison and reduces default
+reading: show chart values first, use icon tabs for Facts and Work, and keep
+methods and provenance in an accessible Evidence details dialog.
