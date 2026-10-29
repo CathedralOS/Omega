@@ -653,6 +653,17 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
         for (key, semantic) in selected_memory_rules(&environment) {
             let contract = memory_contract(semantic, case.target.architecture);
             let row = environment.constraint(key).unwrap();
+            macro_rules! reject_encoded {
+                ($corrupted:expr, $message:literal $(, $arg:expr)*) => {
+                    assert_eq!(
+                        validate_effects(case, environment.constraints(), $corrupted),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
+                        $message $(, $arg)*
+                    );
+                };
+            }
 
             // The declared footprint cannot be silently replaced: a real
             // access encoded as none (or none encoded as a pointer write)
@@ -665,11 +676,8 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             } else {
                 MachineEncodedMemoryEffect::NoneV1
             };
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
+            reject_encoded!(
+                corrupted,
                 "{key:?} memory-footprint substitution must reject"
             );
 
@@ -721,13 +729,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                     .encoded
                     .memory = drifted;
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} drifted footprint must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} drifted footprint must reject");
             }
 
             // Trap drift is rejected at the layer that owns it: understating
@@ -761,13 +763,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .control = MachineEncodedControlEffect::ConditionalRelativeBranchV1;
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} branch-encoded memory rule must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} branch-encoded memory rule must reject");
 
             // A stack lifecycle cannot be forged onto a memory rule: no
             // admitted shape joins a byte pop with these semantics.
@@ -778,13 +774,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 stack_pointer,
                 byte_count: 8,
             };
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged stack lifecycle must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
 
             // Dropping encoded stack-pointer custody understates the row's
             // contracted uses and fails structural admission.
@@ -797,13 +787,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                     "{key:?} declares no stack-pointer use"
                 );
                 encoded.implicit_unit_uses.remove(0);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} lost stack-pointer use must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} lost stack-pointer use must reject");
             }
 
             // Dropping an encoded clobber understates the interference the
@@ -815,13 +799,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                     .encoded
                     .implicit_unit_clobbers
                     .remove(0);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} lost encoded clobber must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
             }
 
             // A forged implicit definition outside the row's empty def set
@@ -831,13 +809,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                 .encoded
                 .implicit_unit_defs
                 .push(foreign_unit);
-            assert_eq!(
-                validate_effects(case, environment.constraints(), corrupted),
-                Err(EffectRejection::Structural(
-                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                )),
-                "{key:?} forged implicit def must reject"
-            );
+            reject_encoded!(corrupted, "{key:?} forged implicit def must reject");
 
             // Dropping encoded operand custody understates the constraint
             // row's contracted definitions and fails structural admission on
@@ -848,13 +820,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                     .encoded
                     .external_operand_writes;
                 writes.retain(|write| *write != dropped);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} lost operand write must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} lost operand write must reject");
             }
 
             // Dropping an encoded operand read understates the contracted
@@ -866,13 +832,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
                     .encoded
                     .external_operand_reads;
                 reads.retain(|read| *read != dropped);
-                assert_eq!(
-                    validate_effects(case, environment.constraints(), corrupted),
-                    Err(EffectRejection::Structural(
-                        MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
-                    )),
-                    "{key:?} lost operand read must reject"
-                );
+                reject_encoded!(corrupted, "{key:?} lost operand read must reject");
             }
 
             // A size-knowledge drift keeps a structurally valid bound, so
