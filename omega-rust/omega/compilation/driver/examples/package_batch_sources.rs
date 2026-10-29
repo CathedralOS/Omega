@@ -48,6 +48,38 @@ fn measure() {
     .expect("batch workspace");
     let mut session = BuildSession::create(workspace.path()).expect("batch resources");
     let mut completed = Vec::new();
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--service-audits")) {
+        let (mut requests, custody) = discover(
+            &mut session,
+            &mut completed,
+            &root.join("tests/omega/pass/effects/root_service_audit/main.omg"),
+            &[TargetProfile::host_if_supported().expect("Build host")],
+            CompilationProduct::Check,
+        );
+        let build = omega_build::prepare_package(
+            session.compiler(),
+            requests.remove(0).occurrences,
+            &mut completed,
+        )
+        .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()));
+        let review = session
+            .compiler()
+            .review_package_build(build, usize::MAX)
+            .expect("service audit review");
+        let services = review.evidence.policy.service_audits();
+        assert_eq!(
+            services.len(),
+            1,
+            "duplicates collapse; untaken and dependency registrations stay absent"
+        );
+        assert_eq!(services[0].path(), "MotorControl");
+        println!(
+            "service_audits=1 selected=MotorControl duplicate_collapsed=true untaken_absent=true dependency_policy_absent=true"
+        );
+        drop(custody);
+        session.close().expect("close audit resources");
+        return;
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--inspection-scalars")) {
         measure_inspection_scalars(&mut session, &mut completed, &root);
         measure_inspection_roots(&mut session, &mut completed, &root);

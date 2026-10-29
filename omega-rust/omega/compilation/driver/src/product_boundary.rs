@@ -2,6 +2,45 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn product_declaration_admission_belongs_to_psi() {
+    let coordinator = include_str!("checked/checking/product_selections.rs");
+    assert!(coordinator.contains("source.admit_product_declarations("));
+    for forbidden in [
+        "mod additional_declarations",
+        "resolve_product_path(",
+        "WireCompatibilityFact",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let admission =
+        include_str!("../../../../psi/compilation/compile-time/src/product_declarations.rs");
+    for required in [
+        "request.validate_shape()",
+        "resolve_build_request_author(",
+        "symbol_package_identity(root)",
+        "declared.contains(request)",
+    ] {
+        assert!(
+            admission.contains(required),
+            "Psi admission lost {required}"
+        );
+    }
+    for forbidden in ["ComputedBuildConfig", "provider_planning::", "effects::"] {
+        assert!(
+            !admission.contains(forbidden),
+            "Psi admission depends on {forbidden}"
+        );
+    }
+    let legacy = include_str!("../../../../psi/compilation/compile-time/src/assumed_bindings.rs");
+    assert!(!legacy.contains("collect_executed_assumed_bindings"));
+    let compile_time = include_str!("../../../../psi/compilation/compile-time/src/lib.rs");
+    assert!(!compile_time.contains("harvest_wire_compatibility_demands"));
+}
+
+#[test]
 fn source_entry_admission_never_calls_omega_with_typed_trees() {
     let query = include_str!("checked/checking/product_queries.rs");
     assert!(query.contains("&target::ProgramEntrySlots"));

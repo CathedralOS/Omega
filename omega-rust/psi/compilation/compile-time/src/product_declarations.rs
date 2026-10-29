@@ -1,14 +1,32 @@
-//! The remaining declaration selections share source formation and the same
-//! authenticated execution ledger as provider and representation choices.
-//! Admission precedes this activation's generated source extension.
+//! Admit Product audit, assumed-binding and wire declarations after source join.
+//!
+//! Formation checks every authored request, including untaken calls. Only the
+//! authenticated execution ledger selects outputs. Runtime provider compatibility
+//! and package review consume these declarations; admission executes neither.
 
-use compilation_products::{ComputedBuildConfig, ServiceAuditRegistration};
+use crate::assumed_bindings::AssumedBindingContract;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    BuildOperation, ProductDeclarationRequest, ProductOperandRole,
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,
 };
+use language_semantics::wire::WireCompatibilityDemand;
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+
+/// The exact service identity selected for review; the name is diagnostic only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceAuditRegistration {
+    pub identity: String,
+    pub name: String,
+}
+
+/// Source-admitted declarations, not provider selection or execution authority.
+pub struct AdmittedProductDeclarations {
+    pub service_audits: Vec<ServiceAuditRegistration>,
+    pub assumed_bindings: Vec<AssumedBindingContract>,
+    pub wire_demands: Vec<WireCompatibilityDemand>,
+}
 
 fn supported(operation: BuildOperation) -> bool {
     matches!(
@@ -40,12 +58,13 @@ fn operand(
             .with_source_span(selected.source_span))
 }
 
-pub(super) fn admit(
+pub fn admit(
     typed: &TypedTrees,
-    computed: &mut ComputedBuildConfig,
-) -> Result<(), Vec<Diagnostic>> {
-    for request in computed
-        .declared_product_selections
+    activation: Option<SymbolHandle>,
+    declared: &[Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+) -> Result<AdmittedProductDeclarations, Vec<Diagnostic>> {
+    for request in declared
         .iter()
         .filter(|request| supported(request.operation))
     {
@@ -63,19 +82,17 @@ pub(super) fn admit(
     }
     let mut audits = Vec::<ServiceAuditRegistration>::new();
     let mut assumed = Vec::new();
-    let mut wire = Vec::<language_semantics::wire::WireCompatibilityDemand>::new();
-    for event in computed
-        .product_selection_requests
+    let mut wire = Vec::<WireCompatibilityDemand>::new();
+    for event in executed
         .iter()
         .filter(|event| supported(event.request.operation))
     {
         let request = &event.request;
         let refuse = |reason| vec![Diagnostic::error(reason).with_source_span(request.source_span)];
-        let root = computed
-            .selected_build_machine_symbol
+        let root = activation
             .filter(|symbol| typed.machine(*symbol).is_some())
             .ok_or_else(|| refuse("Product selection has no authoritative Build activation"))?;
-        if !computed.declared_product_selections.contains(request) || event.composition.is_some() {
+        if !declared.contains(request) || event.composition.is_some() {
             return Err(refuse(
                 "executed Product selection lost its source-issued formation request",
             ));
@@ -114,14 +131,12 @@ pub(super) fn admit(
                         "assumed binding contract may be authorized only by the consuming root, not a dependency helper",
                     ));
                 }
-                assumed.push(
-                    build_time_evaluation::assumed_bindings::AssumedBindingContract {
-                        required: subject,
-                        supplied: operand(typed, request, 1).map_err(|error| vec![error])?,
-                        selecting_machine: author,
-                        source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
-                    },
-                );
+                assumed.push(AssumedBindingContract {
+                    required: subject,
+                    supplied: operand(typed, request, 1).map_err(|error| vec![error])?,
+                    selecting_machine: author,
+                    source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
+                });
             }
             BuildOperation::WireCompatibilityRequest => {
                 let path = |position| {
@@ -170,8 +185,9 @@ pub(super) fn admit(
             }
         }
     }
-    computed.config.service_audits = audits;
-    computed.config.assumed_bindings = assumed;
-    computed.config.wire_compatibility_demands = wire;
-    Ok(())
+    Ok(AdmittedProductDeclarations {
+        service_audits: audits,
+        assumed_bindings: assumed,
+        wire_demands: wire,
+    })
 }
