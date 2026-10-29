@@ -8,6 +8,11 @@ version.workspace = true
 name = "register_model"
 path = "src/lib.rs"
 
+[features]
+# Assertion bodies the ISA register-model test modules share; never enabled in
+# a production build.
+test-support = []
+
 [dependencies]
 optimization-core = { path = "../../../foundation/optimization-core" }
 target = { path = "../target" }

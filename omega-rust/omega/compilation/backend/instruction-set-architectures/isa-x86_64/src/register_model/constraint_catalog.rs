@@ -1,7 +1,7 @@
 //! The register constraint catalog of every x86-64 operation and its
 //! validation against the closed inventory.
 
-use crate::register_model::physical_model::{GPR64, VECTOR128, complement};
+use crate::register_model::physical_model::{GPR64, VECTOR128};
 use crate::register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET, X86_64_ATOMIC_BITWISE_UPDATE,
     X86_64_ATOMIC_COMPARE_EXCHANGE, X86_64_ATOMIC_LOAD, X86_64_ATOMIC_STORE, X86_64_ATOMIC_UPDATE,
@@ -33,6 +33,7 @@ use crate::register_model::{X86_64_PLACED_READ, X86_64_PLACED_WRITE};
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
 };
+use register_model::complement;
 use register_model::{
     PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
     RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
