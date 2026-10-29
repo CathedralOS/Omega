@@ -48,6 +48,7 @@ pub(crate) fn canonical_relative_path(
     Ok(output)
 }
 
+#[cfg(test)]
 pub(crate) fn canonical_symlink_target(
     target: &Path,
     link_relative_path: &[u8],

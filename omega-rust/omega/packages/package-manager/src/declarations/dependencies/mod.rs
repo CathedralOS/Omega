@@ -7,5 +7,6 @@ pub(crate) mod edit;
 pub(crate) mod read;
 
 pub(crate) use edit::{BuildDependencyEditPlan, BuildFileReplacement};
+pub use read::DependencyPurpose;
+pub(crate) use read::PackageSelection;
 pub(crate) use read::{DependencyProjectionError, DependencySourceRequest};
-pub use read::{DependencyPurpose, PackageSelection};

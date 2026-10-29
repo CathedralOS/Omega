@@ -5,7 +5,6 @@
 //! opt-level-1 consumers pay a call for each handle comparison or component read.
 //! Equality and hashing still observe both the arena position and generation.
 
-use compiler_storage::Record;
 pub(crate) mod handle_span;
 
 use std::fmt;

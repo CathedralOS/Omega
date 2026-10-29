@@ -2,7 +2,7 @@ use super::provider_execution::{
     validate_foreign_stack_contribution, validate_provider_execution_reports,
 };
 use super::{
-    BTreeSet, NativeArtifactIdentity, NativeArtifactIdentityFields, NativePhysicalEvidenceScope,
+    NativeArtifactIdentity, NativeArtifactIdentityFields, NativePhysicalEvidenceScope,
     NativeProviderExecution, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
     derive_native_artifact_identity,
@@ -12,6 +12,7 @@ use effects::provider_plan::{
     ServiceSchema,
 };
 use effects::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
+use std::collections::BTreeSet;
 
 fn kernel_call(profile: target::TargetProfile) -> image_emission::ObjectForeignCall {
     let native = profile.native_target();

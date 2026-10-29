@@ -57,6 +57,7 @@ fn expected_targets(
 /// The only field encoding admitted by this `.dynamic` application rung.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
+#[cfg(test)]
 pub(crate) enum ElfDynamicAddressApplicationKind {
     Elf64AbsoluteAddress = 1,
 }
@@ -92,38 +93,47 @@ pub(crate) struct ElfAppliedDynamicAddress {
 }
 
 impl ElfAppliedDynamicAddress {
+    #[cfg(test)]
     pub const fn row_ordinal(&self) -> u32 {
         self.row_ordinal
     }
 
+    #[cfg(test)]
     pub const fn storage_section_index(&self) -> u32 {
         self.storage_section_index
     }
 
+    #[cfg(test)]
     pub const fn byte_offset(&self) -> usize {
         self.byte_offset
     }
 
+    #[cfg(test)]
     pub const fn byte_width(&self) -> u8 {
         self.byte_width
     }
 
+    #[cfg(test)]
     pub const fn kind(&self) -> ElfDynamicAddressApplicationKind {
         ElfDynamicAddressApplicationKind::Elf64AbsoluteAddress
     }
 
+    #[cfg(test)]
     pub const fn target(&self) -> ElfDynamicAddressApplicationTarget {
         self.target
     }
 
+    #[cfg(test)]
     pub const fn target_section_index(&self) -> u32 {
         self.target_section_index
     }
 
+    #[cfg(test)]
     pub const fn target_section_kind(&self) -> ElfPlacedDynamicSectionKind {
         self.target_section_kind
     }
 
+    #[cfg(test)]
     pub const fn value(&self) -> u64 {
         self.value
     }
@@ -152,6 +162,7 @@ impl ValidatedElfResolvedDynamicTable {
         &self.contents.bytes
     }
 
+    #[cfg(test)]
     pub(crate) fn applied_addresses(&self) -> &[ElfAppliedDynamicAddress] {
         &self.contents.applications
     }

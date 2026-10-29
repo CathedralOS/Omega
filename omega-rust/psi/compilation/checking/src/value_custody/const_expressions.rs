@@ -86,12 +86,12 @@ pub(crate) fn validate_argument_recipes(
         return;
     }
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        if let (TypeParameterKind::Const {
+        if let TypeParameterKind::Const {
             type_reference: expected,
         }
         | TypeParameterKind::Value {
             type_reference: expected,
-        }) = parameter.kind
+        } = parameter.kind
             && argument.type_reference.is_valid()
             && let typed_trees::types::TypeReferenceNode::ConstExpression(expression) = program
                 .type_reference_table

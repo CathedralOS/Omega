@@ -191,11 +191,11 @@ pub(crate) fn lower_call_arguments(
                         ));
                     }
                     scalar_erased_index = scalar_erased_index.checked_add(1)?;
-                } else if (proof_only.contract_term_carrier(program, target.type_reference)
+                } else if proof_only.contract_term_carrier(program, target.type_reference)
                     || validation::mathematical_applications::is_source_evidence_carrier(
                         program,
                         target.type_reference,
-                    ))
+                    )
                 {
                     if let Some(term) = lower_proof_term(
                         program,

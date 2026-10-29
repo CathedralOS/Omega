@@ -4,7 +4,7 @@ use crate::interpreter::evaluator::{
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
     FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
     PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
-    TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
+    TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new_build(
