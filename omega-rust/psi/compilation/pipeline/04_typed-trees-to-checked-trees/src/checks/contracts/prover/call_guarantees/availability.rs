@@ -141,11 +141,6 @@ pub(in crate::checks) fn available<'program>(
     let Some(caller_machine) = program.machine_by_symbol(caller.machine_symbol) else {
         return Vec::new();
     };
-    let trace = std::env::var_os("OMEGA_OWNED_FIELD_TRACE").is_some()
-        && caller_machine.name.as_str() == "main";
-    if trace {
-        eprintln!("OWNED availability contexts={:?}", contexts);
-    }
     let mut guarantees = Vec::new();
     for fact in contexts.iter().flat_map(|context| {
         facts
@@ -162,9 +157,6 @@ pub(in crate::checks) fn available<'program>(
         else {
             continue;
         };
-        if trace {
-            eprintln!("OWNED candidate fact={:?}", fact);
-        }
         let ProgramPoint::CallEnsures {
             machine_symbol,
             state_symbol,
@@ -200,26 +192,6 @@ pub(in crate::checks) fn available<'program>(
         ) && !super::induction::strict_recursive_call(program, facts, caller, &supplied)
         {
             continue;
-        }
-        if trace {
-            eprintln!(
-                "OWNED available gates target={:?} position={}:{} owned={} stable={} preserved={} builtin={}",
-                supplied.callable.owner_symbol(),
-                statement_index,
-                call_ordinal,
-                owns_guarantee(program, &supplied, source, expression),
-                stable_predicate_inputs(program, facts, caller, &supplied, expression),
-                capture_preserved(
-                    program,
-                    &facts.operators,
-                    &facts.borrow,
-                    caller_machine,
-                    &supplied,
-                    expression,
-                    frames
-                ),
-                builtin_predicate(program, &facts.operators, &supplied, expression)
-            );
         }
         if !owns_guarantee(program, &supplied, source, expression)
             || !stable_predicate_inputs(program, facts, caller, &supplied, expression)

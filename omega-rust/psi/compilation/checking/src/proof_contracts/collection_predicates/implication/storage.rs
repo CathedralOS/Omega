@@ -353,12 +353,6 @@ impl Implication<'_> {
                     &[],
                     crate::ContentsRequirement::StableObservation,
                 )
-                || crate::type_graph_requires_nominal_drop(
-                    self.program,
-                    place.reference,
-                    &[],
-                    &mut std::collections::BTreeSet::new(),
-                )
             {
                 return None;
             }

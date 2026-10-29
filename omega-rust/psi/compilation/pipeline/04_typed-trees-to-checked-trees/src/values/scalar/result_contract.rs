@@ -1206,6 +1206,11 @@ fn contract_storage_root(
     parameter: &StateParameter,
     allow_result: bool,
 ) -> bool {
+    // Rebinding a reference formal changes only the callee's descriptor.
+    // Its post-state cannot be published onto the caller's original actual.
+    if allow_result && parameter.is_mutable {
+        return false;
+    }
     let mut type_reference = parameter.type_reference;
     loop {
         match program.type_reference_table.type_reference(type_reference) {

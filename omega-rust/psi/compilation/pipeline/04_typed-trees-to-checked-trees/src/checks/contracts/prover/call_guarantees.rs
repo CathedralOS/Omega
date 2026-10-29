@@ -134,15 +134,7 @@ pub(crate) fn current_predicates(
     contexts: &[facts::FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
 ) -> Vec<BoundPredicate> {
-    let trace = std::env::var_os("OMEGA_OWNED_FIELD_TRACE").is_some()
-        && program
-            .machine_by_symbol(caller.machine_symbol)
-            .is_some_and(|machine| machine.name.as_str() == "main");
-    let guarantees = available(program, facts, caller, use_point, contexts, frames);
-    if trace {
-        eprintln!("OWNED available count={}", guarantees.len());
-    }
-    guarantees
+    available(program, facts, caller, use_point, contexts, frames)
         .into_iter()
         .filter_map(|guarantee| {
             let invocation = &guarantee.invocation;
@@ -156,20 +148,7 @@ pub(crate) fn current_predicates(
                 guarantee.expression,
                 true,
                 &mut 4096,
-            )
-            .or_else(|| {
-                if trace {
-                    eprintln!(
-                        "OWNED guarantee lowering failed target={:?} expression={:?}",
-                        invocation.callable.owner_symbol(),
-                        guarantee.expression
-                    );
-                }
-                None
-            })?;
-            if trace {
-                eprintln!("OWNED guarantee lowered={:?}", expression);
-            }
+            )?;
             let result = guarantee
                 .call_expression()
                 .map(|expression| CanonicalPlace {
@@ -261,9 +240,6 @@ pub(crate) fn current_predicates(
             );
             let mut predicates = transported.predicates;
             predicates.push(predicate);
-            if trace {
-                eprintln!("OWNED final guarantees={:?}", predicates);
-            }
             Some(predicates)
         })
         .flatten()
