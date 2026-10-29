@@ -28,7 +28,7 @@ Its oracle requires the missing Ascii field obligation at the inspect call.
 | another machine | [program](../other_machine/sibling_write/main.omg) | [reject twin](../other_machine/sibling_write/invalid/main.omg) |
 | selected provider body | [program](../target_body/sibling_write/main.omg) | [reject twin](../target_body/sibling_write/invalid/main.omg) |
 
-Every program calls both indices. Main checks the returned65/66 bytes, the first
+Every program calls both indices. Main checks the returned 65/66 bytes, the first
 stamp write and untouched neighbor before the second call, both final stamps,
 and all eight unchanged payload bytes. No caller guard re-establishes Ascii.
 The provider place performs this same operation inside the ordinary Build-selected
@@ -41,10 +41,10 @@ undeclared promise about a returned pointer's alignment within Table.
 | Identity and lifetime | Captured descriptors retain complete possible storage coordinates independently of lifetime debt and exact pointer identity. Unknown selectors preserve element dimensions; coarse enclosures cannot accept field projections. |
 | Composition | All nine transports carry the same field fact and operation. Joins retain every alternative's footprint; writes and complete intervening effects determine whether the promise survives. |
 | Soundness | Every twin rejects the overlapping byte write. Existing stale-result, descriptor-replacement, loan and recast controls retain their authored outcomes. Recasts discard typed projection capability; footprints grant no access or new membership. |
-| Psi05–07 | Each program runs in Terminal Psi with exit0, using the emitted descriptor, selection, field store and inspection. Its oracle observes caller storage after both calls. |
-| Omega00–02 | All four hosted ProgramEntry bindings are authored. Native execution validates the selected provider, Cell/Table layout, borrowed arguments and scalar returns on macOS ARM64. |
-| Omega03–06 | Distinct bytes and intermediate/final stamp canaries observe the selected element, store offset and live caller values across calls. |
-| Omega07–09 and emission | Retained Terminal/native products execute with matching exit0. Omitting the stamp store or forcing element0 reaches Trap in Terminal Psi and the matching native signal5 presentation. |
+| Psi 05–07 | Each program runs in Terminal Psi with exit 0, using the emitted descriptor, selection, field store and inspection. Its oracle observes caller storage after both calls. |
+| Omega 00–02 | All four hosted ProgramEntry bindings are authored. Native execution validates the selected provider, Cell/Table layout, borrowed arguments and scalar returns on macOS ARM64. |
+| Omega 03–06 | Distinct bytes and intermediate/final stamp canaries observe the selected element, store offset and live caller values across calls. |
+| Omega 07–09 and emission | Retained Terminal/native products execute with matching exit 0. Omitting the stamp store or forcing element 0 reaches Trap in Terminal Psi and the matching native signal 5 presentation. |
 
 Optimized baseline compiler inputs are fixed at
 c0f864f5127636dcd5b80e7f63a2aab4ea6ded78. The valid witnesses refuse their Ascii
@@ -53,11 +53,12 @@ and baselined: the initial draft demanded an unexpressed spatial guarantee from
 an opaque boundary and is retained only as historical, nonqualifying evidence.
 
 CLI producer e033317ef7a586d1e8454746252f323b0a0176f1 executes all nine positives
-with native/Terminal0/0 on macOS ARM64. All nine twins reject the inspect field
+with native/Terminal 0/0 on macOS ARM64. All nine twins reject the inspect field
 obligation. Matching pass/fail fixtures use the
-borrowed_result_field_domains_sibling_write_<place> names under tests/omega/facts.
+`borrowed_result_field_domains_sibling_write_<place>_{exit,rejected}` names under
+`tests/omega/{pass,fail}/facts/`.
 The focused corpus also covers five existing positive and six rejection controls:
-29 source cases and14 native/Terminal cases, with no changed unselected golden rows.
+29 source cases and 14 native/Terminal cases, with no changed unselected golden rows.
 Actual source hashes, independent producer receipts, locks, raw diagnostics,
 engine TSVs and retained products are in build/borrowed-result-sibling-handback-20261029.
 Other hosts have authored entries and no execution evidence from this run.
