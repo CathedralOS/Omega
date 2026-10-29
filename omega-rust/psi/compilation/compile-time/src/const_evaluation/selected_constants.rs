@@ -43,6 +43,10 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
                 .with_layout_applications(self.layouts.layout_application_inputs());
             evaluated.push(continuation.evaluate_selected_operators(self.program, self.operators)?);
         }
+        crate::layouts::plan_laid::validate_layout_application_coverage(
+            self.program,
+            self.layouts.layout_application_inputs(),
+        )?;
         super::data_layout_queries::fold_data_layout_queries(
             self.program,
             false,

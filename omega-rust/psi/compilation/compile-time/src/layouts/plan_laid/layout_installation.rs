@@ -150,12 +150,20 @@ pub(crate) fn compute_plan_laid_layouts_in(
         }
     }
     typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
-    let execution = domain.execution_program(typed);
+    // A continuation replaces only the applications it owns. Earlier source
+    // continuations and their arena-backed field/target rows remain available
+    // to later dependencies; clearing the whole catalog loses that custody.
+    let replaced = requests
+        .iter()
+        .map(|request| typed.normalized_type_identity(request.storage.application))
+        .collect::<std::collections::BTreeSet<_>>();
+    let existing = std::mem::take(&mut typed.plan_laid_layouts);
+    typed.plan_laid_layouts = existing
+        .into_iter()
+        .filter(|plan| !replaced.contains(&typed.normalized_type_identity(plan.application)))
+        .collect();
+    let mut execution = domain.execution_program(typed);
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-    typed.plan_laid_layouts.clear();
-    typed.plan_laid_target_layouts = arena::Arena::new();
-    typed.plan_laid_schema_fields = arena::Arena::new();
-    typed.plan_laid_retired_field_identities = arena::Arena::new();
     for request in requests {
         let storage = request.storage;
         let mut targets = request.targets;
@@ -393,8 +401,26 @@ pub(crate) fn compute_plan_laid_layouts_in(
             ),
         };
         typed.plan_laid_layouts.push(layout);
+        // The immutable executable declarations are shared for this work
+        // domain. Only completed layout evidence changes between dependency
+        // steps; a later policy must observe those actual completed rows.
+        execution.plan_laid_layouts = typed.plan_laid_layouts.clone();
+        execution.plan_laid_target_layouts = typed.plan_laid_target_layouts.clone();
+        execution.plan_laid_schema_fields = typed.plan_laid_schema_fields.clone();
+        execution.plan_laid_retired_field_identities =
+            typed.plan_laid_retired_field_identities.clone();
     }
-    if let Some(inputs) = &domain.layout_applications {
+    Ok(())
+}
+
+/// Product demands belong to the completed continuation roster, not to each
+/// source projection separately. The selected evaluator invokes this once
+/// after every owner has installed its exact representation.
+pub(crate) fn validate_layout_application_coverage(
+    typed: &TypedTrees,
+    inputs: Option<&[crate::LayoutApplicationTargetInput]>,
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(inputs) = inputs {
         for input in inputs {
             let identity = typed.type_identity_by_text(&input.application_identity);
             if !identity.is_valid()
@@ -403,10 +429,10 @@ pub(crate) fn compute_plan_laid_layouts_in(
                         && plan.target_inputs.contains(&input.target)
                 })
             {
-                return Err(fail(format!(
-                    "layout application target demand for `{}` did not rejoin its exact evaluated representation",
-                    input.target.profile
-                )));
+                return Err(vec![Diagnostic::error(format!(
+                    "layout application `{}` target demand for `{}` did not rejoin its exact evaluated representation",
+                    input.application_identity, input.target.profile
+                ))]);
             }
         }
     }

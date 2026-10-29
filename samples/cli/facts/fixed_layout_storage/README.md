@@ -71,3 +71,28 @@ on each, with canonical x86 agreement recorded. Escape and linear-duplicate
 controls still reject. The focused recast comparison retains one diagnostic
 fragment regression for a fact-free slice-element rejection; its correction is
 a later compiler input and has not been retroactively attributed to producer35.
+
+Producer36 measures the combined Named SDK prerequisite at wire 217. Its
+complete focused Terminal capture has 13 positives at exit 0, including all nine
+constructor places, and 18 intended rejects; the slice diagnostic is restored.
+The geometry target-body and entry-query controls still refuse lowering, and
+the foreign installations of the original query control still decline their
+folded-constant closure. No native observation is claimed from that capture.
+A plain SDK check was an unprepared-project refusal. The project's own normal
+`omega update` instead reaches the concrete `clamp_f32` callable-review
+projection defect before pending decisions; its correction is the next input,
+not evidence of SDK acceptance. The capture completed naturally; no stop signal
+was sent.
+
+Producer37 clears the callable-review prerequisite, then normal SDK preparation
+refuses an exact layout-application target join. Producer38 preserves completed
+layout catalogs across source continuations and defers product-wide coverage
+validation until the whole roster completes; its SDK replay remains pending.
+The [composition variation](continuation_composition/main.omg) keeps the same
+Pair fact, field operation and geometry while a separate source package owns
+another layout continuation. This variation already passed source checking on
+producer37. Producer38 adds actual host native/interpreter exits 0/0 and
+canonical macOS x86_64 exits 0/0 with agreement; its twin still rejects the 41
+write against 42..=42. These observations establish composition coverage, not
+full policy migration or portable-query acceptance. The qualification keeps
+the actual Git revision, frozen working delta and archive digest separately.
