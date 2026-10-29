@@ -33,16 +33,23 @@ pub struct NativeExecutionSelection<'request> {
     pub entry_call: Option<&'request crate::SelectedProgramEntryCall>,
 }
 
-impl VerifiedNativeArtifactInput {
-    /// Resolve the portable entry for this exact deployment, lower its
-    /// executable projection, and bind supplied direct-entry placed-view loans.
-    /// Canonical semantics remain unchanged and no executable plan exists with
-    /// an unresolved entry. Selection supplies no provider or backing authority.
-    pub fn prepare(
+/// One native consumer's selected work, before scalar evaluation or lowering.
+/// It retains the exact target and scope rather than rediscovering them after
+/// evaluation. This is work selection, not executable or provider authority.
+pub(crate) struct NativeScopePreparation {
+    profile: target::TargetProfile,
+    entry: semantic_vocabulary::MachineId,
+    pub(crate) targets: terminal_installation::AdmittedTargetMachineSelections,
+    pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
+    pub(crate) scope: crate::native_execution_scope::NativeExecutionScope,
+    pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
+}
+
+impl NativeScopePreparation {
+    pub(crate) fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
         root: terminal_psi::TargetMachineCallable,
-        establishments: &[TerminalPlacedViewEstablishment],
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
         profile
@@ -72,10 +79,47 @@ impl VerifiedNativeArtifactInput {
             selection.callbacks,
         )
         .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        let scalar_demand = scope
+            .scalar_application_demand(module, &selections, &layouts)
+            .map_err(ArtifactLoweringError::TargetFamily)?;
+        Ok(Self {
+            profile,
+            entry,
+            targets: selections,
+            layouts,
+            scope,
+            scalar_demand,
+        })
+    }
+
+    pub(crate) fn lower(
+        self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        establishments: &[TerminalPlacedViewEstablishment],
+        selection: &NativeExecutionSelection<'_>,
+    ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
+        let Self {
+            profile,
+            entry,
+            targets: selections,
+            layouts,
+            scope,
+            scalar_demand,
+        } = self;
+        let module = artifact.semantic_module();
         let scalar_applications = selection
             .scalar_applications
             .as_ref()
-            .map(|inputs| inputs.bind(artifact, profile, &selections, &layouts, selection, &scope))
+            .map(|inputs| {
+                inputs.bind(
+                    artifact,
+                    profile,
+                    &selections,
+                    &layouts,
+                    selection,
+                    &scalar_demand,
+                )
+            })
             .transpose()
             .map_err(ArtifactLoweringError::TargetFamily)?;
         let mut structural_types = module.structural_types.clone();
@@ -109,6 +153,24 @@ impl VerifiedNativeArtifactInput {
         input.optimization_input.scalar_applications = scalar_applications.cloned();
         Ok(input)
     }
+}
+
+impl VerifiedNativeArtifactInput {
+    /// Select and lower one exact native consumer. Callers that must evaluate
+    /// scalar inputs first retain NativeScopePreparation across that work.
+    pub fn prepare(
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        profile: target::TargetProfile,
+        root: terminal_psi::TargetMachineCallable,
+        establishments: &[TerminalPlacedViewEstablishment],
+        selection: &NativeExecutionSelection<'_>,
+    ) -> Result<Self, ArtifactLoweringError> {
+        NativeScopePreparation::prepare(artifact, profile, root, selection)?.lower(
+            artifact,
+            establishments,
+            selection,
+        )
+    }
 
     /// Original guest-owned initialized storage the invocation boundary must construct.
     /// Opaque establishments alone never answer this physical lending demand.
@@ -123,6 +185,22 @@ impl VerifiedNativeArtifactInput {
         recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
+        NativeScopePreparation::prepare(artifact, profile, root, selection)?
+            .lower_with_private_entry_ram(artifact, recipes, selection)
+    }
+
+    pub fn plan(&self) -> &AbstractOperationPlan {
+        self.optimization_input.plan()
+    }
+}
+
+impl NativeScopePreparation {
+    pub(crate) fn lower_with_private_entry_ram(
+        self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        selection: &NativeExecutionSelection<'_>,
+    ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
         if recipes
             .iter()
             .any(|recipe| recipe.terminal() != artifact.view().identity())
@@ -132,17 +210,10 @@ impl VerifiedNativeArtifactInput {
             ));
         }
         if !recipes.is_empty() {
-            let selections = terminal_installation::admit_target_machine_selections(
-                artifact.view(),
-                profile.target_name(),
-            );
-            let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-                .map_err(|reason| {
-                    ArtifactLoweringError::TargetFamily(format!(
-                        "private entry RAM selected geometry is unavailable: {reason:?}"
-                    ))
-                })?;
-            if recipes.iter().any(|recipe| recipe.layouts() != &layouts) {
+            if recipes
+                .iter()
+                .any(|recipe| recipe.layouts() != &self.layouts)
+            {
                 return Err(ArtifactLoweringError::TargetFamily(
                     "private entry RAM recipe belongs to another target or selected geometry"
                         .into(),
@@ -172,15 +243,13 @@ impl VerifiedNativeArtifactInput {
                 })
             })
             .collect::<Result<Vec<_>, ArtifactLoweringError>>()?;
-        let mut input = Self::prepare(artifact, profile, root, &establishments, selection)?;
+        let mut input = self.lower(artifact, &establishments, selection)?;
         input.private_entry_ram = recipes.to_vec();
         Ok(input)
     }
+}
 
-    pub fn plan(&self) -> &AbstractOperationPlan {
-        self.optimization_input.plan()
-    }
-
+impl VerifiedNativeArtifactInput {
     /// Retain selected requirement coordinates. Family aliases additionally
     /// require the exact artifact member receipt; closed Imports retain the
     /// source-authenticated roster the proposal already derived.

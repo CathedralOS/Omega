@@ -138,6 +138,7 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
                 .entry
                 .expect("fixture default entry"),
         )
+        .and_then(|work| work.lower(None))
         .expect("reloaded numeric providers settle executable demand");
     recovered
 }

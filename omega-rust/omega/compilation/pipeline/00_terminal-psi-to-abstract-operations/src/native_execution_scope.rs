@@ -19,6 +19,7 @@
 use crate::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
+mod storage;
 
 #[derive(Debug)]
 pub(crate) enum NativeExecutionScopeError {
@@ -324,6 +325,73 @@ impl NativeExecutionScope {
 
     pub(crate) fn contains_machine(&self, machine: MachineId) -> bool {
         self.machines.binary_search(&machine).is_ok()
+    }
+
+    /// Values read by any selected native block, plus condition-bearing
+    /// evaluation entries invoked by that scope. Native selection includes
+    /// address roots and callbacks; interpreter reachability cannot replace it.
+    /// Storage geometry may impose additional extent demand independently.
+    pub(crate) fn scalar_value_demand(
+        &self,
+        module: &TerminalModule,
+        targets: &terminal_installation::AdmittedTargetMachineSelections,
+    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
+        let mut demanded = std::collections::BTreeSet::new();
+        for machine in module
+            .machines
+            .iter()
+            .filter(|machine| self.contains_machine(machine.id))
+        {
+            for operation in machine.operations() {
+                if let OperationKind::ReadScalarApplication { application } = operation.kind {
+                    demanded.insert(application);
+                }
+            }
+        }
+        let catalog = &module.scalar_applications;
+        for (position, declaration) in catalog.declarations().iter().enumerate() {
+            let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
+                continue;
+            };
+            let machine = match entry {
+                terminal_psi::TargetMachineCallable::Machine(machine) => *machine,
+                terminal_psi::TargetMachineCallable::Boundary(_) => {
+                    let Ok(member) = targets.member(*entry) else {
+                        continue;
+                    };
+                    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable()
+                    else {
+                        continue;
+                    };
+                    machine
+                }
+            };
+            if !self.contains_machine(machine) {
+                continue;
+            }
+            let application = u64::try_from(position)
+                .ok()
+                .and_then(|position| position.checked_add(1))
+                .and_then(semantic_vocabulary::ScalarApplicationId::new)
+                .ok_or("native scalar application coordinate exceeds its catalog")?;
+            if catalog.conditions.contains_subject(
+                terminal_psi::ScalarConditionSubject::Application(application),
+            ) {
+                demanded.insert(application);
+            }
+        }
+        Ok(demanded.into_iter().collect())
+    }
+
+    pub(crate) fn scalar_application_demand(
+        &self,
+        module: &TerminalModule,
+        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        layouts: &terminal_installation::AdmittedTargetLayouts,
+    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
+        let mut applications = self.storage_extent_demand(module, layouts)?;
+        applications.extend(self.scalar_value_demand(module, targets)?);
+        Ok(applications.into_iter().collect())
     }
 
     pub(crate) fn contains_boundary(&self, boundary: BoundaryMachineId) -> bool {

@@ -58,12 +58,13 @@ pub use provider_admission::{
 };
 pub use retained_terminal::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
-    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
-    RetainedTerminalArtifact, SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
-    TerminalCallbackThunkArtifact, TerminalCompilerBuiltinProposal,
-    TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
-    TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
-    TerminalNativeProviders, TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
+    PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
+    RetainedNativeProviderInputs, RetainedTerminalArtifact, SelectedFamilyRealizationSource,
+    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
+    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
+    TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
+    TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
     project_terminal_native_realization_proposal, recover_native_derivation_inputs,
     retain_native_derivation_inputs,
 };

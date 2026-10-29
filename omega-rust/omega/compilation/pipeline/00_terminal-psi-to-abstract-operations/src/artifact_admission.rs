@@ -15,6 +15,7 @@ mod qualified_cleanup_receiving_tests;
 pub(crate) use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub(crate) use native::AdmittedNativeArtifact;
+pub(crate) use native::NativeScopePreparation;
 pub use native::{NativeExecutionSelection, VerifiedNativeArtifactInput};
 pub use scalar_applications::NativeScalarApplications;
 

@@ -18,7 +18,8 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
-    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
+    PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
+    RetainedNativeProviderInputs,
 };
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;

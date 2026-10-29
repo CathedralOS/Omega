@@ -16,19 +16,12 @@ pub(super) struct CallableObjectProduct {
 }
 
 pub(super) fn emit_callable_object(
+    mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'_>,
     admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'_, '_>,
     selections: &optimization_core::PostTerminalOptimizationSelections,
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    entry: terminal_psi::TargetMachineCallable,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
-    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
-        private_entry_ram: &[],
-        entry,
-        ..admission
-    };
-    let mut admitted =
-        terminal_psi_to_abstract_operations::admit_native_realization(artifact, &admission)?;
     let callable_entry = admitted.input.plan().entry;
     let authority = admitted.providers.callable_authority().clone();
     let host = native_artifact::TerminalRuntimeHostProvisions::capture_native_admission(

@@ -35,7 +35,7 @@ pub(super) fn residence_rules(
                     let (source, _, capture) = captured_storage_source(
                         &module.structural_types,
                         source,
-                        place_type(machine, source.place)?,
+                        machine.structural_place_type(source.place)?,
                         position,
                     )?;
                     if capture == CapturedBacking::StorageAddress {
@@ -123,7 +123,7 @@ pub(super) fn adapt(
             place: place.id,
             definition: terminal_definition(module, machine, place.id, place.kind)?,
         });
-        if let Some(ty) = place_type(machine, place.id) {
+        if let Some(ty) = machine.structural_place_type(place.id) {
             graph.place_types.insert(place.id, ty);
         }
     }
@@ -1305,7 +1305,8 @@ pub(super) fn adapt(
             }
             Terminator::ReturnStructural { source, .. } => {
                 if let Some(returns) = &mut graph.returns {
-                    if place_type(machine, *source)? != machine.result.structural()?.structural_type
+                    if machine.structural_place_type(*source)?
+                        != machine.result.structural()?.structural_type
                     {
                         return None;
                     }

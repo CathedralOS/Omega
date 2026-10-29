@@ -144,7 +144,9 @@ pub fn emit_component_exports<'input>(
     let mut exports = Vec::with_capacity(inputs.exports().len());
     for export in inputs.exports() {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (_, execution) = proposal.prepare_native_callable_execution(artifact, entry)?;
+        let (input, execution) = proposal
+            .prepare_native_callable_execution(artifact, entry)?
+            .lower(None)?;
         let selections = proposal.post_terminal_optimizations().selections();
         let prepared = proposal.prepare_native_providers(
             artifact,
@@ -156,17 +158,21 @@ pub fn emit_component_exports<'input>(
             },
         )?;
         let settlements = prepared.program_settlements();
-        let admission = prepared.admission_request(
+        let mut admission = prepared.admission_request(
             &settlements,
             request.terminal_authority_policy,
             request.receiving_permissions,
         );
+        admission.entry = entry;
+        let admitted = terminal_psi_to_abstract_operations::admit_prepared_native_realization(
+            input, artifact, &admission,
+        )?;
         let projection = super::callable_objects::emit_callable_object(
+            admitted,
             admission,
             selections,
             crate::request::native_optimization_budget(),
             artifact,
-            entry,
         )?;
         let runtime = projection.runtime;
         let authority = projection.authority;

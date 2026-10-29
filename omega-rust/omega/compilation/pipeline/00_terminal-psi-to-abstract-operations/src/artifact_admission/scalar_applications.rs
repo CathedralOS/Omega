@@ -2,7 +2,6 @@
 //! source or executing code. Full provider custody is distinct from the local
 //! native work domain, which may omit separately compiled component providers.
 
-use crate::native_execution_scope::NativeExecutionScope;
 use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
 };
@@ -23,7 +22,7 @@ impl<'request> NativeScalarApplications<'request> {
         targets: &AdmittedTargetMachineSelections,
         layouts: &AdmittedTargetLayouts,
         selection: &super::NativeExecutionSelection<'_>,
-        scope: &NativeExecutionScope,
+        scalar_demand: &[semantic_vocabulary::ScalarApplicationId],
     ) -> Result<&'request AdmittedScalarApplications, String> {
         let completed = self.completed;
         let primary = completed.primary();
@@ -78,42 +77,10 @@ impl<'request> NativeScalarApplications<'request> {
         {
             return Err("native local provider differs from the completed scalar selection".into());
         }
-        // Ordinary native calls may reach a generated entry even when no
-        // ReadScalarApplication operation demands its final value. The entry's
-        // own condition debt must already have completed under this admission.
-        let module = artifact.semantic_module();
-        let catalog = &module.scalar_applications;
-        for (position, declaration) in catalog.declarations().iter().enumerate() {
-            let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
-                continue;
-            };
-            let machine = match entry {
-                terminal_psi::TargetMachineCallable::Machine(machine) => *machine,
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    let Ok(member) = targets.member(*entry) else {
-                        continue;
-                    };
-                    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable()
-                    else {
-                        continue;
-                    };
-                    machine
-                }
-            };
-            if !scope.contains_machine(machine) {
-                continue;
-            }
-            let application = u64::try_from(position)
-                .ok()
-                .and_then(|position| position.checked_add(1))
-                .and_then(semantic_vocabulary::ScalarApplicationId::new)
-                .ok_or("native scalar application coordinate exceeds its catalog")?;
-            if catalog.conditions.contains_subject(
-                terminal_psi::ScalarConditionSubject::Application(application),
-            ) && completed.values().value(application).is_none()
-            {
+        for &application in scalar_demand {
+            if completed.values().value(application).is_none() {
                 return Err(format!(
-                    "native execution invokes unchecked scalar entry {application}"
+                    "native execution requires uncompleted scalar application {application}"
                 ));
             }
         }

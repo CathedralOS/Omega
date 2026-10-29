@@ -74,11 +74,13 @@ pub fn compile(
             .map(|component| component.call())
             .collect::<Vec<_>>();
         let (input, execution) = phase_profile::scope("06.1.c1_prepare_native_execution", || {
-            proposal.prepare_native_execution_with_components(
-                &artifact,
-                &recipes,
-                &component_selections,
-            )
+            proposal
+                .prepare_native_execution_with_components(
+                    &artifact,
+                    &recipes,
+                    &component_selections,
+                )?
+                .lower(None)
         })?;
         let prepared = phase_profile::scope("06.1.c2_prepare_native_providers", || {
             proposal.prepare_native_providers(

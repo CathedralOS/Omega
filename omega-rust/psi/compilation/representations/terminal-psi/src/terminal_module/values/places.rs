@@ -221,6 +221,37 @@ pub struct OperationProjection<'a> {
     pub path: &'a [StructuralPathSegment],
 }
 
+/// Storage coordinates carried by an operation, before physical geometry is
+/// available. Canonical IDs and name-spelled paths remain distinct namespaces.
+/// An element access locates its descriptor first, then projects inside the
+/// selected element; it does not project those fields on the descriptor.
+#[derive(Debug, Clone, Copy)]
+pub enum StructuralStorageUse<'a> {
+    Place(PlaceId),
+    Projection(OperationProjection<'a>),
+    Canonical {
+        root: PlaceId,
+        path: &'a [semantic_vocabulary::CanonicalStructuralPathSegment],
+    },
+    /// Scalar-field observations implicitly read through an initial reference
+    /// carrier before interpreting the declaration-local carrier path.
+    ObservedField {
+        root: PlaceId,
+        path: &'a [semantic_vocabulary::CanonicalStructuralPathSegment],
+    },
+    Element {
+        descriptor: OperationProjection<'a>,
+        path: &'a [StructuralPathSegment],
+    },
+    Type(StructuralTypeId),
+}
+
+impl<'a> From<OperationProjection<'a>> for StructuralStorageUse<'a> {
+    fn from(projection: OperationProjection<'a>) -> Self {
+        Self::Projection(projection)
+    }
+}
+
 impl OperationKind {
     /// The direct source of an intrinsic structural observation. This is a
     /// read inventory, not permission or a lifetime judgment: a copied result
@@ -424,17 +455,48 @@ impl OperationKind {
     /// result claim paths are not projections of an operand and never carry a
     /// runtime index.
     pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
+        // This legacy runtime-selector inventory starts ElementViewRead paths
+        // at the element. Storage consumers use the explicit descriptor/element
+        // coordinates below instead of interpreting this as a descriptor path.
+        if let Self::ElementViewRead { source, path, .. } = self {
+            return vec![OperationProjection {
+                root: *source,
+                path,
+            }];
+        }
+        let mut projections = Vec::new();
+        for storage in self.storage_uses() {
+            match storage {
+                StructuralStorageUse::Projection(projection) => projections.push(projection),
+                StructuralStorageUse::Element { descriptor, .. } => {
+                    projections.push(descriptor);
+                }
+                StructuralStorageUse::Place(_)
+                | StructuralStorageUse::Canonical { .. }
+                | StructuralStorageUse::ObservedField { .. }
+                | StructuralStorageUse::Type(_) => {}
+            }
+        }
+        projections
+    }
+
+    /// Complete borrowed inventory for native storage demand. Scalar results
+    /// and produced places retain their declarations independently of operands.
+    pub fn storage_uses(&self) -> Vec<StructuralStorageUse<'_>> {
         let mut projections = Vec::new();
         match self {
-            Self::EstablishNativeCodeLayout { .. } | Self::EstablishActivationClaim { .. } => {}
+            Self::EstablishNativeCodeLayout { .. } => {}
+            Self::EstablishActivationClaim { backing_type, .. } => {
+                projections.push(StructuralStorageUse::Type(*backing_type));
+            }
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
-                    projections.push(argument_projection(operand.argument()));
+                    projections.push(argument_projection(operand.argument()).into());
                 }
             }
             Self::ByteSequencePredicate { operand, .. } => {
-                projections.push(argument_projection(operand.argument()));
+                projections.push(argument_projection(operand.argument()).into());
             }
             Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. }
@@ -442,31 +504,54 @@ impl OperationKind {
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source, .. }
             | Self::EstablishReference { source, .. }
-            | Self::EstablishElementView { source, .. }
-            | Self::EstablishMutableElementView { source, .. }
             | Self::ElementViewLength { source }
             | Self::ByteSequenceLength { source }
             | Self::ByteSequenceSubslice { source, .. }
             | Self::ElementViewSubslice { source, .. } => {
-                projections.push(argument_projection(source));
+                projections.push(argument_projection(source).into());
+            }
+            Self::EstablishElementView {
+                source, element, ..
+            }
+            | Self::EstablishMutableElementView {
+                source, element, ..
+            } => {
+                projections.push(argument_projection(source).into());
+                projections.push(StructuralStorageUse::Type(*element));
             }
             Self::MergeActivationClaim { lower, upper, .. } => {
-                projections.push(argument_projection(lower));
-                projections.push(argument_projection(upper));
+                projections.push(argument_projection(lower).into());
+                projections.push(argument_projection(upper).into());
             }
             Self::TransformContent {
                 source, parents, ..
             } => {
-                projections.push(argument_projection(source));
-                projections.extend(parents.iter().map(argument_projection));
+                projections.push(argument_projection(source).into());
+                projections.extend(
+                    parents.iter().map(|parent| {
+                        StructuralStorageUse::Projection(argument_projection(parent))
+                    }),
+                );
             }
-            Self::ElementViewWrite { destination, .. } => {
-                // Runtime selectors locate the descriptor. The independent
-                // path inside one element is restricted to static leaves.
-                projections.push(argument_projection(destination));
+            Self::ElementViewWrite {
+                destination, path, ..
+            } => {
+                projections.push(StructuralStorageUse::Element {
+                    descriptor: argument_projection(destination),
+                    path,
+                });
+            }
+            Self::ElementViewRead { source, path, .. } => {
+                projections.push(StructuralStorageUse::Element {
+                    descriptor: OperationProjection {
+                        root: *source,
+                        path: &[],
+                    },
+                    path,
+                });
             }
             Self::PrimitiveScalarRead { source, path }
-            | Self::ElementViewRead { source, path, .. }
+            | Self::ReleaseReference { source, path }
             | Self::AtomicAccess {
                 place: source,
                 path,
@@ -477,10 +562,13 @@ impl OperationKind {
             | Self::StructuralCaseMembership { source, path, .. }
             | Self::StructuralLeafCopy { source, path }
             | Self::MoveStructuralField { source, path, .. } => {
-                projections.push(OperationProjection {
-                    root: *source,
-                    path,
-                });
+                projections.push(
+                    OperationProjection {
+                        root: *source,
+                        path,
+                    }
+                    .into(),
+                );
             }
             Self::WriteOnlyPrimitiveStore {
                 destination, path, ..
@@ -488,61 +576,112 @@ impl OperationKind {
             | Self::StructuralByteSequenceFieldByteStore {
                 destination, path, ..
             }
-            | Self::StructuralByteSequenceFieldStore {
-                destination, path, ..
-            }
-            | Self::StructuralByteViewFieldStore {
-                destination, path, ..
-            }
             | Self::StructuralScalarFieldStore {
                 destination, path, ..
-            } => projections.push(OperationProjection {
-                root: *destination,
+            } => projections.push(
+                OperationProjection {
+                    root: *destination,
+                    path,
+                }
+                .into(),
+            ),
+            Self::StructuralByteSequenceFieldStore {
+                destination,
                 path,
-            }),
+                source,
+                ..
+            }
+            | Self::StructuralByteViewFieldStore {
+                destination,
+                path,
+                source,
+                ..
+            } => {
+                projections.push(
+                    OperationProjection {
+                        root: *destination,
+                        path,
+                    }
+                    .into(),
+                );
+                projections.push(StructuralStorageUse::Place(*source));
+            }
             Self::StoreStructuralField {
                 destination,
                 path,
                 value,
                 ..
             } => {
-                projections.push(OperationProjection {
-                    root: *destination,
-                    path,
-                });
-                projections.push(argument_projection(value));
+                projections.push(
+                    OperationProjection {
+                        root: *destination,
+                        path,
+                    }
+                    .into(),
+                );
+                projections.push(argument_projection(value).into());
             }
             Self::EstablishStructuralArray { elements } => {
-                projections.extend(elements.iter().map(argument_projection));
+                projections.extend(
+                    elements.iter().map(|element| {
+                        StructuralStorageUse::Projection(argument_projection(element))
+                    }),
+                );
             }
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 projections.extend(fields.iter().filter_map(|field| match &field.value {
-                    crate::RecordFieldValue::Structural(value) => Some(argument_projection(value)),
+                    crate::RecordFieldValue::Structural(value) => {
+                        Some(StructuralStorageUse::Projection(argument_projection(value)))
+                    }
                     crate::RecordFieldValue::Scalar { .. } => None,
                 }));
             }
             crate::call_structural_argument_variants!(structural_arguments) => {
-                projections.extend(structural_arguments.iter().map(argument_projection))
+                projections.extend(structural_arguments.iter().map(|argument| {
+                    StructuralStorageUse::Projection(argument_projection(argument))
+                }))
+            }
+            Self::StructuralCaseLeafCopy { source, path } => {
+                projections.push(StructuralStorageUse::Canonical {
+                    root: *source,
+                    path,
+                });
+            }
+            Self::BooleanStructuralField { source, path, .. }
+            | Self::ScalarStructuralField { source, path, .. } => {
+                // The leaf is scalar. Its containing record supplies geometry,
+                // but its observation may first cross a reference shell.
+                projections.push(StructuralStorageUse::ObservedField {
+                    root: *source,
+                    path,
+                });
+            }
+            Self::ByteSequenceRead { source, .. } => {
+                projections.push(StructuralStorageUse::Place(*source));
+            }
+            Self::ByteSequenceWrite { destination, .. } => {
+                projections.push(StructuralStorageUse::Place(*destination));
+            }
+            Self::ByteSequenceStore {
+                destination,
+                source,
+                ..
+            } => {
+                projections.push(StructuralStorageUse::Place(*destination));
+                projections.push(StructuralStorageUse::Place(*source));
             }
             // No name-spelled projection. Listed exhaustively so a new
             // operation must declare here whether its paths may carry a
             // runtime element (and so an obligation it owns).
-            Self::ReleaseReference { .. }
-            | Self::EstablishScalarArray { .. }
+            Self::EstablishScalarArray { .. }
             | Self::EstablishZeroedStructural { .. }
             | Self::EstablishStructuralLocal { .. }
             | Self::EstablishPrimitiveLocal { .. }
             | Self::EstablishScalarCase { .. }
-            | Self::StructuralCaseLeafCopy { .. }
             | Self::EstablishByteSequenceLiteral { .. }
-            | Self::ByteSequenceRead { .. }
-            | Self::ByteSequenceWrite { .. }
-            | Self::ByteSequenceStore { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::AtomicFence { .. }
             | call_and_scalar_constant_operations!()
-            | Self::BooleanStructuralField { .. }
-            | Self::ScalarStructuralField { .. }
             | Self::ReadScalarApplication { .. }
             | scalar_predicate_operations!() => {}
         }
