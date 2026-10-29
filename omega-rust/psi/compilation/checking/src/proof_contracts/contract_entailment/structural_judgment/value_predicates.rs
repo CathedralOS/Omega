@@ -910,14 +910,11 @@ impl StructuralJudge<'_> {
         // The same sealed Core catalogue can have independent Build and Product
         // instances. Keep semantic lookup in the actual judging declaration's
         // source context; source-free state supplies no cross-context selection.
-        let owner = if self.declaration_state.is_valid() {
-            self.declaration_state
-        } else {
-            self.machine_symbol
-        };
-        self.program
-            .symbols
-            .symbol_source_span(owner)
+        [self.declaration_state, self.machine_symbol]
+            .into_iter()
+            .filter(|owner| owner.is_valid())
+            .filter_map(|owner| self.program.symbols.symbol_provenance_source_span(owner))
+            .find(|occurrence| occurrence.span.start != occurrence.span.end)
             .is_some_and(|occurrence| {
                 self.program
                     .symbols

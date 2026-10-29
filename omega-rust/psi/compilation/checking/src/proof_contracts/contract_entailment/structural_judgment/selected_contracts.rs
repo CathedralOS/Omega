@@ -648,6 +648,29 @@ impl StructuralJudge<'_> {
                     ProofFact::Proposition(_) => StructuralJudgment::Unknown,
                 };
                 if !matches!(judgment, StructuralJudgment::Proven) {
+                    if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some() {
+                        eprintln!(
+                            "PUBLISHED failed entry callee={callable:?} fact={fact:?} bindings={entry_bindings:?} judgment={judgment:?}"
+                        );
+                    }
+                    if std::env::var_os("OMEGA_PUBLISHED_CONTRACT_TRACE").is_some()
+                        && let ProofFact::Expression(required) = fact
+                    {
+                        let required = bound_term(
+                            program,
+                            *required,
+                            callable,
+                            parameters,
+                            callable,
+                            entry_bindings,
+                            None,
+                            depth + 1,
+                        );
+                        let resolved = required.clone().map(|required| self.resolve(required));
+                        eprintln!(
+                            "PUBLISHED entry premise callee={callable:?} required={required:?} resolved={resolved:?} judgment={judgment:?}"
+                        );
+                    }
                     if super::super::struct_trace() {
                         eprintln!(
                             "STRUCT normal-guarantee requires owner={callable:?} fact={fact:?} judgment={judgment:?} entry_bindings={entry_bindings:?}"
