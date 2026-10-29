@@ -46,8 +46,12 @@ impl Replay<'_> {
             }
             let body = self.machine(identity)?;
             super::case_flow::validate_graph(self, body)?;
-            invalidates_contents |= !body.unresolved_contents_writes.is_empty()
-                || body.flow.values().any(|step| step.may_escape);
+            // may_escape also marks ordinary payload moves and runtime-indexed
+            // stores. With no exported writable descriptor slots those cannot
+            // modify incoming pointer contents. Preserve the replay owner's
+            // separate unresolved-content fence rather than widening a value
+            // escape into global descriptor invalidation.
+            invalidates_contents |= !body.unresolved_contents_writes.is_empty();
             for call in body.calls.values() {
                 invalidates_contents |= call.argument_contents.iter().any(Option::is_none);
                 match &call.target {

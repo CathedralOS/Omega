@@ -1,0 +1,28 @@
+// Expected exit: 0
+public domain [u8; 4]::Ascii requires ascii_only(self);
+public data Text [copy] { storage: [u8; 4] in Ascii; }
+public data Cell [copy] { parts: [Text; 2]; }
+public data Table [copy] { cells: [Cell; 2]; }
+public data Builder { unused: u64; }
+machine Builder::clear(builder: &mut Builder, cell: &mut Cell) {
+    let parts: &mut [Text] = &mut cell.parts[..];
+    parts[0] = Text { storage: [65u8, 0u8, 0u8, 0u8] };
+    parts[1] = Text { storage: [65u8, 0u8, 0u8, 0u8] };
+}
+machine Builder::run(builder: &mut Builder, table: &mut Table) -> u8 {
+    let cells: &mut [Cell] = &mut table.cells[..];
+    Builder::clear(builder, &mut cells[0]);
+    let next: &mut Cell = &mut cells[1];
+    next.parts[0].storage[0]
+}
+machine main() crashes Trap {
+    let mut builder: Builder;
+    let mut table: Table;
+    table.cells[1].parts[0].storage[0] = 66;
+    let observed: u8 = Builder::run(&mut builder, &mut table);
+    transition observed == 66 && table.cells[0].parts[0].storage[0] == 65
+        && table.cells[0].parts[1].storage[0] == 65 && table.cells[1].parts[0].storage[0] == 66 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}
