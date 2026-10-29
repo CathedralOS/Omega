@@ -318,16 +318,6 @@ pub(super) fn case_overwrite(
         && contents_overlap(program, place, segments)
 }
 
-pub(super) fn case_origin_is_stable(
-    program: &dyn validation::CheckingInput,
-    control: &checked_trees::FlowControlFacts,
-    writes: HandleSpan<checked_trees::FlowOperandReferent>,
-    unknown: bool,
-    place: &validation::CanonicalPlace,
-) -> bool {
-    entry_origin_is_stable_when(program, control, writes, unknown, place, case_overwrite)
-}
-
 pub(super) use validation::storage_path_relations::{binding_overwrite, contents_overlap};
 
 /// A stored view's descriptor survives writes to its referent's descendants.

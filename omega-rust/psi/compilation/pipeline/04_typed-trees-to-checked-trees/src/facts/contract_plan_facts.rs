@@ -2,8 +2,7 @@
 //! scalar value contract plans.
 
 use crate::facts::crash_plan_facts::{
-    build_crash_contract_capsules, build_published_crash_plan, declared_parameter_names,
-    machine_entry_parameter_names,
+    build_crash_contract_capsules, build_published_crash_plan, machine_entry_parameter_names,
 };
 use crate::facts::{crash_calls, operator_crashes};
 use validation::contract_structure::{

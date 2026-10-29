@@ -135,7 +135,7 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
+    PermissionEventKind, PermissionEventSource, SemanticDomainId,
 };
 use symbols::SymbolHandle;
 use typed_trees::{

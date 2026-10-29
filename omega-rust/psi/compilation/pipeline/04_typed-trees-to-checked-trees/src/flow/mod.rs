@@ -64,13 +64,11 @@ pub(crate) use captured_references::CapturedReferencePlace;
 mod operand_contexts;
 mod operand_values;
 mod selection_conditions;
-pub(crate) use operand_values::captured_reference_places;
 pub(crate) use operand_values::{
     CapturedOperand, CapturedValue, CapturedValueChoice, captured_lifetime_roots,
     captured_observation_places, captured_observation_roots, captured_operand_at_path,
-    captured_operand_child_at_path, captured_operand_handle_at_path, captured_operand_values,
-    captured_result_membership, captured_value_places, observe_captured_values,
-    project_captured_view_place,
+    captured_operand_handle_at_path, captured_operand_values, captured_result_membership,
+    captured_value_places, observe_captured_values, project_captured_view_place,
 };
 pub(crate) use selection_conditions::{SelectionCondition, SelectionConditions};
 mod operator_calls;
@@ -174,9 +172,9 @@ pub(crate) use mutation::{OriginPrecision, origin_place, sole_local_referent_ori
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_mutated_regions,
     call_receiver_write_accesses, call_write_accesses, canonical_receiver_place_for_call_site,
-    family_attached_data_symbol, family_data_binding_parameter, frame_storage_writes,
-    place_from_origin_path, signature_ceiling_places, signature_ceiling_regions,
-    state_storage_writes, statement_mutated_place, statement_storage_writes,
+    family_data_binding_parameter, frame_storage_writes, place_from_origin_path,
+    signature_ceiling_places, signature_ceiling_regions, state_storage_writes,
+    statement_mutated_place, statement_storage_writes,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,

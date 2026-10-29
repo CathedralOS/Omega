@@ -2,7 +2,7 @@
 //! Declared referee storage stops pointer traversal; interpreted geometry and
 //! independent lifetime debts retain their supplying occurrence.
 
-use super::super::accesses::{self, borrow_access_place};
+use super::super::accesses;
 use super::super::tracker::StateLoanTracker;
 use super::RebasedBorrowPlace;
 use super::owner_paths::owner_path_matches;
