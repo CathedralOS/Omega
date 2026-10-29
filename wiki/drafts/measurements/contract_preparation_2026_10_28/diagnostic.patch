@@ -1,0 +1,18 @@
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
+@@ -25,0 +26 @@
++    let profile = phase_profile::guard("05.refute.arguments");
+@@ -35,0 +37,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.refute.judge");
+@@ -43,0 +47,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.refute.spellings");
+@@ -45,0 +51,2 @@
++    drop(profile);
++    let _profile = phase_profile::guard("05.refute.judgments");
+@@ -188,0 +196 @@
++        let profile = phase_profile::guard("05.argument_terms.identity");
+@@ -197,0 +206,2 @@
++        drop(profile);
++        let _profile = phase_profile::guard("05.argument_terms.term");
