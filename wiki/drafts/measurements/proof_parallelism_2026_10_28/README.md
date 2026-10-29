@@ -176,3 +176,5 @@ Follow-up: [edge rebinding experiment](edge_rebinding/README.md) records the nex
 Follow-up: [cache diagnostics](cache_diagnostics/README.md) counts real reuse and measures the rejected cache's costs before any further optimization.
 
 Follow-up: [rebound delta experiment](rebinding_delta/README.md) proves a 95.8% append-allocation reduction, with inconclusive timing and no retained compiler change.
+
+Follow-up: [individual premise reuse](premise_reuse/README.md) measures 68.37% exact fact/edge reuse within replay queries and separates gross retirement/substitution costs; no cache or speedup is claimed.

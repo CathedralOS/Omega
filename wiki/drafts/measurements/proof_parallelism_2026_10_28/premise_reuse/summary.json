@@ -1,0 +1,168 @@
+{
+  "premise-control-base": {
+    "wall_seconds": 17.387610899997526,
+    "cpu_seconds": 24.359375,
+    "source_replay_ms": 1280.2366,
+    "premise": {
+      "windows": 0,
+      "hot": {},
+      "global_counts": {},
+      "hot_cost": {},
+      "global_cost": {},
+      "hot_scopes": 0,
+      "peak_unique_rows_per_query": 0
+    }
+  },
+  "premise-control-off": {
+    "wall_seconds": 20.451299799999106,
+    "cpu_seconds": 27.859375,
+    "source_replay_ms": 1990.5853,
+    "premise": {
+      "windows": 0,
+      "hot": {},
+      "global_counts": {},
+      "hot_cost": {},
+      "global_cost": {},
+      "hot_scopes": 0,
+      "peak_unique_rows_per_query": 0
+    }
+  },
+  "premise-cost-a": {
+    "wall_seconds": 19.845186300000933,
+    "cpu_seconds": 26.546875,
+    "source_replay_ms": 2713.5778,
+    "premise": {
+      "windows": 418,
+      "hot": {},
+      "global_counts": {},
+      "hot_cost": {
+        "rows": 3140756,
+        "kept": 3139864,
+        "setup_ns": 611800,
+        "retirement_ns": 258760300,
+        "substitution_ns": 196105000,
+        "equalities_ns": 1689900
+      },
+      "global_cost": {
+        "rows": 3142008,
+        "kept": 3141045,
+        "setup_ns": 623800,
+        "retirement_ns": 258864600,
+        "substitution_ns": 196217200,
+        "equalities_ns": 1734700
+      },
+      "hot_scopes": 0,
+      "peak_unique_rows_per_query": 0
+    }
+  },
+  "premise-cost-b": {
+    "wall_seconds": 18.792145600000367,
+    "cpu_seconds": 25.859375,
+    "source_replay_ms": 2131.5961,
+    "premise": {
+      "windows": 418,
+      "hot": {},
+      "global_counts": {},
+      "hot_cost": {
+        "rows": 3140756,
+        "kept": 3139864,
+        "setup_ns": 491400,
+        "retirement_ns": 174682100,
+        "substitution_ns": 165413600,
+        "equalities_ns": 1205900
+      },
+      "global_cost": {
+        "rows": 3142008,
+        "kept": 3141045,
+        "setup_ns": 499400,
+        "retirement_ns": 174759000,
+        "substitution_ns": 165492400,
+        "equalities_ns": 1232800
+      },
+      "hot_scopes": 0,
+      "peak_unique_rows_per_query": 0
+    }
+  },
+  "premise-counts-a": {
+    "wall_seconds": 22.845352000000275,
+    "cpu_seconds": 29.390625,
+    "source_replay_ms": 2636.7608,
+    "premise": {
+      "windows": 418,
+      "hot": {
+        "requests": 7683,
+        "rows": 3140756,
+        "hits": 2147242,
+        "unique": 993514,
+        "kept": 3139864,
+        "kept_hits": 2146650,
+        "unchanged": 3085153,
+        "changed_without_substitution": 0,
+        "value_visits": 6088391
+      },
+      "global_counts": {
+        "requests": 7742,
+        "rows": 3142008,
+        "hits": 2147789,
+        "unique": 994219,
+        "kept": 3141045,
+        "kept_hits": 2147166,
+        "unchanged": 3086037,
+        "changed_without_substitution": 0,
+        "value_visits": 6090821
+      },
+      "hot_cost": {},
+      "global_cost": {},
+      "hot_scopes": 173,
+      "peak_unique_rows_per_query": 435899
+    }
+  },
+  "premise-counts-b": {
+    "wall_seconds": 19.641255799997452,
+    "cpu_seconds": 26.28125,
+    "source_replay_ms": 2393.7128,
+    "premise": {
+      "windows": 418,
+      "hot": {
+        "requests": 7683,
+        "rows": 3140756,
+        "hits": 2147242,
+        "unique": 993514,
+        "kept": 3139864,
+        "kept_hits": 2146650,
+        "unchanged": 3085153,
+        "changed_without_substitution": 0,
+        "value_visits": 6088391
+      },
+      "global_counts": {
+        "requests": 7742,
+        "rows": 3142008,
+        "hits": 2147789,
+        "unique": 994219,
+        "kept": 3141045,
+        "kept_hits": 2147166,
+        "unchanged": 3086037,
+        "changed_without_substitution": 0,
+        "value_visits": 6090821
+      },
+      "hot_cost": {},
+      "global_cost": {},
+      "hot_scopes": 173,
+      "peak_unique_rows_per_query": 435899
+    }
+  },
+  "premise-verified": {
+    "wall_seconds": 18.565021599999454,
+    "cpu_seconds": 24.703125,
+    "source_replay_ms": 1328.8469,
+    "premise": {
+      "windows": 0,
+      "hot": {},
+      "global_counts": {},
+      "hot_cost": {},
+      "global_cost": {},
+      "hot_scopes": 0,
+      "peak_unique_rows_per_query": 0
+    }
+  }
+}
