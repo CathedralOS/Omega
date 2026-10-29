@@ -173,24 +173,30 @@ pub(super) fn project_declared_field(
                     symbol: field.symbol,
                 }]);
             }
-            typed_trees::data::DataMember::Variant(case)
-                if matches!(
-                    judge.judge_case(value.clone(), data.symbol, case.symbol),
-                    super::structural_judgment::StructuralJudgment::Proven
-                ) =>
-            {
-                for field in program.data_payload_fields(case) {
-                    if field.name.as_str() == field_name {
-                        selected.push(vec![
-                            PlaceSegment::Case {
-                                variant: case.symbol,
-                            },
-                            PlaceSegment::Field {
-                                symbol: field.symbol,
-                            },
-                        ]);
-                    }
+            typed_trees::data::DataMember::Variant(case) => {
+                let mut fields = program
+                    .data_payload_fields(case)
+                    .iter()
+                    .filter(|field| field.name.as_str() == field_name)
+                    .peekable();
+                if fields.peek().is_none()
+                    || !matches!(
+                        judge.judge_case(value.clone(), data.symbol, case.symbol),
+                        super::structural_judgment::StructuralJudgment::Proven,
+                    )
+                {
+                    continue;
                 }
+                selected.extend(fields.map(|field| {
+                    vec![
+                        PlaceSegment::Case {
+                            variant: case.symbol,
+                        },
+                        PlaceSegment::Field {
+                            symbol: field.symbol,
+                        },
+                    ]
+                }));
             }
             _ => {}
         }

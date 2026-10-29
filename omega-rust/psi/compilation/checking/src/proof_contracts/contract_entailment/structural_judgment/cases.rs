@@ -12,7 +12,7 @@ use crate::proof_contracts::contract_entailment::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
