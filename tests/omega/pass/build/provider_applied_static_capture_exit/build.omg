@@ -20,5 +20,5 @@ machine choose<const Tag: u64>(builder: &mut Build) {
 // Formation is mandatory even though this helper never executes; its valid
 // request must not become an active provider selection.
 machine unused_selection(builder: &mut Build) {
-    Build::select_provider<Reading<8u64>, FirstReading<(8u64 / 1u64)>>(builder, macos_arm64);
+    Build::select_provider<Reading<29u64>, FirstReading<(29u64 / 1u64)>>(builder, macos_arm64);
 }
