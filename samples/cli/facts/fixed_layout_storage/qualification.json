@@ -1,0 +1,239 @@
+{
+  "requirement": "actual LayoutStorage<Pair,PairLayout> transport preserves Delivered(lo==42) and authored lo-at-8 geometry",
+  "producer_base": "e06c7c036499104592abe68af5874f11703f2934",
+  "producer_source_archive_sha256": "ea6c664e351b369619e756a8b56874f462d3873e7d6f01150c4382ecc5ceff85",
+  "producer_sha256": "f9efada7191f7e22d17a996c428c062c89c6c7d586301ee0455a2993d0952546",
+  "opt_level": "1",
+  "terminal_format": 207,
+  "runtime_library_manifest_sha256": "bdc2cd431d0ba26059e42ac79d80f0cd75e294fb7d357615ec443948cc1cce2a",
+  "runtime_library_core_layout_sha256": "dded7c843e2c37c5abfead00ece5209ad6ab34208766cc3ec7929de148786a43",
+  "observations": [
+    {
+      "target": "macos_arm64",
+      "place": "local",
+      "source_sha256": "c90d508f3a7ab061bb02c95d410d0d1bd2e625cc1e45d90c07fbfa2c5528a5f1",
+      "exit": 0,
+      "seconds": 2.38,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22027-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "field",
+      "source_sha256": "bf475b33fa14882b8ad3911e145a635ca2761b02c8fc62a49928181ba48b2af3",
+      "exit": 0,
+      "seconds": 2.57,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22036-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "parameter",
+      "source_sha256": "af9d4eb96419bd4dbaa1d5d4da865f975610608eceb2103d1376489c4b2d519e",
+      "exit": 0,
+      "seconds": 2.71,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22043-1)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "call_result",
+      "source_sha256": "97d02bc9602348db5504e2657e5e8def679904dccf98ed465fb015c6554e3d5c",
+      "exit": 0,
+      "seconds": 3.15,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22060-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "match_join",
+      "source_sha256": "9e75ad6fe4adca3e14eed6b6a2f71d9faec533150d1384d97dbd4a500bec3e26",
+      "exit": 0,
+      "seconds": 3.47,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22067-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "const_name",
+      "source_sha256": "c4c967a7f1eff7ed890e3818a29c444b8e3ebf882e65c0f7339221d8a62a377f",
+      "exit": 0,
+      "seconds": 2.27,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22086-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "other_state",
+      "source_sha256": "400e67c2517e38f07025f9631154ff4dc84cd184def26b981dc009d7c923dfd9",
+      "exit": 0,
+      "seconds": 3.52,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22092-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "other_machine",
+      "source_sha256": "afffcae3bea089f8a2f9e546f02cb3c8da4889fa5bb3b4f5c944a1bed02a743f",
+      "exit": 0,
+      "seconds": 4.39,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22108-0)\n"
+    },
+    {
+      "target": "macos_arm64",
+      "place": "target_body",
+      "source_sha256": "aebd7405816759a224f22b6c795ef6d79cc314f4b17f5ebaf8398e5df282c610",
+      "exit": 0,
+      "seconds": 4.41,
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22122-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "local",
+      "source_sha256": "c90d508f3a7ab061bb02c95d410d0d1bd2e625cc1e45d90c07fbfa2c5528a5f1",
+      "exit": 0,
+      "seconds": 1.96,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22146-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "field",
+      "source_sha256": "bf475b33fa14882b8ad3911e145a635ca2761b02c8fc62a49928181ba48b2af3",
+      "exit": 0,
+      "seconds": 1.91,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22152-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "parameter",
+      "source_sha256": "af9d4eb96419bd4dbaa1d5d4da865f975610608eceb2103d1376489c4b2d519e",
+      "exit": 0,
+      "seconds": 2.0,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22155-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "call_result",
+      "source_sha256": "97d02bc9602348db5504e2657e5e8def679904dccf98ed465fb015c6554e3d5c",
+      "exit": 0,
+      "seconds": 1.93,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22164-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "match_join",
+      "source_sha256": "9e75ad6fe4adca3e14eed6b6a2f71d9faec533150d1384d97dbd4a500bec3e26",
+      "exit": 0,
+      "seconds": 1.95,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22170-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "const_name",
+      "source_sha256": "c4c967a7f1eff7ed890e3818a29c444b8e3ebf882e65c0f7339221d8a62a377f",
+      "exit": 0,
+      "seconds": 2.78,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22178-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "other_state",
+      "source_sha256": "400e67c2517e38f07025f9631154ff4dc84cd184def26b981dc009d7c923dfd9",
+      "exit": 0,
+      "seconds": 1.91,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22189-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "other_machine",
+      "source_sha256": "afffcae3bea089f8a2f9e546f02cb3c8da4889fa5bb3b4f5c944a1bed02a743f",
+      "exit": 0,
+      "seconds": 1.93,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22195-0)\n"
+    },
+    {
+      "target": "macos_x86_64",
+      "place": "target_body",
+      "source_sha256": "aebd7405816759a224f22b6c795ef6d79cc314f4b17f5ebaf8398e5df282c610",
+      "exit": 0,
+      "seconds": 2.03,
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22200-0)\n"
+    },
+    {
+      "reject": {
+        "place": "local",
+        "source_sha256": "9363fe34dc00e2c710c274c616dff39f9fa6717cd74729bb5378abb95a77d642",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_local_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "field",
+        "source_sha256": "8bd60112840b81568fd8f9a5d62527c7871ce7bd4e09393dbf7b2fbc7679e49d",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_field_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "parameter",
+        "source_sha256": "f1b8bdb124cbb7efacab9ab5462ed26efa38b6c9533cff8e04c645ac09341b01",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_parameter_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "call_result",
+        "source_sha256": "808907a4605a801629eee4fc7813687d0687ad79b91ff2c544e61304fe9a624c",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_call_result_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "match_join",
+        "source_sha256": "496be8b26eb6ab47cd66c5117610251fb9c4d8b8b6546fa66f01b2ec548aa28b",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_match_join_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "const_name",
+        "source_sha256": "79deb65387c0be5200a74418d5f0543b24ced70823e754781ee95dae38aa7ff4",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_const_name_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "other_state",
+        "source_sha256": "d1d3b2ea43abe1879d0ffcc8c6b39c9596301dafdc210d15da1c0ae5ecbac060",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_other_state_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "other_machine",
+        "source_sha256": "94ae245fad400eca4f1ae8fb048b36d715016aa753ccbccd4160f03cc29a6942",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_other_machine_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    },
+    {
+      "reject": {
+        "place": "target_body",
+        "source_sha256": "5a60100dfcfe80e90e3f507e178a1ef735af02f2515e1ad734482bcd381d9e8b",
+        "exit": 1,
+        "output": "cannot compile admitted project: checked compilation failed for package `fixed_layout_storage_target_body_invalid` with 1 diagnostic(s)\n  error: cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42\n"
+      }
+    }
+  ],
+  "unverified_native_targets": [
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64"
+  ],
+  "remaining": [
+    "generic lifetime and ownership controls",
+    "all affected legacy policies",
+    "portable artifact validation",
+    "independent exact-candidate review"
+  ]
+}

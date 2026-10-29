@@ -32,6 +32,7 @@ impl ReferenceByteRegionProjection {
                 encoding: Some(PrimitiveStorageEncoding {
                     source: stored_scalar,
                     view: stored_scalar,
+                    byte_offset: None,
                 }),
             },
             logical_scalar,
@@ -201,8 +202,13 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if let Some(captured) = &mut loan.storage.encoding {
+            let supplied = if captured.byte_offset.is_some() {
+                captured.view
+            } else {
+                captured.source
+            };
             if byte_offset != 0
-                || terminal_semantics::reference_storage_byte_width(captured.source)
+                || terminal_semantics::reference_storage_byte_width(supplied)
                     != terminal_semantics::reference_storage_byte_width(stored_scalar)
             {
                 return Err(malformed());
@@ -224,6 +230,7 @@ impl TerminalExecution<'_> {
             loan.storage.encoding = Some(PrimitiveStorageEncoding {
                 source: source_scalar,
                 view: stored_scalar,
+                byte_offset: None,
             });
         }
         loan.scalar_type = logical_scalar;
