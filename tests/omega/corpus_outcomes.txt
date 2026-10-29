@@ -8442,7 +8442,7 @@ fail/facts/fixed_layout_storage_through_other_state_rejected rejected 800ms expe
 	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/fixed_layout_storage_through_parameter_rejected rejected 671ms expected @50285e49318d
 	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_target_body_rejected rejected 573ms expected @50285e49318d
+fail/facts/fixed_layout_storage_through_target_body_rejected rejected 540ms expected @1abd71057ea2+wt
 	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/float_comparison_route_mixed_format_rejected rejected 1822ms expected @a92f16431042
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
@@ -17806,7 +17806,7 @@ pass/facts/fixed_layout_storage_through_match_join_exit checked 3528ms check-tar
 pass/facts/fixed_layout_storage_through_other_machine_exit checked 3828ms check-target:macos_arm64 @50285e49318d
 pass/facts/fixed_layout_storage_through_other_state_exit checked 3215ms check-target:macos_arm64 @50285e49318d
 pass/facts/fixed_layout_storage_through_parameter_exit checked 3927ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_target_body_exit checked 3859ms check-target:macos_arm64 @50285e49318d
+pass/facts/fixed_layout_storage_through_target_body_exit checked 1950ms check-target:macos_arm64 @1abd71057ea2+wt
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt

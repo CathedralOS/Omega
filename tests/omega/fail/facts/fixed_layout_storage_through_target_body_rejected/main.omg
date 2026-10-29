@@ -17,17 +17,30 @@ machine make() -> LayoutStorage<Pair, PairLayout> {
     value.hi = 9u64;
     value
 }
-boundary trait Delivery { machine value() -> LayoutStorage<Pair, PairLayout> reaches terminates; }
-FirstDelivery satisfies Delivery { machine value() -> LayoutStorage<Pair, PairLayout> { make() } }
-SecondDelivery satisfies Delivery { machine value() -> LayoutStorage<Pair, PairLayout> { make() } }
-machine main() reaches Delivery crashes Trap {
+boundary trait Delivery {
+    machine value() -> LayoutStorage<Pair, PairLayout> reaches terminates;
+    machine marker() -> u64 reaches terminates;
+}
+FirstDelivery satisfies Delivery {
+    machine value() -> LayoutStorage<Pair, PairLayout> { make() }
+    machine marker() -> u64 { 17u64 }
+}
+SecondDelivery satisfies Delivery {
+    machine value() -> LayoutStorage<Pair, PairLayout> { make() }
+    machine marker() -> u64 { 29u64 }
+}
+machine verify(expected_marker: u64) reaches Delivery crashes Trap {
     let value: LayoutStorage<Pair, PairLayout> = Delivery::value();
     let difference: u64 = value.lo - 42u64;
     let bytes: &[u8; 16] = &value as &[u8; 16];
-    transition difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
+    let marker: u64 = Delivery::marker();
+    transition marker == expected_marker && difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
 }
+
+machine main_arm() reaches Delivery crashes Trap { verify(17u64); }
+machine main_other() reaches Delivery crashes Trap { verify(29u64); }

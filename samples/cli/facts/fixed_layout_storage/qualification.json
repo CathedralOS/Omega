@@ -14,7 +14,8 @@
       "source_sha256": "c90d508f3a7ab061bb02c95d410d0d1bd2e625cc1e45d90c07fbfa2c5528a5f1",
       "exit": 0,
       "seconds": 2.38,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22027-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22027-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -22,7 +23,8 @@
       "source_sha256": "bf475b33fa14882b8ad3911e145a635ca2761b02c8fc62a49928181ba48b2af3",
       "exit": 0,
       "seconds": 2.57,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22036-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22036-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -30,7 +32,8 @@
       "source_sha256": "af9d4eb96419bd4dbaa1d5d4da865f975610608eceb2103d1376489c4b2d519e",
       "exit": 0,
       "seconds": 2.71,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22043-1)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22043-1)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -38,7 +41,8 @@
       "source_sha256": "97d02bc9602348db5504e2657e5e8def679904dccf98ed465fb015c6554e3d5c",
       "exit": 0,
       "seconds": 3.15,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22060-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22060-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -46,7 +50,8 @@
       "source_sha256": "9e75ad6fe4adca3e14eed6b6a2f71d9faec533150d1384d97dbd4a500bec3e26",
       "exit": 0,
       "seconds": 3.47,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22067-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22067-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -54,7 +59,8 @@
       "source_sha256": "c4c967a7f1eff7ed890e3818a29c444b8e3ebf882e65c0f7339221d8a62a377f",
       "exit": 0,
       "seconds": 2.27,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22086-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22086-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -62,7 +68,8 @@
       "source_sha256": "400e67c2517e38f07025f9631154ff4dc84cd184def26b981dc009d7c923dfd9",
       "exit": 0,
       "seconds": 3.52,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22092-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22092-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -70,7 +77,8 @@
       "source_sha256": "afffcae3bea089f8a2f9e546f02cb3c8da4889fa5bb3b4f5c944a1bed02a743f",
       "exit": 0,
       "seconds": 4.39,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22108-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22108-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_arm64",
@@ -78,7 +86,8 @@
       "source_sha256": "aebd7405816759a224f22b6c795ef6d79cc314f4b17f5ebaf8398e5df282c610",
       "exit": 0,
       "seconds": 4.41,
-      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22122-0)\n"
+      "output": "compiled for target `macos_arm64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22122-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -86,7 +95,8 @@
       "source_sha256": "c90d508f3a7ab061bb02c95d410d0d1bd2e625cc1e45d90c07fbfa2c5528a5f1",
       "exit": 0,
       "seconds": 1.96,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22146-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22146-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -94,7 +104,8 @@
       "source_sha256": "bf475b33fa14882b8ad3911e145a635ca2761b02c8fc62a49928181ba48b2af3",
       "exit": 0,
       "seconds": 1.91,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22152-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22152-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -102,7 +113,8 @@
       "source_sha256": "af9d4eb96419bd4dbaa1d5d4da865f975610608eceb2103d1376489c4b2d519e",
       "exit": 0,
       "seconds": 2.0,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22155-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22155-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -110,7 +122,8 @@
       "source_sha256": "97d02bc9602348db5504e2657e5e8def679904dccf98ed465fb015c6554e3d5c",
       "exit": 0,
       "seconds": 1.93,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22164-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22164-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -118,7 +131,8 @@
       "source_sha256": "9e75ad6fe4adca3e14eed6b6a2f71d9faec533150d1384d97dbd4a500bec3e26",
       "exit": 0,
       "seconds": 1.95,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22170-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22170-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -126,7 +140,8 @@
       "source_sha256": "c4c967a7f1eff7ed890e3818a29c444b8e3ebf882e65c0f7339221d8a62a377f",
       "exit": 0,
       "seconds": 2.78,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22178-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22178-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -134,7 +149,8 @@
       "source_sha256": "400e67c2517e38f07025f9631154ff4dc84cd184def26b981dc009d7c923dfd9",
       "exit": 0,
       "seconds": 1.91,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22189-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22189-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -142,7 +158,8 @@
       "source_sha256": "afffcae3bea089f8a2f9e546f02cb3c8da4889fa5bb3b4f5c944a1bed02a743f",
       "exit": 0,
       "seconds": 1.93,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22195-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22195-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "target": "macos_x86_64",
@@ -150,7 +167,8 @@
       "source_sha256": "aebd7405816759a224f22b6c795ef6d79cc314f4b17f5ebaf8398e5df282c610",
       "exit": 0,
       "seconds": 2.03,
-      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22200-0)\n"
+      "output": "compiled for target `macos_x86_64` OK (/var/folders/5y/dw9dp86x0458z_4zg5p4758w0000gn/T/omega-probe-22200-0)\n",
+      "observation_kind": "compile-only"
     },
     {
       "reject": {
@@ -235,5 +253,426 @@
     "all affected legacy policies",
     "portable artifact validation",
     "independent exact-candidate review"
-  ]
+  ],
+  "actual_runtime_observations": {
+    "macos_arm64": [
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_call_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3948,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 5252,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_field_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3497,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3316,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_match_join_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3593,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3402,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3678,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3861,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 3774,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "50285e49318d"
+      }
+    ],
+    "macos_x86_64": [
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_call_result_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4478,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 5642,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_field_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4194,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_local_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4211,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_match_join_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4205,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_other_machine_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4553,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_other_state_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4381,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_parameter_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4206,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 4297,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      }
+    ]
+  },
+  "evidence_correction": "Earlier classification of CLI run --both --target exits as engine observations was wrong; those commands are compile-only. Actual engine observations require explicit engine outputs or canonical corpus facts.",
+  "actual_host_cli_observations": [
+    {
+      "place": "local",
+      "target": "macos_arm64",
+      "source_sha256": "c90d508f3a7ab061bb02c95d410d0d1bd2e625cc1e45d90c07fbfa2c5528a5f1",
+      "exit": 0,
+      "seconds": 5.79,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "field",
+      "target": "macos_arm64",
+      "source_sha256": "bf475b33fa14882b8ad3911e145a635ca2761b02c8fc62a49928181ba48b2af3",
+      "exit": 0,
+      "seconds": 4.84,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "parameter",
+      "target": "macos_arm64",
+      "source_sha256": "af9d4eb96419bd4dbaa1d5d4da865f975610608eceb2103d1376489c4b2d519e",
+      "exit": 0,
+      "seconds": 3.66,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "call_result",
+      "target": "macos_arm64",
+      "source_sha256": "97d02bc9602348db5504e2657e5e8def679904dccf98ed465fb015c6554e3d5c",
+      "exit": 0,
+      "seconds": 3.76,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "match_join",
+      "target": "macos_arm64",
+      "source_sha256": "9e75ad6fe4adca3e14eed6b6a2f71d9faec533150d1384d97dbd4a500bec3e26",
+      "exit": 0,
+      "seconds": 3.58,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "const_name",
+      "target": "macos_arm64",
+      "source_sha256": "c4c967a7f1eff7ed890e3818a29c444b8e3ebf882e65c0f7339221d8a62a377f",
+      "exit": 0,
+      "seconds": 4.35,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "other_state",
+      "target": "macos_arm64",
+      "source_sha256": "400e67c2517e38f07025f9631154ff4dc84cd184def26b981dc009d7c923dfd9",
+      "exit": 0,
+      "seconds": 3.59,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "other_machine",
+      "target": "macos_arm64",
+      "source_sha256": "afffcae3bea089f8a2f9e546f02cb3c8da4889fa5bb3b4f5c944a1bed02a743f",
+      "exit": 0,
+      "seconds": 4.08,
+      "output": "native exit 0\ninterp exit: 0\n"
+    },
+    {
+      "place": "target_body",
+      "target": "macos_arm64",
+      "source_sha256": "aebd7405816759a224f22b6c795ef6d79cc314f4b17f5ebaf8398e5df282c610",
+      "exit": 0,
+      "seconds": 3.74,
+      "output": "native exit 0\ninterp exit: 0\n"
+    }
+  ],
+  "selection_sensitive_target_body": {
+    "macos_arm64": {
+      "observation": {
+        "fixture": "pass/facts/fixed_layout_storage_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1864,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      "positive_sha256": "b1c1cdac257cba5c3b598e7a0d2a7b3636cb3a9a1d3cab3f8187ffd24f832380",
+      "build_sha256": "c1009e314677c62e41d19b7b444b814ebb226116ce62e7eac6d4ec67f880aabf",
+      "marker": 17
+    },
+    "macos_x86_64": {
+      "observation": {
+        "fixture": "pass/facts/fixed_layout_storage_through_target_body_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2263,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      "positive_sha256": "b1c1cdac257cba5c3b598e7a0d2a7b3636cb3a9a1d3cab3f8187ffd24f832380",
+      "build_sha256": "c1009e314677c62e41d19b7b444b814ebb226116ce62e7eac6d4ec67f880aabf",
+      "marker": 29
+    },
+    "checking_observations": [
+      {
+        "fixture": "pass/facts/fixed_layout_storage_through_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1950,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      },
+      {
+        "fixture": "fail/facts/fixed_layout_storage_through_target_body_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 540,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42"
+        ],
+        "regressed_from": null,
+        "recorded_at": "1abd71057ea2+wt"
+      }
+    ]
+  }
 }
