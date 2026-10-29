@@ -1277,6 +1277,21 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
     if let Some(value) = super::super::proof_integer::anonymous_integer_value(program, expression) {
         return Some(StructuralTerm::Integer(value));
     }
+    macro_rules! bound_child {
+        ($child:expr) => {
+            bound_term(
+                program,
+                $child,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )
+        };
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if let Some((_, value)) = bindings
@@ -1311,18 +1326,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 program,
                 member,
                 reference,
-                || {
-                    bound_term(
-                        program,
-                        member.receiver,
-                        scope,
-                        parameters,
-                        callable,
-                        bindings,
-                        result,
-                        depth + 1,
-                    )
-                },
+                || bound_child!(member.receiver),
             ) {
                 return Some(measure);
             }
@@ -1357,16 +1361,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 member.member.as_str(),
                 member.case_variant.as_ref().map(|case| case.as_str()),
             )?;
-            let value = bound_term(
-                program,
-                member.receiver,
-                scope,
-                parameters,
-                callable,
-                bindings,
-                result,
-                depth + 1,
-            )?;
+            let value = bound_child!(member.receiver)?;
             let mut path = Vec::new();
             crate::value_custody::places::push_field_place_segments(
                 program,
@@ -1382,42 +1377,15 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
             None,
             Some((scope, parameters)),
             expression,
-            bound_term(
-                program,
-                indexed.collection,
-                scope,
-                parameters,
-                callable,
-                bindings,
-                result,
-                depth + 1,
-            )?,
-            bound_term(
-                program,
-                indexed.index,
-                scope,
-                parameters,
-                callable,
-                bindings,
-                result,
-                depth + 1,
-            )?,
+            bound_child!(indexed.collection)?,
+            bound_child!(indexed.index)?,
         ),
         ExpressionNode::Call(call) => {
             if let Some((_, argument)) = crate::integer_embedding_argument(program, expression) {
                 let reference = crate::parameter_expression_result_type_reference(
                     program, scope, parameters, argument,
                 )?;
-                let value = bound_term(
-                    program,
-                    argument,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )?;
+                let value = bound_child!(argument)?;
                 return super::super::structural_terms::integer_embedding_term(
                     program, expression, reference, value,
                 );
@@ -1428,18 +1396,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 .expression_table
                 .expression_handles(call.arguments)
                 .iter()
-                .map(|argument| {
-                    bound_term(
-                        program,
-                        *argument,
-                        scope,
-                        parameters,
-                        callable,
-                        bindings,
-                        result,
-                        depth + 1,
-                    )
-                })
+                .map(|argument| bound_child!(*argument))
                 .collect::<Option<Vec<_>>>()?;
             let result_type = crate::parameter_expression_result_type_reference(
                 program, scope, parameters, expression,
@@ -1468,16 +1425,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 literal,
                 |_, field| {
                     let field = field?;
-                    bound_term(
-                        program,
-                        field.value,
-                        scope,
-                        parameters,
-                        callable,
-                        bindings,
-                        result,
-                        depth + 1,
-                    )
+                    bound_child!(field.value)
                 },
             )
         }
@@ -1486,16 +1434,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
             None,
             Some((scope, parameters)),
             expression,
-            bound_term(
-                program,
-                unary.operand,
-                scope,
-                parameters,
-                callable,
-                bindings,
-                result,
-                depth + 1,
-            )?,
+            bound_child!(unary.operand)?,
         ),
         // Public guarantees observe the admitted conversion's value through
         // the same denotation rule as ordinary contract expressions. Conversion
@@ -1505,18 +1444,7 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                 program, scope, parameters, cast.value,
             )?;
             super::super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                .then(|| {
-                    bound_term(
-                        program,
-                        cast.value,
-                        scope,
-                        parameters,
-                        callable,
-                        bindings,
-                        result,
-                        depth + 1,
-                    )
-                })
+                .then(|| bound_child!(cast.value))
                 .flatten()
         }
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
@@ -1538,26 +1466,8 @@ pub(in crate::proof_contracts::contract_entailment) fn bound_term(
                     program, scope, expression, &types,
                 )?;
             }
-            let left = bound_term(
-                program,
-                binary.left,
-                scope,
-                parameters,
-                callable,
-                bindings,
-                result,
-                depth + 1,
-            )?;
-            let right = bound_term(
-                program,
-                binary.right,
-                scope,
-                parameters,
-                callable,
-                bindings,
-                result,
-                depth + 1,
-            )?;
+            let left = bound_child!(binary.left)?;
+            let right = bound_child!(binary.right)?;
             super::super::structural_terms::binary_term_in_scope(
                 program,
                 None,
