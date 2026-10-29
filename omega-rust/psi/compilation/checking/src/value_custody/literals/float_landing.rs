@@ -36,12 +36,18 @@ pub(super) use numeric_operands::validate_numeric_tree_destination;
 /// type of its owning state, operator, or trait requirement. Runs on the
 /// still-mutable typed tree BEFORE validation, so every downstream consumer
 /// sees one stamped tree.
-pub fn land_float_literal_destinations(program: &mut TypedTrees) {
+pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
     use numerics::literals::FloatFormat;
 
     let mut pairs: Vec<FloatLandingPair> = Vec::new();
     let mut direct_formats: Vec<(ExpressionHandle, FloatFormat)> = Vec::new();
     let mut anonymous_comparisons: Vec<ExpressionHandle> = Vec::new();
+
+    // Every destination query below observes this one immutable program.
+    // Reuse its existing exact contract-occurrence and declaration indexes;
+    // bare mutable trees intentionally carry no memo across transformations.
+    let checking = crate::CheckingContext::new(&*typed);
+    let program: &dyn crate::CheckingInput = &checking;
 
     for (handle, node) in program.expression_table.expression_entries() {
         match node {
@@ -254,6 +260,11 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             );
         }
     }
+
+    // Only handles escaped collection. End the immutable query window before
+    // the first literal stamp, including any subsequent preparation round.
+    drop(checking);
+    let program = typed;
 
     for (value, format) in direct_formats {
         land_float_tree(program, value, format);
