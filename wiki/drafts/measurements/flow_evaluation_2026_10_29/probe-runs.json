@@ -1,0 +1,38 @@
+[
+  {
+    "index": 0,
+    "variant": "A",
+    "output": "ms=230.3936 events=1173760 rows=365\n",
+    "sha256": "b110815ed80e717da333d6efaff963c1712a5b6c1eeaef4358e95ba10ee2dbc3"
+  },
+  {
+    "index": 1,
+    "variant": "B",
+    "output": "ms=55.7859 events=1173760 rows=365\n",
+    "sha256": "64a6459d98065506718351ad3c517d4e28dbcd635f2b599b4a25a291a8108eb9"
+  },
+  {
+    "index": 2,
+    "variant": "B",
+    "output": "ms=57.0721 events=1173760 rows=365\n",
+    "sha256": "64a6459d98065506718351ad3c517d4e28dbcd635f2b599b4a25a291a8108eb9"
+  },
+  {
+    "index": 3,
+    "variant": "A",
+    "output": "ms=179.7442 events=1173760 rows=365\n",
+    "sha256": "b110815ed80e717da333d6efaff963c1712a5b6c1eeaef4358e95ba10ee2dbc3"
+  },
+  {
+    "index": 4,
+    "variant": "A",
+    "output": "ms=173.7553 events=1173760 rows=365\n",
+    "sha256": "b110815ed80e717da333d6efaff963c1712a5b6c1eeaef4358e95ba10ee2dbc3"
+  },
+  {
+    "index": 5,
+    "variant": "B",
+    "output": "ms=60.6251 events=1173760 rows=365\n",
+    "sha256": "64a6459d98065506718351ad3c517d4e28dbcd635f2b599b4a25a291a8108eb9"
+  }
+]

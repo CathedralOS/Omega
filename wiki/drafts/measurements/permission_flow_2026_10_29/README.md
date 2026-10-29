@@ -122,3 +122,11 @@ The screen wrapper additionally checks artifact equality across both variants.
 No full corpus, whole-workspace tests, Clippy or other-host native execution is
 claimed. Compiler invocation timing excludes initial package review. Shared
 host activity is not controlled by stopping other projects.
+
+
+Follow-up: this record landed in [PR789](https://github.com/CathedralOS/Omega/pull/789)
+with green PR, queue and post-merge checks. The next
+[flow-evaluation experiment](../flow_evaluation_2026_10_29/README.md) identified
+profiler recording overhead within the new nested timers and retained a cheaper
+name lookup. It claims a measurement-workflow improvement, not an ordinary
+compiler speedup; the remaining operand-capture question stays open.
