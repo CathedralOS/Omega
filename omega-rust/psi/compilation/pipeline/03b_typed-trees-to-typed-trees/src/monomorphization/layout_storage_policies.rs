@@ -5,6 +5,24 @@ use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindin
 
 pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let occurrences = typed_trees::references::collect_program_type_occurrences(program);
+    // Preparation can replace an initializer or its inferred type. Retire
+    // derived demands for those exact removed occurrences before discovering
+    // the current source-owned roster. Frozen checking still verifies every
+    // retained demand independently and never repairs its own evidence.
+    let retained = program
+        .data_implementation_applications
+        .iter()
+        .filter(|(_, selected)| {
+            occurrences.iter().any(|occurrence| {
+                occurrence.reference == selected.source_application
+                    && occurrence.lexical_owner == selected.lexical_owner
+            })
+        })
+        .map(|(_, selected)| selected.clone())
+        .collect::<Vec<_>>();
+    let mut applications = arena::Arena::new();
+    applications.insert_many(retained);
+    program.data_implementation_applications = applications;
     for occurrence in occurrences {
         let Some(storage) = program.layout_storage_arguments(occurrence.reference) else {
             continue;

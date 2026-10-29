@@ -30,7 +30,11 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
     ) -> Option<LayoutStorageArguments> {
-        let mut application = self.type_reference_table.peeled_type_reference(reference);
+        // A reference is a stored permission descriptor, not its backing value.
+        // Only value qualifications may expose the representation constructor.
+        let mut application = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         if let TypeReferenceNode::Named { symbol, .. } =
             self.type_reference_table.type_reference(application)
         {

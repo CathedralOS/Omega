@@ -470,7 +470,6 @@ fn unresolved_subject_context(
         ExpressionNode::Name(path) => path
             .resolved_symbol()
             .and_then(|symbol| program.state_local_declaration(state, symbol))
-            .filter(|(_, local)| local.type_is_inferred)
             .map(|(_, local)| {
                 unresolved_subject_context(program, machine, state, local.initial_value, visited)
             })
@@ -489,6 +488,29 @@ fn unresolved_subject_context(
                 labels[0], labels[1]
             )
         }
-        _ => String::new(),
+        ExpressionNode::Binary(binary) => {
+            let operands = [binary.left, binary.right].map(|operand| {
+                validation::expression_result_type_reference(program, machine, state, operand)
+            });
+            let mut context = format!(
+                " (operator {:?}, operands {} and {})",
+                binary.operator,
+                operands[0]
+                    .map(|reference| program.display_type_reference(reference))
+                    .unwrap_or_else(|| "unresolved".into()),
+                operands[1]
+                    .map(|reference| program.display_type_reference(reference))
+                    .unwrap_or_else(|| "unresolved".into())
+            );
+            for (operand, actual) in [binary.left, binary.right].into_iter().zip(operands) {
+                if actual.is_none() {
+                    context.push_str(&unresolved_subject_context(
+                        program, machine, state, operand, visited,
+                    ));
+                }
+            }
+            context
+        }
+        node => format!(" (producing expression: {node:?})"),
     }
 }
