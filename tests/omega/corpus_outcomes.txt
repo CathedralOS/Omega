@@ -12160,6 +12160,24 @@ fail/facts/nested_machine_joint_rank_increasing_to_overshoot_rejected rejected 7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_increasing_to_post_clamp_rejected rejected 710ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_call_result_rejected rejected 826ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_const_name_rejected rejected 826ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_field_rejected rejected 844ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_local_rejected rejected 796ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_match_join_rejected rejected 854ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_other_machine_rejected rejected 757ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_other_state_rejected rejected 851ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_parameter_rejected rejected 742ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_indexed_value_target_body_rejected rejected 843ms expected @ed258e523481
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_live_shared_loan_rejected rejected 719ms expected @5c5c178f82c7
 	state `perform` receives `counted` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `counted` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -23372,6 +23390,16 @@ fail/termination/native_layout_family_unpromised rejected 2935ms expected @a92f1
 	cannot prove published termination for machine `checked_caller`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/nested_field_without_predicate_cannot_bound_result rejected 1851ms expected @a92f16431042
 	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
+fail/termination/nested_machine_indexed_missing_entry_bound rejected 795ms expected @ed258e523481
+	cannot prove requires contract for call forward from count: slot < 2 && remaining.values[slot] > 0 && remaining.values[slot] <= 7 (needs fact `selected < 2 && pending.values[selected] > 0 && pending.values[selected] <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove the `terminates by` ranking for machine count
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_machine_indexed_neighbor_store rejected 828ms expected @ed258e523481
+	cannot prove requires contract for call count from forward: selected < 2 && pending.values[selected] <= 7 (needs fact `slot < 2 && remaining.values[slot] <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_machine_indexed_wrong_selector rejected 820ms expected @ed258e523481
+	cannot prove requires contract for call count from forward: 1 - selected < 2 && pending.values[1 - selected] <= 7 (needs fact `slot < 2 && remaining.values[slot] <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/private_stored_reference_rank_alias_reset_after_descent rejected 751ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/private_stored_reference_rank_no_ambient_helper_bound rejected 344ms expected @5c5c178f82c7
@@ -28928,6 +28956,18 @@ pass/facts/nested_machine_joint_rank_descriptor_field_parameter_exit checked 974
 pass/facts/nested_machine_joint_rank_descriptor_field_target_body_exit checked 972ms check-target:macos_arm64 @b4799756ea9c
 pass/facts/nested_machine_joint_rank_field_exit checked 7861ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_increasing_to_overshoot_exit checked 949ms check-target:macos_arm64 @5c5c178f82c7
+pass/facts/nested_machine_joint_rank_indexed_copied_selector_exit checked 1657ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_equivalent_selector_exit checked 1639ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_selector_actual_result_exit checked 1112ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_call_result_exit checked 1145ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_const_name_exit checked 1105ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_field_exit checked 1053ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_local_exit checked 1086ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_match_join_exit checked 1037ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_other_machine_exit checked 1100ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_other_state_exit checked 1051ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_parameter_exit checked 1083ms check-target:macos_arm64 @ed258e523481
+pass/facts/nested_machine_joint_rank_indexed_value_target_body_exit checked 1084ms check-target:macos_arm64 @ed258e523481
 pass/facts/nested_machine_joint_rank_local_exit checked 8708ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_long_cycle_exit checked 8563ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_match_join_exit checked 7866ms check-target:macos_arm64 @de3c5539bbb6

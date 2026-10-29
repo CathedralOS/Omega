@@ -180,3 +180,11 @@ coordinates and the parent's other accepted requirements remain unfinished.
 carry that same fact across all nine places while temporarily replacing and
 restoring stored references. The operand result, caller-visible audit and
 unchanged spare distinguish completed captures from reloaded descriptor homes.
+
+## Indexed scalar coordinates
+
+The same fact's `indexed_value/` production carries a runtime selector beside
+its readable fixed-array backing through all nine places. Both selectors and
+the seven/empty paths are observable, with untouched-neighbor canaries.
+[Entry formation, snapshot identity, read lowering and controls](local/indexed_value/README.md)
+separate admitted index bounds from source syntax and declaration geometry.

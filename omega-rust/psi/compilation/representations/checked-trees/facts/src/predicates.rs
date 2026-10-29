@@ -49,6 +49,37 @@ impl CheckedStorageRoot {
     }
 }
 
+/// An indexed entry observation whose formation was proved in its own
+/// invocation telescope. Geometry-only queries never produce this record.
+/// The exact selector and collection are retained through rank publication;
+/// lowering consumes the decision without assuming a later branch guard.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedEntryIndexBound {
+    pub state: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub path_step: u32,
+    pub selector: typed_trees::expression::ExpressionHandle,
+    pub collection_type: typed_trees::types::TypeReferenceHandle,
+    pub element_type: typed_trees::types::TypeReferenceHandle,
+    pub extent: u64,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+}
+
+impl Default for CheckedEntryIndexBound {
+    fn default() -> Self {
+        Self {
+            state: SymbolHandle::invalid(),
+            parameter: SymbolHandle::invalid(),
+            path_step: 0,
+            selector: typed_trees::expression::ExpressionHandle::invalid(),
+            collection_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            element_type: typed_trees::types::TypeReferenceHandle::invalid(),
+            extent: 0,
+            primitive_type: typed_trees::types::PrimitiveType::U64,
+        }
+    }
+}
+
 /// One evaluated selector and the authored indexing occurrence it selects for.
 /// The occurrence names `collection[index]`, not its index operand: equal
 /// operands can select different extents. Generated selectors use the zero
@@ -58,6 +89,9 @@ impl CheckedStorageRoot {
 pub struct CheckedScalarSelector {
     pub expression: CheckedScalarExpression,
     pub occurrence: typed_trees::expression::ExpressionHandle,
+    /// Generated entry observations retain their independently checked bound.
+    /// Authored reads instead use `occurrence`; the two authorities are exclusive.
+    pub entry_bound: Option<CheckedEntryIndexBound>,
 }
 
 /// Scalar read paths retain evaluated selectors beside static member geometry.

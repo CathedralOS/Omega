@@ -13,11 +13,11 @@ pub mod predicates;
 
 pub use predicates::{
     BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole, CheckedBooleanExpression,
-    CheckedByteSequenceOperand, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
-    CheckedRuntimeIndex, CheckedScalarExpression, CheckedScalarReadProjection,
-    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralCaseRoot,
-    CheckedStructuralCaseSubject, CheckedStructuralParameterField,
+    CheckedByteSequenceOperand, CheckedEntryIndexBound, CheckedIeeeFloatComparisonKind,
+    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
+    CheckedIntegerMathTerm, CheckedRuntimeIndex, CheckedScalarExpression,
+    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
+    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralParameterField,
     CheckedStructuralPredicatePathSegment, u64_integer_literal,
 };
 

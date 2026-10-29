@@ -467,48 +467,6 @@ impl Builder<'_, '_> {
         )
     }
 
-    /// Observe the common formal-relative coordinate from an immutable entry
-    /// snapshot. Empty paths use the scalar telescope; projected paths use the
-    /// same declared structural field operation as ordinary source reads.
-    pub(super) fn scalar_coordinate(
-        &mut self,
-        expression: ExpressionHandle,
-        coordinate: &validation::CanonicalPlace,
-        expected_type: typed_trees::types::PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        let facts::PlaceRoot::Symbol(symbol) = coordinate.root else {
-            return None;
-        };
-        if coordinate.segments.is_empty() {
-            let position = self
-                .parameters
-                .iter()
-                .position(|parameter| parameter.symbol == symbol)?;
-            if self.parameter_types.get(position) != Some(&expected_type) {
-                return None;
-            }
-            return Some(self.insert(
-                expected_type,
-                CheckedScalarComputationKind::Value(
-                    checked_trees::CheckedScalarExpression::Parameter {
-                        position,
-                        primitive_type: expected_type,
-                    },
-                ),
-            ));
-        }
-        let field = validation::structural_scalar_field_at_coordinate(
-            self.program,
-            self.authored_parameters,
-            symbol,
-            &coordinate.segments,
-        )?;
-        if field.primitive_type != expected_type {
-            return None;
-        }
-        self.structural_field(expression, field)
-    }
-
     pub(super) fn structural_field(
         &mut self,
         expression: ExpressionHandle,
