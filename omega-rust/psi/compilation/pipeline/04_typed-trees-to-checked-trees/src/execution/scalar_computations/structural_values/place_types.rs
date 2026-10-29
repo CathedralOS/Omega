@@ -83,31 +83,60 @@ pub(super) fn copied_place_type(
     )
 }
 
-/// The value presented by an authored place. A borrowed formal presents its
-/// referent, while a local owns its stored descriptor. Do not apply referent
-/// normalization to a descriptor copy or a view's captured collection extent.
-pub(super) fn readable_place_type(
+/// The selected type and endpoint crossings of one readable place. Keeping
+/// them together prevents admitting a referent copy while emitting only its
+/// descriptor address. Interior and local-root crossings belong to the path
+/// producer; these crossings select below its final stored carrier.
+pub(super) struct ReadablePlace {
+    pub(super) reference: TypeReferenceHandle,
+    pub(super) referent_crossings: usize,
+}
+
+/// Present the exact requested carrier from an authored readable place.
+/// Matching descriptors remain descriptors. A borrowed formal already denotes
+/// its first referent; stored references instead retain explicit crossings.
+pub(super) fn readable_place(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
     place: &validation::CanonicalPlace,
     expected: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let declared =
+) -> Option<ReadablePlace> {
+    let mut reference =
         validation::canonical_place_type_reference(program, state, statement_index, place)?;
-    if validation::declared_carriers_match(program, declared, expected) {
-        return Some(declared);
+    if validation::declared_carriers_match(program, reference, expected) {
+        return Some(ReadablePlace {
+            reference,
+            referent_crossings: 0,
+        });
     }
     let state = program.state_by_symbol(state)?;
     let symbol = place.root.as_symbol()?;
-    if !place.segments.is_empty() || program.state_parameter_by_symbol(state, symbol).is_none() {
-        return None;
+    if place.segments.is_empty() && program.state_parameter_by_symbol(state, symbol).is_some() {
+        let shell = validation::reference_shell(program, reference)?;
+        if !shell.access.is_readable() {
+            return None;
+        }
+        reference = shell.referee;
     }
-    let shell = validation::reference_shell(program, declared)?;
-    if shell.access == language_semantics::ReferenceAccess::WriteOnly {
-        return None;
+    let mut referent_crossings = 0;
+    for _ in 0..64 {
+        if validation::declared_carriers_match(program, reference, expected) {
+            return Some(ReadablePlace {
+                reference,
+                referent_crossings,
+            });
+        }
+        let shell = validation::reference_shell(program, reference)?;
+        if !shell.access.is_readable()
+            || !validation::stores_reference_shape(program, reference, &[])
+        {
+            return None;
+        }
+        reference = shell.referee;
+        referent_crossings += 1;
     }
-    validation::declared_carriers_match(program, shell.referee, expected).then_some(shell.referee)
+    None
 }
 
 /// A member/index projection rooted at readable owned or borrowed storage
@@ -154,8 +183,8 @@ pub(in crate::execution::scalar_computations) fn needs_copied_place_root(
         // affine; a write-only loan still grants no observation authority.
         return false;
     }
-    readable_place_type(program, state, statement_index, &place, expected)
-        .is_some_and(|leaf| copied_place_type(program, leaf))
+    readable_place(program, state, statement_index, &place, expected)
+        .is_some_and(|leaf| copied_place_type(program, leaf.reference))
 }
 
 /// The terminal expression carrying a projection's storage: the whole local
