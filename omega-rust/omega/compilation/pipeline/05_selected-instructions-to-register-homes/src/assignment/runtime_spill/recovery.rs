@@ -616,20 +616,6 @@ impl<'ranges> FailedDomain<'ranges> {
         }
         let components = self.components();
         let component = components.leader(victim);
-        // A failed component occupied no proposed home, so rewriting it frees
-        // none for its neighbours. Keep their pressure until fresh placement.
-        if self.members.binary_search(&victim).is_ok() {
-            phase_profile::scope("06.1.d.05.pressure.unplaced_victim", || {
-                pending.retain(|failure| match failure {
-                    crate::RegisterHomeError::NoCompatibleHome { function, register } => {
-                        *function == self.function
-                            && components.leader(VirtualRegisterId(*register)) != component
-                    }
-                    _ => false,
-                });
-            });
-            return;
-        }
         if let Some(index) = self.index {
             if !components.has_multiple_members(component) {
                 let neighbors = index.register_neighbors(component);

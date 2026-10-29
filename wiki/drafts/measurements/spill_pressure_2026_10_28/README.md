@@ -43,9 +43,26 @@ used: GitHub fetch timed out and the attempted raw main-branch path returned
 404. Existing broader parallelism findings remain in the
 [reference aggregation](../../reference/compiler_parallelism.md).
 
-## State
+## Result: rejected
 
-Candidate not yet measured. One focused test covers tied components, indexed
-and unindexed range access, pressure order, and other-function exclusion.
-Package-wide formatting currently reports inherited differences; touched
-files will be checked separately without reformatting unrelated source.
+Candidate `83a674d4382` was freshly built with checksum freshness and a verified
+release profile. The rule activated only eight times; bounded spills changed
+3,300 to 3,297, and all 103 reanalyses remained. Four interleaved warm pairs had
+medians 1,815.5 ms baseline and 1,771.8 ms candidate (2.4% lower); individual
+paired reductions ranged from -0.05% to 11.1%. This does not establish the
+hypothesized removal of repeated analysis or a substantial stable benefit.
+
+All 12 screen-produced native images exited 0. Baseline and candidate image
+sizes were equal at 114,176 bytes, but their bytes differed. No semantic
+equivalence or Terminal agreement is claimed for this rejected candidate.
+Eight focused pressure tests passed (nine unrelated package tests excluded),
+including indexed/unindexed tied components, order and other-function exclusion.
+Touched-file formatting passed. Package-wide formatting reported inherited
+differences and was not repaired. Clippy and expanded runtime qualification were
+skipped after the mechanism failed screening.
+
+The source edits were reverted. [rejected.patch](rejected.patch) preserves the
+exact experiment; [evidence.json.gz](evidence.json.gz) retains observations and
+producer receipts. Raw logs remain in ignored `build/spill-pressure-experiment`.
+The next question is whether choosing unplaced components as victims can form
+a useful batch, rather than usually removing an assigned blocker.

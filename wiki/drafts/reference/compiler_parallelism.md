@@ -347,3 +347,8 @@ and all observations, and records why no default change is established.
 The [parser-pool experiment](../measurements/parser_pool_2026_10_28/README.md)
 then avoided the extra global pool. It reduced observed threads without a
 reliable time or memory benefit, so the candidate was rejected and reverted.
+
+The [spill-pressure screen](../measurements/spill_pressure_2026_10_28/README.md)
+then found 103 repeated register-allocation analysis rounds. Retaining pressure
+only when an unplaced component was rewritten barely activated and preserved
+all 103 rounds; that candidate was also rejected and reverted.
