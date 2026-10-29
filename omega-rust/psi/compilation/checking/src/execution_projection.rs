@@ -108,6 +108,7 @@ pub fn project_build_program(
 /// diagnostic location. The source/typing owner must project its resolver roots
 /// with this same declaration selection before appending another cohort.
 pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap) -> TypedTrees {
+    trace_generated_call_membership(original, "source_activation.before");
     let instances = instantiated_declarations(original);
     let derived = |symbol| is_derived_declaration(original, &instances, symbol);
     let generated_methods = original
@@ -163,7 +164,83 @@ pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap
                 .any(|occurrence| !excluded.contains(&occurrence))
     });
     program.excluded_authored_selection_occurrences = excluded.into();
+    trace_generated_call_membership(&program, "source_activation.after");
     program
+}
+
+/// Temporary lifecycle observation shared with the source checking entrance.
+/// Backing declarations and receipts are printed without promoting them into
+/// executable roots or supplying a missing call signature.
+pub fn trace_generated_call_membership(program: &TypedTrees, stage: &str) {
+    if std::env::var_os("OMEGA_CALL_SIGNATURE_TRACE").is_none() {
+        return;
+    }
+    let references = typed_trees::references::collect_program_references(program);
+    let mut missing = references
+        .callable_uses
+        .into_iter()
+        .filter_map(|target| {
+            let symbol = program.symbols.get(target);
+            let owner = match symbol.kind {
+                symbols::SymbolKind::Machine if program.machine_by_symbol(target).is_none() => {
+                    target
+                }
+                symbols::SymbolKind::State
+                    if program.state_by_symbol(target).is_none()
+                        && program.symbols.get(symbol.parent).kind
+                            == symbols::SymbolKind::Machine =>
+                {
+                    symbol.parent
+                }
+                _ => return None,
+            };
+            (symbol.generated_from.is_valid()
+                || program.symbols.get(owner).generated_from.is_valid())
+            .then_some((target, owner))
+        })
+        .collect::<Vec<_>>();
+    missing.sort_unstable_by_key(|(target, _)| (target.arena_index(), target.generation()));
+    eprintln!(
+        "CALL_CLOSURE stage={stage} machines={} specializations={} captures={} missing={}",
+        program.machines().len(),
+        program.machine_specializations.len(),
+        program.captured_machine_applications.len(),
+        missing.len(),
+    );
+    for (target, owner) in missing.into_iter().take(16) {
+        let backing = program
+            .tables
+            .machines
+            .iter()
+            .filter(|(_, machine)| machine.symbol == owner)
+            .map(|(_, machine)| {
+                (
+                    program.machine_states(machine).len(),
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .find(|state| state.symbol == target)
+                        .map(|state| (program.state_parameters(state).len(), state.return_type)),
+                )
+            })
+            .take(2)
+            .collect::<Vec<_>>();
+        eprintln!(
+            "CALL_CLOSURE stage={stage} target={target:?} kind={:?} origin={:?} owner={owner:?} owner_origin={:?} root_owner={} backing={backing:?} specialization={} capture={}",
+            program.symbols.get(target).kind,
+            program.symbols.get(target).generated_from,
+            program.symbols.get(owner).generated_from,
+            program.machine_by_symbol(owner).is_some(),
+            program
+                .machine_specializations
+                .iter()
+                .any(|row| row.instance == owner),
+            program
+                .captured_machine_applications
+                .iter()
+                .any(|(_, row)| row.instance == owner),
+        );
+    }
 }
 
 fn instantiated_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {
