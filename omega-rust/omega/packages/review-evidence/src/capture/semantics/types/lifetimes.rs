@@ -78,6 +78,19 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
     lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     active_substitutions: &mut Vec<SymbolHandle>,
 ) -> Result<String, Vec<Diagnostic>> {
+    macro_rules! review {
+        ($type_reference:expr) => {
+            review_lifetime_topology_with_substitutions(
+                program,
+                exact_toolchain_sources,
+                $type_reference,
+                lifetime_binders,
+                substitutions,
+                lifetime_substitutions,
+                active_substitutions,
+            )
+        };
+    }
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     let topology = match program.type_reference_table.type_reference(type_reference) {
@@ -96,21 +109,7 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                 ),
                 None => "elided".to_owned(),
             };
-            framed_identity(
-                "reference",
-                &[
-                    lifetime,
-                    review_lifetime_topology_with_substitutions(
-                        program,
-                        exact_toolchain_sources,
-                        *referee,
-                        lifetime_binders,
-                        substitutions,
-                        lifetime_substitutions,
-                        active_substitutions,
-                    )?,
-                ],
-            )
+            framed_identity("reference", &[lifetime, review!(*referee)?])
         }
         TypeReferenceNode::Constrained {
             base_type,
@@ -131,17 +130,7 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                             let arguments = domain
                                 .arguments
                                 .iter()
-                                .map(|argument| {
-                                    review_lifetime_topology_with_substitutions(
-                                        program,
-                                        exact_toolchain_sources,
-                                        *argument,
-                                        lifetime_binders,
-                                        substitutions,
-                                        lifetime_substitutions,
-                                        active_substitutions,
-                                    )
-                                })
+                                .map(|argument| review!(*argument))
                                 .collect::<Result<Vec<_>, _>>()?;
                             Ok::<String, Vec<Diagnostic>>(framed_identity(&label, &arguments))
                         })())
@@ -151,42 +140,16 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                 .collect::<Result<Vec<_>, _>>()?;
             constraint_topologies.sort();
             constraint_topologies.dedup();
-            let mut children = vec![review_lifetime_topology_with_substitutions(
-                program,
-                exact_toolchain_sources,
-                *base_type,
-                lifetime_binders,
-                substitutions,
-                lifetime_substitutions,
-                active_substitutions,
-            )?];
+            let mut children = vec![review!(*base_type)?];
             children.extend(constraint_topologies);
             framed_identity("constrained", &children)
         }
-        TypeReferenceNode::FixedArray { element_type, .. } => framed_identity(
-            "array",
-            &[review_lifetime_topology_with_substitutions(
-                program,
-                exact_toolchain_sources,
-                *element_type,
-                lifetime_binders,
-                substitutions,
-                lifetime_substitutions,
-                active_substitutions,
-            )?],
-        ),
-        TypeReferenceNode::Slice { element_type } => framed_identity(
-            "slice",
-            &[review_lifetime_topology_with_substitutions(
-                program,
-                exact_toolchain_sources,
-                *element_type,
-                lifetime_binders,
-                substitutions,
-                lifetime_substitutions,
-                active_substitutions,
-            )?],
-        ),
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            framed_identity("array", &[review!(*element_type)?])
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            framed_identity("slice", &[review!(*element_type)?])
+        }
         TypeReferenceNode::Generic {
             lifetime_arguments,
             arguments,
@@ -209,17 +172,7 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                     .type_reference_table
                     .type_reference_handles(*arguments)
                     .iter()
-                    .map(|argument| {
-                        review_lifetime_topology_with_substitutions(
-                            program,
-                            exact_toolchain_sources,
-                            *argument,
-                            lifetime_binders,
-                            substitutions,
-                            lifetime_substitutions,
-                            active_substitutions,
-                        )
-                    })
+                    .map(|argument| review!(*argument))
                     .collect::<Result<Vec<_>, _>>()?,
             );
             framed_identity("generic", &children)
@@ -238,15 +191,7 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                 )]);
             }
             active_substitutions.push(*symbol);
-            let topology = review_lifetime_topology_with_substitutions(
-                program,
-                exact_toolchain_sources,
-                *replacement,
-                lifetime_binders,
-                substitutions,
-                lifetime_substitutions,
-                active_substitutions,
-            );
+            let topology = review!(*replacement);
             active_substitutions.pop();
             topology?
         }
