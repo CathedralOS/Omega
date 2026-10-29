@@ -192,3 +192,5 @@ Follow-up: [snapshot intersection fusion](snapshot_fusion/README.md) removes 14.
 Follow-up: [snapshot handle-copying cost](handle_copy_cost/README.md) measures 16.87-18.87 ms of immediate COW materialization for 5.08 million copied handles, with 0.37-0.47 ms empty-clock interval references. Filtering costs 203-231 ms; no optimization is applied.
 
 Follow-up: [full compilation attribution](full_compilation/README.md) partitions complete Dungeon compilations without adding nested timers. Checking, frontend preparation and Terminal lowering account for 77% of the final cold observations; warm retained graphs still require about four seconds of lowering. All 22 observations are retained; no compiler change is applied.
+
+Follow-up: [Terminal reconciliation and reference graph demand](terminal_reconciliation/README.md) separates source replay from three full reference-context graph builds costing 0.47-0.77 seconds. Their initializing calls have no shared-reference leaf demand; deeper lazy initialization is the next bounded experiment. All 16 observations are retained, with no optimization or predicted saving claimed.
