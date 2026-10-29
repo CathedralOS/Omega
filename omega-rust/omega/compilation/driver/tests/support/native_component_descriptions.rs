@@ -136,13 +136,24 @@ fn reject_malformed_provider_claims(
             .requirement_identities
             .first()
             .ok_or("source-produced provider has no component claims")?;
-        for claims in [
-            vec![],
-            vec![first.clone(), first.clone()],
-            vec![String::new()],
-        ] {
+        let mut missing = description.clone();
+        missing.providers[index].requirement_identities.clear();
+        match verify_component(&encode_component_description(&missing), request) {
+            // A called requirement is checked before the retained-plan roster.
+            Err(ComponentVerificationRejection::UnsealedProvider(identity))
+                if provider.requirement_identities.contains(&identity) => {}
+            Err(ComponentVerificationRejection::InconsistentProviderClosure(
+                "a retained provider seals no requirement",
+            )) => {}
+            result => return Err(format!("missing component provider claims: {result:?}")),
+        }
+        for extra in [first.clone(), String::new()] {
             let mut changed = description.clone();
-            changed.providers[index].requirement_identities = claims;
+            // Retain every real claim so this reaches roster validation rather
+            // than failing an unrelated missing-call check first.
+            let claims = &mut changed.providers[index].requirement_identities;
+            claims.push(extra);
+            claims.sort();
             match verify_component(&encode_component_description(&changed), request) {
                 Err(ComponentVerificationRejection::InconsistentProviderClosure(_)) => {}
                 result => return Err(format!("malformed component provider claims: {result:?}")),
