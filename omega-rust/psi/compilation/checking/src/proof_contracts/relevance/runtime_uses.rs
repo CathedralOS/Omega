@@ -24,6 +24,19 @@ pub(super) fn validate_expression(
     if !expression.is_valid() {
         return;
     }
+    macro_rules! visit_expression {
+        ($child:expr, $context:expr) => {
+            validate_expression(
+                program,
+                proof_only,
+                machine,
+                state,
+                $child,
+                $context,
+                diagnostics,
+            )
+        };
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if context == Context::Runtime {
@@ -71,15 +84,7 @@ pub(super) fn validate_expression(
                     );
                 }
             }
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                member.receiver,
-                context,
-                diagnostics,
-            );
+            visit_expression!(member.receiver, context);
         }
         ExpressionNode::StructLiteral(literal) => validate_struct_literal(
             program,
@@ -113,15 +118,7 @@ pub(super) fn validate_expression(
                 )));
             }
             if call.receiver.is_valid() {
-                validate_expression(
-                    program,
-                    proof_only,
-                    machine,
-                    state,
-                    call.receiver,
-                    context,
-                    diagnostics,
-                );
+                visit_expression!(call.receiver, context);
             }
             let parameters = callee_parameters(program, call.target_symbol);
             for (position, argument) in program
@@ -130,14 +127,9 @@ pub(super) fn validate_expression(
                 .iter()
                 .enumerate()
             {
-                validate_expression(
-                    program,
-                    proof_only,
-                    machine,
-                    state,
+                visit_expression!(
                     *argument,
-                    argument_position_context(context, parameters, position),
-                    diagnostics,
+                    argument_position_context(context, parameters, position)
                 );
             }
         }
@@ -147,35 +139,11 @@ pub(super) fn validate_expression(
                     "erased binding initializer cannot perform an atomic runtime operation",
                 ));
             }
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                atomic.value,
-                context,
-                diagnostics,
-            );
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                atomic.result,
-                context,
-                diagnostics,
-            );
+            visit_expression!(atomic.value, context);
+            visit_expression!(atomic.result, context);
         }
         other => crate::expression_traversal::children(program, other, |child| {
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                child,
-                context,
-                diagnostics,
-            );
+            visit_expression!(child, context);
         }),
     }
 }
@@ -190,17 +158,22 @@ fn validate_struct_literal(
     context: Context,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(definition) = program.data_definition_by_symbol(literal.type_symbol) else {
-        for field in program.expression_table.struct_fields(literal.fields) {
+    macro_rules! visit_expression {
+        ($child:expr, $context:expr) => {
             validate_expression(
                 program,
                 proof_only,
                 machine,
                 state,
-                field.value,
-                context,
+                $child,
+                $context,
                 diagnostics,
-            );
+            )
+        };
+    }
+    let Some(definition) = program.data_definition_by_symbol(literal.type_symbol) else {
+        for field in program.expression_table.struct_fields(literal.fields) {
+            visit_expression!(field.value, context);
         }
         return;
     };
@@ -250,15 +223,7 @@ fn validate_struct_literal(
         } else {
             context
         };
-        validate_expression(
-            program,
-            proof_only,
-            machine,
-            state,
-            field.value,
-            field_context,
-            diagnostics,
-        );
+        visit_expression!(field.value, field_context);
     }
 }
 
