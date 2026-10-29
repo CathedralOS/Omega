@@ -441,6 +441,12 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
     })
 }
 
+fn mutated_identity(edit: impl FnOnce(&mut IdentityFixture<'static>)) -> NativeArtifactIdentity {
+    let mut fixture = IdentityFixture::default();
+    edit(&mut fixture);
+    fixture_identity(fixture)
+}
+
 #[test]
 fn compact_equal_execution_cannot_substitute_an_exact_requirement() {
     let selected = vec![NativeSelectedProviderPlan::new(
@@ -493,26 +499,11 @@ fn compact_equal_foreign_stack_plan_cannot_substitute_a_strong_commitment() {
 fn native_artifact_identity_binds_terminal_target_and_exact_native_bytes() {
     let baseline = fixture_identity(IdentityFixture::default());
     for mutation in [
-        fixture_identity(IdentityFixture {
-            terminal_marker: 2,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            target: target::NativeTarget::macos_arm64(),
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            object_text: b"changed object text",
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            image_bytes: b"changed executable image",
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            file_name: "renamed-program",
-            ..IdentityFixture::default()
-        }),
+        mutated_identity(|fixture| fixture.terminal_marker = 2),
+        mutated_identity(|fixture| fixture.target = target::NativeTarget::macos_arm64()),
+        mutated_identity(|fixture| fixture.object_text = b"changed object text"),
+        mutated_identity(|fixture| fixture.image_bytes = b"changed executable image"),
+        mutated_identity(|fixture| fixture.file_name = "renamed-program"),
     ] {
         assert_ne!(mutation, baseline);
     }
@@ -522,62 +513,22 @@ fn native_artifact_identity_binds_terminal_target_and_exact_native_bytes() {
 fn native_artifact_identity_binds_evidence_and_provider_realization() {
     let baseline = fixture_identity(IdentityFixture::default());
     for mutation in [
-        fixture_identity(IdentityFixture {
-            callback_report_fingerprint: 31,
-            ..IdentityFixture::default()
+        mutated_identity(|fixture| fixture.callback_report_fingerprint = 31),
+        mutated_identity(|fixture| fixture.inventory_marker = 7),
+        mutated_identity(|fixture| fixture.provider_closure_marker = 11),
+        mutated_identity(|fixture| fixture.foreign_stack_marker = 73),
+        mutated_identity(|fixture| fixture.provider_plan_marker = 13),
+        mutated_identity(|fixture| fixture.requirement = "core::Console::substitute"),
+        mutated_identity(|fixture| fixture.execution_report_fingerprint = 43),
+        mutated_identity(|fixture| fixture.terminal_policy_marker = 71),
+        mutated_identity(|fixture| fixture.permission_policy_present = false),
+        mutated_identity(|fixture| fixture.boundary_application_marker = None),
+        mutated_identity(|fixture| fixture.with_validation_evidence = false),
+        mutated_identity(|fixture| {
+            fixture.physical_evidence_scope = NativePhysicalEvidenceScope::Unavailable
         }),
-        fixture_identity(IdentityFixture {
-            inventory_marker: 7,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            provider_closure_marker: 11,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            foreign_stack_marker: 73,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            provider_plan_marker: 13,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            requirement: "core::Console::substitute",
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            execution_report_fingerprint: 43,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            terminal_policy_marker: 71,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            permission_policy_present: false,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            boundary_application_marker: None,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            with_validation_evidence: false,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            physical_evidence_scope: NativePhysicalEvidenceScope::Unavailable,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            physical_evidence_marker: 17,
-            ..IdentityFixture::default()
-        }),
-        fixture_identity(IdentityFixture {
-            physical_evidence_gap_marker: Some(23),
-            ..IdentityFixture::default()
-        }),
+        mutated_identity(|fixture| fixture.physical_evidence_marker = 17),
+        mutated_identity(|fixture| fixture.physical_evidence_gap_marker = Some(23)),
     ] {
         assert_ne!(mutation, baseline);
     }
