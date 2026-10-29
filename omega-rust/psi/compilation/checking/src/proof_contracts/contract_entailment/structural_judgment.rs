@@ -1497,17 +1497,27 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn resolve_at(&self, mut term: StructuralTerm, depth: usize) -> StructuralTerm {
+        if depth >= 32 {
+            return term;
+        }
         // A call-premise traversal also extracts locals and state arguments.
         // Keep its entire environment free of name-selected unfolding, not
         // just the final argument: a projected local could otherwise hide
         // where its constructor came from before the call-site gate sees it.
         if !self.resolve_applications && !self.runtime_body_values {
+            // Disabling application evaluation does not erase a formed
+            // hypothesis. Only match this exact observed term; do not inspect
+            // a call body or manufacture premises from the current goal.
+            if !self.case_facts_only
+                && !super::structural_terms::term_is_unobserved_descriptor(self.program, &term)
+                && let Some((_, replacement)) = self.rewrites.find(&term)
+                && replacement != &term
+            {
+                return self.resolve_at(replacement.clone(), depth + 1);
+            }
             return self
                 .resolve_case_subject(term.clone(), depth)
                 .unwrap_or(term);
-        }
-        if depth >= 32 {
-            return term;
         }
         for _ in 0..32 {
             match term {
