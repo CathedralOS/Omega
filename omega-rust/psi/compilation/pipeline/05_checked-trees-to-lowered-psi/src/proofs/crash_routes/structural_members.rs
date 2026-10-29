@@ -386,7 +386,7 @@ fn lower_structural_indexed_place(
             ScalarTerm::ieee_float_field_path(root, path, format)
         }
         (None, _) => ScalarTerm::StructuralRead {
-            root: root,
+            root,
             path: terminal_path,
             scalar_type: expected,
         },
