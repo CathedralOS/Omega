@@ -145,9 +145,14 @@ pub enum CheckedNaturalRankMeasure {
     SequenceLength {
         coordinate: crate::CheckedRankCoordinateHandle,
     },
-    /// `Nat::Descending`: the fixed-width integer subject itself, signed or
-    /// unsigned. The checker proves it descends on every cyclic edge.
-    IntegerParameter { primitive_type: PrimitiveType },
+    /// `Nat::Descending`: the exact formal-relative integer coordinate,
+    /// including a projected field. Admission owns formation and edge proofs;
+    /// executable observation must consume this coordinate, never a guessed
+    /// whole-formal slot.
+    IntegerValue {
+        coordinate: crate::CheckedRankCoordinateHandle,
+        primitive_type: PrimitiveType,
+    },
     /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
     /// distance from the climbing lower subject (`parameter`) up to `upper`.
     /// The cursor uses `primitive_type`; the bound is an admitted expression

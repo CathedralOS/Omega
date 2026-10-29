@@ -65,6 +65,42 @@ pub(super) fn scalar_field_occurrence(
 }
 
 impl CurrentScalarValues<'_> {
+    /// Exact retained inline fields of one formal. The caller selects the
+    /// frame: an entry frame supplies entry values; a later frame supplies
+    /// only associations that survived its executed writes and calls.
+    pub(crate) fn scalar_field_observations(
+        &self,
+        parameter: SymbolHandle,
+    ) -> impl Iterator<Item = (&[SymbolHandle], PrimitiveType, &ScopedArithmeticValue)> {
+        self.fields.iter().filter_map(move |field| {
+            (field.owner == parameter)
+                .then_some(field.value.as_ref())?
+                .map(|value| (field.path.as_slice(), field.carrier, value))
+        })
+    }
+
+    /// Read the selected leaf from the completed actual, including retained
+    /// copies and constructed values. No source expression is synthesized for
+    /// an inferred field and no withdrawn current association is revived.
+    pub(crate) fn projected_scalar_value(
+        &self,
+        actual: ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        if path.is_empty() {
+            return self.current(actual).map(ScopedArithmeticValue::Term);
+        }
+        self.captured_scalar_fields(actual, 0)
+            .into_iter()
+            .find(|field| {
+                field.path.len() == path.len()
+                    && field.path.iter().zip(path).all(|(field, segment)| {
+                        matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
+                    })
+            })
+            .map(|field| field.value)
+    }
+
     /// Capture a scalar store's completed value before its target write retires
     /// associations. An opaque result gets one fresh store identity, no bits.
     pub(super) fn captured_scalar_store(

@@ -144,7 +144,9 @@ impl Builder<'_, '_> {
             &segments,
         )?;
         if field.primitive_type != primitive_type
-            || self.program.normalized_type_identity(field.result_type_reference)
+            || self
+                .program
+                .normalized_type_identity(field.result_type_reference)
                 != self.program.normalized_type_identity(leaf_type)
         {
             return None;
@@ -170,17 +172,17 @@ impl Builder<'_, '_> {
         {
             return;
         }
-        if let Some(root) =
-            self.projected_element_scalar(row, indices, leaf_type, primitive_type)
-        {
+        if let Some(root) = self.projected_element_scalar(row, indices, leaf_type, primitive_type) {
             self.plans.nodes.get_mut(root).authored_root = row;
-            self.plans.roots.append(checked_trees::CheckedScalarComputationRoot {
-                machine: self.machine,
-                state: self.state,
-                statement_ordinal,
-                role,
-                root,
-            });
+            self.plans
+                .roots
+                .append(checked_trees::CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal,
+                    role,
+                    root,
+                });
         }
     }
 
@@ -531,40 +533,43 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        Some(
-            self.insert(
-                field.primitive_type,
-                CheckedScalarComputationKind::StructuralField {
-                    atomic_ordering: None,
-                    result_type: field.result_type_reference,
-                    source_expression: expression,
-                    receiver_expression: match self.program.expression_table.expression(expression)
-                    {
+        Some(self.insert(
+            field.primitive_type,
+            CheckedScalarComputationKind::StructuralField {
+                atomic_ordering: None,
+                result_type: field.result_type_reference,
+                source_expression: expression,
+                receiver_expression: if expression.is_valid() {
+                    match self.program.expression_table.expression(expression) {
                         ExpressionNode::Member(member) => self
                             .program
                             .saved_argument_source(member.receiver)
                             .unwrap_or(member.receiver),
                         ExpressionNode::Indexed(indexed) => indexed.collection,
                         _ => ExpressionHandle::invalid(),
-                    },
-                    source_type: field.type_reference,
-                    receiver_value,
-                    subject: CheckedUnitStructuralArgumentPlan {
-                        projection_evaluations: Default::default(),
-                        source,
-                        path: field.path,
-                        type_identity: validation::structural_type_identity(
-                            self.program,
-                            field.carrier_type_reference,
-                            &[],
-                            &[],
-                        ),
-                        access: CheckedStructuralAccess::SharedBorrow,
-                    },
-                    field: field.field,
-                    field_identity: field.field_identity,
+                    }
+                } else {
+                    // An admitted coordinate names established formal
+                    // storage without an authored source occurrence.
+                    ExpressionHandle::invalid()
                 },
-            ),
-        )
+                source_type: field.type_reference,
+                receiver_value,
+                subject: CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source,
+                    path: field.path,
+                    type_identity: validation::structural_type_identity(
+                        self.program,
+                        field.carrier_type_reference,
+                        &[],
+                        &[],
+                    ),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+                field: field.field,
+                field_identity: field.field_identity,
+            },
+        ))
     }
 }

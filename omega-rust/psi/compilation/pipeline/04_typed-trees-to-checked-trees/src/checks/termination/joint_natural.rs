@@ -15,6 +15,8 @@ mod ranges;
 
 struct Coordinate {
     parameter: SymbolHandle,
+    path: Vec<facts::PlaceSegment>,
+    entry_value: ScopedArithmeticValue,
     position: usize,
     primitive: PrimitiveType,
     observation: validation::RankPremiseObservation,
@@ -87,16 +89,13 @@ pub(super) fn select(
             0,
             *subject,
         )?;
-        if !place.segments.is_empty() {
-            return None;
-        }
         let parameter = place.root.as_symbol()?;
-        let (position, declaration) = program
-            .state_parameters(entry)
-            .iter()
-            .enumerate()
-            .find(|(_, declaration)| declaration.symbol == parameter)?;
-        let carrier = observation_carrier(program, entry, declaration.symbol, observation)?;
+        let selected = coordinates(program, machine, entry, observation, frames)?
+            .into_iter()
+            .find(|coordinate| {
+                coordinate.parameter == parameter && coordinate.path == place.segments
+            })?;
+        let carrier = selected.primitive;
         if selected_observation.is_some_and(|previous| previous != (observation, carrier)) {
             return None;
         }
@@ -104,39 +103,23 @@ pub(super) fn select(
         if let Err(reason) = ranges::entry(program, machine, *subject, observation) {
             return Some(Err(reason));
         }
-        candidates.push(vec![Coordinate {
-            parameter,
-            position,
-            primitive: carrier,
-            observation,
-        }]);
+        candidates.push(vec![selected]);
     }
     let (observation, primitive) = selected_observation?;
     for (machine, candidates) in machines.iter().zip(&mut candidates) {
         if !candidates.is_empty() {
             continue;
         }
-        // Private coordinate inference changes neither a public schema nor a
-        // source signature. An explicit private termination promise still owes
-        // this same complete proof; it does not require a redundant rank clause.
+        // Private correspondence changes neither public schemas nor source
+        // signatures. Only exact runtime leaves in this invocation participate.
         if machine.is_public {
             return None;
         }
         let entry = &program.machine_states(machine)[0];
-        for (position, parameter) in program.state_parameters(entry).iter().enumerate() {
-            if !parameter.relevance.is_erased()
-                && !parameter.is_const
-                && observation_carrier(program, entry, parameter.symbol, observation)
-                    == Some(primitive)
-            {
-                candidates.push(Coordinate {
-                    parameter: parameter.symbol,
-                    position,
-                    primitive,
-                    observation,
-                });
-            }
-        }
+        *candidates = coordinates(program, machine, entry, observation, frames)?
+            .into_iter()
+            .filter(|coordinate| coordinate.primitive == primitive)
+            .collect();
         if candidates.is_empty() {
             return Some(Err(
                 "a private member has no compatible natural rank coordinate",
@@ -219,15 +202,6 @@ pub(super) fn select(
 }
 
 impl Coordinate {
-    fn initial(&self, values: &CurrentScalarValues<'_>) -> Option<ScopedArithmeticValue> {
-        match self.observation {
-            validation::RankPremiseObservation::Value => values.initial_symbol(self.parameter),
-            validation::RankPremiseObservation::Length => {
-                values.initial_collection_length(self.parameter)
-            }
-        }
-    }
-
     fn current(
         &self,
         values: &CurrentScalarValues<'_>,
@@ -235,11 +209,74 @@ impl Coordinate {
     ) -> Option<ScopedArithmeticValue> {
         match self.observation {
             validation::RankPremiseObservation::Value => {
-                values.current(actual).map(ScopedArithmeticValue::Term)
+                values.projected_scalar_value(actual, &self.path)
             }
             validation::RankPremiseObservation::Length => values.current_collection_length(actual),
         }
     }
+}
+
+/// Capture eligible coordinates once before the first admitted executable
+/// statement. An invalid target applies no branch guard or operand effects.
+/// Each candidate owns only its selected value, not a second field roster.
+fn coordinates(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    observation: validation::RankPremiseObservation,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<Coordinate>> {
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let first = *order.indices().first()?;
+    let values =
+        CurrentScalarValues::at(program, machine, state, first, Default::default(), frames)?;
+    let mut coordinates = Vec::new();
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        if parameter.relevance.is_erased() || parameter.is_const {
+            continue;
+        }
+        if let Some(primitive) = observation_carrier(program, state, parameter.symbol, observation)
+        {
+            let entry_value = match observation {
+                validation::RankPremiseObservation::Value => {
+                    values.initial_symbol(parameter.symbol)
+                }
+                validation::RankPremiseObservation::Length => {
+                    values.initial_collection_length(parameter.symbol)
+                }
+            };
+            if let Some(entry_value) = entry_value {
+                coordinates.push(Coordinate {
+                    parameter: parameter.symbol,
+                    path: Vec::new(),
+                    entry_value,
+                    position,
+                    primitive,
+                    observation,
+                });
+            }
+        }
+        if observation == validation::RankPremiseObservation::Value {
+            // The entry seed walks owned inline records only. Borrowed storage
+            // and erased/static parameters cannot acquire a private read here.
+            for (path, primitive, value) in values.scalar_field_observations(parameter.symbol) {
+                coordinates.push(Coordinate {
+                    parameter: parameter.symbol,
+                    path: path
+                        .iter()
+                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                        .collect(),
+                    entry_value: value.clone(),
+                    position,
+                    primitive,
+                    observation,
+                });
+            }
+        }
+    }
+    Some(coordinates)
 }
 
 fn observation_carrier(
@@ -276,17 +313,17 @@ fn compare(
     destination: &Coordinate,
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.position)?;
-    let initial = source.initial(&edge.values)?;
+    let initial = &source.entry_value;
     let next = destination.current(&edge.values, actual)?;
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left, right| {
         edge.values
             .proves_values_relation(program, machine, operator, left, right)
     };
-    (proves(BinaryOperator::GreaterOrEqual, &initial, &zero)
+    (proves(BinaryOperator::GreaterOrEqual, initial, &zero)
         && proves(BinaryOperator::GreaterOrEqual, &next, &zero)
-        && proves(BinaryOperator::LessOrEqual, &next, &initial))
-    .then(|| proves(BinaryOperator::Less, &next, &initial))
+        && proves(BinaryOperator::LessOrEqual, &next, initial))
+    .then(|| proves(BinaryOperator::Less, &next, initial))
 }
 
 fn search(
@@ -363,7 +400,7 @@ fn search(
                 parameter: coordinate.parameter,
                 coordinate: validation::RankSubjectCoordinate {
                     parameter: coordinate.parameter,
-                    path: Vec::new(),
+                    path: coordinate.path.clone(),
                 },
                 parameter_position: u32::try_from(coordinate.position).ok()?,
                 primitive_type: coordinate.primitive,

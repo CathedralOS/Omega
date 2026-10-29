@@ -85,7 +85,7 @@ fn scalar_rank(
             })
     };
     let scalar = match rank.measure {
-        CheckedNaturalRankMeasure::IntegerParameter { .. }
+        CheckedNaturalRankMeasure::IntegerValue { .. }
         | CheckedNaturalRankMeasure::BoundedDistance { .. } => exact(rank.parameter_position),
         // Declared views retain their body's formation and descent authority;
         // the primitive-formal judgment cannot stand in for that application.
@@ -193,7 +193,7 @@ fn prove_edge(
     }
     if !matches!(
         source_rank.measure,
-        CheckedNaturalRankMeasure::IntegerParameter { .. }
+        CheckedNaturalRankMeasure::IntegerValue { .. }
     ) {
         return None;
     }

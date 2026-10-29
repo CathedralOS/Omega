@@ -197,24 +197,26 @@ pub(crate) fn admit_machine_rankings(
                     .any(|state| state.symbol == coordinate.state)
             })
             .map(|coordinate| {
+                let path = admitted
+                    .path_segments
+                    .insert_many(coordinate.coordinate.path.clone());
+                let selected = admitted
+                    .coordinates
+                    .insert(checked_trees::CheckedRankCoordinate {
+                        parameter: coordinate.parameter,
+                        path,
+                    });
                 let measure = match coordinate.observation {
                     validation::RankPremiseObservation::Value => {
-                        checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                        checked_trees::CheckedNaturalRankMeasure::IntegerValue {
+                            coordinate: selected,
                             primitive_type: coordinate.primitive_type,
                         }
                     }
                     validation::RankPremiseObservation::Length => {
-                        let path = admitted
-                            .path_segments
-                            .insert_many(coordinate.coordinate.path.clone());
-                        let coordinate =
-                            admitted
-                                .coordinates
-                                .insert(checked_trees::CheckedRankCoordinate {
-                                    parameter: coordinate.parameter,
-                                    path,
-                                });
-                        checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate }
+                        checked_trees::CheckedNaturalRankMeasure::SequenceLength {
+                            coordinate: selected,
+                        }
                     }
                 };
                 checked_trees::CheckedStateNaturalRank {

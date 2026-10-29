@@ -290,8 +290,31 @@ fn observation(
                 builder.expression(*body, primitive_type)
             }
         }
-        CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-            input_coordinate(builder, rank, subject, bindings, primitive_type)
+        CheckedNaturalRankMeasure::IntegerValue {
+            coordinate,
+            primitive_type,
+        } => {
+            let coordinate = admitted.coordinates.get(coordinate);
+            let path = admitted.path_segments.span(coordinate.path)?;
+            if coordinate.parameter != rank.parameter {
+                return None;
+            }
+            let (_, state) = validation::find_state(builder.program, rank.state)?;
+            let parameter = builder
+                .program
+                .state_parameters(state)
+                .get(usize::try_from(rank.parameter_position).ok()?)?;
+            if parameter.symbol != coordinate.parameter {
+                return None;
+            }
+            builder.scalar_coordinate(
+                subject.unwrap_or_default(),
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(coordinate.parameter),
+                    segments: path.to_vec(),
+                },
+                primitive_type,
+            )
         }
         CheckedNaturalRankMeasure::SequenceLength { coordinate } => {
             let (_, state) = validation::find_state(builder.program, builder.state)?;
