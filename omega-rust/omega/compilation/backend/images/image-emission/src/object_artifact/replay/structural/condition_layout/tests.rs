@@ -56,7 +56,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 identity: terminal_psi::TerminalIdentityIndex(3),
                 shape: StructuralTypeShape::FixedArray {
                     element: sum,
-                    length: 2,
+                    length: terminal_psi::ArrayExtent::Literal(2),
                 },
             },
             StructuralTypeDeclaration {

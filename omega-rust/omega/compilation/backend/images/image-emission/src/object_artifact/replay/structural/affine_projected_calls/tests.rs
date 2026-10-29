@@ -147,7 +147,7 @@ fn wider_array_replays_reverse_residuals_and_rejects_partition_mutations() {
             2,
             StructuralTypeShape::FixedArray {
                 element: type_id(1),
-                length: 5,
+                length: terminal_psi::ArrayExtent::Literal(5),
             },
         ),
     ];
@@ -239,7 +239,7 @@ fn huge_dimension_is_rejected_against_supplied_cleanup_before_enumeration() {
             2,
             StructuralTypeShape::FixedArray {
                 element: type_id(1),
-                length: u64::MAX,
+                length: terminal_psi::ArrayExtent::Literal(u64::MAX),
             },
         ),
     ];
@@ -260,7 +260,7 @@ fn malformed_type_graphs_do_not_authorize_empty_cleanup() {
             2,
             StructuralTypeShape::FixedArray {
                 element: type_id(1),
-                length: 1,
+                length: terminal_psi::ArrayExtent::Literal(1),
             },
         ),
     ];
@@ -272,13 +272,13 @@ fn malformed_type_graphs_do_not_authorize_empty_cleanup() {
     let mut cycle = declarations.clone();
     cycle[0].shape = StructuralTypeShape::FixedArray {
         element: type_id(2),
-        length: 1,
+        length: terminal_psi::ArrayExtent::Literal(1),
     };
     assert!(!partition(&cycle, 2, &moved, &[]));
     let mut missing = declarations.clone();
     missing[1].shape = StructuralTypeShape::FixedArray {
         element: type_id(3),
-        length: 1,
+        length: terminal_psi::ArrayExtent::Literal(1),
     };
     assert!(!partition(&missing, 2, &moved, &[]));
     let mut reordered = declarations;
@@ -423,7 +423,7 @@ fn function_closure_checks_calls_and_partition_even_when_no_residual_remains() {
                 2,
                 StructuralTypeShape::FixedArray {
                     element: type_id(1),
-                    length: 5,
+                    length: terminal_psi::ArrayExtent::Literal(5),
                 },
             ),
         ]
