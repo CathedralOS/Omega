@@ -20,6 +20,7 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
+    pub catalogues: validation::source_catalogues::SourceCatalogueAdmission<'request>,
     pub opaque_properties: &'request [validation::OpaqueDataPropertyReceipt],
     pub opaque_representations: &'request [OpaqueRepresentationSelection],
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
@@ -68,6 +69,12 @@ impl CheckRequest<'_> {
             validation::source_completion::prepare_source_completion(
                 &mut program,
                 self.admission.completion,
+            )
+        })?;
+        phase_profile::scope("05.a.source_catalogues", || {
+            validation::source_catalogues::prepare_source_catalogues(
+                &mut program,
+                &self.admission.catalogues,
             )
         })?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()

@@ -50,6 +50,10 @@ pub enum AcceptedSemanticBindingRole {
     /// service schema but does not invent a provider for a requirement-only
     /// boundary; no closed authority class covers a clock read or a sleep.
     TimeHostService,
+    /// Exact package-owned firmware handoff requirement declaration. This
+    /// supplies source catalogue identity only, never physical entry or a
+    /// native implementation of transfer/firmware return.
+    UefiHandoffService,
     /// Exact package-owned UEFI x86-64 application schema selected by the
     /// target's physical-entry consumer. The target still fixes the physical
     /// ABI; this binding chooses the ordinary package nominal that realizes
@@ -151,6 +155,7 @@ impl AcceptedSemanticBinding {
             role,
             AcceptedSemanticBindingRole::FilesystemHostService
                 | AcceptedSemanticBindingRole::TimeHostService
+                | AcceptedSemanticBindingRole::UefiHandoffService
                 | AcceptedSemanticBindingRole::UefiX64ProgramEntry
                 | AcceptedSemanticBindingRole::MacosArm64ProgramEntry
                 | AcceptedSemanticBindingRole::MacosX64ProgramEntry

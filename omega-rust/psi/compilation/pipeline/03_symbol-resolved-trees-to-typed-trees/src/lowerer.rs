@@ -723,6 +723,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // Family records are produced after all typed bodies settle.
         target_machine_families: _,
         boundary_completion_declarations: _,
+        boundary_catalogue_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,
         // Derived lookup state rebuilds from the retained tables.

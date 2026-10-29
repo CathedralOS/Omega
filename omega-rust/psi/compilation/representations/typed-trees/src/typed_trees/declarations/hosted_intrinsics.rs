@@ -72,6 +72,22 @@ impl TypedTrees {
         &self,
         realization: SymbolHandle,
     ) -> Option<HostedIntrinsicDeclaration<'_>> {
+        let declaration = self.hosted_intrinsic_source_declaration(realization)?;
+        use super::boundary_catalogues::BoundaryCatalogueRole;
+        let role = match declaration.role {
+            HostedIntrinsicRole::ProcessExit => BoundaryCatalogueRole::HostedProcessExit,
+            _ => BoundaryCatalogueRole::HostedConsole,
+        };
+        self.boundary_catalogue_is_admitted(role, realization, declaration.requirement.symbol)
+            .then_some(declaration)
+    }
+
+    /// Immutable declaration description for confined source-role nomination.
+    /// This raw shape view does not permit calling or executing the leaf.
+    pub fn hosted_intrinsic_source_declaration(
+        &self,
+        realization: SymbolHandle,
+    ) -> Option<HostedIntrinsicDeclaration<'_>> {
         let machine = self.machine_by_symbol(realization)?;
         let role = [
             HostedIntrinsicRole::ReadByte,

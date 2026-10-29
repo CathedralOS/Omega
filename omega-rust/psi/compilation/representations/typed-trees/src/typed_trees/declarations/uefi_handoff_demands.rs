@@ -18,6 +18,18 @@ impl TypedTrees {
     /// A free catalogue leaf delegates to this exact public boundary slot.
     /// Source checking may retain the demand without claiming it is settled.
     pub fn uefi_handoff_requirement(&self, entry: SymbolHandle) -> Option<SymbolHandle> {
+        let requirement = self.uefi_handoff_source_requirement(entry)?;
+        let machine = self.machine_holding_state(entry)?;
+        self.boundary_catalogue_is_admitted(
+            super::boundary_catalogues::BoundaryCatalogueRole::UefiHandoff,
+            machine.symbol,
+            requirement,
+        )
+        .then_some(requirement)
+    }
+
+    /// Immutable source shape for explicit package role nomination only.
+    pub fn uefi_handoff_source_requirement(&self, entry: SymbolHandle) -> Option<SymbolHandle> {
         let machine = self.machine_holding_state(entry)?;
         let requirement_name = match machine.name.as_str() {
             "uefi_transfer_to_entry" => "transfer",

@@ -1,5 +1,6 @@
 //! declarations in the current typed trees program.
 
+pub mod boundary_catalogues;
 pub mod boundary_completions;
 pub mod calling_vocabulary;
 pub mod code_owners;

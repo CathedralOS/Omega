@@ -46,6 +46,32 @@ pub(crate) fn check_product_source(
         .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
         .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
+    let catalogue_bindings = package_inputs
+        .into_iter()
+        .flat_map(PackageCompilationInputs::accepted_semantic_bindings)
+        .filter_map(|binding| {
+            use package_compilation::AcceptedSemanticBindingRole;
+            use typed_trees::typed_trees::declarations::boundary_catalogues::BoundaryCatalogueRole;
+            let role = match binding.role() {
+                AcceptedSemanticBindingRole::ConsoleExitProcessI32 => {
+                    BoundaryCatalogueRole::HostedConsole
+                }
+                AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
+                    BoundaryCatalogueRole::HostedProcessExit
+                }
+                AcceptedSemanticBindingRole::UefiHandoffService => {
+                    BoundaryCatalogueRole::UefiHandoff
+                }
+                _ => return None,
+            };
+            Some(validation::source_catalogues::SourceCatalogueBinding {
+                package: binding.package(),
+                role,
+                declaration_path: binding.declaration_path(),
+                accepted_schema: binding.normalized_schema_digest().as_bytes(),
+            })
+        })
+        .collect::<Vec<_>>();
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
@@ -64,6 +90,15 @@ pub(crate) fn check_product_source(
                 validation::source_completion::SourceCompletionAdmission::DiscoverProcessExit
             }
             None => validation::source_completion::SourceCompletionAdmission::None,
+        },
+        catalogues: validation::source_catalogues::SourceCatalogueAdmission {
+            discover_package: package_inputs
+                .filter(|inputs| {
+                    inputs.semantic_role_discovery()
+                        && inputs.root_role() == package_compilation::BuildDeclarationKind::Package
+                })
+                .map(PackageCompilationInputs::root),
+            bindings: &catalogue_bindings,
         },
         opaque_properties: &opaque_properties,
         opaque_representations: &representations,

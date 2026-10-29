@@ -43,6 +43,7 @@ pub(crate) fn resolve_accepted_service_binding(
         binding.role(),
         package_compilation::AcceptedSemanticBindingRole::FilesystemHostService
             | package_compilation::AcceptedSemanticBindingRole::TimeHostService
+            | package_compilation::AcceptedSemanticBindingRole::UefiHandoffService
             | package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
             | package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry
             | package_compilation::AcceptedSemanticBindingRole::MacosX64ProgramEntry

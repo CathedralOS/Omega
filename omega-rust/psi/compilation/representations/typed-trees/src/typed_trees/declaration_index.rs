@@ -320,6 +320,7 @@ impl super::TypedTrees {
             .wrapping_add(self.trait_implementation_applications.revision())
             .wrapping_add(self.captured_machine_applications.revision())
             .wrapping_add(self.boundary_completion_declarations.revision())
+            .wrapping_add(self.boundary_catalogue_declarations.revision())
             .wrapping_add(self.evidence_forwardings.len() as u64)
             .wrapping_add(self.proof_output_calls.len() as u64)
             .wrapping_add(self.ranking_expression_custody.len() as u64)

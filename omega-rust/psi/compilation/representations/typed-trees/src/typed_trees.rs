@@ -290,6 +290,10 @@ pub struct TypedTrees {
     /// explicitly proposed review role. These describe callable completion;
     /// they grant no selected provider or execution authority.
     pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
+    /// Fresh package source-role custody for exact catalogue declarations.
+    /// These form boundary demands only; they supply no native backing.
+    pub boundary_catalogue_declarations:
+        Arena<declarations::boundary_catalogues::BoundaryCatalogueDeclaration>,
     /// Exact owner identity and authored names for erased evidence forwarding;
     /// checked lowering binds both names to checked evidence-term handles.
     pub evidence_forwardings: Vec<EvidenceForwarding>,
@@ -612,6 +616,7 @@ impl TypedTrees {
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),
+            boundary_catalogue_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),

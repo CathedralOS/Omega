@@ -228,6 +228,9 @@ pub fn settle_selected_execution(
     let resolved_time_host_binding = resolve_service_binding(accepted_binding(
         AcceptedSemanticBindingRole::TimeHostService,
     ))?;
+    let resolved_handoff_binding = resolve_service_binding(accepted_binding(
+        AcceptedSemanticBindingRole::UefiHandoffService,
+    ))?;
     // Package lookup is keyed by the exact role of this target's entry slot;
     // the coordinator no longer supplies a separately asserted expected role.
     let resolved_entry_binding = resolve_service_binding(
@@ -254,6 +257,7 @@ pub fn settle_selected_execution(
             .into_iter()
             .chain(resolved_filesystem_binding)
             .chain(resolved_time_host_binding)
+            .chain(resolved_handoff_binding)
             .chain(resolved_entry_binding)
             .collect(),
     })
