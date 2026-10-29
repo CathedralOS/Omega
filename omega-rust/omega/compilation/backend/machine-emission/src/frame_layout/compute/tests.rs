@@ -9,6 +9,15 @@ macro_rules! row {
     };
 }
 
+macro_rules! t {
+    ($target:expr => $abi:ident => $c:expr => $d:expr) => {
+        ($target, FrameAbiPreservationConvention::$abi, $c, $d)
+    };
+    ($target:expr => $abi:ident => $c:expr) => {
+        ($target, FrameAbiPreservationConvention::$abi, $c)
+    };
+}
+
 /// Every case here lays out a canonical ordinary-call frame for machine 1 with
 /// no stable-address loans; the fixture supplies those three arguments so each
 /// case names only the shape it is about.
@@ -139,30 +148,10 @@ fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
 #[test]
 fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
     for (target, abi, stack_offset, save_name) in [
-        (
-            target::NativeTarget::linux_x64(),
-            FrameAbiPreservationConvention::SystemVAMD64,
-            0,
-            "rbx",
-        ),
-        (
-            target::NativeTarget::windows_x64(),
-            FrameAbiPreservationConvention::MicrosoftX64,
-            32,
-            "rbx",
-        ),
-        (
-            target::NativeTarget::linux_arm64(),
-            FrameAbiPreservationConvention::Aapcs64,
-            0,
-            "x19",
-        ),
-        (
-            target::NativeTarget::macos_arm64(),
-            FrameAbiPreservationConvention::DarwinAapcs64,
-            0,
-            "x19",
-        ),
+        t!(target::NativeTarget::linux_x64() => SystemVAMD64 => 0 => "rbx"),
+        t!(target::NativeTarget::windows_x64() => MicrosoftX64 => 32 => "rbx"),
+        t!(target::NativeTarget::linux_arm64() => Aapcs64 => 0 => "x19"),
+        t!(target::NativeTarget::macos_arm64() => DarwinAapcs64 => 0 => "x19"),
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
@@ -290,26 +279,10 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
 #[test]
 fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
     for (target, abi, offset) in [
-        (
-            target::NativeTarget::windows_x64(),
-            FrameAbiPreservationConvention::MicrosoftX64,
-            32,
-        ),
-        (
-            target::NativeTarget::linux_x64(),
-            FrameAbiPreservationConvention::SystemVAMD64,
-            0,
-        ),
-        (
-            target::NativeTarget::linux_arm64(),
-            FrameAbiPreservationConvention::Aapcs64,
-            0,
-        ),
-        (
-            target::NativeTarget::macos_arm64(),
-            FrameAbiPreservationConvention::DarwinAapcs64,
-            0,
-        ),
+        t!(target::NativeTarget::windows_x64() => MicrosoftX64 => 32),
+        t!(target::NativeTarget::linux_x64() => SystemVAMD64 => 0),
+        t!(target::NativeTarget::linux_arm64() => Aapcs64 => 0),
+        t!(target::NativeTarget::macos_arm64() => DarwinAapcs64 => 0),
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
@@ -351,36 +324,11 @@ fn large_frames_commit_through_an_exact_probe_roster() {
         alignment: 8,
     };
     for (target, abi, interval, touches) in [
-        (
-            target::NativeTarget::linux_x64(),
-            FrameAbiPreservationConvention::SystemVAMD64,
-            4_096_u64,
-            2_u32,
-        ),
-        (
-            target::NativeTarget::windows_x64(),
-            FrameAbiPreservationConvention::MicrosoftX64,
-            4_096,
-            2,
-        ),
-        (
-            target::NativeTarget::uefi_x64(),
-            FrameAbiPreservationConvention::MicrosoftX64,
-            4_096,
-            2,
-        ),
-        (
-            target::NativeTarget::linux_arm64(),
-            FrameAbiPreservationConvention::Aapcs64,
-            4_096,
-            2,
-        ),
-        (
-            target::NativeTarget::macos_arm64(),
-            FrameAbiPreservationConvention::DarwinAapcs64,
-            16_384,
-            0,
-        ),
+        t!(target::NativeTarget::linux_x64() => SystemVAMD64 => 4_096_u64 => 2_u32),
+        t!(target::NativeTarget::windows_x64() => MicrosoftX64 => 4_096 => 2),
+        t!(target::NativeTarget::uefi_x64() => MicrosoftX64 => 4_096 => 2),
+        t!(target::NativeTarget::linux_arm64() => Aapcs64 => 4_096 => 2),
+        t!(target::NativeTarget::macos_arm64() => DarwinAapcs64 => 16_384 => 0),
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
