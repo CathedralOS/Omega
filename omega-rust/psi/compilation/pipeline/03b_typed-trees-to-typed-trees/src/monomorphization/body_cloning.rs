@@ -131,6 +131,30 @@ pub(super) fn clone_single_specialized_machine(
                 None => complete = false,
             }
         }
+        // A closed static entry requirement must admit this exact tuple before
+        // it acquires executable storage. Otherwise an impossible application
+        // reaches body checking and produces unrelated postcondition failures.
+        // Unknown/runtime requirements still belong to ordinary call checking;
+        // the shared static judgment forms every operand before deciding.
+        for contract in input.machine_contracts(&source_machine) {
+            if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in input.proof_facts.span_or_empty(contract.facts) {
+                let typed_trees::domain::ProofFact::Expression(predicate) = fact else {
+                    continue;
+                };
+                if input.applied_static_type_predicate_value(*predicate, &substitutions)
+                    == Some(false)
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "machine `{}` requires type predicate does not hold for the supplied arguments",
+                        source_machine.name
+                    ))
+                    .with_source_span(input.expression_table.source_span(*predicate))]);
+                }
+            }
+        }
         complete
     };
     let source_states = source

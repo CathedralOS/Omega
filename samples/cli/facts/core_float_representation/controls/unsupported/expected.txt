@@ -1,1 +1,1 @@
-machine `max` where type predicate does not hold for the supplied arguments
+machine `max` requires type predicate does not hold for the supplied arguments
