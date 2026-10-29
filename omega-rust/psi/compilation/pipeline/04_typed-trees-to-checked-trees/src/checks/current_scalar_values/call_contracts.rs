@@ -439,6 +439,9 @@ impl CurrentScalarValues<'_> {
             immutable_coordinate: true,
             read_dependencies: Some(Vec::new()),
         }));
+        if std::env::var_os("OMEGA_DEBUG_DESCRIPTOR").is_some() {
+            eprintln!("DESCRIPTOR caller={} callee={} formals={:?} fields={:?} lengths={:?}", self.program.symbols.name(self.machine.symbol), self.program.symbols.name(callee.symbol), formals.iter().map(|f|(&f.name,&f.value)).collect::<Vec<_>>(), fields.iter().map(|f|(&f.name,&f.path,&f.value)).collect::<Vec<_>>(), lengths.iter().map(|f|(&f.name,&f.value)).collect::<Vec<_>>());
+        }
         let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
         if !admitted(occurrence, expression, &formals, &fields, 0) {
             return None;
