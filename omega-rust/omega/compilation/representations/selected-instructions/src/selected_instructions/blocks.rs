@@ -32,7 +32,6 @@ pub struct SelectedBlocks(Vec<Arc<BlockEntry>>);
 /// entry and clears both before handing out the block. Equality compares the
 /// block alone, like the storage. Public only so the storage iterator types
 /// can name it; this module is private.
-#[derive(Clone)]
 pub struct BlockEntry {
     block: SelectedBlock,
     digest: OnceLock<[u8; 32]>,
@@ -105,7 +104,6 @@ fn test_register_bit(bits: &[u64], register: VirtualRegisterId) -> bool {
         .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
 }
 
-#[derive(Clone)]
 struct BlockLookup {
     fixed_definition_bits: Vec<u64>,
     materialize_definition_bits: Vec<u64>,
@@ -132,6 +130,21 @@ struct BlockLookup {
     copy_affinities: Vec<super::CopyAffinity>,
     has_malformed_copy: bool,
 }
+// Copy-on-write needs the block, not copies of memos that the mutable route
+// immediately invalidates. Memo absence has no content or identity meaning.
+impl Clone for BlockEntry {
+    fn clone(&self) -> Self {
+        Self {
+            block: self.block.clone(),
+            digest: OnceLock::new(),
+            encoding: OnceLock::new(),
+            previous_encoding: None,
+            lookup: OnceLock::new(),
+            slot_summary: OnceLock::new(),
+        }
+    }
+}
+
 impl BlockEntry {
     fn new(block: SelectedBlock) -> Arc<Self> {
         Arc::new(Self {
