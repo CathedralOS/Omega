@@ -19,9 +19,10 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Entry records no longer contain synthetic application-record service fields.
-// Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI03";
+// Direct callable rows retain their complete original satisfaction plan.
+// Older partial-schema records cannot recover numeric custody and must reject
+// before their differently shaped payload is read.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI05";
 
 #[cfg(test)]
 mod tests {
@@ -99,12 +100,17 @@ fn capture(
     output.sequence(boundaries.selected_provider_provenance.len())?;
     for crate::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
-        semantic_schema,
+        semantic_plan,
         row_executions,
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
-        semantic_schema.write(&mut output)?;
+        if semantic_plan == plan {
+            0u8.write(&mut output)?;
+        } else {
+            1u8.write(&mut output)?;
+            semantic_plan.write(&mut output)?;
+        }
         output.sequence(row_executions.len())?;
         for execution in *row_executions {
             execution
@@ -138,12 +144,12 @@ fn capture(
 
 struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
-    semantic_schema: effects::provider_plan::ServiceSchema,
+    semantic_plan: Option<effects::provider_plan::ProviderPlan>,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
     plan,
-    semantic_schema,
+    semantic_plan,
     row_executions
 });
 
@@ -290,7 +296,7 @@ pub fn recover_native_derivation_inputs(
                 .map(
                     |row| crate::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan: &row.plan,
-                        semantic_schema: &row.semantic_schema,
+                        semantic_plan: row.semantic_plan.as_ref().unwrap_or(&row.plan),
                         row_executions: &row.row_executions,
                     },
                 )

@@ -4,6 +4,19 @@ use crate::CompilerIntrinsicExecutionIdentity;
 use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use terminal_psi::{NumericRealization, TerminalIdentityTable};
 
+/// An invocation names either its public requirement or its exact realization.
+/// Both roles rejoin the same original checked satisfaction plan.
+#[derive(Clone, Copy)]
+pub enum NumericInvocation<'identity> {
+    Requirement {
+        declaration: &'identity str,
+        realization: Option<&'identity str>,
+    },
+    Realization {
+        declaration: &'identity str,
+    },
+}
+
 /// Select one numeric satisfaction edge using nominal requirement identity,
 /// the exact callable, package owners, binding kind and deployment target.
 /// Absence is not authorization: a consumer requiring numeric execution must
@@ -14,8 +27,7 @@ use terminal_psi::{NumericRealization, TerminalIdentityTable};
 pub fn selected_numeric_realization<'a>(
     providers: &'a [NumericRealization],
     identities: &TerminalIdentityTable,
-    requirement: &str,
-    realization: Option<&str>,
+    invocation: NumericInvocation<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
 ) -> Result<Option<&'a NumericRealization>, &'static str> {
@@ -23,11 +35,22 @@ pub fn selected_numeric_realization<'a>(
         return Err("numeric provider does not select an external compiler intrinsic");
     };
     let mut candidates = providers.iter().filter(|candidate| {
-        identities.text(candidate.requirement.identity()) == Some(requirement)
-            && realization.is_none_or(|realization| {
-                identities.text(candidate.realization.machine.identity()) == Some(realization)
-            })
-            && matches_numeric_selection(candidate, identities, plan, row, machine)
+        let selected = match invocation {
+            NumericInvocation::Requirement {
+                declaration,
+                realization,
+            } => {
+                identities.text(candidate.requirement.identity()) == Some(declaration)
+                    && realization.is_none_or(|realization| {
+                        identities.text(candidate.realization.machine.identity())
+                            == Some(realization)
+                    })
+            }
+            NumericInvocation::Realization { declaration } => {
+                identities.text(candidate.realization.machine.identity()) == Some(declaration)
+            }
+        };
+        selected && matches_numeric_selection(candidate, identities, plan, row, machine)
     });
     let candidate = candidates.next();
     if candidates.next().is_some() {

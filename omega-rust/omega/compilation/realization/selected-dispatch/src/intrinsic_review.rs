@@ -356,8 +356,9 @@ pub(crate) fn close_direct_boundary_candidates(
         else {
             continue;
         };
-        let source = &candidate.source;
-        let [row] = source.plan.rows.as_slice() else {
+        let semantic = &candidate.leaf.semantic_plan;
+        let provenance = &candidate.provenance;
+        let [row] = semantic.rows.as_slice() else {
             return Err(vec![Diagnostic::error(
                 "direct boundary candidate lost its single original row",
             )]);
@@ -380,19 +381,17 @@ pub(crate) fn close_direct_boundary_candidates(
             crate::NumericProviderSelection {
                 candidate: numeric_realizations,
                 custody: numeric_realizations,
-                provider: source.provenance.provider_type,
+                provider: provenance.provider_type,
             },
-            &source.plan,
-            source.provenance.schema,
+            semantic,
+            provenance.schema,
             row,
-            source.provenance.row_requirements[0],
-            source.provenance.row_realizations[0]
-                .machine()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "direct compiler intrinsic lost its authored realization machine",
-                    )]
-                })?,
+            provenance.row_requirements[0],
+            provenance.row_realizations[0].machine().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "direct compiler intrinsic lost its authored realization machine",
+                )]
+            })?,
             target,
             accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
             accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),

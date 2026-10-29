@@ -295,6 +295,17 @@ fn bind_direct_boundary_leaves(
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let mut bound = Vec::new();
     for candidate in candidates {
+        let expected = backend_plan::DirectBoundaryLeaf::project_plan(
+            &candidate.semantic_plan,
+            &candidate.callable_identity,
+            &candidate.callable_identity,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if candidate.plan != expected {
+            return Err(vec![Diagnostic::error(
+                "direct boundary plan differs from its exact satisfaction projection",
+            )]);
+        }
         let mut declarations = module.boundary_machines.iter().filter(|boundary| {
             boundary.declaration.as_ref().is_some_and(|declaration| {
                 module
@@ -323,10 +334,12 @@ fn bind_direct_boundary_leaves(
                 )]
             })?;
         let mut leaf = (*candidate).clone();
-        leaf.plan.schema.trait_name = leaf.plan.schema.identities.intern(identity);
-        leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
-        leaf.plan.schema.methods[0].requirement_identity =
-            leaf.plan.schema.identities.intern(identity);
+        leaf.plan = backend_plan::DirectBoundaryLeaf::project_plan(
+            &leaf.semantic_plan,
+            &leaf.callable_identity,
+            identity,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut leaf.execution {
             binding.trait_name = identity.to_owned();
             binding.requirement_identity = identity.to_owned();

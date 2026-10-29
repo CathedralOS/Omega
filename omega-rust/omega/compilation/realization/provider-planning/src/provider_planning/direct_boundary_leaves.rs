@@ -23,7 +23,7 @@ use effects::provider_plan::ProviderBinding;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectBoundaryCandidate {
     pub leaf: backend_plan::DirectBoundaryLeaf,
-    pub source: DerivedProviderPlan,
+    pub provenance: crate::ProviderPlanProvenance,
 }
 
 pub(crate) fn derive(
@@ -86,26 +86,14 @@ pub(crate) fn derive(
                 vec![candidate.provenance.row_target_machine_origins[position].clone()];
             original.provenance.row_placed_accessors =
                 vec![candidate.provenance.row_placed_accessors[position].clone()];
-            let mut plan = original.plan.clone();
-            let satisfied_schema = plan.schema.clone();
-            // A callable dependency has one method contract, not a selected
-            // whole-trait receiver map. Retain that original schema beside the
-            // projection; its instantiated method claims and ABI stay intact.
-            plan.schema.receiver_applications.clear();
-            plan.name = format!("direct-boundary:{}:{identity}", plan.target);
-            plan.provider_type = typed.symbols.display_path(machine.symbol, "::");
-            plan.provider_type_package_identity =
-                typed.symbols.symbol_package_identity(machine.symbol);
-            plan.schema.trait_name = plan.schema.identities.intern(&identity);
-            plan.schema.trait_package_identity =
-                typed.symbols.symbol_package_identity(machine.symbol);
-            plan.rows[0].requirement_identity = plan.identities.intern(&identity);
-            let [method] = plan.schema.methods.as_mut_slice() else {
-                return Err(vec![Diagnostic::error(
-                    "boundary leaf does not bind one exact requirement contract",
-                )]);
-            };
-            method.requirement_identity = plan.schema.identities.intern(&identity);
+            let mut semantic_plan = original.plan.clone();
+            semantic_plan.schema = candidate.plan.schema.clone();
+            let plan = backend_plan::DirectBoundaryLeaf::project_plan(
+                &semantic_plan,
+                &identity,
+                &identity,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
             let execution = if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
                 backend_plan::DirectBoundaryExecution::Intrinsic(None)
             } else {
@@ -166,17 +154,13 @@ pub(crate) fn derive(
             let leaf = backend_plan::DirectBoundaryLeaf {
                 declaration_identity,
                 callable_identity: identity,
-                satisfied_schema,
+                semantic_plan,
                 plan,
-                satisfied_requirement_identity: requirement,
                 execution,
             };
-            // Intrinsic shape closure consumes the complete original service
-            // schema, not the projected one-method callable contract.
-            original.plan.schema = candidate.plan.schema.clone();
             let retained = DirectBoundaryCandidate {
                 leaf,
-                source: original,
+                provenance: original.provenance,
             };
             if !leaves.contains(&retained) {
                 leaves.push(retained);

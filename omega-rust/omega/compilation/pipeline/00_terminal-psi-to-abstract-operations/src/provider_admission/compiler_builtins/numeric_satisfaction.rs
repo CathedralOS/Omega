@@ -19,11 +19,54 @@ pub(crate) fn selected_execution(
     let requirement = identities
         .text(requirement.identity())
         .ok_or("numeric provider requirement has no nominal identity")?;
+    execution_for_invocation(
+        numeric_realizations,
+        identities,
+        effects::numeric_realizations::NumericInvocation::Requirement {
+            declaration: requirement,
+            realization: None,
+        },
+        plan,
+        row,
+        retained,
+    )
+}
+
+pub(crate) fn direct_execution(
+    numeric_realizations: &[terminal_psi::NumericRealization],
+    identities: &terminal_psi::TerminalIdentityTable,
+    realization: &terminal_psi::NominalDeclarationIdentity,
+    semantic_plan: &ProviderPlan,
+    semantic_row: &effects::provider_plan::ProviderPlanRow,
+    retained: Option<CompilerIntrinsicExecutionIdentity>,
+) -> Result<Option<CompilerIntrinsicExecutionIdentity>, &'static str> {
+    let realization = identities
+        .text(realization.identity())
+        .ok_or("direct numeric invocation has no exact realization declaration")?;
+    execution_for_invocation(
+        numeric_realizations,
+        identities,
+        effects::numeric_realizations::NumericInvocation::Realization {
+            declaration: realization,
+        },
+        semantic_plan,
+        semantic_row,
+        retained,
+    )
+}
+
+fn execution_for_invocation(
+    numeric_realizations: &[terminal_psi::NumericRealization],
+    identities: &terminal_psi::TerminalIdentityTable,
+    invocation: effects::numeric_realizations::NumericInvocation<'_>,
+    plan: &ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    retained: Option<CompilerIntrinsicExecutionIdentity>,
+) -> Result<Option<CompilerIntrinsicExecutionIdentity>, &'static str> {
     let candidate = effects::numeric_realizations::selected_numeric_realization(
         numeric_realizations,
         identities,
-        requirement,
-        None,
+        invocation,
         plan,
         row,
     )?;

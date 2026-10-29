@@ -37,8 +37,10 @@ impl<'a> NumericProviderSelection<'a> {
                 effects::numeric_realizations::selected_numeric_realization(
                     &declarations.conformances,
                     &declarations.identities,
-                    nominal,
-                    Some(realization),
+                    effects::numeric_realizations::NumericInvocation::Requirement {
+                        declaration: nominal,
+                        realization: Some(realization),
+                    },
                     plan,
                     row,
                 )

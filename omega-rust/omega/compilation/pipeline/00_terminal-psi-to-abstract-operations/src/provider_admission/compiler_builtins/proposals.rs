@@ -7,10 +7,12 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
-use super::numeric_satisfaction::{reconcile_numeric_meaning, selected_execution};
+use super::numeric_satisfaction::{
+    direct_execution, reconcile_numeric_meaning, selected_execution,
+};
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
-use effects::provider_plan::{ProviderPlan, ServiceSchema};
+use effects::provider_plan::ProviderPlan;
 use std::collections::BTreeSet;
 
 /// The source-free part of one retained provider review. The complete plan is
@@ -18,16 +20,16 @@ use std::collections::BTreeSet;
 pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub plan: &'a ProviderPlan,
     /// The contract classification authenticated before projecting a direct
-    /// callable's selection coordinate. Ordinary plans use their own schema.
-    pub semantic_schema: &'a ServiceSchema,
+    /// callable's selection coordinate. Ordinary plans borrow their own plan.
+    pub semantic_plan: &'a ProviderPlan,
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
 }
 
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
-    row: &'a effects::provider_plan::ProviderPlanRow,
-    semantic_schema: &'a ServiceSchema,
+    semantic_plan: &'a ProviderPlan,
+    semantic_row: &'a effects::provider_plan::ProviderPlanRow,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
 
@@ -51,16 +53,37 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
     let mut selected_rows = Vec::new();
     for (plan_index, (plan, retained)) in plans.iter().zip(provenance).enumerate() {
-        if retained.plan != plan || retained.row_executions.len() != plan.rows.len() {
+        if retained.plan != plan
+            || retained.row_executions.len() != plan.rows.len()
+            || retained.semantic_plan.rows.len() != plan.rows.len()
+        {
             return Err(vec![Diagnostic::error(format!(
                 "selected compiler-intrinsic plan `{}` has misaligned retained settlement provenance",
                 plan.name,
             ))]);
         }
+        if retained.semantic_plan != plan {
+            let expected = backend_plan::DirectBoundaryLeaf::project_plan(
+                retained.semantic_plan,
+                &plan.provider_type,
+                plan.schema.identity_text(plan.schema.trait_name),
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            if expected != *plan {
+                return Err(vec![Diagnostic::error(
+                    "intrinsic callable plan differs from its original satisfaction projection",
+                )]);
+            }
+        }
         if demanded_boundaries.is_empty() {
             continue;
         }
-        for (row, execution) in plan.rows.iter().zip(retained.row_executions) {
+        for ((row, semantic_row), execution) in plan
+            .rows
+            .iter()
+            .zip(&retained.semantic_plan.rows)
+            .zip(retained.row_executions)
+        {
             if matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -68,8 +91,8 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
                     plan_index,
-                    row,
-                    semantic_schema: retained.semantic_schema,
+                    semantic_plan: retained.semantic_plan,
+                    semantic_row,
                     execution: *execution,
                 });
             }
@@ -120,14 +143,26 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        let identity = match selected_execution(
-            numeric_realizations,
-            identities,
-            &boundary.owner,
-            &plans[selected_row.plan_index],
-            selected_row.row,
-            selected_row.execution,
-        ) {
+        let execution = if selected_row.semantic_plan == &plans[selected_row.plan_index] {
+            selected_execution(
+                numeric_realizations,
+                identities,
+                &boundary.owner,
+                selected_row.semantic_plan,
+                selected_row.semantic_row,
+                selected_row.execution,
+            )
+        } else {
+            direct_execution(
+                numeric_realizations,
+                identities,
+                &boundary.owner,
+                selected_row.semantic_plan,
+                selected_row.semantic_row,
+                selected_row.execution,
+            )
+        };
+        let identity = match execution {
             Ok(identity) => identity,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -160,7 +195,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
             selected_row.plan_index,
             boundary.id,
             settlement,
-            selected_row.semantic_schema,
+            &selected_row.semantic_plan.schema,
             &plans[selected_row.plan_index].schema,
         ));
     }

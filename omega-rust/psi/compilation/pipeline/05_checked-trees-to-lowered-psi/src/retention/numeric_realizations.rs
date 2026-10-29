@@ -83,7 +83,13 @@ pub(crate) fn project(
                     requirement,
                 )?
                 .render(checked)?;
-                if !include(identities, &callable) {
+                let realization_callable =
+                    crate::unit::attached_unit::checked_unit_boundary_identity(
+                        checked,
+                        machine.symbol,
+                    )?
+                    .render(checked)?;
+                if !include(identities, &callable) && !include(identities, &realization_callable) {
                     continue;
                 }
                 let owner = typed.machine_code_owner_symbol(machine);

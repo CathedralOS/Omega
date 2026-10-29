@@ -339,7 +339,7 @@ impl TerminalNativeRealizationProposal {
                         })?;
                     return Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan,
-                        semantic_schema: &plan.schema,
+                        semantic_plan: plan,
                         row_executions,
                     });
                 }
@@ -364,7 +364,7 @@ impl TerminalNativeRealizationProposal {
                     };
                 Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
                     plan,
-                    semantic_schema: &leaf.satisfied_schema,
+                    semantic_plan: &leaf.semantic_plan,
                     row_executions,
                 })
             })

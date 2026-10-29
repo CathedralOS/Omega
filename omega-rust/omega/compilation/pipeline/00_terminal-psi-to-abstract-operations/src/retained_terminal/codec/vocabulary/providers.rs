@@ -94,9 +94,8 @@ record_variants!(backend_plan::DirectBoundaryExecution {
 record_fields!(backend_plan::DirectBoundaryLeaf {
     declaration_identity,
     callable_identity,
-    satisfied_schema,
+    semantic_plan,
     plan,
-    satisfied_requirement_identity,
     execution
 });
 
