@@ -2141,7 +2141,9 @@ impl<'program> StructuralJudge<'program> {
         // This is an admitted application body, not another runtime event.
         // Nested calls still pass specification_application_candidate; both
         // ordinary and normalized terminal values use that same admission.
-        let specification = self.resolving_application(application)?;
+        let mut specification = self.clone();
+        specification.specification_terms = true;
+        let specification = specification.resolving_application(application)?;
 
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);

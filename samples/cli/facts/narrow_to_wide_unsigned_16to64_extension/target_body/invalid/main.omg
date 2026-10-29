@@ -1,60 +1,90 @@
 // Fact: zero-extending a bounded 16-bit unsigned u16 value (narrow >= 300u16 && narrow <= 500u16) to u64 (narrow as u64) preserves the exact interval (wide >= 300u64 && wide <= 500u64), discharging exact 64-bit subtractions 500u64 - wide and wide - 300u64 across all nine places.
 // Expected exit: 0
 
-linux_x86_64 machine exercise(narrow: u16) -> i32
-requires narrow >= 300u16 && narrow <= 501u16
-{
-    let wide: u64 = narrow as u64;
-    let diff1: u64 = 500u64 - wide;
-    let diff2: u64 = wide - 300u64;
-    transition diff1 == 100u64 && diff2 == 100u64 {
-        true -> 0i32
-        _ -> 1i32
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-linux_arm64 machine exercise(narrow: u16) -> i32
-requires narrow >= 300u16 && narrow <= 501u16
-{
-    let wide: u64 = narrow as u64;
-    let diff1: u64 = 500u64 - wide;
-    let diff2: u64 = wide - 300u64;
-    transition diff1 == 100u64 && diff2 == 100u64 {
-        true -> 0i32
-        _ -> 1i32
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-macos_arm64 machine exercise(narrow: u16) -> i32
-requires narrow >= 300u16 && narrow <= 501u16
-{
-    let wide: u64 = narrow as u64;
-    let diff1: u64 = 500u64 - wide;
-    let diff2: u64 = wide - 300u64;
-    transition diff1 == 100u64 && diff2 == 100u64 {
-        true -> 0i32
-        _ -> 1i32
+boundary trait SelectedProbe {
+    machine exercise(narrow: u16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires narrow >= 300u16 && narrow <= 501u16;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine exercise(narrow: u16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires narrow >= 300u16 && narrow <= 501u16
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let wide: u64 = narrow as u64;
+        let diff1: u64 = 500u64 - wide;
+        let diff2: u64 = wide - 300u64;
+        transition diff1 == 100u64 && diff2 == 100u64 {
+            true -> 0i32
+            _ -> 1i32
+        }
     }
 }
 
-windows_x86_64 machine exercise(narrow: u16) -> i32
-requires narrow >= 300u16 && narrow <= 501u16
-{
-    let wide: u64 = narrow as u64;
-    let diff1: u64 = 500u64 - wide;
-    let diff2: u64 = wide - 300u64;
-    transition diff1 == 100u64 && diff2 == 100u64 {
-        true -> 0i32
-        _ -> 1i32
+ArmProbe satisfies SelectedProbe {
+    machine exercise(narrow: u16) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires narrow >= 300u16 && narrow <= 501u16
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let wide: u64 = narrow as u64;
+        let diff1: u64 = 500u64 - wide;
+        let diff2: u64 = wide - 300u64;
+        transition diff1 == 100u64 && diff2 == 100u64 {
+            true -> 0i32
+            _ -> 1i32
+        }
     }
 }
 
-machine main() crashes Trap {
-    let exit_code: i32 = exercise(400u16);
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let exit_code: i32 = SelectedProbe::exercise(400u16);
     transition exit_code == 0i32 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

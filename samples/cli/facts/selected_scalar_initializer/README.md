@@ -92,3 +92,21 @@ Remaining parent acceptance under `TERMINAL-SLICE-VIEW-VOCABULARY`: non-interval
 | sample gate | `python3 tools/sample_native_gate.py --filter cli/facts/selected_scalar_initializer --facts` | 10/10 meet the oracle; 9/9 controls match |
 
 Producer: the checkout's `omega` at opt-level 1 (`omega --build-profile` reports `opt_level: 1`), revision `f98259e86dd2` for the native rows and `67b7c6dfba3` for the agreement rows, host macOS ARM64.
+
+## Build-owned target-body migration
+
+`BUILD-OWNED-TARGET-SELECTION` replaces this existing target-prefixed family
+with ordinary named implementations and explicit target-keyed Build provider
+rows. The original operation, inputs, contracts and exit oracle are retained,
+including any different invalid body in an unselected implementation. The
+other eight transport places retain their authored source and Build rows.
+A separate provider check distinguishes X86 tag 17 from ARM tag 29; entry
+wrappers and provider bodies both check it, exposing a wrong provider row.
+
+This migration requires the existing nine positive places and their specific
+reject twins to pass. It adds five-profile installations of the same Terminal
+artifact and actual macOS ARM/X86 native execution for the migrated target body.
+It does not establish a new numeric-width, argument-count or ownership mechanism,
+renew unrelated historical row claims, or close the target/native migration
+parent tasks. Windows/Linux native execution and native trap controls remain
+unverified here; wrong-selection controls execute in Terminal Psi.
