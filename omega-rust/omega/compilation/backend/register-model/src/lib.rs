@@ -61,7 +61,10 @@ pub use register_model::reservation_profiles::{
     ValidatedRegisterReservationProfile, reservation_overlay, sorted_units,
     validate_register_reservation_profile,
 };
+#[cfg(feature = "test-support")]
+pub use register_model::test_support;
 pub use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterModelValidationError,
-    ValidatedPhysicalRegisterModel, validate_physical_register_model,
+    PhysicalModelBuilder, PhysicalRegisterModel, PreservationConvention,
+    RegisterModelValidationError, ValidatedPhysicalRegisterModel, complement, units_for,
+    validate_physical_register_model, view_ids,
 };

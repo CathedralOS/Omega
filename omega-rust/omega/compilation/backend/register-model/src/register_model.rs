@@ -11,13 +11,15 @@ pub(crate) mod identities;
 pub(crate) mod preservation_storage;
 pub(crate) mod register_vocabulary;
 pub(crate) mod reservation_profiles;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 
 use crate::{
     RegisterClass, RegisterClassId, RegisterReservationOverlay, RegisterUnit, RegisterUnitId,
     RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
 };
 use identities::PhysicalRegisterModelIdentity;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use target::Architecture;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +80,121 @@ impl PhysicalRegisterModel {
         };
         left.units.iter().any(|unit| right.units.contains(unit))
     }
+}
+
+/// Appends register classes, units and views in declaration order and seals
+/// them into a [`PhysicalRegisterModel`]. The class roster, the layout and the
+/// conventions and reservations stay with the architecture that declares them;
+/// the builder only owns the id assignment every architecture repeats.
+pub struct PhysicalModelBuilder {
+    units: Vec<RegisterUnit>,
+    views: Vec<RegisterView>,
+    classes: Vec<RegisterClass>,
+}
+
+impl PhysicalModelBuilder {
+    /// Start a model whose register classes are `class_names`, in id order.
+    pub fn with_classes(class_names: &[&str]) -> Self {
+        Self {
+            units: Vec::new(),
+            views: Vec::new(),
+            classes: class_names
+                .iter()
+                .enumerate()
+                .map(|(id, name)| RegisterClass {
+                    id: RegisterClassId(u16::try_from(id).expect("class id fits u16")),
+                    name: (*name).into(),
+                    views: Vec::new(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Append one unit and return its declaration-order id.
+    pub fn unit(&mut self, name: String, bits: u16, kind: RegisterUnitKind) -> RegisterUnitId {
+        let id = RegisterUnitId(u16::try_from(self.units.len()).expect("unit id fits u16"));
+        self.units.push(RegisterUnit {
+            id,
+            name,
+            bits,
+            kind,
+        });
+        id
+    }
+
+    /// Append one view and register it under its class.
+    #[allow(clippy::too_many_arguments)]
+    pub fn view(
+        &mut self,
+        name: String,
+        class: RegisterClassId,
+        units: Vec<RegisterUnitId>,
+        write_units: Vec<RegisterUnitId>,
+        bits: u16,
+        write_semantics: RegisterWriteSemantics,
+        allocatable: bool,
+    ) -> RegisterViewId {
+        let id = RegisterViewId(u16::try_from(self.views.len()).expect("view id fits u16"));
+        self.views.push(RegisterView {
+            id,
+            name,
+            class,
+            units,
+            write_units,
+            bits,
+            write_semantics,
+            allocatable,
+        });
+        self.classes[usize::from(class.0)].views.push(id);
+        id
+    }
+
+    /// Every unit declared so far, in declaration order.
+    pub fn unit_ids(&self) -> Vec<RegisterUnitId> {
+        self.units.iter().map(|unit| unit.id).collect()
+    }
+
+    /// Seal the table with the architecture's conventions and reservations.
+    pub fn finish(
+        self,
+        architecture: Architecture,
+        conventions: Vec<PreservationConvention>,
+        reservations: Vec<RegisterReservationOverlay>,
+    ) -> PhysicalRegisterModel {
+        PhysicalRegisterModel {
+            architecture,
+            units: self.units,
+            views: self.views,
+            classes: self.classes,
+            conventions,
+            reservations,
+        }
+    }
+}
+
+/// The units `names` select from `units`, sorted.
+pub fn units_for(
+    units: &BTreeMap<String, Vec<RegisterUnitId>>,
+    names: &[&str],
+) -> Vec<RegisterUnitId> {
+    crate::sorted_units(names.iter().flat_map(|name| units[*name].iter().copied()))
+}
+
+/// Everything in `all` that is neither fixed nor callee-saved.
+pub fn complement(
+    all: &[RegisterUnitId],
+    fixed: &[RegisterUnitId],
+    callee: &[RegisterUnitId],
+) -> Vec<RegisterUnitId> {
+    all.iter()
+        .copied()
+        .filter(|unit| !fixed.contains(unit) && !callee.contains(unit))
+        .collect()
+}
+
+/// The view ids `names` select from `views`, in order.
+pub fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<RegisterViewId> {
+    names.iter().map(|name| views[*name]).collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
