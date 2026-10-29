@@ -43,6 +43,16 @@ pub(super) fn select(
         .iter()
         .map(|position| &program.machines()[*position])
         .collect::<Vec<_>>();
+    // This owner infers private coordinates missing from the declarations.
+    // A complete authored component goes directly to the full view owner,
+    // which retains its richer result-equation and arithmetic evidence.
+    // This is selection by proof obligation, never fallback after a failed proof.
+    if machines
+        .iter()
+        .all(|machine| machine.termination_plan.implementation_witness.is_some())
+    {
+        return None;
+    }
     let mut candidates = Vec::new();
     let mut selected_observation = None;
     for machine in &machines {
