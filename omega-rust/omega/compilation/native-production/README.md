@@ -1,13 +1,18 @@
 # Native compilation
 
-Start at [compiler.rs](src/compiler.rs): consume a retained
-Terminal product and explicit realization policy, prepare its providers, admit
-the entry and emit the requested image. On failure the caller recovers the
-original image request and diagnostics. No source compilation happens here.
-`compile` is the one application entrance: `NativeCompileRequest` carries
-component calls alongside imports, image custody and policy. Empty and nonempty
-component rosters follow that same sequence; callable export emission remains
-separate because it produces an independent image, not an application entry.
+The application first calls [prepare](src/preparation.rs) with retained Terminal
+and a `NativeCompileRequest`: component calls, imports, image custody and policy.
+Preparation selects native work and exposes each artifact's canonical scalar
+demand. The application sponsors scalar completion outside this crate, then passes
+the same `PreparedNativeCompilation` to [compile](src/compiler.rs). Compilation
+requires every required scalar completion before emitting any component or root image;
+it does not call an evaluator, reopen source or repeat preparation. Failures return
+the original image request and diagnostics.
+
+Empty and nonempty component rosters follow that same sequence. Callable export
+emission remains separate because it produces an independent image, not an
+application entry. These are explicit input-preparation and consumption steps,
+not competing native compilation routes.
 
 [pipeline.rs](src/pipeline.rs) sequences the body transformations for application
 entries, callbacks and component exports: abstract optimization, target lowering,
