@@ -87,7 +87,9 @@ was sent.
 Producer37 clears the callable-review prerequisite, then normal SDK preparation
 refuses an exact layout-application target join. Producer38 preserves completed
 layout catalogs across source continuations and defers product-wide coverage
-validation until the whole roster completes; its SDK replay remains pending.
+validation until the whole roster completes. Its unchanged SDK replay advances
+past the exact layout target-join refusal, then stops on eight missing generated
+Console entry diagnostics after 413 seconds; no SDK execution is established.
 The [composition variation](continuation_composition/main.omg) keeps the same
 Pair fact, field operation and geometry while a separate source package owns
 another layout continuation. This variation already passed source checking on

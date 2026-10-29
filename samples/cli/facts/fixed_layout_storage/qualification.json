@@ -1606,7 +1606,7 @@
     "source_sha256": "57cedfacf0434a55cca2c3346a4856ab35b68964952800528659ff4697d318c4"
   },
   "producer38_continuation_composition": {
-    "status": "development checkpoint; complete Layout capability still unfinished; SDK replay pending",
+    "status": "development checkpoint; prior SDK exact layout target join refusal cleared; SDK still stops on eight missing Console entry diagnostics",
     "producer": {
       "base": "7027079cf2ff17a289ef7f9412c976a0e3e2b56b",
       "cli": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer38/omega",
@@ -1965,6 +1965,30 @@
       "tests/omega/fail/facts/fixed_layout_storage_continuation_composition_rejected/dependency/types.omg": "e592df89a0ac6c7dc0c2adf84a1e9094e301dd091101971e12ebb6fb6865b2ce",
       "tests/omega/fail/facts/fixed_layout_storage_continuation_composition_rejected/expected.txt": "0b7c223056e2abd6d5bfd597ccd9a3d62b64ea9f88eda4a60759560a71112063",
       "tests/omega/fail/facts/fixed_layout_storage_continuation_composition_rejected/main.omg": "a872ddf92f8153cbcef1ed35c84abd4a6a1802e714e2b581971dac7080219d9a"
+    },
+    "prepared_sdk_observation": {
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "package candidate checking failed: checked compilation failed for package `unused_partial_target_layout_exit` with 8 diagnostic(s)\n  error: call `entry` has an invalid argument correspondence: call has no retained parameter telescope\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/targets/windows_x86_64/console_impl.omg:53:9\n  error: call `entry` has an invalid argument correspondence: call has no retained parameter telescope\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/targets/windows_x86_64/console_impl.omg:57:9\n  error: machine `WindowsConsole::read_line` state `read_line`: `entry(..)` does not return a value but is used in a VALUE position -- it would silently bind 0 (ZII) at runtime. Declare a return type on the callee (`-> T`) or call it as a statement.\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/targets/windows_x86_64/console_impl.omg:62:15\n  error: call `entry` has an invalid argument correspondence: call has no retained parameter telescope\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/targets/windows_x86_64/console_impl.omg:62:15\n  error: call `entry` has an invalid argument correspondence: call has no retained parameter telescope\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/native/hosted.omg:21:9\n  error: call `entry` has an invalid argument correspondence: call has no retained parameter telescope\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/native/hosted.omg:24:9\n  error: machine `HostedConsole::read_line` state `read_line`: `entry(..)` does not return a value but is used in a VALUE position -- it would silently bind 0 (ZII) at runtime. Declare a return type on the callee (`-> T`) or call it as a statement.\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/native/hosted.omg:28:15\n  error: call `entry` has an invalid argument correspondence: call has no retained parameter telescope\n    in package `omega_language_std`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library/std/native/hosted.omg:28:15\n",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer38/omega",
+        "update",
+        "--project",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/tests/omega/pass/layouts/unused_partial_target_layout_exit",
+        "--target",
+        "macos_arm64"
+      ],
+      "seconds": 413.329540834,
+      "prior_generated_state": {
+        "omega.lock": false,
+        "omega.admissions": false,
+        "build/package-manager": true
+      },
+      "producer": "producer38.json",
+      "environment": {
+        "OMEGA_LIBRARY_ROOT": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/source/library"
+      },
+      "source_sha256": "57cedfacf0434a55cca2c3346a4856ab35b68964952800528659ff4697d318c4"
     }
   }
 }
