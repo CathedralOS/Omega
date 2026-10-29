@@ -24,8 +24,9 @@ pub(crate) fn for_call<'a>(
         .facts
         .semantic
         .facts
-        .iter()
-        .filter_map(move |(_, fact)| {
+        .at_point(point)
+        .into_iter()
+        .filter_map(move |fact| {
             (fact.origin == facts::FactOrigin::CallEnsures
                 && fact.point == point
                 && fact
