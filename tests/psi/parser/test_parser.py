@@ -2939,7 +2939,7 @@ def main() -> None:
     rejected(program, "machine-return-type", b"machine f() -> {}", 46, (15, 16))
     rejected(program, "machine-unknown-clause", b"machine f() decreases n {}", 47, (12, 21))
     rejected(program, "machine-unsupported-statement", b"machine f() { if x {} }", 48, (14, 16))
-    rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
+    rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13), machine_count=1)
     rejected(program, "retired-state-name", b"machine f() { state }", 48, (14, 19), machine_count=1)
     rejected(program, "retired-state-body", b"machine f() { state s() }", 48, (14, 19), machine_count=1)
     rejected(program, "retired-state-statement", b"machine f() { state s() { if } }", 48, (14, 19), machine_count=1)
