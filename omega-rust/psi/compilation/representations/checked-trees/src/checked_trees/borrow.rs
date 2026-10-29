@@ -159,6 +159,10 @@ pub struct BorrowReturnedLoanFact {
     /// Mutually exclusive arms never authenticate each other's formations.
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
     pub formation_expression: ExpressionHandle,
+    /// Descriptor leaf relative to the formation result, before installation
+    /// in an enclosing returned record/case. None withholds the association;
+    /// an empty path identifies this expression's root descriptor.
+    pub formation_owner_path: Option<HandleSpan<BorrowLoanOwnerSegment>>,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,

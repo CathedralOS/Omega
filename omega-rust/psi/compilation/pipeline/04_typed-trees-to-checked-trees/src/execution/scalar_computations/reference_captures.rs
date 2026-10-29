@@ -72,7 +72,9 @@ impl Builder<'_, '_> {
             .filter(|returned| {
                 returned.statement_index == self.statement_index
                     && returned.formation_expression == expression
-                    && returned.owner_path.is_empty()
+                    && returned
+                        .formation_owner_path
+                        .is_some_and(|path| path.is_empty())
             })
         {
             if returned_site.is_some_and(|site| site != returned.transition_target) {
