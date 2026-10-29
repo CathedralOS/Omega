@@ -186,3 +186,9 @@ controls. It freezes source, Build and authored oracle files and checks their
 hashes after both producers finish. The new reject fixture was first refused by
 the baseline for the intended `second_difference` exact-arithmetic obligation;
 [new-reject-baseline.log](new-reject-baseline.log) retains that observation.
+
+Follow-up: these two retained optimizations landed in PR760. The next
+[conjunction projection experiment](../conjunction_flow_2026_10_29/README.md)
+records exact publication identities, fresh-base comparisons and the subsequent
+retained improvement; the historical measurements above keep their original
+producer identities.
