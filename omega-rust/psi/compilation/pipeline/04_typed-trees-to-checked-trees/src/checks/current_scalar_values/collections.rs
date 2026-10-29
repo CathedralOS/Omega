@@ -170,6 +170,45 @@ impl CurrentScalarValues<'_> {
         self.collection_length(expression, 0)
     }
 
+    /// Inline descriptor fields carry their own extent at this invocation.
+    /// The selected frame decides whether this is an entry observation or a
+    /// current association that survived the executed prefix.
+    pub(crate) fn length_field_observations(
+        &self,
+        parameter: SymbolHandle,
+    ) -> impl Iterator<Item = (&[SymbolHandle], &ScopedArithmeticValue)> {
+        self.lengths.iter().filter_map(move |length| {
+            let LengthSubject::Field { owner, path } = &length.subject else {
+                return None;
+            };
+            (*owner == parameter)
+                .then_some(length.value.as_ref())?
+                .map(|value| (path.as_slice(), value))
+        })
+    }
+
+    /// Project the destination's selected descriptor from the completed
+    /// actual. Use the same captured roster as ordinary member reads, so
+    /// copies, constructors, joins and replacement share one extent owner.
+    pub(crate) fn projected_collection_length(
+        &self,
+        actual: ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        if path.is_empty() {
+            return self.current_collection_length(actual);
+        }
+        self.captured_field_lengths(actual, 0)
+            .into_iter()
+            .find(|field| {
+                field.path.len() == path.len()
+                    && field.path.iter().zip(path).all(|(field, segment)| {
+                        matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
+                    })
+            })
+            .map(|field| field.value)
+    }
+
     pub(super) fn collection_length(
         &self,
         expression: ExpressionHandle,
