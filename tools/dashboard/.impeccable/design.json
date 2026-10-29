@@ -34,13 +34,13 @@
   ],
   "narrative": {
     "northStar": "User-supplied Claude host comparison, with Mebius control grouping",
-    "overview": "Warm charcoal workspace with one chart at a time. Hollow baseline points connect to muted sage latest values. Plain navigation reveals Facts, Work and Evidence details.",
+    "overview": "Charcoal cards keep history, fixed-cohort comparison and growth sources visible together. History leads with direct host labels. Short captions replace explanatory prose.",
     "keyCharacteristics": [
-      "One chart at a time",
-      "Frozen-cohort endpoints on a shared axis",
-      "Warm neutral surfaces",
-      "Plain navigation",
-      "Evidence on demand"
+      "Three visible charts",
+      "History first with direct labels",
+      "Baseline, same-set-now and full-corpus bars",
+      "Responsive comparison row",
+      "Evidence methods on demand"
     ],
     "rules": [
       {

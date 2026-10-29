@@ -50,9 +50,10 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 ## Meaning of the views
 
-- **Overview:** one chart at a time, selected with Same set, Growth or History.
-  Same set connects each host's old and latest rates on the frozen denominator;
-  full-corpus totals remain in Evidence details. Facts and Work open separate panels. Evidence
+- **Overview:** history, fixed-cohort comparison and growth sources are all
+  visible. History leads; the two comparisons share a row on wide screens and
+  stack on narrow screens. The cohort chart shows baseline, same-set-now and
+  full-corpus rates together. Facts and Work open separate panels. Evidence
   details holds provenance, native receipts, warnings and comparison methods.
 - **Fixed cohort:** the pinned September 30 baseline for each host keeps its
   original fixture-ID denominator. Compare its recorded runs then and now
@@ -104,7 +105,7 @@ the dashboard itself still needs only Python and Git.
 
 Visual direction: the user's Claude dashboard screenshot and pasted artifact,
 supplied 2026-10-29, plus [Mebius Charts](https://www.mebius.design/freebies/charts),
-inspected the same day. A warm charcoal workspace uses one muted accent for the
-fixed-cohort comparison, plain navigation and secondary evidence views.
+inspected the same day. Charcoal chart cards, direct series labels and short
+captions follow the Claude reference while keeping all three charts visible.
 The implementation uses original HTML/CSS/JS; no Mebius assets or gated source
 were copied. Native exit-oracle results are under **Native result receipts**.

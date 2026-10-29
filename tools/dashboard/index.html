@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#181a19"><meta name="description" content="Omega compiler fact coverage, recorded native results, and active outcome claims.">
+<meta name="theme-color" content="#101010"><meta name="description" content="Omega compiler fact coverage, recorded native results, and active outcome claims.">
 <title>Omega · Compiler observatory</title>
 <style>
 :root {
   color-scheme: dark;
-  --paper:#181a19; --card:#202321; --ink:#e7e9e5; --muted:#aaaead;
-  --line:#343936; --orange:#f2a16b; --orange-soft:#35271e;
+  --paper:#101010; --card:#1b1b19; --ink:#eeeee9; --muted:#aaa9a2;
+  --line:#343431; --orange:#f2a16b; --orange-soft:#35271e;
   --blue:#71adff; --blue-soft:#1c2c42; --green:#75d8b0; --green-soft:#1b322b;
   --red:#ef929a; --red-soft:#3b252d; --radius:16px; --gap:22px;
   --body:14px; --shadow:none;
@@ -211,30 +211,32 @@ footer {display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;margi
 
 
 .icon{width:17px;height:17px;flex:none;vertical-align:middle}
-.topbar-inner{max-width:1120px;gap:30px;padding:22px 32px}
+.topbar-inner{max-width:1280px;gap:30px;padding:22px 32px}
 .brand{font-size:16px;font-weight:500;gap:10px}.mark{border:0;font-size:24px;width:22px}
 .view-tabs{display:flex;gap:24px;flex:1}.view-tab{padding:7px 0;border:0;border-bottom:1px solid transparent;border-radius:0;background:transparent;color:var(--muted);font-size:14px}
 .view-tab:hover{background:transparent;color:var(--ink)}.view-tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
 .evidence-button,.refresh{display:inline-flex;align-items:center;gap:6px;background:transparent;border:0;color:var(--muted);font-size:12px;padding:8px 0}
 .refresh .icon{width:14px}.refresh:hover,.evidence-button:hover{background:transparent;color:var(--ink)}
 #warning-count{font-size:11px;color:var(--orange)}
-main{max-width:1120px;padding:48px 32px 24px}.view-panel{min-height:460px}
-.overview-tools{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:32px}
-.overview-tools h2{font-size:25px;font-weight:500;letter-spacing:-.5px}.overview-tools p{font-size:14px;margin-top:6px}
-.chart-switch select,.history-filter select{font-size:13px;background:transparent;border-color:var(--line);border-radius:6px;padding:8px 30px 8px 12px}
-.cohort-key{display:flex;justify-content:flex-end;gap:22px;font-size:13px;color:var(--muted);margin-bottom:16px}
-.cohort-key span{display:flex;align-items:center;gap:7px}.cohort-key i{width:9px;height:9px;border-radius:50%;display:inline-block}.key-before{border:1.5px solid #a5a5a0}.key-after{background:#b5cdbb}
-.cohort-plot{margin:0}.cohort-plot .grid-line{stroke:#292b2a}.cohort-rail{stroke:#353735;stroke-width:1}.cohort-range{stroke:#b5cdbb;stroke-width:3;stroke-linecap:round}
-.cohort-before{fill:var(--paper);stroke:#a5a5a0;stroke-width:2}.cohort-after{fill:#b5cdbb;stroke:var(--paper);stroke-width:3}
-.cohort-plot .cohort-host{fill:var(--ink);font-size:17px;font-weight:400}.cohort-plot .cohort-value{fill:var(--ink);font-size:20px;font-weight:500}.cohort-plot .cohort-old{fill:var(--muted);font-size:17px}
-.chart-hit{fill:transparent;cursor:pointer}.chart-hit:focus{outline:none;stroke:var(--blue);stroke-width:1.5}
-.short-readout{min-height:24px;font-size:13px;color:var(--muted);margin-top:12px}
-.compact-legend{display:flex;justify-content:flex-end;gap:22px;font-size:13px;color:var(--muted)}.compact-legend span{display:flex;align-items:center;gap:7px}.legend-dot{display:inline-block;width:9px;height:9px;border-radius:2px}.legend-dot.recovered{background:#b5cdbb}.legend-dot.new{background:#818783}
-#growth-plot{display:grid;gap:36px;padding:32px 0}.growth-host,.growth-values{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px}.growth-host>span:first-child{color:var(--ink)}
+main{max-width:1280px;padding:30px 32px 24px}
+.panel{background:var(--card);border-color:#33332f;box-shadow:none}
+.history-card{background:var(--card);margin-bottom:22px;padding:26px 28px 16px}
+.history-card .chart-top h2{font-size:23px;font-weight:550;letter-spacing:-.4px}
+.chart-kicker{font-size:13px;margin-top:5px;color:var(--muted)}
+.history-card .plot{margin:24px 0 8px}.history-card .chart-readout{border:0;padding:0;min-height:18px;font-size:12px}
+.plot .grid-line{stroke:#30302d}.plot .axis-line{stroke:#4a4a45}.plot .series-path{stroke-width:2.8}.plot .series-end{font-size:16px}
+.comparison-row{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:22px;align-items:stretch}
+.comparison-row .chart-card{padding:24px 24px 16px}.comparison-row h2{font-size:18px;font-weight:550;letter-spacing:-.2px}
+.compact-legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin:18px 0 8px}.compact-legend span{display:flex;align-items:center;gap:6px}.legend-dot{display:inline-block;width:8px;height:8px;border-radius:2px}
+.legend-dot.then,.cohort-bar.then{background:#898b87;fill:#898b87}.legend-dot.same,.cohort-bar.same{background:#63a5ed;fill:#63a5ed}.legend-dot.all,.cohort-bar.all{background:#e2ae78;fill:#e2ae78}
+.legend-dot.recovered{background:#72c8a7}.legend-dot.new{background:#7c8584}
+.cohort-plot{margin:4px 0}.cohort-plot .cohort-host{fill:var(--ink);font-size:15px;font-weight:400}.cohort-plot .cohort-value{fill:var(--ink);font-size:14px;font-weight:500}
+.chart-hit{fill:transparent;cursor:pointer}.chart-hit:focus{outline:none;stroke:var(--blue);stroke-width:1.5}.short-readout{min-height:18px;font-size:12px;color:var(--muted);margin-top:7px}
+#growth-plot{display:grid;gap:29px;padding:24px 0 12px}.growth-host,.growth-values{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}.growth-host>span:first-child{color:var(--ink)}
 .loss{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}.loss .icon{width:12px;height:12px}
-.growth-track{display:flex;height:13px;border-radius:3px;overflow:hidden;margin:16px 0 12px}.growth-track span{display:block}.growth-recovered{background:#b5cdbb}.growth-new{background:#818783}
-.growth-values{font-size:13px;color:var(--muted)}.growth-values strong{font-size:17px;font-weight:500;color:var(--ink)}.growth-values .icon{display:none}
-.history-filter{display:flex;justify-content:flex-end;margin-bottom:18px}.chart-readout{font-size:13px}.claims-panel{margin-top:0}.panel-head p:empty,.chart-kicker:empty,.chart-caption:empty{display:none}
+.growth-track{display:flex;height:18px;border-radius:4px;overflow:hidden;margin:13px 0 11px}.growth-track span{display:block}.growth-recovered{background:#72c8a7}.growth-new{background:#7c8584}
+.growth-values{font-size:12px;color:var(--muted)}.growth-values strong{font-size:17px;font-weight:500;color:var(--ink)}.growth-values .icon{display:none}
+.claims-panel{margin-top:0}.panel-head p:empty,.chart-kicker:empty,.chart-caption:empty{display:none}
 dialog{width:min(900px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:#191e26;color:var(--ink);border:1px solid #465166;border-radius:16px;padding:23px;box-shadow:0 20px 70px #0008}
 dialog::backdrop{background:#05080dc4;backdrop-filter:blur(5px)}
 .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}.dialog-head button{font-size:20px;line-height:1;padding:6px 10px}
@@ -243,11 +245,12 @@ dialog .source-strip{margin:12px 0}dialog #generated-help{font-size:12px;color:v
 #cohort-details>details{padding:12px 0;border-top:1px solid var(--line)}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:5;background:#263447;border:1px solid #4c6381;border-radius:9px;padding:10px 16px;font-size:13px;box-shadow:var(--shadow)}
 footer{font-size:12px;margin-top:20px;padding-top:14px}
+@media(max-width:900px){.comparison-row{grid-template-columns:1fr}.comparison-row .chart-card{padding:22px 24px}}
 @media(max-width:700px){
  .topbar-inner{padding:16px 20px;gap:20px;flex-wrap:wrap}.brand{font-size:15px}.view-tabs{order:3;flex-basis:100%;gap:28px}.refresh{margin-left:auto}.evidence-button{margin-left:0}
- main{padding:32px 20px 20px}.overview-tools{gap:12px;margin-bottom:30px}.overview-tools h2{font-size:22px}.overview-tools p{font-size:13px}.chart-switch select{font-size:12px;padding:7px 26px 7px 9px}
- .cohort-key{justify-content:flex-start;margin-bottom:24px}.cohort-plot .cohort-host{font-size:16px}.cohort-plot .cohort-value{font-size:18px}.cohort-plot .cohort-old{font-size:16px}
- .short-readout{font-size:12px}.growth-values strong{font-size:16px}.compact-legend{justify-content:flex-start}.view-panel{min-height:480px}
+ main{padding:20px 14px}.history-card{padding:21px 18px 14px;margin-bottom:16px}.history-card .chart-top{align-items:center;flex-wrap:wrap}.history-card .chart-top h2{font-size:20px}.history-card .plot{margin-top:20px}.history-card .chart-readout{min-height:0}.chart-kicker{font-size:12px}
+ .comparison-row{gap:16px}.comparison-row .chart-card{padding:21px 18px 14px}.comparison-row h2{font-size:18px}.compact-legend{gap:12px}.cohort-plot .cohort-host,.cohort-plot .cohort-value{font-size:13px}
+ .short-readout{font-size:12px}.growth-values strong{font-size:16px}#growth-plot{gap:26px}
  dialog{padding:18px}footer #footer-time{display:none}
 }
 </style>
@@ -259,12 +262,14 @@ footer{font-size:12px;margin-top:20px;padding-top:14px}
 <h1 class="sr-only">Omega compiler progress</h1>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <section class="view-panel" id="view-overview" data-view-panel="overview" role="tabpanel" aria-labelledby="tab-overview">
-<div class="overview-tools"><div><h2 id="overview-heading">Programs running</h2><p id="overview-caption">Same September 30 set</p></div><label class="chart-switch"><span class="sr-only">Choose chart</span><select id="overview-chart"><option value="cohort">Same set</option><option value="growth">Growth</option><option value="history">History</option></select></label></div>
-<section id="chart-cohort" data-chart-panel="cohort" aria-labelledby="overview-heading">
-<div class="cohort-key"><span><i class="key-before"></i>Sep 30</span><span><i class="key-after"></i>Latest</span></div><div id="cohort-plot"></div><div id="cohort-readout" class="short-readout" aria-live="polite"></div>
+<section class="panel chart-card history-card" id="chart-history" aria-labelledby="history-heading">
+<div class="chart-top"><div><h2 id="history-heading">Programs that run, over time</h2><p class="chart-kicker">Recorded native runs · daily</p></div><label><span class="sr-only">Native history target</span><select id="history-target"></select></label></div>
+<div id="history-plot"></div><div class="chart-readout" id="history-readout" aria-live="polite"></div>
 </section>
-<section id="chart-growth" data-chart-panel="growth" aria-labelledby="overview-heading" hidden><div class="compact-legend"><span><i class="legend-dot recovered"></i>Recovered</span><span><i class="legend-dot new"></i>New</span></div><div id="growth-plot"></div></section>
-<section id="chart-history" data-chart-panel="history" aria-labelledby="overview-heading" hidden><label class="history-filter"><span class="sr-only">Native history target</span><select id="history-target"></select></label><div id="history-plot"></div><div class="chart-readout" id="history-readout" aria-live="polite"></div></section>
+<div class="comparison-row">
+<section class="panel chart-card" id="chart-cohort" aria-labelledby="cohort-heading"><div class="chart-top"><div><h2 id="cohort-heading">Same programs vs. all programs</h2><p class="chart-kicker">Sep 30 set held fixed</p></div></div><div class="compact-legend"><span><i class="legend-dot then"></i>Sep 30</span><span><i class="legend-dot same"></i>Same set now</span><span><i class="legend-dot all"></i>All now</span></div><div id="cohort-plot"></div><div id="cohort-readout" class="short-readout" aria-live="polite"></div></section>
+<section class="panel chart-card" id="chart-growth" aria-labelledby="growth-heading"><div class="chart-top"><div><h2 id="growth-heading">Where new runs came from</h2><p class="chart-kicker">Since Sep 30</p></div></div><div class="compact-legend"><span><i class="legend-dot recovered"></i>Recovered</span><span><i class="legend-dot new"></i>New programs</span></div><div id="growth-plot"></div></section>
+</div>
 </section>
 <section class="view-panel" id="view-facts" data-view-panel="facts" role="tabpanel" aria-labelledby="tab-facts" hidden><div class="stats" id="stats"></div>
 
@@ -298,7 +303,6 @@ const date = value => value ? new Date(value).toLocaleString(undefined,{month:'s
 const short = value => String(value || 'unknown').slice(0,11);
 const names = {local:'Local',field:'Field',parameter:'Parameter',call_result:'Call result',match_join:'Match join',const_name:'Const name',other_state:'Nested machine',other_machine:'Other machine',target_body:'Other target'};
 const hosts = {windows_x86_64:['Windows','x86_64'],linux_x86_64:['Linux','x86_64'],macos_arm64:['macOS','arm64'],linux_arm64:['Linux','arm64']};
-let overviewChart='cohort';
 let filter = 'all', claimFilter = 'active', selection = null, historySelection = null, outcomeSelection = 'retained';
 function source(path,label){if(!data.source_base)return escapeHTML(label);return `<a target="_blank" rel="noreferrer" href="${escapeHTML(data.source_base + path.split('/').map(encodeURIComponent).join('/'))}">${escapeHTML(label)} ↗</a>`;}
 function qualified(o){return data.dirty || !o || o.dirty || o.stale_cli || !o.profile_verified || o.revision !== data.revision;}
@@ -396,23 +400,14 @@ function renderCohort(){
  const percent=(n,d)=>d?Math.round(n/d*100):null;
  const title=host=>hosts[host.target].join(' ').replace('x86_64','x86-64');
  if(!rows.length){$('cohort-plot').innerHTML=$('growth-plot').innerHTML='<div class="chart-empty">No baseline recorded</div>';$('cohort-details').textContent='No usable September 30 baseline was found.';return;}
- const narrow=matchMedia('(max-width:700px)').matches,W=narrow?350:1000,H=narrow?395:375,L=narrow?12:145,R=W-(narrow?18:35),x=p=>L+(R-L)*p/100;
- $('cohort-plot').innerHTML=`<svg class="plot cohort-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Same September 30 fixture IDs: recorded run rates then and latest">
- ${[0,50,100].map(n=>`<text x="${x(n)}" y="${H-5}" text-anchor="${n===0?'start':n===100?'end':'middle'}">${n}%</text>`).join('')}
- ${rows.map((host,i)=>{const c=host.cohort,y=(narrow?68:65)+i*110,old=percent(c.baseline_runs,c.baseline_total),now=percent(c.same_now_runs,c.baseline_total);return `<g><text class="cohort-host" x="${narrow?L:0}" y="${narrow?y-43:y+5}">${escapeHTML(hosts[host.target][0])}</text><line class="cohort-rail" x1="${L}" x2="${R}" y1="${y}" y2="${y}"/><line class="cohort-range" x1="${x(old)}" x2="${x(now)}" y1="${y}" y2="${y}"/><circle class="cohort-before" cx="${x(old)}" cy="${y}" r="5"/><circle class="cohort-after" cx="${x(now)}" cy="${y}" r="7"/><text class="cohort-old" x="${x(old)}" y="${y-16}" text-anchor="middle">${old}%</text><text class="cohort-value" x="${x(now)}" y="${y+31}" text-anchor="middle">${now}%</text>${[['then',c.baseline_runs,old,'Sep 30'],['same',c.same_now_runs,now,'Same set now']].map(([key,n,p,label])=>`<circle class="chart-hit" data-cohort="${host.target}:${key}" cx="${x(p)}" cy="${y}" r="18" role="button" tabindex="0" aria-label="${escapeHTML(title(host)+', '+label+': '+number(n)+' recorded runs of '+number(c.baseline_total)+' fixture IDs, '+p+' percent')}"/>`).join('')}</g>`;}).join('')}</svg>`;
+ const narrow=matchMedia('(max-width:700px)').matches,W=narrow?350:580,H=35+rows.length*110,L=narrow?78:112,R=W-(narrow?33:50),barWidth=R-L;
+ $('cohort-plot').innerHTML=`<svg class="plot cohort-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="September 30 recorded run rate, same frozen fixture IDs now, and all programs now">
+ ${[0,25,50,75,100].map(n=>`<line class="grid-line" x1="${L+barWidth*n/100}" x2="${L+barWidth*n/100}" y1="20" y2="${H-27}"/><text x="${L+barWidth*n/100}" y="${H-6}" text-anchor="middle">${n}%</text>`).join('')}
+ ${rows.map((host,i)=>{const c=host.cohort,y=26+i*110;const values=[['then',c.baseline_runs,c.baseline_total,'Sep 30'],['same',c.same_now_runs,c.baseline_total,'Same set now'],['all',c.current_runs,c.current_total,'All programs now']];return `<text x="${L-15}" y="${y+43}" text-anchor="end" class="cohort-host">${escapeHTML(hosts[host.target][0])}</text>${values.map(([key,n,d,label],j)=>{const p=percent(n,d),width=barWidth*(p??0)/100;return `<g><rect class="cohort-bar ${key}" x="${L}" y="${y+j*28}" width="${width}" height="17" rx="4"/><text x="${L+width+8}" y="${y+j*28+13}" class="cohort-value">${p===null?'—':p+'%'}</text><rect class="chart-hit" data-cohort="${host.target}:${key}" x="${L}" y="${y+j*28-3}" width="${barWidth+(narrow?30:45)}" height="25" role="button" tabindex="0" aria-label="${escapeHTML(title(host)+', '+label+': '+number(n)+' recorded runs of '+number(d)+' fixture IDs'+(p===null?', unavailable':', '+p+' percent'))}"/></g>`;}).join('')}`;}).join('')}</svg>`;
  const max=Math.max(1,...rows.map(host=>host.cohort.recovered+host.cohort.new_running));
  $('growth-plot').innerHTML=rows.map(host=>{const c=host.cohort;return `<div class="growth-row"><div class="growth-host"><span>${escapeHTML(title(host))}</span><span class="loss" title="Observed losses; removed running fixtures are tracked separately">${icon('down')} ${number(c.lost)} lost</span></div><div class="growth-track" role="img" aria-label="${escapeHTML(title(host)+': '+number(c.recovered)+' old failures now run; '+number(c.new_running)+' programs absent on September 30 run now')}"><span class="growth-recovered" style="width:${c.recovered/max*100}%"></span><span class="growth-new" style="width:${c.new_running/max*100}%"></span></div><div class="growth-values"><span>${icon('up')} <strong>${number(c.recovered)}</strong> recovered</span><span><strong>${number(c.new_running)}</strong> new</span></div></div>`;}).join('');
  $('cohort-details').innerHTML=`<p>Frozen September 30 fixture IDs. Missing IDs remain in the original denominator. Counts are recorded native executions, not full oracle or source-equivalence proofs.</p><p>“New” means absent from the baseline and running now; first-recording success is not audited. Source changes can also explain recovery, so this is not a causal compiler benchmark.</p>${rows.map(host=>{const c=host.cohort;return `<details><summary>${escapeHTML(title(host))} · ${number(c.baseline_total)} original IDs</summary><p>${number(c.baseline_runs)} ran then · ${number(c.same_now_runs)} recorded now · ${number(c.missing)} missing (${number(c.missing_previously_running)} previously ran).</p><p>All programs now: ${number(c.current_runs)} / ${number(c.current_total)} (${percent(c.current_runs,c.current_total)===null?'unavailable':percent(c.current_runs,c.current_total)+'%'}).</p><p>${number(c.recovered)} recovered · ${number(c.lost)} observed losses · ${number(c.new_running)} new running.</p><code>${escapeHTML(c.baseline_revision)}</code></details>`;}).join('')}`;
  $('cohort-plot').querySelectorAll('[data-cohort]').forEach(hit=>{const [target,key]=hit.dataset.cohort.split(':');const select=()=>{const c=rows.find(h=>h.target===target).cohort;const values={then:[c.baseline_runs,c.baseline_total,'Sep 30'],same:[c.same_now_runs,c.baseline_total,'Same set now'],all:[c.current_runs,c.current_total,'All programs now']};const [n,d,label]=values[key];$('cohort-readout').textContent=`${hosts[target][0]} · ${label} · ${number(n)} / ${number(d)}`;};hit.onpointerenter=select;hit.onfocus=select;hit.onclick=select;hit.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select();}};});
-}
-
-function selectChart(name){
- overviewChart=['cohort','growth','history'].includes(name)?name:'cohort';
- document.querySelectorAll('[data-chart-panel]').forEach(panel=>panel.hidden=panel.dataset.chartPanel!==overviewChart);
- $('overview-heading').textContent=overviewChart==='history'?'Runs over time':overviewChart==='growth'?'Where growth came from':'Programs running';
- $('overview-caption').textContent=overviewChart==='history'?'All recorded programs':overviewChart==='growth'?'Recovered old programs · new additions':'Same September 30 set';
- $('overview-chart').value=overviewChart;
- if(overviewChart==='history')renderHistory();else renderCohort();
 }
 
 function selectView(name,focus=false){
@@ -420,7 +415,7 @@ function selectView(name,focus=false){
  document.querySelectorAll('[data-view-panel]').forEach(panel=>panel.hidden=panel.dataset.viewPanel!==name);
  const tabs=[...document.querySelectorAll('[data-view]')];
  tabs.forEach(tab=>{const selected=tab.dataset.view===name;tab.setAttribute('aria-selected',selected);tab.tabIndex=selected?0:-1;if(selected&&focus)tab.focus();});
- if(name==='overview')selectChart(overviewChart);
+ if(name==='overview'){renderHistory();renderCohort();}
  if(name==='facts')renderOutcomes();
 }
 
@@ -471,7 +466,6 @@ function render(){
 }
 $('target').innerHTML=data.targets.map(t=>`<option value="${t}">${hosts[t].join(' · ')}</option>`).join('');
 $('history-target').innerHTML='<option value="all">All hosts</option>'+$('target').innerHTML;$('chart-target').innerHTML=$('target').innerHTML;
-$('overview-chart').onchange=()=>selectChart($('overview-chart').value);
 $('history-target').onchange=()=>{historySelection=null;renderHistory();};
 $('chart-target').onchange=()=>{$('target').value=$('chart-target').value;$('target').onchange();};
 $('fact-search').oninput=renderFacts;$('claim-search').oninput=renderClaims;

@@ -1,13 +1,15 @@
 ---
 name: Omega Compiler Observatory
-description: One quiet comparison at a time, with evidence available on demand.
+description: Visible history, fixed-cohort and growth charts in charcoal cards.
 colors:
-  paper: "#181a19"
-  card: "#202321"
-  ink: "#e7e9e5"
-  muted: "#aaaead"
-  line: "#343936"
-  cohort: "#b5cdbb"
+  paper: "#101010"
+  card: "#1b1b19"
+  ink: "#eeeee9"
+  muted: "#aaa9a2"
+  line: "#343431"
+  cohort-baseline: "#898b87"
+  cohort-current: "#63a5ed"
+  cohort-all: "#e2ae78"
   orange: "#f2a16b"
   orange-soft: "#35271e"
   blue: "#71adff"
@@ -76,29 +78,30 @@ remain at least 12px, and provenance uses monospace. Names and notes wrap.
 
 ## Layout
 
-The workspace caps at 1120px with 32px desktop gutters. Plain tabs show one view
-at a time. Overview shows one chart, selected with Same set, Growth or History.
+The workspace caps at 1280px with 32px desktop gutters. Plain tabs show one view
+at a time. Overview leads with full-width history, then the fixed-cohort and
+growth charts side by side. All three remain visible without a chart selector.
 Facts contains the grid and observation chart; Work contains claims. Evidence
-details opens a native dialog for methods, receipts and provenance. At 1100px
-the workspace stacks; at 700px it uses one column and 20px gutters. The nine-place
+details opens a native dialog for methods, receipts and provenance. At 900px
+the comparisons stack; at 700px the page uses 14px gutters. The nine-place
 table scrolls locally.
 
 ## Elevation & Depth
 
-Overview has no card, shadow or gradient. Muted sage marks the latest cohort
-values; hollow neutral points mark the baseline. The chart appears immediately
-without entrance animation. Evidence panels retain thin borders.
+Charcoal cards have thin neutral borders and no shadows or gradients. History
+uses the host colors and direct endpoint labels from the reference. Charts
+appear immediately without entrance animation; short captions replace prose.
 
 ## Shapes
 
-Evidence cards use 16px corners, chart selectors 6px, status cells 5px. The Omega mark is plain.
+Cards use 16px corners, controls 8px, status cells 5px. The Omega mark is plain.
 Avoid extra decorative badges or artwork around the data.
 
 ## Components
 
-- Same set connects old and latest values with a line on a shared 0–100% axis.
-  Growth separates recovered old IDs from new running IDs with direct labels;
-  muted sage is recovered, neutral gray is new. Full-corpus totals live in Details.
+- Fixed cohort uses three bars per host on a shared 0–100% axis: gray baseline,
+  blue same set now, warm full corpus now. Growth separates recovered old IDs
+  from new running IDs with direct counts; green is recovered, gray is new.
 - Tabs support arrow keys and maintain one selected panel. Evidence details
   uses native dialog focus handling and Escape dismissal.
 - The shared chart defaults to all available hosts on common zero-based count

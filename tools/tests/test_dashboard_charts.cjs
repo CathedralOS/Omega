@@ -49,6 +49,7 @@ function renderCohort(cohort,narrow=false){
 const cohort={available:true,baseline_total:4,baseline_runs:2,same_now_runs:3,current_total:100,current_runs:95,recovered:1,lost:0,missing:0,missing_previously_running:0,new_running:92,baseline_revision:'abc'};
 const cohortNodes=renderCohort(cohort);
 assert.match(cohortNodes['cohort-plot'].innerHTML,/Same set now: 3 recorded runs of 4 fixture IDs, 75 percent/);
+assert.match(cohortNodes['cohort-plot'].innerHTML,/All programs now: 95 recorded runs of 100 fixture IDs, 95 percent/);
 assert.match(cohortNodes['cohort-details'].innerHTML,/All programs now: 95 \/ 100 \(95%\)/);
 assert.match(cohortNodes['growth-plot'].innerHTML,/>1<\/strong> recovered/);
 assert.match(cohortNodes['growth-plot'].innerHTML,/>92<\/strong> new/);
@@ -62,7 +63,7 @@ console.log('Cohort checks passed: fixed denominator, new-program separation, mo
 const viewRenderer=html.slice(html.indexOf('function selectView('),html.indexOf('function renderFacts()'));
 const panels=Object.fromEntries(['overview','facts','work'].map(name=>[name,{hidden:false,dataset:{viewPanel:name}}]));
 const tabs=['overview','facts','work'].map(name=>({dataset:{view:name},attrs:{},setAttribute(key,value){this.attrs[key]=String(value);},focus(){this.focused=true;}}));
-const viewContext=vm.createContext({$:id=>panels[id.replace('view-','')],overviewChart:'cohort',selectChart(){},document:{querySelectorAll:selector=>selector==='[data-view-panel]'?Object.values(panels):tabs},renderCohort(){},renderHistory(){},renderFacts(){},renderOutcomes(){},renderClaims(){}});
+const viewContext=vm.createContext({$:id=>panels[id.replace('view-','')],document:{querySelectorAll:selector=>selector==='[data-view-panel]'?Object.values(panels):tabs},renderCohort(){},renderHistory(){},renderFacts(){},renderOutcomes(){},renderClaims(){}});
 vm.runInContext(viewRenderer,viewContext);
 vm.runInContext("selectView('facts',true)",viewContext);
 assert.equal(panels.facts.hidden,false);
@@ -74,13 +75,12 @@ vm.runInContext("selectView('unknown')",viewContext);
 assert.equal(panels.overview.hidden,false);
 console.log('View checks passed: one panel, selected tab, focus and unknown-view fallback.');
 
-const chartPanels=['cohort','growth','history'].map(name=>({hidden:false,dataset:{chartPanel:name}}));
-const chartNodes=Object.fromEntries(['overview-heading','overview-caption','overview-chart'].map(id=>[id,{}]));
-const chartContext=vm.createContext({overviewChart:'cohort',$:id=>chartNodes[id],document:{querySelectorAll:()=>chartPanels},renderHistory(){},renderCohort(){}});
-vm.runInContext(html.slice(html.indexOf('function selectChart('),html.indexOf('function selectView(')),chartContext);
-vm.runInContext("selectChart('history')",chartContext);
-assert.deepEqual(chartPanels.filter(panel=>!panel.hidden).map(panel=>panel.dataset.chartPanel),['history']);
-assert.equal(chartNodes['overview-heading'].textContent,'Runs over time');
-vm.runInContext("selectChart('unknown')",chartContext);
-assert.deepEqual(chartPanels.filter(panel=>!panel.hidden).map(panel=>panel.dataset.chartPanel),['cohort']);
-console.log('Chart selection checks passed: one visible chart and safe fallback.');
+const overview=html.slice(html.indexOf('id="view-overview"'),html.indexOf('id="view-facts"'));
+for(const chart of ['history','cohort','growth']){
+  const section=overview.match(new RegExp('<section[^>]*id="chart-'+chart+'"[^>]*>'));
+  assert.ok(section,chart+' remains in Overview');
+  assert.ok(!section[0].includes('hidden'),chart+' is visible by default');
+}
+assert.ok(!html.includes('id="overview-chart"'));
+assert.ok(!html.includes('function selectChart('));
+console.log('Overview checks passed: all three charts visible, no chart-switching dropdown.');
