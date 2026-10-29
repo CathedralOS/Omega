@@ -55,6 +55,26 @@ pub(super) fn collect(
             });
         };
     }
+    macro_rules! collect_supplier {
+        ($source:expr, $projection:expr, $retained_by_store:expr $(,)?) => {
+            collect(
+                program,
+                facts,
+                state,
+                call,
+                owner_operand,
+                operand,
+                $source,
+                $projection,
+                path,
+                output_access,
+                $retained_by_store,
+                active,
+                output,
+                parents,
+            )
+        };
+    }
     let Some((_, borrow_state)) = facts
         .borrow
         .first_state_borrow(state.machine_symbol, state.state_symbol)
@@ -91,22 +111,7 @@ pub(super) fn collect(
                 !rows.is_empty()
                     && rows.iter().all(|alternative| {
                         alternative.source_arm.is_valid()
-                            && collect(
-                                program,
-                                facts,
-                                state,
-                                call,
-                                owner_operand,
-                                operand,
-                                alternative.value,
-                                projection,
-                                path,
-                                output_access,
-                                retained_by_store,
-                                active,
-                                output,
-                                parents,
-                            )
+                            && collect_supplier!(alternative.value, projection, retained_by_store)
                     })
             })
     } else if let super::FrozenReferenceSelection::Endpoint {
@@ -128,22 +133,7 @@ pub(super) fn collect(
                         .operand_retained_paths
                         .span(supplier.projection)
                         .is_some_and(|projection| {
-                            collect(
-                                program,
-                                facts,
-                                state,
-                                call,
-                                owner_operand,
-                                operand,
-                                supplier.operand,
-                                projection,
-                                path,
-                                output_access,
-                                true,
-                                active,
-                                output,
-                                parents,
-                            )
+                            collect_supplier!(supplier.operand, projection, true)
                         })
                 })
         } else {
@@ -261,34 +251,13 @@ pub(super) fn collect(
                             output,
                         );
                     }
-                    collect(
-                        program,
-                        facts,
-                        state,
-                        call,
-                        owner_operand,
-                        operand,
-                        selected.capture,
-                        &selected.projection,
-                        path,
-                        output_access,
-                        retained_by_store,
-                        active,
-                        output,
-                        parents,
-                    )
+                    collect_supplier!(selected.capture, &selected.projection, retained_by_store)
                 })
         })
     } else if let Some(suppliers) = retained_suppliers {
         !suppliers.is_empty()
             && suppliers.iter().all(|supplier| {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    call,
-                    owner_operand,
-                    operand,
+                collect_supplier!(
                     supplier.operand,
                     match facts
                         .flow
@@ -299,12 +268,7 @@ pub(super) fn collect(
                         Some(projection) => projection,
                         None => return false,
                     },
-                    path,
-                    output_access,
                     true,
-                    active,
-                    output,
-                    parents,
                 )
             })
     } else {
