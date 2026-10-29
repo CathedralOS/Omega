@@ -170,3 +170,5 @@ any cache or parallelization repair. No full corpus, other host, gameplay route,
 or global serial-fraction qualification was attempted.
 
 Follow-up: [payload replay](payload_replay/README.md) attributes the remaining membership work and records two rejected optimization candidates.
+
+Follow-up: [edge rebinding experiment](edge_rebinding/README.md) records the next matched A/B and its rejected implementation.
