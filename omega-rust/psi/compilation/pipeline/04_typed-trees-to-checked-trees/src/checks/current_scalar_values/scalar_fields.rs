@@ -153,26 +153,30 @@ impl CurrentScalarValues<'_> {
             field.owner,
             &source_path(&field.path),
         )?;
-        let mut selectors = field.path.iter().filter_map(|step| match step {
-            ScalarProjection::Element {
-                source: facts::PlaceSegment::Index { .. },
-                selector,
-            } => Some(selector),
-            _ => None,
-        });
         let mut indexes = Vec::new();
         for (path_step, step) in geometry.projections.iter().enumerate() {
             let validation::ScalarCoordinateProjection::Element {
                 selector: expression,
                 collection_type,
                 element_type,
+                collection_path,
+                source_step,
                 extent,
             } = step
             else {
                 continue;
             };
-            let selector = selectors.next()?;
-            let extent = u64::try_from(*extent).ok()?;
+            let ScalarProjection::Element { selector, .. } = field.path.get(*source_step)? else {
+                return None;
+            };
+            let extent = extent.map(u64::try_from).transpose().ok()?;
+            let length = if let Some(extent) = extent {
+                ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(extent))
+            } else {
+                // The retained roster names this exact descriptor binding,
+                // never its backing capacity or a same-typed sibling's count.
+                self.coordinate_collection_length(field.owner, collection_path)?
+            };
             if !self.proves_values_relation(
                 self.program,
                 self.machine,
@@ -184,22 +188,28 @@ impl CurrentScalarValues<'_> {
                 self.machine,
                 typed_trees::expression::BinaryOperator::Less,
                 selector,
-                &ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(extent)),
+                &length,
             ) {
                 return None;
             }
-            let reference = validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
-                *expression,
-            )?;
-            let primitive_type = integer_carrier(self.program, reference)?;
+            let primitive_type = match expression {
+                checked_trees::CheckedEntryIndexSelector::Expression(expression) => {
+                    let reference = validation::expression_result_type_reference(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        *expression,
+                    )?;
+                    integer_carrier(self.program, reference)?
+                }
+                checked_trees::CheckedEntryIndexSelector::Constant(_) => PrimitiveType::U64,
+            };
             indexes.push(checked_trees::CheckedEntryIndexBound {
                 state: self.state.symbol,
                 parameter: field.owner,
                 path_step: u32::try_from(path_step).ok()?,
-                selector: *expression,
+                selector: expression.clone(),
+                collection_path: collection_path.clone(),
                 collection_type: *collection_type,
                 element_type: *element_type,
                 extent,

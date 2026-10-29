@@ -30,11 +30,11 @@ use super::keyed_rows::KeyedRows;
 
 pub use facts::{
     CheckedBooleanExpression, CheckedByteSequenceOperand, CheckedEntryIndexBound,
-    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedScalarExpression,
-    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot,
-    CheckedStructuralCaseRoot, CheckedStructuralCaseSubject, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment,
+    CheckedEntryIndexSelector, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
+    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 
 mod computations;

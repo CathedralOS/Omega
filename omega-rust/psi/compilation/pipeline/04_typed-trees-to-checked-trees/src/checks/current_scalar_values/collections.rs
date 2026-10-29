@@ -163,6 +163,28 @@ impl CurrentScalarValues<'_> {
             .clone()
     }
 
+    /// The current frame owns exact descriptor observations. Missing retained
+    /// geometry is not an unknown capacity that can authorize an entry read.
+    pub(super) fn coordinate_collection_length(
+        &self,
+        owner: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        let subject = if path.is_empty() {
+            LengthSubject::Storage(owner)
+        } else {
+            LengthSubject::Field {
+                owner,
+                path: super::declaration_field_path(path)?,
+            }
+        };
+        self.lengths
+            .iter()
+            .find(|length| length.subject == subject)?
+            .value
+            .clone()
+    }
+
     pub(crate) fn current_collection_length(
         &self,
         expression: ExpressionHandle,
