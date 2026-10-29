@@ -46,15 +46,19 @@ impl MachineEmitter<'_> {
         );
     }
 
+    /// A machine with no `requires` clause.
+    fn plain_machine(&mut self, name: &str, extras: &str, body: &str) {
+        self.machine(name, extras, "", body);
+    }
+
     /// `machine name(declarations, extras) { transition { _ -> next(inner,
     /// extra_args) } }` — a named stage boundary hop. `extra_args` joins the
     /// shared arguments inside the parens.
     fn hop(&mut self, name: &str, extras: &str, next: &str, extra_args: &str) {
         let inner = self.call.trim_start_matches('(').trim_end_matches(')');
-        self.machine(
+        self.plain_machine(
             name,
             extras,
-            "",
             &format!("        transition {{ _ -> {next}({inner}{extra_args}) }}\n"),
         );
     }
@@ -66,9 +70,8 @@ impl MachineEmitter<'_> {
     /// and continues with `at + 1`.
     fn enc_byte(&mut self, name: &str, byte: u8, next: &str) {
         let put = format!("{name}_put");
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "        transition at < {} {{\n            true -> {put}{}\n            _ -> encode_overflow{}\n        }}\n",
@@ -114,9 +117,8 @@ impl MachineEmitter<'_> {
     /// value itself: `name` hosts the selector state, `next` follows either
     /// store.
     fn enc_bool_member(&mut self, name: &str, value: &str, next: &str) {
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "        transition {value} {{\n            true -> {name}_one{}\n            _ -> {name}_zero{}\n        }}\n",
@@ -134,18 +136,16 @@ impl MachineEmitter<'_> {
         let put = format!("{name}_put");
         let more = format!("{name}_more");
         let put_more = format!("{name}_put_more");
-        self.machine(
+        self.plain_machine(
             name,
             "bits: u64",
-            "",
             &format!(
                 "        transition bits < 128 {{\n            true -> {last}(value, out, written, at, bits)\n            _ -> {more}(value, out, written, at, bits)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &last,
             "bits: u64",
-            "",
             &format!(
                 "        let byte: u8 = bits as u8;\n        transition at < {} {{\n            true -> {put}(value, out, written, at, byte)\n            _ -> encode_overflow{}\n        }}\n",
                 self.limit, self.call
@@ -159,10 +159,9 @@ impl MachineEmitter<'_> {
                 "        out[at] = byte;\n        transition {{ _ -> {next}(value, out, written, at + 1) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &more,
             "bits: u64",
-            "",
             &format!(
                 "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} {{\n            true -> {put_more}(value, out, written, at, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
                 self.limit, self.call
@@ -181,9 +180,8 @@ impl MachineEmitter<'_> {
     /// Bind the scalar payload to `bits`, then enter the varint loop.
     fn enc_varint(&mut self, name: &str, binding: &str, next: &str) {
         let loop_state = format!("{name}_loop");
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "{binding}        transition {{ _ -> {loop_state}(value, out, written, at, bits) }}\n"
@@ -200,18 +198,16 @@ impl MachineEmitter<'_> {
     /// names its totality instead of a bound.
     fn enc_measure(&mut self, name: &str, binding: &str, next: &str) {
         let loop_state = format!("{name}_loop");
-        self.machine(
+        self.plain_machine(
             name,
             "acc: u64 in Wrapping",
-            "",
             &format!(
                 "{binding}        transition {{ _ -> {loop_state}(value, out, written, at, acc, bits) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &loop_state,
             "acc: u64 in Wrapping, bits: u64",
-            "",
             &format!(
                 "        transition bits < 128 {{\n            true -> {next}(value, out, written, at, acc + 1)\n            _ -> {loop_state}(value, out, written, at, acc + 1, bits >> 7)\n        }}\n"
             ),
@@ -230,26 +226,23 @@ impl MachineEmitter<'_> {
         // as a `view` local at the entry state: `i < view.len` is a
         // parameter-rooted term the contract namespace admits, and `view[i]`
         // proves in `put` without any member-path correspondence.
-        self.machine(
+        self.plain_machine(
             name,
-            "",
             "",
             &format!(
                 "        let view: &[u8] = value.{field};\n        transition {{ _ -> {walk}(value, out, written, at, 0, view) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &walk,
             "i: u64, view: &[u8]",
-            "",
             &format!(
                 "        transition i < view.len {{\n            true -> {bound}(value, out, written, at, i, view)\n            _ -> {next}(value, out, written, at)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &bound,
             "i: u64, view: &[u8]",
-            "",
             &format!(
                 "        transition at < {} && i < view.len {{\n            true -> {put}(value, out, written, at, i, view)\n            _ -> encode_overflow{}\n        }}\n",
                 self.limit, self.call
@@ -342,9 +335,8 @@ impl MachineEmitter<'_> {
         // loops re-enter through them, so `bits < 128` alone decides.
         if seed_len {
             let seed = format!("{name}_seed");
-            self.machine(
+            self.plain_machine(
                 name,
-                "",
                 "",
                 &format!(
                     "        let slen: u64 = {len_expr};\n        transition {{ _ -> {seed}(value, out, written, at, slen) }}\n"
@@ -352,9 +344,8 @@ impl MachineEmitter<'_> {
             );
             self.hop(&seed, "slen: u64", &measure_entry, ", 0, 0, slen");
         } else {
-            self.machine(
+            self.plain_machine(
                 name,
-                "",
                 "",
                 &format!(
                     "        let view: &[{}] = {member_expr};\n        transition {{ _ -> {measure_entry}(value, out, written, at, 0, 0, view) }}\n",
@@ -362,10 +353,9 @@ impl MachineEmitter<'_> {
                 ),
             );
         }
-        self.machine(
+        self.plain_machine(
             &measure_entry,
             &format!("i: u64, acc: u64 in Wrapping{carry}"),
-            "",
             &format!(
                 "        transition {index_guard} {{\n            true -> {measure_elem}(value, out, written, at, i, acc{carry_arg})\n            _ -> {length}(value, out, written, at, i, acc)\n        }}\n"
             ),
@@ -387,10 +377,9 @@ impl MachineEmitter<'_> {
                 "        transition bits < 128 && {loop_guard} {{\n            true -> {measure_entry}(value, out, written, at, i + 1, acc + 1{carry_arg})\n            _ -> {measure_varint}(value, out, written, at, i, acc + 1, bits >> 7{carry_arg})\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &length,
             "i: u64, acc: u64 in Wrapping",
-            "",
             &format!(
                 "        let bits: u64 = acc as u64;\n        transition {{ _ -> {length}_loop(value, out, written, at, i, bits) }}\n"
             ),
@@ -403,18 +392,16 @@ impl MachineEmitter<'_> {
             let more = format!("{length}_loop_more");
             let put_more = format!("{length}_loop_put_more");
             let loop_name = format!("{length}_loop");
-            self.machine(
+            self.plain_machine(
                 &loop_name,
                 "i: u64, bits: u64",
-                "",
                 &format!(
                     "        transition bits < 128 {{\n            true -> {last}(value, out, written, at, i, bits)\n            _ -> {more}(value, out, written, at, i, bits)\n        }}\n"
                 ),
             );
-            self.machine(
+            self.plain_machine(
                 &last,
                 "i: u64, bits: u64",
-                "",
                 &format!(
                     "        let byte: u8 = bits as u8;\n        transition at < {} {{\n            true -> {put}(value, out, written, at, i, byte)\n            _ -> encode_overflow{}\n        }}\n",
                     self.limit, self.call
@@ -428,10 +415,9 @@ impl MachineEmitter<'_> {
                     "        out[at] = byte;\n        transition {{ _ -> {emit_entry_target}(value, out, written, at + 1, 0) }}\n"
                 ),
             );
-            self.machine(
+            self.plain_machine(
                 &more,
                 "i: u64, bits: u64",
-                "",
                 &format!(
                     "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} {{\n            true -> {put_more}(value, out, written, at, i, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
                     self.limit, self.call
@@ -450,29 +436,26 @@ impl MachineEmitter<'_> {
         // kind — `slen` for `FixedVec`, `view` for slices — so the
         // length-loop tail stays thin.
         if bound_expr.is_some() {
-            self.machine(
+            self.plain_machine(
                 &emit_entry_target,
                 "i: u64",
-                "",
                 &format!(
                     "        let slen: u64 = {len_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, slen) }}\n"
                 ),
             );
         } else {
-            self.machine(
+            self.plain_machine(
                 &emit_entry_target,
                 "i: u64",
-                "",
                 &format!(
                     "        let view: &[{}] = {member_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, view) }}\n",
                     element.name()
                 ),
             );
         }
-        self.machine(
+        self.plain_machine(
             &emit_entry,
             &format!("i: u64{carry}"),
-            "",
             &format!(
                 "        transition {index_guard} {{\n            true -> {emit_elem}(value, out, written, at, i{carry_arg})\n            _ -> {next}(value, out, written, at)\n        }}\n"
             ),
@@ -582,10 +565,9 @@ impl MachineEmitter<'_> {
                 format!("{name}_subtag_{}_0", index + 1)
             }
         };
-        self.machine(
+        self.plain_machine(
             &length,
             "acc: u64 in Wrapping",
-            "",
             &format!(
                 "        let bits: u64 = acc as u64;\n        transition {{ _ -> {length}_loop(value, out, written, at, bits) }}\n"
             ),
@@ -624,10 +606,9 @@ impl MachineEmitter<'_> {
         let check = format!("{name}_check");
         let oob = format!("{name}_oob");
         let inner = self.call.trim_start_matches('(').trim_end_matches(')');
-        self.machine(
+        self.plain_machine(
             name,
             carry,
-            "",
             &format!(
                 "        transition at < {} {{\n            true -> {check}({inner}{carry_arg})\n            _ -> {oob}({inner}{carry_arg})\n        }}\n",
                 self.limit
@@ -641,10 +622,9 @@ impl MachineEmitter<'_> {
                 "        transition buffer[at] == {byte} {{\n            true -> {next}(value, buffer, read, verdict, at + 1, bad{carry_arg})\n            _ -> {next}(value, buffer, read, verdict, at + 1, bad + 1{carry_arg})\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &oob,
             carry,
-            "",
             &format!(
                 "        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}) }}\n"
             ),
@@ -670,26 +650,23 @@ impl MachineEmitter<'_> {
             carry,
             ", payload: u64 in Wrapping",
         );
-        self.machine(
+        self.plain_machine(
             name,
             carry,
-            "",
             &format!(
                 "        transition {{ _ -> {start}(value, buffer, read, verdict, at, bad, 0 as u64 in Wrapping, 0 as u64 in Wrapping{carry_arg}) }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &start,
             &acc_shift,
-            "",
             &format!(
                 "        transition shift > 63 {{\n            true -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n            _ -> {read}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg})\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &read,
             &acc_shift,
-            "",
             &format!(
                 "        transition at < {} {{\n            true -> {byte}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n        }}\n",
                 self.limit
@@ -703,26 +680,23 @@ impl MachineEmitter<'_> {
                 "        let byte: u8 = buffer[at];\n        let payload: u64 in Wrapping = (byte & 127) as u64 in Wrapping;\n        let acc2: u64 in Wrapping = acc | (payload << shift);\n        transition byte < 128 {{\n            true -> {terminal}(value, buffer, read, verdict, at + 1, bad, acc2, shift{carry_arg}, payload)\n            _ -> {continue_state}(value, buffer, read, verdict, at + 1, bad, acc2, shift{carry_arg}, payload)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &terminal,
             &full,
-            "",
             &format!(
                 "        transition payload == 0 && shift > 0 {{\n            true -> {terminal_check}(value, buffer, read, verdict, at, bad + 1, acc, shift{carry_arg}, payload)\n            _ -> {terminal_check}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg}, payload)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &terminal_check,
             &full,
-            "",
             &format!(
                 "        transition shift == 63 && payload > 1 {{\n            true -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n            _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}, acc as u64)\n        }}\n"
             ),
         );
-        self.machine(
+        self.plain_machine(
             &continue_state,
             &full,
-            "",
             &format!(
                 "        transition shift == 63 && payload > 1 {{\n            true -> {start}(value, buffer, read, verdict, at, bad + 1, acc, shift + 7{carry_arg})\n            _ -> {start}(value, buffer, read, verdict, at, bad, acc, shift + 7{carry_arg})\n        }}\n"
             ),
@@ -762,10 +736,9 @@ impl MachineEmitter<'_> {
         };
         match kind {
             ScalarKind::I32 | ScalarKind::I64 => {
-                self.machine(
+                self.plain_machine(
                     name,
                     &entry_extras,
-                    "",
                     &format!("{}{entry}", ScalarKind::decode_signed_binding()),
                 );
                 self.machine(
@@ -779,7 +752,7 @@ impl MachineEmitter<'_> {
                 );
             }
             ScalarKind::U32 | ScalarKind::Bool | ScalarKind::U64 => {
-                self.machine(name, &entry_extras, "", &entry);
+                self.plain_machine(name, &entry_extras, &entry);
                 self.machine(
                     &store,
                     &carried_operand(carry, "raw: u64"),
@@ -821,10 +794,9 @@ impl MachineEmitter<'_> {
             )
         };
         if kind.decodes_signed() {
-            self.machine(
+            self.plain_machine(
                 name,
                 entry_extras,
-                "",
                 &format!("{}{entry}", ScalarKind::decode_signed_binding()),
             );
             self.machine(
@@ -837,7 +809,7 @@ impl MachineEmitter<'_> {
                 ),
             );
         } else {
-            self.machine(name, entry_extras, "", &entry);
+            self.plain_machine(name, entry_extras, &entry);
             self.machine(
                 &store,
                 "end: u64, raw: u64",
@@ -868,10 +840,9 @@ impl MachineEmitter<'_> {
         next: &str,
         skip: &str,
     ) {
-        self.machine(
+        self.plain_machine(
             open,
             "raw: u64",
-            "",
             &format!(
                 "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
                 self.limit
@@ -915,10 +886,9 @@ impl MachineEmitter<'_> {
     /// The close of every `end` window: the cursor must land exactly on the
     /// bound or `bad` increments on the way to `next`.
     fn dec_close_window(&mut self, name: &str, next: &str) {
-        self.machine(
+        self.plain_machine(
             &format!("{name}_close"),
             "end: u64",
-            "",
             &format!(
                 "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
             ),
@@ -948,10 +918,9 @@ impl MachineEmitter<'_> {
             let store = format!("{name}_element_{index}_store");
             let length_state = format!("{name}_length_{index}");
             let after_element = format!("{name}_element_{}", index + 1);
-            self.machine(
+            self.plain_machine(
                 &element_state,
                 "end: u64",
-                "",
                 &format!(
                     "        transition at < end {{\n            true -> {read}(value, buffer, read, verdict, at, bad, end)\n            _ -> {length_state}(value, buffer, read, verdict, at, bad, end)\n        }}\n"
                 ),
@@ -972,10 +941,9 @@ impl MachineEmitter<'_> {
             } else {
                 format!("{name}_length_{index}")
             };
-            self.machine(
+            self.plain_machine(
                 &length_state,
                 "end: u64",
-                "",
                 &format!(
                     "        value.{field}.length = {index};\n        transition {{ _ -> {close}(value, buffer, read, verdict, at, bad, end) }}\n"
                 ),
