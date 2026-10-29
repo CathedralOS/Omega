@@ -303,7 +303,6 @@ fn emit_direct_call_operation(
         checked,
         operations,
         call.source_coordinate,
-        None,
         crate::direct_calls::CallRecord::Values(source_values_before_call),
         terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,

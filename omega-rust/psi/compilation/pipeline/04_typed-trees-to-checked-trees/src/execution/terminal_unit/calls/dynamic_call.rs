@@ -162,9 +162,7 @@ pub(super) fn build(
     let parts = CheckedUnitCallParts {
         coordinate,
         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-        // Structural completion retains the producer's exact authored
-        // occurrence when nested callers adopt its result namespace.
-        source_site: structural_result.and(source_site),
+        source_site,
         // No single implementation's contract report describes the call;
         // the slot is the target identity.
         target: CheckedUnitCallTarget {

@@ -274,7 +274,7 @@ impl OperationFrame<'_, '_> {
         // This association carries storage geometry, not another disposal debt.
         let source = operation
             .call()
-            .and_then(CheckedUnitCallPlan::source_site)
+            .map(CheckedUnitCallPlan::source_site)
             .ok_or(LoweringError::Unsupported(
                 "structural call result lost its authored occurrence",
             ))?;
@@ -725,7 +725,7 @@ impl OperationFrame<'_, '_> {
             let (coordinate, frontier) = self.source_call_record(*coordinate)?;
             self.operations.invocation_completion = Some(
                 crate::emission::operation_emission::buffer::PendingInvocationCompletion {
-                    coordinate, frontier, source_site: call.source_site().flatten(),
+                    coordinate, frontier, source_site: call.source_site(),
                     target: call.target.machine,
                     outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::ModuleNoNormal { callee, inputs: prepared },
                 });
@@ -770,7 +770,6 @@ impl OperationFrame<'_, '_> {
             checked,
             self.operations,
             coordinate,
-            None,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Unit,
             callee,
@@ -889,7 +888,6 @@ impl OperationFrame<'_, '_> {
             checked,
             self.operations,
             coordinate,
-            None,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Scalar(value),
             callee,
