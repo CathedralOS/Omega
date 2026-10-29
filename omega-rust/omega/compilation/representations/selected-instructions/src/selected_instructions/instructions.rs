@@ -1,5 +1,6 @@
 //! Executable selected forms and their explicit operand/effect interfaces.
 use super::SaturatingCarrier;
+use super::{MachineAlternativeFamily, MachineAlternativeKey};
 use super::{SelectedInstructionId, SelectedInstructionProvenance, SelectedOperand};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
@@ -561,6 +562,24 @@ impl SelectedInstructionKind {
                 target: SelectedCallTarget::Machine(callee),
             } => Some(callee),
             _ => None,
+        }
+    }
+
+    /// The machine-alternative family an ordinary call kind declares at variant
+    /// zero: a property of the kind, not of the target that encodes its bytes,
+    /// so it is declared once here. Non-call kinds name the scalar family.
+    pub const fn call_alternative_key(self) -> MachineAlternativeKey {
+        MachineAlternativeKey {
+            family: match self {
+                Self::InvokeNoNormal { .. } => MachineAlternativeFamily::InvokeNoNormal,
+                Self::CallUnit { .. } => MachineAlternativeFamily::CallUnit,
+                Self::CallAggregate { .. } => MachineAlternativeFamily::CallAggregate,
+                Self::NormalizedForeignCall { .. } => {
+                    MachineAlternativeFamily::NormalizedForeignCall
+                }
+                _ => MachineAlternativeFamily::CallScalar,
+            },
+            variant: 0,
         }
     }
 }
