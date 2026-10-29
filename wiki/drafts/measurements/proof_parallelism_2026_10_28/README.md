@@ -182,3 +182,5 @@ Follow-up: [individual premise reuse](premise_reuse/README.md) measures 68.37% e
 Follow-up: [unchanged fact sharing](unchanged_sharing/README.md) avoids 98.05% of rebound fact reconstructions without a cache; six alternating A/B pairs leave compile-time benefit inconclusive, so the implementation is parked.
 
 Follow-up: [borrowed fact handles](borrowed_handles/README.md) defers ownership until append and avoids 1,683,529 handle clones versus eager sharing. Six balanced three-producer rounds leave user-visible speed inconclusive; no compiler change is retained.
+
+Follow-up: [remaining scans and joins](scans_joins/README.md) attributes retirement, intersections, publication and repeated shared-fact searches with exact visit counts and explicit profiler limits. No compiler change is retained.
