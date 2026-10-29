@@ -17,7 +17,13 @@ pub fn exact_external_leaf_boundary_requirement(
     program: &dyn crate::CheckingInput,
     target_state_symbol: SymbolHandle,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    exact_compiler_intrinsic_boundary_requirement(program, target_state_symbol)
+    exact_compiler_intrinsic_boundary_requirement(program, target_state_symbol).or_else(|| {
+        // This is a source demand, not an intrinsic execution grant. The
+        // firmware mechanics remain subject to independent native settlement.
+        program
+            .uefi_handoff_requirement(target_state_symbol)
+            .map(|requirement| (requirement, SymbolHandle::invalid()))
+    })
 }
 
 /// The immutable catalogue's exact requirement edge, independently of target

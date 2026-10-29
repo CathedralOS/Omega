@@ -16,5 +16,6 @@ pub mod numeric_intrinsics;
 pub mod operator;
 pub mod product_operand;
 pub mod trait_definition;
+pub mod uefi_handoff_demands;
 pub mod visibility;
 pub mod wire;
