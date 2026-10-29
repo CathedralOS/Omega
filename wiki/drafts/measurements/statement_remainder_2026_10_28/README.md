@@ -77,3 +77,5 @@ local chain. Baseline A is the prior retained difference-constraint producer;
 candidate B SHA256 is
 `139ad7c5be5564fc9633e50e1d0a41744e7770c4bea909d476cd0845d7e8a558`.
 Next: attribute the remaining arithmetic-walk cost on this new baseline.
+
+Follow-up: [return-bound experiment and cumulative comparison](../arithmetic_walk_2026_10_29/README.md).

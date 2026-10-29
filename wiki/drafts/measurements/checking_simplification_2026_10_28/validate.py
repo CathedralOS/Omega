@@ -8,6 +8,10 @@ import sys
 
 from compare import REPOSITORY, benchmark, save
 
+FACT = "thirtytwo_arg_stack_calling_plan"
+INVALID_FRAGMENTS = ("exact arithmetic", "may overflow `u64`")
+RUNTIME_CONTROLS = set()
+
 PLACES = ["local", "field", "parameter", "call_result", "match_join", "const_name",
           "other_state", "other_machine", "target_body"]
 CONTROLS = [
@@ -38,13 +42,13 @@ def main():
     else:
         save(output / "producers.json", identities)
     cases = []
-    fact = REPOSITORY / "samples/cli/facts/thirtytwo_arg_stack_calling_plan"
+    fact = REPOSITORY / "samples/cli/facts" / FACT
     for place in PLACES:
         cases.extend([(place, fact / place / "main.omg", False, True),
                       (place + "-invalid", fact / place / "invalid/main.omg", True, False)])
     for control in CONTROLS:
         cases.append((control.replace("/", "-"), REPOSITORY / "tests/omega" / control / "main.omg",
-                      control.startswith("fail/"), False))
+                      control.startswith("fail/"), control in RUNTIME_CONTROLS))
     records = json.loads((output / "results.json").read_text(encoding="utf-8")) if resume else []
     for name, source, invalid, runtime in cases:
         case_rows = []
@@ -73,7 +77,7 @@ def main():
             if runtime:
                 passed = passed and "native exit 0" in transcript and "interp exit: 0" in transcript
             if invalid and name.endswith("-invalid"):
-                passed = passed and "exact arithmetic" in transcript and "may overflow `u64`" in transcript
+                passed = passed and all(fragment in transcript for fragment in INVALID_FRAGMENTS)
             records.append(dict(case=name, variant=variant, command=arguments, exit=result.returncode,
                                 passed=passed, errors=errors, output=transcript,
                                 source_sha256=benchmark.sha256_file(source),
