@@ -1867,6 +1867,17 @@ impl Emission<'_, '_, '_> {
             value,
             first_new_place: *self.environment.next_place,
         };
+        macro_rules! finish {
+            ($place:expr) => {
+                self.complete_construction(
+                    identities,
+                    $place,
+                    node.qualification_decisions,
+                    completion,
+                    continuation,
+                )
+            };
+        }
         let place = match node.kind {
             CheckedStructuralValueKind::NativeCodeLayout { selected_state } => {
                 let (selected, _) =
@@ -2019,13 +2030,7 @@ impl Emission<'_, '_, '_> {
                     return Ok(ValueCompletion::NoNormal);
                 };
 
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
                 let ValueOutcome::Normal(place) =
@@ -2034,13 +2039,7 @@ impl Emission<'_, '_, '_> {
                     return Ok(ValueCompletion::NoNormal);
                 };
 
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::Call { .. } => {
                 let mut matching = self.operand_calls.iter().filter(|call| call.value == value);
@@ -2300,13 +2299,7 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::Scalar { value } => {
                 let initialized = self.scalar(
@@ -2375,13 +2368,7 @@ impl Emission<'_, '_, '_> {
                     operation,
                     self.structural_type,
                 ));
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::ByteLiteralView { bytes } => {
                 // The literal carries the memberships checking established
@@ -2430,13 +2417,7 @@ impl Emission<'_, '_, '_> {
                     ))?;
                 result.projected_qualifications = projected;
 
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {
@@ -2552,26 +2533,14 @@ impl Emission<'_, '_, '_> {
                 ))?;
                 self.environment.private_places.push(declaration);
                 self.values.truncate(field_start);
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::StructuralCase { .. } => {
                 let ValueOutcome::Normal(place) = self.structural_case(identities, value)? else {
                     return Ok(ValueCompletion::NoNormal);
                 };
 
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    completion,
-                    continuation,
-                )
+                finish!(place)
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => match self.dispatch(
                 identities,
