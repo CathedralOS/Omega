@@ -180,6 +180,23 @@ fn scan_expression_use(
             )
         };
     }
+    macro_rules! validate_read {
+        ($definition:expr, $receiver:expr, $member:expr, $root:expr $(,)?) => {
+            validate_data_read(
+                program,
+                state,
+                $definition,
+                $receiver,
+                $member,
+                $root,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            )
+        };
+    }
     if !expression.is_valid() {
         return;
     }
@@ -219,18 +236,11 @@ fn scan_expression_use(
             {
                 // Passing or borrowing the whole nominal value cannot bypass the
                 // same establishment gate a projected observation must satisfy.
-                validate_data_read(
-                    program,
-                    state,
+                validate_read!(
                     definition,
                     &spelling,
                     "<whole value>",
                     expression_root_symbol(program, expression),
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
                 );
             }
             if has_open_window {
@@ -269,18 +279,11 @@ fn scan_expression_use(
                     .iter()
                     .find(|place| place_spelling_covers(&place.spelling, &receiver_spelling))
                 {
-                    validate_data_read(
-                        program,
-                        state,
+                    validate_read!(
                         place.definition,
                         &receiver_spelling,
                         members.last().expect("non-empty path").as_str(),
                         path.head_symbol,
-                        tracked,
-                        entry_established,
-                        call_established,
-                        inherited_windows,
-                        diagnostics,
                     );
                 }
             }
@@ -296,19 +299,7 @@ fn scan_expression_use(
                     .as_ref()
                     .and_then(|attached| program.data_definition_by_name(attached))
             {
-                validate_data_read(
-                    program,
-                    state,
-                    definition,
-                    "self",
-                    members[1].as_str(),
-                    path.head_symbol,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
-                );
+                validate_read!(definition, "self", members[1].as_str(), path.head_symbol);
             }
         }
         ExpressionNode::Member(member) => {
@@ -347,18 +338,11 @@ fn scan_expression_use(
                     && let Some(definition) = definition
                     && crate::value_custody::data::data_requires_establishment(program, definition)
                 {
-                    validate_data_read(
-                        program,
-                        state,
+                    validate_read!(
                         definition,
                         &receiver_spelling,
                         member.member.as_str(),
                         expression_root_symbol(program, member.receiver),
-                        tracked,
-                        entry_established,
-                        call_established,
-                        inherited_windows,
-                        diagnostics,
                     );
                 }
             }
@@ -416,18 +400,11 @@ fn scan_expression_use(
                         && place.any_window_open()
                 })
             {
-                validate_data_read(
-                    program,
-                    state,
+                validate_read!(
                     place.definition,
                     &receiver_spelling,
                     member.member.as_str(),
                     expression_root_symbol(program, member.receiver),
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    diagnostics,
                 );
             }
             read_child!(inner.target);
