@@ -419,7 +419,8 @@ impl VerifiedComponent {
         let mut exports = Vec::with_capacity(plan.rows.len());
         for row in &plan.rows {
             let ProviderBinding::CheckedAdapter {
-                machine_identity, ..
+                machine_identity,
+                machine_package_identity,
             } = &row.binding
             else {
                 return Err(IndependentRealizationMismatch::UncheckedRow {
@@ -463,6 +464,10 @@ impl VerifiedComponent {
                 .filter(|candidate| {
                     self.module().identities.text(candidate.candidate_identity)
                         == Some(machine_identity)
+                        // Two packages can declare the same provider/method
+                        // spelling. The selected adapter retains its package;
+                        // None is an exact coordinate, never a wildcard.
+                        && candidate.source_candidate_package_identity == *machine_package_identity
                 })
                 .collect::<Vec<_>>();
             match exact.as_slice() {
