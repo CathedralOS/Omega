@@ -1,0 +1,22 @@
+{
+  "pull_request": "https://github.com/CathedralOS/Omega/pull/757",
+  "submitted_head": "40167e22ac1df898463433ebaf39b1d952067362",
+  "published_commit": "0add3ad35224b3b037f3952d652453236310673c",
+  "state": "MERGED",
+  "published_ancestor_of_fetched_main": true,
+  "pull_request_check": {
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40839185613",
+    "conclusion": "success"
+  },
+  "integration_check": {
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40839529096",
+    "conclusion": "success"
+  },
+  "post_merge_smoke": {
+    "conclusion": "",
+    "headSha": "0add3ad35224b3b037f3952d652453236310673c",
+    "status": "in_progress",
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/40839864464"
+  },
+  "boundary": "Windows qualification remains bound to original producer994af/source9866. Postlanding verification is read-only; the local next candidate is not a run of main."
+}
