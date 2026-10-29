@@ -278,6 +278,74 @@ pub fn produce_fixture(
     .map_err(compiler::CompilationProductError::into_diagnostics)
 }
 
+/// An authored rejection may also require the standalone batch API to retain
+/// attempted scalar charges. Observe it before package policy flattens failures
+/// to diagnostics; the ordinary package refusal is still exercised separately.
+pub fn observe_failed_scalar_accounting(
+    prepared: &ReviewedFixtureCompilation,
+    profile: TargetProfile,
+    minimum_receipts: usize,
+    build_directory: &Path,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut request = compiler::CompileRequest::for_targets(
+        prepared.root_path.clone(),
+        build_directory.to_path_buf(),
+        vec![Some(profile)],
+    );
+    if let Some(inputs) = &prepared.package_inputs {
+        request = request.with_package_inputs(inputs.clone());
+    }
+    let outcomes =
+        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+            .map_err(|_| {
+                vec![Diagnostic::error(
+                    "failed scalar accounting probe did not reach target completion",
+                )]
+            })?;
+    let outcomes = outcomes.into_outcomes();
+    if outcomes.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            "failed scalar accounting probe lost its target",
+        )]);
+    }
+    for outcome in outcomes {
+        let accounting = outcome.source_completion_accounting().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "failed scalar accounting probe lost its ledger",
+            )]
+        })?;
+        accounting.validate_charges().map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "failed scalar accounting probe has invalid charges: {reason}"
+            ))]
+        })?;
+        let receipts = accounting
+            .receipts()
+            .iter()
+            .filter(|receipt| {
+                matches!(
+                    receipt,
+                    build_time_evaluation::PureEvaluationRecord::CanonicalScalar(_)
+                )
+            })
+            .count();
+        if receipts < minimum_receipts || !accounting.has_complete_usage() {
+            return Err(vec![Diagnostic::error(format!(
+                "failed scalar accounting probe requires {minimum_receipts} complete receipts, got {receipts}",
+            ))]);
+        }
+        if outcome.into_result().is_ok() {
+            return Err(vec![Diagnostic::error(
+                "failed scalar accounting probe unexpectedly produced a product",
+            )]);
+        }
+        eprintln!(
+            "failed scalar accounting: {receipts} canonical receipts, valid complete charges"
+        );
+    }
+    Ok(())
+}
+
 /// Generic authored host-input fixtures: each immediate directory under
 /// `build-inputs/` is one named inventory. Read the already sealed fixture
 /// staging, not an ambient host path selected by Omega code. This is request

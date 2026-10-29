@@ -452,6 +452,11 @@ Native preparation first determines the work and scalar demand for the root and
 its components. The application completes that demand; native compilation consumes
 the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
+`application/build/src/native_completion.rs` owns this lifecycle for standalone
+and package products. Source compilation transfers an owned `PendingNativeProduct`
+after admission and Terminal preparation, releasing its checked source. The shared
+`build-evaluation` scalar operation also serves descriptive Check, inspection and
+component publication; those stops do not acquire native execution obligations.
 Declaration-only Check publishes a rootless Terminal product when conditions need
 completion; a Check with no retained scalar obligations stops before publication.
 Demanded components complete all declaration conditions against their shared

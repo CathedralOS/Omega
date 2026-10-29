@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+native-production = { path = "../../compilation/native-production" }
+image-emission = { path = "../../compilation/backend/images/image-emission" }
 phase-profile = { path = "../../../psi/foundation/phase-profile" }
 compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }

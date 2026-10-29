@@ -6,7 +6,9 @@
 use backend_plan::TerminalTargetProviderProposal;
 use std::sync::Arc;
 
-pub(crate) fn complete(
+/// Complete canonical demand with the retained target provider companions.
+/// Attempted evaluation remains in `accounting`, including a refused condition.
+pub fn complete(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,
     demand: &[semantic_vocabulary::ScalarApplicationId],

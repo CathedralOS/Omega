@@ -144,7 +144,7 @@ impl ProducedTerminalProduct {
             .execution
             .selected_target_profile
             .unwrap_or_else(target::TargetProfile::host);
-        super::scalar_completion::complete(
+        build_evaluation::scalar_completion::complete(
             artifact,
             target.target_name(),
             &[],

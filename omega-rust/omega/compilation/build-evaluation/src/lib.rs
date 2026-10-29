@@ -86,6 +86,7 @@ mod admitted_build_program;
 mod build_evaluation;
 mod completed_pure_build;
 mod execution;
+pub mod scalar_completion;
 pub mod terminal_bindings;
 mod terminal_execution;
 mod terminal_filesystem;
