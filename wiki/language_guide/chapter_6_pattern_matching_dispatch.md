@@ -20,16 +20,73 @@ The intended semantics evaluate the subject once, test arms in order, and
 evaluate only the selected arm. Arm values need compatible types and the
 dispatch must be exhaustive.
 
-Scalar `match` implements that schedule today: the parser retains the subject
-and ordered arms, the subject is evaluated once, patterns are tested in
-authored order, and only the selected arm's value is evaluated — carried
-through checked trees into Terminal and native lowering. Value-position arms
-still admit value and wildcard patterns only; record, domain and guarded
-spellings belong to `transition` dispatch, and the residual owned/borrowed
-custody frontier is recorded in the
+Scalar `match` implements that schedule today. The supported pattern and
+owned/borrowed custody frontier is recorded in the
 [source processing note](../../omega-rust/psi/compilation/pipeline/README.md#lexing-and-parsing).
-An accepted scalar example is not coverage for those shapes or for general
-owned results.
+The data/case-view forms below state the accepted language; their implementation
+and source migration remain `DATA-DECOMPOSITION` work in [TASKS.md](../../TASKS.md).
+An accepted scalar example is not evidence that every pattern form or owned
+result is implemented.
+
+## Data And Case Patterns
+
+Common fields belong to the whole value, not to each case's payload. Match them
+once in an outer data pattern, then match the case-only view:
+
+```omega
+data Command {
+    command_id: u64;
+    case GetUser(user_id: u64);
+    case CountUsers;
+}
+
+machine targets_one_user(command: &Command) -> bool {
+    match command {
+        Command { command_id as _, case as operation } ->
+            match operation {
+                Command::GetUser { user_id as _ } -> true
+                Command::CountUsers -> false
+            }
+    }
+}
+```
+
+All inline cases follow the common fields. The equivalent positional outer
+pattern is `(_, operation)`: common fields in authored order, then one case
+component. Binding names are arbitrary. A named pattern uses `case as name` for
+that final component; `case` is a pattern selector, not a stored field. Ordinary
+field renaming still uses `as`, while `field: value` tests a value.
+
+Patterns account for all components unless `..` explicitly waives the remaining
+ones. A case pattern mentions payload fields only; common-field bindings inside
+case patterns are retired. Pure sums still support direct case matching.
+Nested matches retain outer bindings and still-valid facts, and each dispatch
+must be exhaustive. The case view preserves the original subject's type
+constraints, identity, lifetime, access and custody; ignoring a binding does not
+waive cleanup. Physical layout and case-literal construction are unchanged.
+The [pattern specification](../spec/language/patterns.md#data-and-case-decomposition)
+owns the full rule.
+
+## Irrefutable Bindings
+
+When a pattern only decomposes the value, a local binding avoids a one-arm outer
+match. Inside the example machine above, bind the same view before matching it:
+
+```omega
+let Command { command_id as _, case as operation } = command;
+```
+
+The positional equivalent is `let (_, operation) = command;`. Evaluate the
+initializer once. The checked type and live facts must prove the pattern cannot
+fail; otherwise use ordinary match arms. A binding has no hidden trap, assertion
+or fallback. The original nested-match form remains valid, and there is no
+special `match expression as Pattern` header.
+
+Copies, moves, borrows and ignored-value cleanup keep their normal obligations.
+A borrowed source does not permit implicit moves or copies of non-copy fields;
+the case view retains its existing backing loan and lifetime. See
+[irrefutable data bindings](../spec/language/patterns.md#irrefutable-data-bindings).
+These forms remain part of the pending `DATA-DECOMPOSITION` implementation.
 
 ## Transition Dispatch
 
@@ -48,7 +105,7 @@ requirements, but do not waive its ordinary type, ownership, or authority checks
 
 ## Tuple Patterns
 
-Tuple dispatch combines conditions:
+Tuple dispatch combines explicit conditions:
 
 ```omega
 transition (player_defeated, enemy_defeated) {
@@ -60,6 +117,11 @@ transition (player_defeated, enemy_defeated) {
 
 The first arm deliberately wins when both conditions hold. A component wildcard
 ignores that component without asserting anything about its value.
+
+Positional data patterns use the same parenthesized style on a data subject,
+but their components come from its declared fields and optional final case view,
+not an implicit conversion to unrelated tuple storage. Named and positional data
+patterns do not change representation or add runtime fields.
 
 ## Named Facts Before Dispatch
 
