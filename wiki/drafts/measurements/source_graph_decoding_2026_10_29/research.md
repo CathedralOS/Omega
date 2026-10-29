@@ -123,3 +123,17 @@ Both engine agreement, static invalid twins, frozen cache hashes and corruption
 recovery passed. The final source passed 110 decoder/arena/syntax tests, scoped
 Clippy and Linux/macOS cross-target checks. The [result ledger](README.md) links
 all identities, failed setup attempts, raw observations and limitations.
+
+## Cathedral follow-up: comparison blocked during setup
+
+The [Cathedral report](cathedral/README.md) retains exact frozen gallery and
+combined UI-export inputs. The retained baseline's gallery preparation timed out
+at 1,800 seconds. A separately built matched opt-level 3 pair both timed out at
+600 seconds preparing the frozen UI exports. No accepted export locks, source
+graphs, native products or warm paired samples were produced, so Cathedral has
+no qualified end-to-end speedup estimate. The small-workload result does not
+establish a Cathedral win. A separate temporary progress probe identifies
+local-initializer contract-entailment replay as the largest completed scope
+(21.746 seconds over 348 calls), with unchanged completed counters afterward;
+the still-active operation remains unobserved. Preserve the blocked attempts
+and investigate that prerequisite before repeating the warm comparison.
