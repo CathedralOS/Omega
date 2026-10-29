@@ -475,6 +475,20 @@ mod tests {
     };
     use target::NativeTarget;
 
+    fn region(
+        origin: FinalDataRegionOrigin,
+        section_offset: usize,
+        byte_count: usize,
+        symbol: impl Into<String>,
+    ) -> FinalDataRegion {
+        FinalDataRegion {
+            origin,
+            section_offset,
+            byte_count,
+            symbol: symbol.into(),
+        }
+    }
+
     fn data_image(data: Vec<u8>, regions: Vec<FinalDataRegion>) -> FinalImage {
         let mut image = FinalImage::with_capacity(
             NativeTarget::host(),
@@ -496,18 +510,8 @@ mod tests {
         let image = data_image(
             vec![0; 8],
             vec![
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::CompilerData,
-                    section_offset: 0,
-                    byte_count: 6,
-                    symbol: "first".into(),
-                },
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::ImportBindingSlot,
-                    section_offset: 4,
-                    byte_count: 4,
-                    symbol: "second".into(),
-                },
+                region(FinalDataRegionOrigin::CompilerData, 0, 6, "first"),
+                region(FinalDataRegionOrigin::ImportBindingSlot, 4, 4, "second"),
             ],
         );
         let diagnostic = place_data_regions(&image, FinalImageLayout::default())
@@ -516,12 +520,7 @@ mod tests {
 
         let image = data_image(
             vec![0; 8],
-            vec![FinalDataRegion {
-                origin: FinalDataRegionOrigin::CompilerData,
-                section_offset: 4,
-                byte_count: 8,
-                symbol: "tail".into(),
-            }],
+            vec![region(FinalDataRegionOrigin::CompilerData, 4, 8, "tail")],
         );
         assert!(place_data_regions(&image, FinalImageLayout::default()).is_err());
     }
@@ -531,18 +530,8 @@ mod tests {
         let image = data_image(
             (0..20).collect(),
             vec![
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::CompilerData,
-                    section_offset: 0,
-                    byte_count: 8,
-                    symbol: "table".into(),
-                },
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::ImportBindingSlot,
-                    section_offset: 12,
-                    byte_count: 8,
-                    symbol: "_getpid".into(),
-                },
+                region(FinalDataRegionOrigin::CompilerData, 0, 8, "table"),
+                region(FinalDataRegionOrigin::ImportBindingSlot, 12, 8, "_getpid"),
             ],
         );
         let inventory = place_data_regions(
@@ -603,24 +592,14 @@ mod tests {
         let image = data_image(
             (0usize..28).map(|index| (index * 7 + 3) as u8).collect(),
             vec![
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::CompilerData,
-                    section_offset: 0,
-                    byte_count: 8,
-                    symbol: "table".into(),
-                },
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::ImportBindingSlot,
-                    section_offset: 12,
-                    byte_count: 8,
-                    symbol: "_getpid".into(),
-                },
-                FinalDataRegion {
-                    origin: FinalDataRegionOrigin::AlignmentPadding,
-                    section_offset: 24,
-                    byte_count: 4,
-                    symbol: String::new(),
-                },
+                region(FinalDataRegionOrigin::CompilerData, 0, 8, "table"),
+                region(FinalDataRegionOrigin::ImportBindingSlot, 12, 8, "_getpid"),
+                region(
+                    FinalDataRegionOrigin::AlignmentPadding,
+                    24,
+                    4,
+                    String::new(),
+                ),
             ],
         );
         let inventory = place_data_regions(
@@ -660,12 +639,12 @@ mod tests {
     fn foreign_placed_data_inventory() -> PlacedDataRegionInventory {
         place_data_extent(
             &[0x5a; 8],
-            vec![FinalDataRegion {
-                origin: FinalDataRegionOrigin::CompilerData,
-                section_offset: 0,
-                byte_count: 4,
-                symbol: "foreign_table".into(),
-            }],
+            vec![region(
+                FinalDataRegionOrigin::CompilerData,
+                0,
+                4,
+                "foreign_table",
+            )],
             0x8000,
             "foreign-data",
         )
@@ -1078,18 +1057,18 @@ mod tests {
         let rdata: Vec<u8> = (0usize..40).map(|index| (index * 11 + 5) as u8).collect();
         const RDATA_ADDRESS: u64 = 0x1400_0300;
         let slots = vec![
-            FinalDataRegion {
-                origin: FinalDataRegionOrigin::ImportBindingSlot,
-                section_offset: 20,
-                byte_count: 8,
-                symbol: "KERNEL32.dll!ExitProcess".into(),
-            },
-            FinalDataRegion {
-                origin: FinalDataRegionOrigin::ImportBindingSlot,
-                section_offset: 28,
-                byte_count: 8,
-                symbol: "KERNEL32.dll!CreateFileW".into(),
-            },
+            region(
+                FinalDataRegionOrigin::ImportBindingSlot,
+                20,
+                8,
+                "KERNEL32.dll!ExitProcess",
+            ),
+            region(
+                FinalDataRegionOrigin::ImportBindingSlot,
+                28,
+                8,
+                "KERNEL32.dll!CreateFileW",
+            ),
         ];
 
         let inventory = place_data_extent(&rdata, slots, RDATA_ADDRESS, "import-data")
@@ -1125,12 +1104,12 @@ mod tests {
         // A slot that would overrun the extent rejects against the extent
         // itself — there is no `.data` to fall back to — and names the
         // extent in its diagnostic.
-        let overrun = vec![FinalDataRegion {
-            origin: FinalDataRegionOrigin::ImportBindingSlot,
-            section_offset: 36,
-            byte_count: 8,
-            symbol: "KERNEL32.dll!ReadFile".into(),
-        }];
+        let overrun = vec![region(
+            FinalDataRegionOrigin::ImportBindingSlot,
+            36,
+            8,
+            "KERNEL32.dll!ReadFile",
+        )];
         let diagnostic = place_data_extent(&rdata, overrun, RDATA_ADDRESS, "import-data")
             .expect_err("a slot beyond the extent must reject");
         assert!(
