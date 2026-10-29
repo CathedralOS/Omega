@@ -50,6 +50,18 @@ pub(super) fn append_move_events_for_expression(
     expected_type: typed_trees::types::TypeReferenceHandle,
     source: FlowOwnershipEventSource,
 ) {
+    macro_rules! append_observation {
+        ($operand:expr $(,)?) => {
+            observations::append(
+                program,
+                sink,
+                state_symbol,
+                statement_index,
+                $operand,
+                source,
+            )
+        };
+    }
     // A checked tag operation observes its operand, wherever that completed
     // value lives. The ordinary observation walk still evaluates computed
     // receivers and selectors and records their real operand transfers.
@@ -65,14 +77,7 @@ pub(super) fn append_move_events_for_expression(
         && observations::selected_operator(sink, state_symbol, statement_index, expression)
             .is_none()
     {
-        observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            binary.left,
-            source,
-        );
+        append_observation!(binary.left);
         return;
     }
 
@@ -83,14 +88,7 @@ pub(super) fn append_move_events_for_expression(
             unreachable!()
         };
         for operand in [binary.left, binary.right] {
-            observations::append(
-                program,
-                sink,
-                state_symbol,
-                statement_index,
-                operand,
-                source,
-            );
+            append_observation!(operand);
         }
         return;
     }
@@ -117,14 +115,7 @@ pub(super) fn append_move_events_for_expression(
     if let Some(receiver) =
         validation::collection_length_receiver(program, sink.machine, Some(sink.state), expression)
     {
-        observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            receiver,
-            source,
-        );
+        append_observation!(receiver);
         return;
     }
 
@@ -160,14 +151,7 @@ pub(super) fn append_move_events_for_expression(
                 &place,
                 source,
             ) {
-                observations::append(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
-                    expression,
-                    source,
-                );
+                append_observation!(expression);
             } else {
                 append_move_event_for_place(
                     sink,
@@ -291,14 +275,7 @@ pub(super) fn append_move_events_for_expression(
                 source,
             );
         }
-        ExpressionNode::Borrow(borrow) => observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            borrow.target,
-            source,
-        ),
+        ExpressionNode::Borrow(borrow) => append_observation!(borrow.target),
         ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
