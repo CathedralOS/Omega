@@ -1340,6 +1340,8 @@ defines the complete product bar.
   missing or substituted relations, locations, orderings or outcomes reject in
   checking; concurrent witnesses run once **TR3-TR8** lands.
 
+<a id="checked-assembly-control-flow"></a>
+
 - **CHECKED-ASM-LABEL-CONTRACTS.** (also covers **ASM-INSTRUCTION-CATALOG-EXPANSION**,
   **PRIVILEGED-PORT-EFFECT-SETTLEMENTS**, and **INTERPRETED-ASSEMBLY**)
   Implement the ratified checked-assembly control-flow, catalog, effect-settlement,
@@ -1354,6 +1356,24 @@ defines the complete product bar.
   admission, `image-emission/src/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
+  - Implement explicit `asm machine` bodies and nested basic-block declarations
+    in both producers; retire colon labels and implicit conditional successors
+    across source, libraries, samples, fixtures and tooling. Conditional jumps
+    terminate their block with an explicit not-taken `transition`; adjacency
+    transitions emit no instruction and reject unrealizable layouts.
+  - Preserve exact incoming register/flag state, nested entry/exit contracts
+    and local clobber footprints; initialize working registers once from the
+    complete incoming values without overlapping-register setup corruption.
+    Local edges must not introduce frames, prologues or repeated initialization.
+  - Drive checked returns and multi-component/indirect results from the selected
+    calling plan, with no separate `outputs` interface; retain exact storage
+    relationships through pointer lanes, copies, offsets and joins, including
+    hidden result destinations and slice bounds/loans. Carry ordinary generic
+    machine satisfaction through assembly callbacks.
+  - Implement value-location `align_of(value)` for addressable storage,
+    references and nonempty slices, with static/runtime observation, exact
+    location validity and admitted interpreted geometry; preserve the separate
+    type-layout meaning of `align_of<T>()`.
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1389,7 +1409,11 @@ defines the complete product bar.
   provider; wrong-edge invariants, unmodeled memory, wrong controller/port/target
   coordinates, missing effects/order/clobbers, live linear exits, and
   forged/replayed/double-completion controls reject (existing `fail/inline_asm/*`
-  stay rejected).
+  stay rejected). The machine-body and value-alignment witnesses additionally
+  pin missing conditional successors, nonadjacent zero-cost transitions, wrong
+  return lanes or uninitialized result fields, stale pointer/alignment facts,
+  empty-slice location queries, implicit clobbers and corrupted setup inputs as
+  rejecting controls; both producers, Terminal and native retain those contracts.
 
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and

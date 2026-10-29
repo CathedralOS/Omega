@@ -126,6 +126,57 @@ Interpreted [assembly](assembly.md#interpreted-execution) separately realizes
 supported instruction semantics; any operation needing physical memory geometry
 requires an explicit admitted mapping, not arithmetic on these identities.
 
+## Location alignment
+
+Named decision: `value-location-alignment-query`, settled 2026-10-29.
+`align_of(value)` is the value form of the existing compiler-known core query,
+not a keyword or a cast. It returns a positive power-of-two `u64` alignment
+guaranteed for the observed storage location. It may establish stronger
+alignment than the type's minimum; it need not expose the greatest divisor of
+a physical numeric address.
+
+```omega
+const required_alignment: u64 = align_of<u8>();
+let packet_alignment: u64 = align_of(packet);
+```
+
+For an ordinary addressable place, the query observes that place's storage.
+For `&T` or `&mut T`, it observes the referent, not the reference descriptor.
+For a borrowed slice, it observes the first element's location, not the slice
+descriptor; this form requires a nonempty slice. It does not claim that every
+element shares that alignment: element offsets and stride still matter.
+Querying a numeric `addr` place measures that place, not storage at the numeric
+address. An inaccessible or nonaddressable subject does not acquire a location
+through the query.
+
+The operand is observed once without moving its value or reading element bytes.
+Ordinary storage, borrow and lifetime obligations remain in force. The query
+neither creates nor retains an access loan, initializes storage, strengthens
+permissions or authorizes a memory operation. An empty slice cannot justify an
+implicit `&slice[0]`; guard or use an independently justified backing view first.
+
+The result names the observed location at that point. Mutating data bytes does
+not itself move the location, but replacing the view, changing its offset,
+moving its backing or ending its lifetime cannot preserve a stale relationship.
+Pointer adjustments must reestablish the resulting location's alignment from
+the original guarantee and the offset. A copied scalar alignment value alone
+does not identify the storage it once described.
+
+Validated layout, placement and allocator contracts can discharge alignment
+goals statically. Otherwise a location-dependent query may require runtime
+computation; it is not automatically a semantic constant. A guard such as
+`align_of(packet) >= 16` can establish the alignment obligation for the exact
+live location. The instruction's independent bounds and authority obligations
+still apply. No spelling-based `aligned` predicate or instruction-induced
+assumption is needed.
+
+Interpretation observes selected-target alignment through the admitted storage
+mapping, not the low bits of an opaque entry/storage ID or the alignment of a
+host interpreter object. Missing required geometry rejects rather than
+fabricating a result. The type form `align_of<T>()` continues to report the
+selected layout's minimum, independent of any particular allocation; see
+[layout queries](../layouts/plans.md#size-and-alignment-queries).
+
 ## Native code layout queries
 
 `code_layout<SelectedMachine<Arguments>>()` describes the exact selected native
