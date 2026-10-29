@@ -1,0 +1,6 @@
+use omega::language::core::float_operations;
+
+machine main() {
+    transition 1 / 0 == 0 { _ -> done() }
+    machine done() {}
+}
