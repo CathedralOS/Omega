@@ -64,7 +64,7 @@ fn deferred_constants_use_canonical_entries_without_source_snapshots() {
     }
     assert!(closure.contains("build_time_evaluation::complete_scalar_applications("));
     let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
-    assert!(checking.contains("constant_closure::retain_evaluation_entries(&mut program)"));
+    assert!(checking.contains("constant_entries::retain_evaluation_entries(&mut program)"));
     let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
     for source in [checking, product, selection] {
         for retired in [
@@ -110,7 +110,7 @@ fn reused_product_selection_shares_the_checked_program() {
 }
 
 #[test]
-fn constant_proof_closure_belongs_to_psi() {
+fn canonical_proof_completion_has_no_source_rewrite_api() {
     let coordinator = include_str!("terminal/scalar_completion.rs");
     assert!(coordinator.contains("build_time_evaluation::complete_scalar_applications("));
     for forbidden in [
@@ -131,9 +131,26 @@ fn constant_proof_closure_belongs_to_psi() {
         );
     }
     let facade = include_str!("../../../../psi/compilation/driver/src/lib.rs");
-    assert!(!facade.contains("settle_closed_constant_execution"));
-    let proof =
-        include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
+    let stage = include_str!(
+        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/lib.rs"
+    );
+    for source in [facade, stage] {
+        for retired in [
+            "ConstantProofClosure",
+            "ConstantProofApplication",
+            "settle_closed_constant_execution",
+            "pub use facts::declaration_descriptions::retain_declaration_descriptions",
+        ] {
+            assert!(
+                !source.contains(retired),
+                "source rewrite API returned: {retired}"
+            );
+        }
+    }
+    let entries =
+        include_str!("../../../../psi/compilation/driver/src/source_checking/constant_entries.rs");
+    assert!(entries.contains("fn retain_evaluation_entries("));
+    assert!(!entries.contains("CheckedTrees::with_roots("));
     let applications =
         include_str!("../../../../psi/foundation/semantic-vocabulary/src/proof_applications.rs");
     for forbidden in [
@@ -143,8 +160,8 @@ fn constant_proof_closure_belongs_to_psi() {
         "native_production::",
     ] {
         assert!(
-            !proof.contains(forbidden) && !applications.contains(forbidden),
-            "Psi proof closure depends on {forbidden}"
+            !entries.contains(forbidden) && !applications.contains(forbidden),
+            "Psi constant entries or proof applications depend on {forbidden}"
         );
     }
 }
