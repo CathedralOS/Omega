@@ -25,6 +25,12 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
     }
 }
 
+macro_rules! eq {
+    ($left:expr => $right:expr) => {
+        assert_eq!($left, $right);
+    };
+}
+
 #[test]
 fn crash_identity_tags_do_not_alias_other_instruction_families() {
     for semantic in MachineSemanticKind::ALL {
@@ -377,14 +383,8 @@ fn zero_fill_catalog_identity_binds_key_and_dynamic_operands() {
 #[test]
 fn wrapping_add_catalog_reuses_the_add_constraint_without_exact_semantics() {
     assert_eq!(semantic_kind_tag(MachineSemanticKind::WrappingAddI64), 58);
-    assert_eq!(
-        alternative_family_tag(MachineAlternativeFamily::WrappingAddI64),
-        58
-    );
-    assert_eq!(
-        keys().for_semantic(MachineSemanticKind::WrappingAddI64),
-        Some(keys().add_i64)
-    );
+    eq!(alternative_family_tag(MachineAlternativeFamily::WrappingAddI64) => 58);
+    eq!(keys().for_semantic(MachineSemanticKind::WrappingAddI64) => Some(keys().add_i64));
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
     let mut changed = source;
@@ -398,18 +398,9 @@ fn wrapping_add_catalog_reuses_the_add_constraint_without_exact_semantics() {
 #[test]
 fn remainder_catalog_identity_binds_its_key_and_distinct_semantic_family() {
     assert_eq!(semantic_kind_tag(MachineSemanticKind::ExactDivideU64), 56);
-    assert_eq!(
-        semantic_kind_tag(MachineSemanticKind::WrappingRemainderI64),
-        57
-    );
-    assert_eq!(
-        alternative_family_tag(MachineAlternativeFamily::ExactDivideU64),
-        56
-    );
-    assert_eq!(
-        alternative_family_tag(MachineAlternativeFamily::WrappingRemainderI64),
-        57
-    );
+    eq!(semantic_kind_tag(MachineSemanticKind::WrappingRemainderI64) => 57);
+    eq!(alternative_family_tag(MachineAlternativeFamily::ExactDivideU64) => 56);
+    eq!(alternative_family_tag(MachineAlternativeFamily::WrappingRemainderI64) => 57);
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
     let mut changed = source.clone();
@@ -444,37 +435,16 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
         (MachineSemanticKind::ExactRemainderI64, 113),
     ] {
         assert_eq!(semantic_kind_tag(semantic), tag);
-        assert_eq!(
-            alternative_family_tag(MachineAlternativeFamily::from(semantic)),
-            tag
-        );
+        eq!(alternative_family_tag(MachineAlternativeFamily::from(semantic)) => tag);
         assert!(MachineSemanticKind::ALL.contains(&semantic));
     }
     let keys = keys();
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::ExactRemainderU64),
-        Some(keys.remainder_u64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::WrappingDivideI64),
-        Some(keys.divide_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::WrappingSubtractI64),
-        Some(keys.subtract_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::WrappingMultiplyI64),
-        Some(keys.multiply_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::BitwiseOrI64),
-        Some(keys.subtract_i64)
-    );
-    assert_eq!(
-        keys.for_semantic(MachineSemanticKind::BitwiseNotI64),
-        Some(keys.copy_i64)
-    );
+    eq!(keys.for_semantic(MachineSemanticKind::ExactRemainderU64) => Some(keys.remainder_u64));
+    eq!(keys.for_semantic(MachineSemanticKind::WrappingDivideI64) => Some(keys.divide_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::WrappingSubtractI64) => Some(keys.subtract_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::WrappingMultiplyI64) => Some(keys.multiply_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::BitwiseOrI64) => Some(keys.subtract_i64));
+    eq!(keys.for_semantic(MachineSemanticKind::BitwiseNotI64) => Some(keys.copy_i64));
     for semantic in [
         MachineSemanticKind::WrappingShiftLeftI64,
         MachineSemanticKind::WrappingShiftRightI64,
@@ -538,10 +508,7 @@ fn integer_float_conversions_select_their_exact_control_constraint() {
             domain: IeeeFloatToIntegerDomain::Trapping,
         },
     ] {
-        assert_eq!(
-            keys.for_semantic(semantic(operation)),
-            keys.ieee_float_conversion_control
-        );
+        eq!(keys.for_semantic(semantic(operation)) => keys.ieee_float_conversion_control);
     }
     for operation in [
         IeeeFloatArithmeticOperation::Negate,
@@ -555,10 +522,7 @@ fn integer_float_conversions_select_their_exact_control_constraint() {
             domain: IeeeFloatToIntegerDomain::Saturating,
         },
     ] {
-        assert_eq!(
-            keys.for_semantic(semantic(operation)),
-            keys.ieee_float_unary
-        );
+        eq!(keys.for_semantic(semantic(operation)) => keys.ieee_float_unary);
     }
 
     let mut aliased = keys;
@@ -578,26 +542,11 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
     use crate::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
     // The forms that existed before the family was widened keep their tags;
     // every (operation, carrier) pair has one tag and no two pairs collide.
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::U64),
-        54
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::U64),
-        55
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::I32),
-        60
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::I32),
-        61
-    );
-    assert_eq!(
-        saturating_family_tag(SaturatingOperation::Divide, SaturatingCarrier::I32),
-        62
-    );
+    eq!(saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::U64) => 54);
+    eq!(saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::U64) => 55);
+    eq!(saturating_family_tag(SaturatingOperation::Add, SaturatingCarrier::I32) => 60);
+    eq!(saturating_family_tag(SaturatingOperation::Subtract, SaturatingCarrier::I32) => 61);
+    eq!(saturating_family_tag(SaturatingOperation::Divide, SaturatingCarrier::I32) => 62);
     let mut tags = Vec::new();
     for carrier in SaturatingCarrier::ALL {
         for (semantic, family, operation) in [
@@ -754,10 +703,7 @@ fn identity_distinguishes_call_arity_order_and_role_boundaries() {
         .selected_keys
         .call_scalar
         .insert(0, structural_key);
-    assert_eq!(
-        source.selected_keys.in_identity_order(),
-        relabeled.selected_keys.in_identity_order()
-    );
+    eq!(source.selected_keys.in_identity_order() => relabeled.selected_keys.in_identity_order());
     assert_ne!(baseline, machine_effect_catalog_identity(&relabeled));
 }
 
@@ -770,10 +716,7 @@ fn identity_distinguishes_foreign_call_and_return_role_boundaries() {
     // while moving the key across the call/return roster boundary.
     let call_key = relabeled.selected_keys.call_normalized_foreign.remove(0);
     relabeled.selected_keys.return_aggregate.insert(0, call_key);
-    assert_eq!(
-        source.selected_keys.in_identity_order(),
-        relabeled.selected_keys.in_identity_order()
-    );
+    eq!(source.selected_keys.in_identity_order() => relabeled.selected_keys.in_identity_order());
     assert_ne!(
         machine_effect_catalog_identity(&source),
         machine_effect_catalog_identity(&relabeled)
@@ -1010,10 +953,7 @@ fn trapping_family_tags_are_dense_distinct_and_pinned() {
         let form = TrappingForm { operation, carrier };
         let family = MachineAlternativeFamily::TrappingInteger(form);
         assert_eq!(alternative_family_tag(family), expected, "{form:?}");
-        assert_eq!(
-            semantic_kind_tag(MachineSemanticKind::TrappingInteger(form)),
-            expected
-        );
+        eq!(semantic_kind_tag(MachineSemanticKind::TrappingInteger(form)) => expected);
     }
     let fixed = PINNED_ALTERNATIVE_FAMILY_TAGS
         .iter()
@@ -1045,10 +985,7 @@ fn atomic_family_tags_and_encoded_widths_are_pinned() {
             alternative_family_tag(MachineAlternativeFamily::AtomicAccess(form)),
             u16::from(tag)
         );
-        assert_eq!(
-            semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)),
-            u16::from(tag)
-        );
+        eq!(semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)) => u16::from(tag));
         let encoded = pinned_effects(
             MachineEncodedMemoryEffect::AtomicPointerV1 {
                 pointer_operand: 0x0201,
@@ -1528,10 +1465,7 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
         assert_eq!(semantic_kind_tag(semantic), 231);
         assert_eq!(alternative_family_tag(family), 231);
         assert_eq!(super::semantic_kind_payload(semantic), Some(form.ordinal()));
-        assert_eq!(
-            super::alternative_family_payload(family),
-            Some(form.ordinal())
-        );
+        eq!(super::alternative_family_payload(family) => Some(form.ordinal()));
         let mut bytes = Vec::new();
         encode_machine_alternative_key_identity(
             &mut bytes,
@@ -1551,15 +1485,9 @@ fn float_result_policy_identities_and_constraint_selection_are_exact() {
     let extended_inventory = selected_keys.in_identity_order();
     selected_keys.float_result_trapping = None;
     selected_keys.float_result_saturating = None;
-    assert_eq!(
-        &extended_inventory[..extended_inventory.len() - 2],
-        selected_keys.in_identity_order()
-    );
+    eq!(&extended_inventory[..extended_inventory.len() - 2] => selected_keys.in_identity_order());
     for form in FloatResultPolicyForm::ALL {
-        assert_eq!(
-            selected_keys.for_semantic(MachineSemanticKind::FloatResultPolicy(form)),
-            None
-        );
+        eq!(selected_keys.for_semantic(MachineSemanticKind::FloatResultPolicy(form)) => None);
     }
     assert!(MachineSemanticKind::ALL.is_sorted());
     let mut trapping_only = catalog();
