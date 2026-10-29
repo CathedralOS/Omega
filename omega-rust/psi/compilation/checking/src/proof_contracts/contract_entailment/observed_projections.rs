@@ -125,7 +125,6 @@ pub(super) fn project_declared_field(
     program: &dyn crate::CheckingInput,
     value: StructuralTerm,
     field_name: &str,
-    mut case_selected: impl FnMut(symbols::SymbolHandle, symbols::SymbolHandle) -> bool,
 ) -> Option<StructuralTerm> {
     let Some(reference) = super::structural_terms::owned_observation_type(program, &value)
         .or_else(|| super::structural_terms::shared_inline_observation_type(program, &value))
@@ -134,17 +133,7 @@ pub(super) fn project_declared_field(
     };
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let mut fields = program
-        .data_members(data)
-        .iter()
-        .flat_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant)
-                if case_selected(data.symbol, variant.symbol) =>
-            {
-                program.data_payload_fields(variant)
-            }
-            _ => &[],
-        })
+        .data_member_fields(program.data_members(data))
         .filter(|field| field.name.as_str() == field_name);
     let (Some(field), None) = (fields.next(), fields.next()) else {
         return None;
