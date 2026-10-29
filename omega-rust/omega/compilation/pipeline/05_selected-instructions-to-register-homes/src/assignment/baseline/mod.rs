@@ -117,16 +117,10 @@ pub enum OptimizedRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedRegisterHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized register-home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedRegisterHomeCustodyError {}
+error_report!(
+    OptimizedRegisterHomeCustodyError,
+    "optimized register-home staging failed"
+);
 
 /// Physical homes after one exact fixed-view copy transformation and complete
 /// reanalysis. This remains custody-only and cannot enter machine emission.
@@ -183,13 +177,7 @@ pub enum OptimizedPostCopyRegisterHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostCopyRegisterHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-copy register-home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostCopyRegisterHomeCustodyError {}
+error_report!(
+    OptimizedPostCopyRegisterHomeCustodyError,
+    "optimized post-copy register-home staging failed"
+);

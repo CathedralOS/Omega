@@ -32,13 +32,7 @@ pub enum AllocatedCalleeSavedRequirementError {
     },
 }
 
-impl std::fmt::Display for AllocatedCalleeSavedRequirementError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "allocated callee-saved requirement derivation failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for AllocatedCalleeSavedRequirementError {}
+error_report!(
+    AllocatedCalleeSavedRequirementError,
+    "allocated callee-saved requirement derivation failed"
+);

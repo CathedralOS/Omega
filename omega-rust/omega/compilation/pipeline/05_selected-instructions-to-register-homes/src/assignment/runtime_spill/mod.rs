@@ -383,10 +383,7 @@ pub enum RuntimeSpillAllocationError {
     RecoveryNotRequired,
 }
 
-impl std::fmt::Display for RuntimeSpillAllocationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "runtime spill allocation failed: {self:?}")
-    }
-}
-
-impl std::error::Error for RuntimeSpillAllocationError {}
+error_report!(
+    RuntimeSpillAllocationError,
+    "runtime spill allocation failed"
+);

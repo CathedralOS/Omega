@@ -66,6 +66,19 @@ macro_rules! copy_receipt {
     };
 }
 
+/// `Display` and `Error` for a refusal that renders one context and its `Debug` value.
+macro_rules! error_report {
+    ($error:ty, $message:literal) => {
+        impl std::fmt::Display for $error {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+
+        impl std::error::Error for $error {}
+    };
+}
+
 pub(crate) use optimization_core::digest_encoder;
 #[macro_use]
 mod assignment;

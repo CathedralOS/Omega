@@ -155,13 +155,7 @@ impl RegisterHomeError {
     }
 }
 
-impl std::fmt::Display for RegisterHomeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "Terminal register-home assignment failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for RegisterHomeError {}
+error_report!(
+    RegisterHomeError,
+    "Terminal register-home assignment failed"
+);

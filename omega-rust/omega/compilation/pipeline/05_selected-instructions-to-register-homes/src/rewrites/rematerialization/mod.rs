@@ -186,13 +186,7 @@ pub enum OptimizedActiveResidentRematerializationError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedActiveResidentRematerializationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized active-resident rematerialization failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedActiveResidentRematerializationError {}
+error_report!(
+    OptimizedActiveResidentRematerializationError,
+    "optimized active-resident rematerialization failed"
+);

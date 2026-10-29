@@ -143,16 +143,10 @@ pub enum OptimizedPostSelectedLoweringHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostSelectedLoweringHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-selected-lowering home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostSelectedLoweringHomeCustodyError {}
+error_report!(
+    OptimizedPostSelectedLoweringHomeCustodyError,
+    "optimized post-selected-lowering home staging failed"
+);
 
 /// Strict homes after a completed pre-allocation suite. The suite's
 /// completion identity is retained even when its transformation ledger is
@@ -209,13 +203,7 @@ pub enum OptimizedPostPreAllocationHomeCustodyError {
     ReceiptMismatch,
 }
 
-impl std::fmt::Display for OptimizedPostPreAllocationHomeCustodyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-pre-allocation home staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostPreAllocationHomeCustodyError {}
+error_report!(
+    OptimizedPostPreAllocationHomeCustodyError,
+    "optimized post-pre-allocation home staging failed"
+);
