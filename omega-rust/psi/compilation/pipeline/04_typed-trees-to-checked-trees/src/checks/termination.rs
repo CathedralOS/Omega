@@ -31,27 +31,6 @@ pub(crate) use ranking::proves_ranked_entry_requirement;
 use crate::labels::machine_name;
 use diagnostics::Diagnostic;
 
-/// A successor receives a completed operand, including the operation evidence
-/// carried by scalar stores. Reinterpreting it as a specification term loses
-/// the correlated bounds of an admitted remainder. Formation and operand-frame
-/// preservation remain independent obligations of the selected call edge.
-fn arrival_value(
-    program: &dyn validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    values: &crate::checks::current_scalar_values::CurrentScalarValues<'_>,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<validation::ScopedArithmeticValue> {
-    use crate::checks::contracts::prover::call_guarantees::{arithmetic, callable::Callable};
-
-    let term = values.current(expression)?;
-    let state = program.state_by_symbol(term.owner)?;
-    Some(arithmetic::completed_scalar_value(
-        program,
-        &Callable::Machine { machine, state },
-        term,
-    ))
-}
-
 /// Admit source ranking once after independent effects and caller frames are
 /// complete. All exact authored bodies retain their local result; a selected
 /// relational witness additionally retains its coherent full coordinates.
@@ -218,24 +197,26 @@ pub(crate) fn admit_machine_rankings(
                     .any(|state| state.symbol == coordinate.state)
             })
             .map(|coordinate| {
+                let path = admitted
+                    .path_segments
+                    .insert_many(coordinate.coordinate.path.clone());
+                let selected = admitted
+                    .coordinates
+                    .insert(checked_trees::CheckedRankCoordinate {
+                        parameter: coordinate.parameter,
+                        path,
+                    });
                 let measure = match coordinate.observation {
                     validation::RankPremiseObservation::Value => {
-                        checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                        checked_trees::CheckedNaturalRankMeasure::IntegerValue {
+                            coordinate: selected,
                             primitive_type: coordinate.primitive_type,
                         }
                     }
                     validation::RankPremiseObservation::Length => {
-                        let path = admitted
-                            .path_segments
-                            .insert_many(coordinate.coordinate.path.clone());
-                        let coordinate =
-                            admitted
-                                .coordinates
-                                .insert(checked_trees::CheckedRankCoordinate {
-                                    parameter: coordinate.parameter,
-                                    path,
-                                });
-                        checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate }
+                        checked_trees::CheckedNaturalRankMeasure::SequenceLength {
+                            coordinate: selected,
+                        }
                     }
                 };
                 checked_trees::CheckedStateNaturalRank {

@@ -119,7 +119,18 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 if !primitive_type.is_fixed_integer() {
                     return None;
                 }
-                CheckedNaturalRankMeasure::IntegerParameter { primitive_type }
+                let path = admitted.path_segments.insert_many(destination.path.clone());
+                let coordinate =
+                    admitted
+                        .coordinates
+                        .insert(checked_trees::CheckedRankCoordinate {
+                            parameter: destination.parameter,
+                            path,
+                        });
+                CheckedNaturalRankMeasure::IntegerValue {
+                    coordinate,
+                    primitive_type,
+                }
             }
             (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
             (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,

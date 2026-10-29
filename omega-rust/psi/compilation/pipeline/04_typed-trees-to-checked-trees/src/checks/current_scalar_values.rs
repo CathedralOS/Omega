@@ -868,6 +868,16 @@ impl<'program> CurrentScalarValues<'program> {
             .clone()
     }
 
+    /// Value of a completed operand at this frame, retaining admitted
+    /// operation evidence as well as captured stores and field values.
+    /// Formation and ordered operand effects remain caller obligations.
+    pub(crate) fn current_value(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.capture(self.program, self.machine, self.state, expression)
+    }
+
     pub(crate) fn initial_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
         self.initial
             .iter()

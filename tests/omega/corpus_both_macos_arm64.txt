@@ -58,6 +58,17 @@ pass/facts/borrowed_result_field_domains_other_machine built 1071ms exit:0 inter
 pass/facts/borrowed_result_field_domains_other_state built 1073ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 pass/facts/borrowed_result_field_domains_parameter built 1081ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 pass/facts/borrowed_result_field_domains_target_body built 1083ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
+pass/facts/nested_machine_joint_rank_projected_mutated_copy_exit built 1146ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_nested_record_exit built 1074ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_call_result_exit built 1065ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_const_name_exit built 1109ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_field_exit built 1358ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_local_exit built 1149ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_match_join_exit built 1093ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_other_machine_exit built 1098ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_other_state_exit built 1105ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_parameter_exit built 1124ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
+pass/facts/nested_machine_joint_rank_projected_value_target_body_exit built 1092ms exit:0 interpreter-exit:0 interpreter:agrees @82c75bb80584
 pass/facts/nested_machine_joint_rank_ranged_carried_bound_exit built 1088ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
 pass/facts/nested_machine_joint_rank_ranged_partial_floor_exit built 1121ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
 pass/facts/nested_machine_joint_rank_ranged_rebound_ceiling_exit built 1078ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30

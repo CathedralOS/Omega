@@ -119,3 +119,7 @@ Each place also carries the same fact through `ranged_value/`.
 explain why optional intervals are instantiated at each invocation while the
 nonnegative rank relation stays fixed. The accompanying controls retain strict
 descent, arithmetic formation and ordinary call obligations.
+
+[Projected scalar coordinates](local/projected_value/README.md) carry the same
+private-cycle fact through inline record fields in all nine places, with
+nested-field, moved-copy, entry-reset and wrong-subject controls.

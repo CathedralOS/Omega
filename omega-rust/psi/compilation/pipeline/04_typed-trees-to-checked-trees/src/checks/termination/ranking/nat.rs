@@ -48,7 +48,13 @@ pub(super) fn state_rank(
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: position,
-                measure: CheckedNaturalRankMeasure::IntegerParameter { primitive_type },
+                // This query is comparison scratch only, never inserted as
+                // an executable observation. The admission writer later binds
+                // the exact coordinate, just as it binds observation roots.
+                measure: CheckedNaturalRankMeasure::IntegerValue {
+                    coordinate: Default::default(),
+                    primitive_type,
+                },
             })
         }
         DecreaseMeasure::Distance { lower, upper } => {
