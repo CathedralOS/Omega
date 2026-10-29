@@ -95,6 +95,12 @@ fn emit_compare_immediate_branch(
     emit(None, Instruction::JumpConditional { condition, target });
 }
 
+macro_rules! t {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr => $g:expr => $h:expr => $i:expr) => {
+        emit_cont_tail($a, $b, $c, $d, $e, $f, $g, $h, $i)
+    };
+}
+
 fn layout(
     predicate: ByteSequencePredicate,
     base: u8,
@@ -179,88 +185,18 @@ fn layout(
             },
         );
         // One continuation: the byte admits 0x80..=0xBF.
-        emit_cont_tail(
-            &mut emit,
-            Label::Cont1,
-            1,
-            0x80,
-            0xBF,
-            base,
-            count,
-            cursor,
-            byte,
-        );
+        t!(&mut emit => Label::Cont1 => 1 => 0x80 => 0xBF => base => count => cursor => byte);
         // Two continuations: ordinary lead bytes admit 0x80..=0xBF twice;
         // E0 forbids the overlong second bytes below 0xA0 and ED forbids
         // the surrogate halves above 0x9F.
-        emit_cont_tail(
-            &mut emit,
-            Label::Cont2Any,
-            2,
-            0x80,
-            0xBF,
-            base,
-            count,
-            cursor,
-            byte,
-        );
-        emit_cont_tail(
-            &mut emit,
-            Label::E0Path,
-            2,
-            0xA0,
-            0xBF,
-            base,
-            count,
-            cursor,
-            byte,
-        );
-        emit_cont_tail(
-            &mut emit,
-            Label::EdPath,
-            2,
-            0x80,
-            0x9F,
-            base,
-            count,
-            cursor,
-            byte,
-        );
+        t!(&mut emit => Label::Cont2Any => 2 => 0x80 => 0xBF => base => count => cursor => byte);
+        t!(&mut emit => Label::E0Path => 2 => 0xA0 => 0xBF => base => count => cursor => byte);
+        t!(&mut emit => Label::EdPath => 2 => 0x80 => 0x9F => base => count => cursor => byte);
         // Three continuations: F0 needs second >= 0x90, F4 needs second
         // <= 0x8F; the rest admit 0x80..=0xBF.
-        emit_cont_tail(
-            &mut emit,
-            Label::Cont3Any,
-            3,
-            0x80,
-            0xBF,
-            base,
-            count,
-            cursor,
-            byte,
-        );
-        emit_cont_tail(
-            &mut emit,
-            Label::F0Path,
-            3,
-            0x90,
-            0xBF,
-            base,
-            count,
-            cursor,
-            byte,
-        );
-        emit_cont_tail(
-            &mut emit,
-            Label::F4Path,
-            3,
-            0x80,
-            0x8F,
-            base,
-            count,
-            cursor,
-            byte,
-        );
+        t!(&mut emit => Label::Cont3Any => 3 => 0x80 => 0xBF => base => count => cursor => byte);
+        t!(&mut emit => Label::F0Path => 3 => 0x90 => 0xBF => base => count => cursor => byte);
+        t!(&mut emit => Label::F4Path => 3 => 0x80 => 0x8F => base => count => cursor => byte);
         emit(Some(Label::Advance1), Inc(cursor));
         emit(
             None,
