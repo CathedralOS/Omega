@@ -767,6 +767,11 @@ fn case_fact_expression_mentions(
     const_mentions_allowed: bool,
 ) -> bool {
     use syntax::expression::ExpressionNode;
+    macro_rules! mention_child {
+        ($expression:expr $(,)?) => {
+            case_fact_expression_mentions(syntax_trees, $expression, gate, const_mentions_allowed)
+        };
+    }
     match syntax_trees.expressions.expression(expression) {
         ExpressionNode::Name(path) => syntax_trees
             .expressions
@@ -776,55 +781,20 @@ fn case_fact_expression_mentions(
                 gate.expression_mentions(member.as_str(syntax_trees), const_mentions_allowed)
             }),
         ExpressionNode::Binary(binary) => {
-            case_fact_expression_mentions(syntax_trees, binary.left, gate, const_mentions_allowed)
-                || case_fact_expression_mentions(
-                    syntax_trees,
-                    binary.right,
-                    gate,
-                    const_mentions_allowed,
-                )
+            mention_child!(binary.left) || mention_child!(binary.right)
         }
-        ExpressionNode::Unary(unary) => {
-            case_fact_expression_mentions(syntax_trees, unary.operand, gate, const_mentions_allowed)
-        }
-        ExpressionNode::Member(member) => case_fact_expression_mentions(
-            syntax_trees,
-            member.receiver,
-            gate,
-            const_mentions_allowed,
-        ),
-        ExpressionNode::Borrow(borrow) => {
-            case_fact_expression_mentions(syntax_trees, borrow.target, gate, const_mentions_allowed)
-        }
+        ExpressionNode::Unary(unary) => mention_child!(unary.operand),
+        ExpressionNode::Member(member) => mention_child!(member.receiver),
+        ExpressionNode::Borrow(borrow) => mention_child!(borrow.target),
         ExpressionNode::Indexed(indexed) => {
-            case_fact_expression_mentions(
-                syntax_trees,
-                indexed.collection,
-                gate,
-                const_mentions_allowed,
-            ) || case_fact_expression_mentions(
-                syntax_trees,
-                indexed.index,
-                gate,
-                const_mentions_allowed,
-            )
+            mention_child!(indexed.collection) || mention_child!(indexed.index)
         }
-        ExpressionNode::Range(range) => {
-            case_fact_expression_mentions(syntax_trees, range.start, gate, const_mentions_allowed)
-                || case_fact_expression_mentions(
-                    syntax_trees,
-                    range.end,
-                    gate,
-                    const_mentions_allowed,
-                )
-        }
+        ExpressionNode::Range(range) => mention_child!(range.start) || mention_child!(range.end),
         ExpressionNode::ArrayLiteral(elements) => syntax_trees
             .expressions
             .expression_handles(*elements)
             .iter()
-            .any(|element| {
-                case_fact_expression_mentions(syntax_trees, *element, gate, const_mentions_allowed)
-            }),
+            .any(|element| mention_child!(*element)),
         ExpressionNode::Membership(membership) => {
             case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
                 || syntax_trees
@@ -834,7 +804,7 @@ fn case_fact_expression_mentions(
                     .any(|member| gate.mentions(member.as_str(syntax_trees)))
         }
         ExpressionNode::Cast(cast) => {
-            case_fact_expression_mentions(syntax_trees, cast.value, gate, const_mentions_allowed)
+            mention_child!(cast.value)
                 || case_fact_type_mentions(syntax_trees, cast.target_type, gate)
                 || syntax_trees
                     .expressions
@@ -860,25 +830,12 @@ fn case_fact_expression_mentions(
                 .as_str(syntax_trees)
                 .split("::")
                 .any(|name| gate.mentions(name))
-                || (call.receiver.is_valid()
-                    && case_fact_expression_mentions(
-                        syntax_trees,
-                        call.receiver,
-                        gate,
-                        const_mentions_allowed,
-                    ))
+                || (call.receiver.is_valid() && mention_child!(call.receiver))
                 || syntax_trees
                     .expressions
                     .expression_handles(call.arguments)
                     .iter()
-                    .any(|argument| {
-                        case_fact_expression_mentions(
-                            syntax_trees,
-                            *argument,
-                            gate,
-                            const_mentions_allowed,
-                        )
-                    })
+                    .any(|argument| mention_child!(*argument))
                 || call.machine_arguments.iter().any(|argument| {
                     case_fact_static_argument_mentions(syntax_trees, argument, gate)
                 })
