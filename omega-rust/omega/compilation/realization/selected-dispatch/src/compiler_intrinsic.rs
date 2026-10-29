@@ -793,7 +793,26 @@ fn boundary_row_shape(
     {
         return Ok(false);
     }
-    if realization.supply_mode != MachineSupplyMode::Boundary {
+    let exact_supply = match realization.supply_mode {
+        MachineSupplyMode::Boundary => true,
+        MachineSupplyMode::CompilerPrimitive if plan.target == "uefi_x86_64" => {
+            matches!(
+                (
+                    typed.sealed_core_entry_realization(realization_symbol, requirement_symbol),
+                    shape
+                ),
+                (
+                    Some(CoreEntryIntrinsic::ProgramStorageEnter),
+                    BoundaryIntrinsicShape::ProgramStorageToUnit
+                ) | (
+                    Some(CoreEntryIntrinsic::ProgramImageRetainedSuffixStart),
+                    BoundaryIntrinsicShape::UnitToAddress
+                )
+            )
+        }
+        _ => false,
+    };
+    if !exact_supply {
         return Ok(false);
     }
     let [entry] = typed.machine_states(realization) else {
