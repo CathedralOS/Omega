@@ -1,0 +1,24 @@
+{
+  "schema": "omega-corpus-source-bundles-v1",
+  "purpose": "Retain exact observed source revisions across queue squash and work-branch cleanup. Source provenance only; runtime qualification is separate.",
+  "bundles": [
+    {
+      "revision": "f73a346cd5263c1ffc4f47aae5e7b80b6b04ccdf",
+      "name": "f73a346cd5263c1ffc4f47aae5e7b80b6b04ccdf.bundle",
+      "sha256": "3122bb140386f9931de286380909b232a36d1802a902ded0f8cb3631cbcd3a24",
+      "bytes": 58983
+    },
+    {
+      "revision": "3e5750be47b9a19293d46881e76f7d658a70e910",
+      "name": "3e5750be47b9a19293d46881e76f7d658a70e910.bundle",
+      "sha256": "d898dffe3dd808aa1fa08ab390bfddd1c9cb117acadb4a98e1d17cb4c5d9cd6a",
+      "bytes": 60001
+    },
+    {
+      "revision": "55a5fd4e07f818d7e6a49d4d4ad31357f89a8772",
+      "name": "55a5fd4e07f818d7e6a49d4d4ad31357f89a8772.bundle",
+      "sha256": "ac4abd3e27408963034e992fe4b22159c92ac95b2e2065dfac863ca69cfe33e7",
+      "bytes": 82821
+    }
+  ]
+}
