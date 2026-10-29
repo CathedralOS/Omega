@@ -189,9 +189,9 @@ pub use value_custody::storage_contents::{
     ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
 pub use value_custody::struct_literals::{
-    ArrayWindowShape, array_window_shape, case_predicates_admit_zero,
-    selected_construction_definition, selected_construction_field_type,
-    validate_value_construction,
+    ArrayWindowShape, array_window_shape, case_predicates_admit_zero, selected_construction_case,
+    selected_construction_definition, selected_construction_field,
+    selected_construction_field_type, validate_value_construction,
 };
 pub use value_custody::structural_identity::{
     logical_structural_type_identity, stored_structural_type_identity, stores_reference_shape,
@@ -238,13 +238,14 @@ pub use proof_contracts::bound_expression_meaning::{
     has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
     has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
     has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,
-    has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
-    has_exact_integer_domain_subject, has_exact_parameter_case_membership_meaning,
+    has_exact_data_case_membership_meaning, has_exact_declaration_case_membership_meaning,
+    has_exact_domain_case_membership_meaning, has_exact_integer_domain_subject,
     sealed_float_comparison, sealed_float_comparison_declaration,
 };
 pub use proof_contracts::contextual_identity::{
     contextual_identity_subject_type, contextual_proposition_children,
 };
+pub use proof_contracts::contract_entailment::declaration_projection_cases_hold;
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
 pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
