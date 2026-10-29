@@ -111,3 +111,18 @@ corpus_runner sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c39
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions encode into machine bytes (opcode `xor` on `x86_64`), basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
 - **What remains open:** Dynamic signed bitwise XOR across negative operands with sign bit flipping, multi-operand signed XOR chains, and vector SIMD integer XOR optimizations.
+
+## Build-owned target-body migration
+
+`BUILD-OWNED-TARGET-SELECTION` migrates this existing target-body witness to
+ordinary named implementations selected by explicit target-keyed Build rows.
+Its original numeric/body tokens, input and result contracts, helper parameter
+count and main exit oracle are preserved. A separately selected tag check
+(17 for X86, 29 for ARM) makes wrong implementation selection observable.
+The target-body pin requests five unchanged-artifact Terminal installations;
+other eight places, root, their authored Build rows and runtime oracles remain
+unchanged and retain their fresh fixed-producer baseline observations.
+
+This source migration does not renew historical numeric-row completeness,
+claim native execution on Windows/Linux, or close the target/native migration
+parent tasks. Any preexisting oracle limitations remain outside its claims.
