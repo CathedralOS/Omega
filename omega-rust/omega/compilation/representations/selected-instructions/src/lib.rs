@@ -8,6 +8,8 @@
 mod codec_bytes;
 
 pub(crate) use optimization_core::digest_encoder;
+#[cfg(feature = "test-support")]
+pub mod fixture;
 pub use terminal_psi::{
     ControlRegister, InterruptControlKind, MemoryFenceKind, RegisterOperation,
     RegisterTargetApplicability, SystemRegister,
@@ -56,8 +58,8 @@ pub use selected_instructions::{
     live_ranges, liveness, liveness_function_digest, liveness_identity_from_digests,
     machine_effect_catalog_identity, plan_identity, pre_allocation_machine_effect_identity,
     provenance, saturating_family_tag, selected_instruction_plan_identity, structural_case,
-    terminator_instruction, terminator_instruction_mut, terminator_return_edge,
-    terminator_successors, terminator_successors_mut, trapping_family_tag,
+    terminator_encoding, terminator_instruction, terminator_instruction_mut,
+    terminator_return_edge, terminator_successors, terminator_successors_mut, trapping_family_tag,
     validate_isa_machine_effect_catalog, validate_machine_effect_catalog, values,
 };
 pub use selected_instructions::{

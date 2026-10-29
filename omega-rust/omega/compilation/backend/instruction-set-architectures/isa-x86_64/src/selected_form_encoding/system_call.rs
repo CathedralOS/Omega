@@ -14,7 +14,7 @@ use register_model::{
     RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
 };
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -60,11 +60,7 @@ pub fn validate_x86_64_selected_system_call_form(
         || number < 0
         || physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || !matches!(kind, SelectedInstructionKind::NormalizedForeignCall { .. })
-        || alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::NormalizedForeignCall,
-                variant: 0,
-            })
+        || alternative != kind.call_alternative_key()
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -111,7 +107,7 @@ mod tests {
             ordinal: 0,
         };
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::NormalizedForeignCall,
+            family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
             variant: 0,
         };
         for key in crate::x86_64_linux_system_call_keys() {

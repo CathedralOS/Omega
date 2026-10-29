@@ -373,10 +373,7 @@ mod tests {
     };
     use normalized_foreign_call_plan::fixture;
     use register_model::{RegisterOperandAccess, validate_physical_register_model};
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-        SelectedInstructionKind, SelectedNormalizedForeignCall,
-    };
+    use selected_instructions::SelectedNormalizedForeignCall;
     use semantic_vocabulary::BoundaryMachineId;
     use target::NativeTarget;
 
@@ -446,6 +443,44 @@ mod tests {
             input_layout,
             result,
         )
+    }
+
+    /// The AMD64 spelling of one template admission: the callback destination
+    /// vocabulary, the fixup vocabulary, and the fixup's own column record.
+    type Entrances = fixture::Entrances<
+        super::X86_64CallbackMaterializationDestination,
+        super::X86_64NormalizedForeignCallFixupKind,
+        super::X86_64NormalizedForeignCallFixupState,
+        super::X86_64CallbackAddressMaterialization,
+    >;
+
+    /// The AMD64 entrances the shared template bodies run: the `E8` call and
+    /// its rel32 patch, the callback groups' byte table, and the fixup columns
+    /// the encoder reports for them.
+    fn entrances() -> Entrances {
+        fixture::Entrances {
+            call: fixture::CallBytes {
+                bytes: vec![0xe8, 0, 0, 0, 0],
+                patch_byte_offset: 1,
+                reference_byte_offset: 5,
+            },
+            constraint: crate::machine_effects::normalized_foreign_constraint,
+            declaration: crate::x86_64_normalized_foreign_call_declaration,
+            fixed_view: crate::x86_64_fixed_register_view,
+            encode: encode_x86_64_selected_normalized_foreign_call_template,
+            validate: validate_x86_64_selected_normalized_foreign_call_template,
+            fixup: |boundary, ordinal, destinations| {
+                callback_fixup(boundary, ordinal, destinations).ok()
+            },
+            fixup_row: |callback| {
+                (
+                    callback.destination,
+                    callback.materialization_byte_offset,
+                    callback.materialization_byte_count,
+                )
+            },
+            advance: |callback| callback.materialization_byte_offset += 1,
+        }
     }
 
     #[test]
@@ -589,244 +624,20 @@ mod tests {
 
     #[test]
     fn retained_multiple_callbacks_bind_operands_effects_bytes_and_fixups() {
-        for alternate_abi in [false, true] {
-            let (physical, kind, _, _, _, _, record) = inputs(alternate_abi, 3, 1);
-            let target = record.call.binding.native_target().unwrap();
-            let original = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-            let fixture::CallbackFixture {
-                record,
-                destinations: encoded_destinations,
-                byte_counts,
-            } = fixture::callback_fixture(record, callback_destination, CALLBACK_BYTE_COUNTS);
-            let scratch_register = record
-                .call
-                .binding
-                .boundary_entry_plan
-                .call
-                .policy
-                .callback_field_scratch();
-            let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-            assert_eq!(row.key, original.key);
-            assert_eq!(row.operands.len(), 2);
-            assert_eq!(row.operands[0], original.operands[0]);
-            assert_eq!(row.operands[1].access, RegisterOperandAccess::Def);
-            assert_eq!(row.operands[1].fixed_view, original.operands[3].fixed_view);
-            for register in [
-                match encoded_destinations[0] {
-                    super::X86_64CallbackMaterializationDestination::Register(register) => register,
-                    _ => unreachable!(),
-                },
-                match encoded_destinations[2] {
-                    super::X86_64CallbackMaterializationDestination::Register(register) => register,
-                    _ => unreachable!(),
-                },
-                scratch_register,
-            ] {
-                let view = crate::x86_64_fixed_register_view(&physical, register).unwrap();
-                let view = physical.model().view(view).unwrap();
-                assert!(
-                    view.units
-                        .iter()
-                        .all(|unit| row.implicit_uses.contains(unit))
-                );
-            }
-            let declaration =
-                crate::x86_64_normalized_foreign_call_declaration(&record, &row).unwrap();
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.key.variant, 3);
-            assert_eq!(
-                alternative.size,
-                selected_instructions::MachineSizeKnowledge::ExactBytes(47)
-            );
-            assert_eq!(alternative.encoded.external_operand_reads, vec![0]);
-            assert_eq!(alternative.encoded.external_operand_writes, vec![1]);
-            let (operands, accesses) = fixture::operand_columns(&row);
-            let template = encode_x86_64_selected_normalized_foreign_call_template(
-                target,
-                &physical,
-                kind,
-                alternative.key,
-                &operands,
-                &accesses,
-                &alternative.encoded,
-                &encoded_destinations,
-                &record,
-            )
-            .unwrap();
-            assert_eq!(template.bytes().len(), 47);
-            assert_eq!(template.fixup().opcode_byte_offset, 42);
-            assert_eq!(template.fixup().callbacks.len(), 4);
-            let mut byte_offset = 0;
-            for (position, fixup) in template.fixup().callbacks.iter().enumerate() {
-                assert_eq!(fixup.destination, encoded_destinations[position]);
-                assert_eq!(fixup.materialization_byte_offset, byte_offset);
-                assert_eq!(fixup.materialization_byte_count, byte_counts[position]);
-                byte_offset += fixup.materialization_byte_count;
-            }
-            let replay =
-                |bytes: &[u8], fixup, effects: &MachineEncodedEffects, destinations: &[_]| {
-                    validate_x86_64_selected_normalized_foreign_call_template(
-                        target,
-                        &physical,
-                        kind,
-                        alternative.key,
-                        &operands,
-                        &accesses,
-                        effects,
-                        bytes,
-                        fixup,
-                        destinations,
-                        &record,
-                    )
-                };
-            assert!(
-                replay(
-                    template.bytes(),
-                    template.fixup().clone(),
-                    &alternative.encoded,
-                    &encoded_destinations
-                )
-                .is_ok()
-            );
-            let mut changed_bytes = template.bytes().to_vec();
-            changed_bytes[0] ^= 1;
-            assert!(
-                replay(
-                    &changed_bytes,
-                    template.fixup().clone(),
-                    &alternative.encoded,
-                    &encoded_destinations
-                )
-                .is_err()
-            );
-            let mut changed_fixup = template.fixup().clone();
-            changed_fixup.callbacks[1].materialization_byte_offset += 1;
-            assert!(
-                replay(
-                    template.bytes(),
-                    changed_fixup,
-                    &alternative.encoded,
-                    &encoded_destinations
-                )
-                .is_err()
-            );
-            let mut changed_destinations = encoded_destinations.clone();
-            changed_destinations.swap(0, 2);
-            assert!(
-                replay(
-                    template.bytes(),
-                    template.fixup().clone(),
-                    &alternative.encoded,
-                    &changed_destinations
-                )
-                .is_err()
-            );
-            let mut changed_effects = alternative.encoded.clone();
-            changed_effects.implicit_unit_uses.clear();
-            assert!(
-                replay(
-                    template.bytes(),
-                    template.fixup().clone(),
-                    &changed_effects,
-                    &encoded_destinations
-                )
-                .is_err()
-            );
-            let mut changed_row = row.clone();
-            changed_row.implicit_uses.clear();
-            assert!(
-                crate::x86_64_normalized_foreign_call_declaration(&record, &changed_row).is_none()
-            );
-            let mut changed_record = record.clone();
-            changed_record.call.callbacks[0].application.native_ordinal = 0;
-            assert!(
-                crate::machine_effects::normalized_foreign_constraint(&changed_record).is_none()
-            );
-            let mut changed_record = record.clone();
-            changed_record.call.callbacks[1].field_byte_offset = None;
-            assert!(
-                crate::machine_effects::normalized_foreign_constraint(&changed_record).is_none()
-            );
-            let mut changed_record = record.clone();
-            changed_record.call.callbacks[0].terminal_operation =
-                semantic_vocabulary::OperationId::new(99).unwrap();
-            assert!(
-                crate::x86_64_normalized_foreign_call_declaration(&changed_record, &row).is_none()
-            );
-        }
+        fixture::retained_callbacks(
+            &entrances(),
+            inputs,
+            callback_destination,
+            CALLBACK_BYTE_COUNTS,
+        );
     }
 
     #[test]
     fn direct_and_hidden_aggregate_results_share_the_import_template() {
-        for windows in [false, true] {
-            let target = if windows {
-                NativeTarget::windows_x64()
-            } else {
-                NativeTarget::linux_x64()
-            };
-            let mut shared_key = None;
-            for result in 0..=5 {
-                let (physical, kind, alternative, operands, accesses, effects, record) =
-                    inputs(windows, 11, result);
-                let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-                if let Some(key) = shared_key {
-                    assert_eq!(row.key, key);
-                } else {
-                    shared_key = Some(row.key);
-                }
-                let declaration =
-                    crate::x86_64_normalized_foreign_call_declaration(&record, &row).unwrap();
-                assert_eq!(declaration.alternatives[0].encoded, effects);
-                let template = encode_x86_64_selected_normalized_foreign_call_template(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &accesses,
-                    &effects,
-                    &[],
-                    &record,
-                )
-                .unwrap();
-                assert_eq!(template.bytes(), &[0xe8, 0, 0, 0, 0]);
-                let mut corrupted = effects.clone();
-                corrupted.implicit_unit_clobbers.clear();
-                assert_eq!(
-                    encode_x86_64_selected_normalized_foreign_call_template(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &accesses,
-                        &corrupted,
-                        &[],
-                        &record
-                    ),
-                    Err(X86_64NormalizedForeignCallTemplateError::EffectMismatch)
-                );
-                let mut changed_row = row.clone();
-                changed_row.operands.last_mut().unwrap().access = RegisterOperandAccess::UseDef;
-                assert!(
-                    crate::x86_64_normalized_foreign_call_declaration(&record, &changed_row)
-                        .is_none()
-                );
-                let mut changed_record = record.clone();
-                changed_record
-                    .call
-                    .binding
-                    .boundary_entry_plan
-                    .call
-                    .parameters[0]
-                    .locations
-                    .clear();
-                assert!(
-                    crate::machine_effects::normalized_foreign_constraint(&changed_record)
-                        .is_none()
-                );
-            }
-        }
+        fixture::direct_and_hidden_aggregate_results_share_the_import_template(
+            &entrances(),
+            inputs,
+        );
     }
 
     #[test]
@@ -902,118 +713,17 @@ mod tests {
 
     #[test]
     fn template_has_exact_bytes_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects, record) =
-            inputs(false, 1, 1);
-        let template = encode_x86_64_selected_normalized_foreign_call_template(
-            NativeTarget::linux_x64(),
-            &physical,
-            kind,
-            alternative,
-            &operands,
-            &accesses,
-            &effects,
-            &[],
-            &record,
-        )
-        .unwrap();
-        assert_eq!(template.bytes(), &[0xe8, 0, 0, 0, 0]);
-        assert_eq!(template.kind(), kind);
-        assert_eq!(template.alternative(), alternative);
-        assert_eq!(template.operand_views(), &operands);
-        assert_eq!(template.effects(), &effects);
-        let fixup = template.fixup().clone();
-        assert_eq!(
-            fixup,
-            callback_fixup(BoundaryMachineId::new(3).unwrap(), 2, &[]).unwrap()
-        );
-        assert_eq!(fixup.opcode_byte_offset, 0);
-        assert_eq!(fixup.patch_byte_offset, 1);
-        assert_eq!(fixup.reference_byte_offset, 5);
-        assert_eq!(fixup.patch_byte_width, 4);
+        fixture::template_has_exact_bytes_and_fixup(&entrances(), inputs);
     }
 
     #[test]
     fn evaluated_plans_select_exact_operands_and_effects_under_one_template() {
-        let (physical, kind, alternative, _, _, _, _) = inputs(false, 0, 0);
-        for input_layout in 0..63 {
-            for result in 0..3 {
-                let (_, _, _, operands, accesses, effects, record) =
-                    inputs(false, input_layout, result);
-                let template = encode_x86_64_selected_normalized_foreign_call_template(
-                    NativeTarget::linux_x64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &accesses,
-                    &effects,
-                    &[],
-                    &record,
-                )
-                .unwrap();
-                assert_eq!(template.operand_views(), operands.as_slice());
-                // A different result choice is a valid row, but cannot retain
-                // this row's external writes and remaining caller-save effects.
-                let (_, _, _, wrong, wrong_accesses, _, _) =
-                    inputs(false, input_layout, (result + 1) % 3);
-                assert_eq!(
-                    encode_x86_64_selected_normalized_foreign_call_template(
-                        NativeTarget::linux_x64(),
-                        &physical,
-                        kind,
-                        alternative,
-                        &wrong,
-                        &wrong_accesses,
-                        &effects,
-                        &[],
-                        &record,
-                    ),
-                    Err(X86_64NormalizedForeignCallTemplateError::OperandViewMismatch)
-                );
-                if !operands.is_empty() {
-                    // This view belongs to neither the input nor result bank.
-                    let mut substituted = operands.clone();
-                    substituted[0] = physical.model().view_named("r11").unwrap().id;
-                    assert_eq!(
-                        encode_x86_64_selected_normalized_foreign_call_template(
-                            NativeTarget::linux_x64(),
-                            &physical,
-                            kind,
-                            alternative,
-                            &substituted,
-                            &accesses,
-                            &effects,
-                            &[],
-                            &record,
-                        ),
-                        Err(X86_64NormalizedForeignCallTemplateError::OperandViewMismatch)
-                    );
-                    // Flip the actual role: result-only rows start with Def,
-                    // whereas nonempty input layouts start with Use. If the
-                    // new roles describe another valid row, stale effects reject.
-                    let mut swapped_accesses = accesses.clone();
-                    swapped_accesses[0] = match accesses[0] {
-                        RegisterOperandAccess::Use => RegisterOperandAccess::Def,
-                        RegisterOperandAccess::Def => RegisterOperandAccess::Use,
-                        RegisterOperandAccess::UseDef => unreachable!(),
-                    };
-                    assert!(
-                        encode_x86_64_selected_normalized_foreign_call_template(
-                            NativeTarget::linux_x64(),
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &swapped_accesses,
-                            &effects,
-                            &[],
-                            &record,
-                        )
-                        .is_err()
-                    );
-                }
-            }
-        }
+        fixture::evaluated_plans_select_exact_operands_and_effects_under_one_template(
+            &entrances(),
+            inputs,
+            0..63,
+            "r11",
+        );
     }
 
     #[test]
@@ -1051,129 +761,11 @@ mod tests {
 
     #[test]
     fn rejects_wrong_kind_target_alternative_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects, record) =
-            inputs(false, 1, 1);
-        assert_eq!(
-            encode_x86_64_selected_normalized_foreign_call_template(
-                NativeTarget::linux_x64(),
-                &physical,
-                SelectedInstructionKind::CallScalar {
-                    target: selected_instructions::SelectedCallTarget::Machine(
-                        semantic_vocabulary::MachineId::new(4).unwrap()
-                    ),
-                },
-                alternative,
-                &operands,
-                &accesses,
-                &effects,
-                &[],
-                &record,
-            ),
-            Err(X86_64NormalizedForeignCallTemplateError::InstructionKindMismatch)
-        );
-        for target in [NativeTarget::macos_arm64(), NativeTarget::linux_arm64()] {
-            assert_eq!(
-                encode_x86_64_selected_normalized_foreign_call_template(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &accesses,
-                    &effects,
-                    &[],
-                    &record,
-                ),
-                Err(X86_64NormalizedForeignCallTemplateError::UnsupportedTarget)
-            );
-        }
-        assert_eq!(
-            encode_x86_64_selected_normalized_foreign_call_template(
-                NativeTarget::linux_x64(),
-                &physical,
-                kind,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::CallScalar,
-                    variant: 0,
-                },
-                &operands,
-                &accesses,
-                &effects,
-                &[],
-                &record,
-            ),
-            Err(X86_64NormalizedForeignCallTemplateError::AlternativeMismatch)
-        );
-        let template = encode_x86_64_selected_normalized_foreign_call_template(
-            NativeTarget::linux_x64(),
-            &physical,
-            kind,
-            alternative,
-            &operands,
-            &accesses,
-            &effects,
-            &[],
-            &record,
-        )
-        .unwrap();
-        // A substituted boundary or ordinal cannot validate.
-        let rejects_fixup = |foreign| {
-            assert_eq!(
-                validate_x86_64_selected_normalized_foreign_call_template(
-                    NativeTarget::linux_x64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &accesses,
-                    &effects,
-                    template.bytes(),
-                    foreign,
-                    &[],
-                    &record,
-                ),
-                Err(X86_64NormalizedForeignCallTemplateError::FixupMismatch)
-            );
-        };
-        let mut foreign = template.fixup().clone();
-        foreign.boundary = BoundaryMachineId::new(9).unwrap();
-        rejects_fixup(foreign);
-        foreign = template.fixup().clone();
-        foreign.ordinal = 7;
-        rejects_fixup(foreign);
-        // The canonical placeholder is the only admitted byte sequence.
-        assert_eq!(
-            validate_x86_64_selected_normalized_foreign_call_template(
-                NativeTarget::linux_x64(),
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                &accesses,
-                &effects,
-                &[0xe8, 0, 0, 0, 1],
-                template.fixup().clone(),
-                &[],
-                &record,
-            ),
-            Err(X86_64NormalizedForeignCallTemplateError::MalformedTemplate)
-        );
-        // A complete effect mismatch rejects.
-        let mut wrong_effects = effects.clone();
-        wrong_effects.implicit_unit_clobbers.clear();
-        assert_eq!(
-            encode_x86_64_selected_normalized_foreign_call_template(
-                NativeTarget::linux_x64(),
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                &accesses,
-                &wrong_effects,
-                &[],
-                &record,
-            ),
-            Err(X86_64NormalizedForeignCallTemplateError::EffectMismatch)
+        fixture::rejects_wrong_kind_target_alternative_and_fixup(
+            &entrances(),
+            inputs,
+            &[NativeTarget::macos_arm64(), NativeTarget::linux_arm64()],
+            &[0xe8, 0, 0, 0, 1],
         );
     }
 }
