@@ -24,6 +24,10 @@
 mod lowering;
 mod structural_shapes;
 
+// The referent root a descriptor's storage is named by. The stage-03 custody
+// replay resolves the same three cases, so it consumes this shape rather than
+// declaring a second one.
+pub use lowering::control_flow::references::ReferenceRoot;
 pub use lowering::descriptor_input_guard::{
     DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
 };

@@ -28,7 +28,6 @@ mod tests;
 use register_model::validate_physical_register_model;
 use target::NativeTarget;
 
-use catalog::selected_environment_keys;
 use catalog::{
     conservative_baseline_reservation_profile, target_constraint_catalog,
     target_physical_register_model,
@@ -182,7 +181,7 @@ impl ValidatedTargetRegisterEnvironment {
     }
 
     pub fn allocation_constraint_keys(&self) -> TargetRegisterEnvironmentConstraintKeys {
-        selected_environment_keys(self.selected_keys.clone())
+        self.selected_keys.rows.clone()
     }
 
     pub fn fixed_register_view(

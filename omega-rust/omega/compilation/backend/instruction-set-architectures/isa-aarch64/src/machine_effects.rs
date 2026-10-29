@@ -1,4 +1,4 @@
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
     IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -251,8 +251,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
     Some({
-        let mut completed = SelectedConstraintKeys {
-            invoke_no_normal: Vec::new(),
+        let rows = TargetRegisterEnvironmentConstraintKeys {
             port_write: None,
             system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
             system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
@@ -402,6 +401,10 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             return_float: crate::aarch64_float_scalar_return_keys(darwin),
             return_i64,
             return_unit,
+        };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
         };
         completed.invoke_no_normal = completed.ordinary_call_constraints();
         completed

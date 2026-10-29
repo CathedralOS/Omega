@@ -14,7 +14,7 @@ use crate::{
 use crate::{SaturatingCarrier, TrappingForm, TrappingOperation};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
-    RegisterUnitId, RegisterViewId,
+    RegisterUnitId, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
 };
 use target::NativeTarget;
 
@@ -46,8 +46,7 @@ fn crash_identity_tags_do_not_alias_other_instruction_families() {
 
 fn keys() -> SelectedConstraintKeys {
     {
-        let mut completed = SelectedConstraintKeys {
-            invoke_no_normal: Vec::new(),
+        let rows = TargetRegisterEnvironmentConstraintKeys {
             port_write: Some(instruction(803)),
             system_register_read: Some(instruction(804)),
             system_register_write: Some(instruction(805)),
@@ -163,6 +162,10 @@ fn keys() -> SelectedConstraintKeys {
                 family: RegisterConstraintFamily::Return,
                 variant: 1,
             },
+        };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
         };
         completed.invoke_no_normal = completed.ordinary_call_constraints();
         completed
