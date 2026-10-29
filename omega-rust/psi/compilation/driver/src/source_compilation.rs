@@ -72,11 +72,12 @@ pub struct SourceExtensionRequest {
     pub selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 }
 
-/// Complete Product typing and any deferred constant obligations, ready for checking.
+/// Complete Product typing with deferred obligations recorded in the program.
+/// Checking retains their evaluation entries; Terminal scalar completion consumes
+/// them without an authored-source snapshot or an execution continuation.
 pub struct PreparedSource {
     pub accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
-    pub pending_pre_checks: Vec<PreCheckEvaluation>,
 }
 
 impl SourceCompilationRequest {
@@ -519,7 +520,6 @@ impl CompletedSource {
         PreparedSource {
             accounting: self.accounting,
             typed: self.typing.into_typed(),
-            pending_pre_checks: self.pending_pre_checks,
         }
     }
 
@@ -561,16 +561,17 @@ impl CompletedSource {
                 self.typing.lower_extension(seeded)
             })?
             .into_typed();
-        self.pending_pre_checks
-            .extend(PreCheckEvaluation::evaluate_extension_or_defer(
-                pre_checks,
-                wire_schema_frontier,
-                &mut typed,
-            )?);
+        // Evaluation records deferred recipes and complete initializer entries
+        // in `typed`. There is no source-evaluation continuation after this
+        // final extension: Product completion consumes the canonical entries.
+        PreCheckEvaluation::evaluate_extension_or_defer(
+            pre_checks,
+            wire_schema_frontier,
+            &mut typed,
+        )?;
         Ok(PreparedSource {
             accounting: self.accounting,
             typed,
-            pending_pre_checks: self.pending_pre_checks,
         })
     }
 }

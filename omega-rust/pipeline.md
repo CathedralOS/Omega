@@ -419,6 +419,11 @@ product representations.
 
 Product scalar completion consumes canonical Terminal applications, declaration
 conditions and exact lexical identities, not a private checked-tree rewrite.
+Source completion records deferred recipes and complete initializer entries in
+the typed program before checking. Product carriers retain neither a second
+authored forest nor source-evaluation continuations for later target closure.
+Early Build evaluation still consumes its pending source work before admitting
+the Build activation; that execution is separate from Product scalar completion.
 Psi retains the computations and obligations; its compile-time evaluator executes
 dependency-ready canonical jobs and closes each authored proof scope. The
 application supplies exact provider selections, target families, address semantics
