@@ -17,38 +17,80 @@ machine verify_masked(masked: u8) -> i32
     check
 }
 
-linux_x86_64 machine exercise(val: u8) -> i32
-    requires val >= 40 && val <= 63
-{
-    verify_masked(val)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-windows_x86_64 machine exercise(val: u8) -> i32
-    requires val >= 40 && val <= 63
-{
-    verify_masked(val)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine exercise(val: u8) -> i32
-    requires val >= 40 && val <= 63
-{
-    verify_masked(val)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(val: u8) -> i32
-    requires val >= 40 && val <= 63
-{
-    verify_masked(val)
+boundary trait SelectedProbe {
+    machine exercise(val: u8) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 40 && val <= 63;
 }
 
-machine main() crashes Trap {
+X86Probe satisfies SelectedProbe {
+    machine exercise(val: u8) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 40 && val <= 63
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        verify_masked(val)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(val: u8) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 40 && val <= 63
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        verify_masked(val)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let raw: u8 = 116;
     let masked: u8 = compute_mask(raw);
-    let check: i32 = exercise(masked);
+    let check: i32 = SelectedProbe::exercise(masked);
     transition check == 0 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

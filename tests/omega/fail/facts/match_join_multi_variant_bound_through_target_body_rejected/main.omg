@@ -15,41 +15,82 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-linux_x86_64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-windows_x86_64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
+boundary trait SelectedProbe {
+    machine exercise(m: Mode) -> u64
+        reaches SelectedBodyCheck crashes Trap;
 }
 
-machine main() crashes Trap {
+X86Probe satisfies SelectedProbe {
+    machine exercise(m: Mode) -> u64
+        reaches SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let joined: u64 = evaluate(m);
+        let diff1: u64 = 60u64 - joined;
+        let diff2: u64 = joined - 20u64;
+        diff1 + diff2
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(m: Mode) -> u64
+        reaches SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let joined: u64 = evaluate(m);
+        let diff1: u64 = 60u64 - joined;
+        let diff2: u64 = joined - 20u64;
+        diff1 + diff2
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let m: Mode = Mode::Mid { val: 40 };
-    let sum: u64 = exercise(m);
+    let sum: u64 = SelectedProbe::exercise(m);
     transition sum == 40 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

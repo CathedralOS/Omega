@@ -1,1 +1,1 @@
-cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63
+cannot prove requires contract for call SelectedProbe::exercise from main: masked >= 40 && masked <= 63

@@ -11,44 +11,83 @@ requires q >= 50i16 && q <= 50i16
     }
 }
 
-linux_x86_64 machine exercise(dividend: i16, divisor: i16) -> i32
-requires dividend >= 400i16 && dividend <= 400i16
-requires divisor >= 8i16 && divisor <= 10i16
-{
-    let quotient: i16 = dividend / divisor;
-    verify_i16_quotient(quotient)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(dividend: i16, divisor: i16) -> i32
-requires dividend >= 400i16 && dividend <= 400i16
-requires divisor >= 8i16 && divisor <= 10i16
-{
-    let quotient: i16 = dividend / divisor;
-    verify_i16_quotient(quotient)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(dividend: i16, divisor: i16) -> i32
-requires dividend >= 400i16 && dividend <= 400i16
-requires divisor >= 8i16 && divisor <= 10i16
-{
-    let quotient: i16 = dividend / divisor;
-    verify_i16_quotient(quotient)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine exercise(dividend: i16, divisor: i16) -> i32
-requires dividend >= 400i16 && dividend <= 400i16
-requires divisor >= 8i16 && divisor <= 10i16
-{
-    let quotient: i16 = dividend / divisor;
-    verify_i16_quotient(quotient)
+boundary trait SelectedProbe {
+    machine exercise(dividend: i16, divisor: i16) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires dividend >= 400i16 && dividend <= 400i16
+    requires divisor >= 8i16 && divisor <= 10i16;
 }
 
-machine main() crashes Trap {
-    let exit_code: i32 = exercise(400i16, 8i16);
+X86Probe satisfies SelectedProbe {
+    machine exercise(dividend: i16, divisor: i16) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires dividend >= 400i16 && dividend <= 400i16
+    requires divisor >= 8i16 && divisor <= 10i16
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let quotient: i16 = dividend / divisor;
+        verify_i16_quotient(quotient)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(dividend: i16, divisor: i16) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires dividend >= 400i16 && dividend <= 400i16
+    requires divisor >= 8i16 && divisor <= 10i16
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let quotient: i16 = dividend / divisor;
+        verify_i16_quotient(quotient)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let exit_code: i32 = SelectedProbe::exercise(400i16, 8i16);
     transition exit_code == 0i32 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

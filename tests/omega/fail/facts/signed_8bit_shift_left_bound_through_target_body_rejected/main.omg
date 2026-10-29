@@ -11,40 +11,80 @@ requires s >= 100i8 && s <= 100i8
     }
 }
 
-linux_x86_64 machine exercise(val: i8) -> i32
-requires val >= 20i8 && val <= 25i8
-{
-    let shifted: i8 = val << 2u32;
-    verify_i8_shifted(shifted)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine exercise(val: i8) -> i32
-requires val >= 20i8 && val <= 25i8
-{
-    let shifted: i8 = val << 2u32;
-    verify_i8_shifted(shifted)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine exercise(val: i8) -> i32
-requires val >= 20i8 && val <= 25i8
-{
-    let shifted: i8 = val << 2u32;
-    verify_i8_shifted(shifted)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine exercise(val: i8) -> i32
-requires val >= 20i8 && val <= 25i8
-{
-    let shifted: i8 = val << 2u32;
-    verify_i8_shifted(shifted)
+boundary trait SelectedProbe {
+    machine exercise(val: i8) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 20i8 && val <= 25i8;
 }
 
-machine main() crashes Trap {
-    let exit_code: i32 = exercise(20i8);
+X86Probe satisfies SelectedProbe {
+    machine exercise(val: i8) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 20i8 && val <= 25i8
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let shifted: i8 = val << 2u32;
+        verify_i8_shifted(shifted)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(val: i8) -> i32
+        reaches SelectedBodyCheck crashes Trap
+        requires val >= 20i8 && val <= 25i8
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let shifted: i8 = val << 2u32;
+        verify_i8_shifted(shifted)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let exit_code: i32 = SelectedProbe::exercise(20i8);
     transition exit_code == 0i32 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }
