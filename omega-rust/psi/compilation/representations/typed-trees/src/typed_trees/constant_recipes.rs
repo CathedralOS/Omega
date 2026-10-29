@@ -21,7 +21,7 @@
 use crate::expression::ExpressionHandle;
 use crate::name::Identifier;
 use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-use arena::{Arena, Handle};
+use arena::Handle;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
@@ -49,6 +49,9 @@ pub enum RetainedConstantPosition {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct RetainedConstantRecipe {
     pub position: RetainedConstantPosition,
+    /// Every lexical use of this complete expression, with its exact typed
+    /// result carrier. Shared expression storage does not imply shared scope.
+    pub contexts: arena::HandleSpan<ConstantExpressionContext>,
     /// Exact nested value calls whose admission the contract root owns.
     pub invocations: arena::HandleSpan<ExpressionHandle>,
     /// The first authored callable dependency, when present. A primitive
@@ -57,6 +60,12 @@ pub struct RetainedConstantRecipe {
     pub machine: SymbolHandle,
     pub name: Identifier,
     pub source_span: source::SourceSpan,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ConstantExpressionContext {
+    pub owner: SymbolHandle,
+    pub result_type: TypeReferenceHandle,
 }
 
 pub type ConstantRecipeHandle = Handle<RetainedConstantRecipe>;
@@ -413,15 +422,73 @@ impl crate::TypedTrees {
 /// The roster entries deferred evaluation retains; the evaluator appends them
 /// as it marks each position pending.
 pub fn retain_constant_recipes(
-    roster: &mut Arena<RetainedConstantRecipe>,
+    program: &mut crate::TypedTrees,
     recipes: impl IntoIterator<Item = RetainedConstantRecipe>,
 ) {
     for recipe in recipes {
-        let duplicate = roster
+        let retained = program
+            .constant_recipes
             .iter()
-            .any(|(_, retained)| retained.position == recipe.position);
-        if !duplicate {
-            roster.insert(recipe);
+            .find(|(_, retained)| retained.position == recipe.position)
+            .map(|(handle, _)| handle);
+        if let Some(handle) = retained {
+            let retained = program.constant_recipes.get(handle);
+            let mut contexts = program
+                .constant_expression_contexts
+                .span_or_empty(retained.contexts)
+                .to_vec();
+            let previous_count = contexts.len();
+            for context in program
+                .constant_expression_contexts
+                .span_or_empty(recipe.contexts)
+            {
+                if !contexts.contains(context) {
+                    contexts.push(*context);
+                }
+            }
+            if contexts.len() != previous_count {
+                program.constant_recipes.get_mut(handle).contexts =
+                    program.constant_expression_contexts.insert_many(contexts);
+            }
+        } else {
+            program.constant_recipes.insert(recipe);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_expression_contexts_preserve_all_owners_and_carriers() {
+        let mut program = crate::TypedTrees::default();
+        let expression = ExpressionHandle::from_parts(17, 1);
+        let first = ConstantExpressionContext {
+            owner: SymbolHandle::from_parts(23, 1),
+            result_type: TypeReferenceHandle::from_parts(31, 1),
+        };
+        let second = ConstantExpressionContext {
+            owner: SymbolHandle::from_parts(29, 1),
+            result_type: TypeReferenceHandle::from_parts(37, 1),
+        };
+        let rebound = ConstantExpressionContext {
+            result_type: TypeReferenceHandle::from_parts(41, 1),
+            ..first
+        };
+        for context in [first, second, first, rebound] {
+            let recipe = RetainedConstantRecipe {
+                position: RetainedConstantPosition::ContractExpression(expression),
+                contexts: program.constant_expression_contexts.insert_many([context]),
+                ..Default::default()
+            };
+            retain_constant_recipes(&mut program, [recipe]);
+        }
+        assert_eq!(program.constant_recipes.len(), 1);
+        let recipe = program.constant_recipe_for_contract_expression(expression);
+        let contexts = program
+            .constant_expression_contexts
+            .span_or_empty(program.constant_recipes.get(recipe).contexts);
+        assert_eq!(contexts, &[first, second, rebound]);
     }
 }

@@ -739,6 +739,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // pending endpoint mark can exist here to carry forward.
         pending_const_range_endpoints: _,
         constant_recipes: _,
+        constant_expression_contexts: _,
         constant_recipe_closure: _,
         type_identities,
     } = typed;
