@@ -92,3 +92,18 @@ The improvement is retained locally, separately from the published convergence
 fix. The remaining question is the cost of first-time selected-application
 resolution that cannot be shared within a batch; this experiment does not
 justify extending answer lifetimes across proof contexts.
+
+
+## Pinned native replay
+
+The qualification runner records a fresh actual replay of all six retained
+candidate native images at source checkpoint
+308d50d1b7c08a575c57deffda5662cd50f3aebf. Each image digest and its authored
+exit oracle are checked. Exit 0, no input invalidations; source, producer
+optimization profile and actual executable digests are pinned. See
+qualification-summary.json, qualification-native.stdout and producer-receipt.json.
+The full immutable receipt/state stays in ignored build/first-checking as the
+qualification tool requires. Its capture overhead is not a compiler timing.
+This is native qualification only; the eight actual host/Terminal observations
+remain the separately linked records above. Documentation added after this
+checkpoint does not alter the exercised compiler, fixtures or validator.
