@@ -2,6 +2,7 @@
 //! A stored value is captured before invalidation. Later reads use that value,
 //! never the field initializer or a new observation of overwritten storage.
 use super::{Binding, CurrentScalarValues, ScopedOccurrence, integer_carrier};
+mod collection_values;
 mod coordinates;
 pub(super) use coordinates::{
     ScalarProjection, capture_path, entry_selector_value, projection_has_prefix, same_projection,
@@ -67,15 +68,7 @@ pub(super) fn scalar_field_occurrence(
     let reference =
         validation::expression_result_type_reference(program, machine, state, expression)?;
     let carrier = integer_carrier(program, reference)?;
-    fields
-        .iter()
-        .find(|field| {
-            field.owner == owner
-                && same_projection(occurrence, &field.path, &path)
-                && field.carrier == carrier
-        })?
-        .value
-        .clone()
+    collection_values::selected_value(occurrence, owner, &path, carrier, fields)
 }
 
 impl CurrentScalarValues<'_> {
@@ -274,6 +267,18 @@ impl CurrentScalarValues<'_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow) => self.captured_scalar_fields(borrow.target, depth + 1),
+            ExpressionNode::ArrayLiteral(elements) => self.capture_array_elements(*elements, depth),
+            ExpressionNode::Indexed(indexed)
+                if validation::has_builtin_subslice_meaning(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    expression,
+                ) =>
+            {
+                self.capture_window_elements(expression, indexed, depth)
+                    .unwrap_or_default()
+            }
             ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
                 let mut captured = Vec::new();
                 for field in self.program.expression_table.struct_fields(literal.fields) {
