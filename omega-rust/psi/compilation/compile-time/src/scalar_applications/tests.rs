@@ -20,6 +20,9 @@ use terminal_psi::{
     TerminalModule, Terminator, ValueDeclaration,
 };
 
+#[path = "closure_tests.rs"]
+mod closure;
+
 fn machine_id(value: u64) -> MachineId {
     MachineId::new(value).unwrap()
 }

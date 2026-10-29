@@ -45,6 +45,7 @@ pub(crate) struct AdmittedTerminalProgram<'artifact> {
     pub(crate) catalogs: std::sync::Arc<ProgramStorage<'artifact>>,
     /// Selected geometry belongs to an execution view, never canonical storage.
     pub(crate) target_layouts: Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
+    pub(crate) scalar_geometry: Option<std::sync::Arc<[StructuralTypeDeclaration]>>,
 }
 
 /// The same canonical tables at each ownership boundary. A retained producer
@@ -196,9 +197,11 @@ impl AdmittedTerminalProgram<'_> {
     pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
         ProgramDeclarations::with_replacements(
             &self.catalogs.structural_types,
-            self.target_layouts
-                .as_ref()
-                .map_or(&[], |layouts| layouts.resolved_records()),
+            self.scalar_geometry.as_deref().unwrap_or_else(|| {
+                self.target_layouts
+                    .as_ref()
+                    .map_or(&[], |layouts| layouts.resolved_records())
+            }),
         )
     }
 
@@ -359,7 +362,7 @@ impl<'artifact> TerminalProgram<'artifact> {
     ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
         self.program.validate_layout_selection(installation)?;
         crate::capabilities::check_with_private_entry_ram(
-            &self.execution_program(installation),
+            &self.execution_program(installation, None),
             installation,
             recipes,
         )
@@ -379,6 +382,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
             catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
             target_layouts: None,
+            scalar_geometry: None,
         }))
     }
 
@@ -391,6 +395,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: artifact.custody_identity(),
             catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact.module())),
             target_layouts: None,
+            scalar_geometry: None,
         })
     }
 
@@ -402,6 +407,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: code.view().custody_identity(),
             catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
             target_layouts: None,
+            scalar_geometry: None,
         })
     }
 
@@ -415,6 +421,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
             catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
             target_layouts: None,
+            scalar_geometry: None,
         }))
     }
 
@@ -668,6 +675,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             account: None,
             entry_results: None,
             scalar_application: None,
+            scalar_admission: None,
         })
         .map(|(execution, _)| execution)
     }
@@ -675,6 +683,7 @@ impl<'artifact> TerminalProgram<'artifact> {
     fn execution_program(
         &self,
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+        scalars: Option<&terminal_installation::AdmittedScalarApplications>,
     ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
         let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
         else {
@@ -684,6 +693,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: self.program.identity.clone(),
             catalogs: std::sync::Arc::clone(&self.program.catalogs),
             target_layouts: Some(std::sync::Arc::clone(layouts)),
+            scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
         })
     }
 
@@ -704,13 +714,25 @@ impl<'artifact> TerminalProgram<'artifact> {
             account,
             entry_results,
             scalar_application,
+            scalar_admission,
         } = request;
-        let scalar_values = match scalar_application {
-            Some(request) => Some(
+        let scalar_values = match (scalar_application, scalar_admission) {
+            (Some(_), Some(_)) => {
+                return Err(TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::ScalarApplicationEvaluation(
+                        "execution cannot mix provisional and completed scalar inputs".into(),
+                    ),
+                ));
+            }
+            (Some(request), None) => Some(
                 self.scalar_application_inputs(request, installation)
                     .map_err(TerminalArtifactInterpretError::Execution)?,
             ),
-            None => None,
+            (None, Some(admission)) => Some(
+                self.admitted_scalar_inputs(admission, installation)
+                    .map_err(TerminalArtifactInterpretError::Execution)?,
+            ),
+            (None, None) => None,
         };
         if scalar_values.is_none()
             && !self
@@ -736,12 +758,46 @@ impl<'artifact> TerminalProgram<'artifact> {
                 evaluation_accounting::EvaluationAccountingError::UnsupportedMeasurementIdentity,
             )));
         }
-        let requirements = self
-            .execution_requirements_with_private_entry_ram(
-                installation,
-                structural_inputs.private_entry_ram,
-            )
+        self.program
+            .validate_layout_selection(installation)
             .map_err(TerminalArtifactInterpretError::Execution)?;
+        let program = self.execution_program(installation, scalar_admission);
+        let requirements = crate::capabilities::check_with_private_entry_ram(
+            &program,
+            installation,
+            structural_inputs.private_entry_ram,
+        )
+        .map_err(TerminalArtifactInterpretError::Execution)?;
+        for application in &requirements.scalar_applications {
+            if scalar_values
+                .as_ref()
+                .and_then(|values| values.value(*application))
+                .is_none()
+            {
+                return Err(TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::ScalarApplicationEvaluation(format!(
+                        "execution requires unevaluated scalar application {}",
+                        application.get(),
+                    )),
+                ));
+            }
+        }
+        if scalar_application.is_none() {
+            for application in &requirements.scalar_entry_conditions {
+                if scalar_values
+                    .as_ref()
+                    .and_then(|values| values.value(*application))
+                    .is_none()
+                {
+                    return Err(TerminalArtifactInterpretError::Execution(
+                        TerminalInterpretError::ScalarApplicationEvaluation(format!(
+                            "execution invokes unchecked scalar entry {}",
+                            application.get(),
+                        )),
+                    ));
+                }
+            }
+        }
         if let Some(boundary) = requirements.missing_providers.first() {
             return Err(TerminalArtifactInterpretError::Execution(
                 TerminalInterpretError::ProviderInstallationMissing(*boundary),
@@ -761,7 +817,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             &converted_boolean_fields
         };
         let mut execution = crate::execution::TerminalExecution::start_with_program(
-            self.execution_program(installation),
+            program,
             scalar_arguments,
             structural_inputs.arguments,
             scalar_fields,
@@ -827,6 +883,9 @@ pub struct TerminalInstantiation<'input> {
     /// Provisional compile-time evaluation, restricted to the catalog's exact
     /// complete entry. This never admits ordinary execution with proof debt.
     pub scalar_application: Option<TerminalScalarApplicationRequest<'input>>,
+    /// Complete authored-scope checking with values bound to this deployment.
+    /// This is distinct from the exact-entry provisional evaluation request.
+    pub scalar_admission: Option<&'input terminal_installation::AdmittedScalarApplications>,
 }
 
 #[derive(Clone, Copy)]
@@ -836,6 +895,37 @@ pub struct TerminalScalarApplicationRequest<'input> {
 }
 
 impl TerminalProgram<'_> {
+    fn admitted_scalar_inputs(
+        &self,
+        admission: &terminal_installation::AdmittedScalarApplications,
+        installation: Option<&TerminalRuntimeSupplies>,
+    ) -> Result<terminal_installation::ScalarApplicationValues, TerminalInterpretError> {
+        let reject = || {
+            TerminalInterpretError::ScalarApplicationEvaluation(
+            "completed scalar inputs differ from the exact artifact, target or provider selections".into(),
+        )
+        };
+        let installation = installation.ok_or_else(reject)?;
+        let primary = admission.primary();
+        let expected = TerminalRuntimeSupplies::from(primary.providers());
+        if self.program.identity
+            != terminal_codec::TerminalExecutionIdentity::portable(admission.terminal())
+            || installation.target_machines.as_ref() != Some(primary.targets())
+            || installation.provider_selections.as_ref() != Some(primary.providers())
+            || installation.target_layouts.as_deref() != Some(primary.layouts())
+            || installation.assumed_bindings != expected.assumed_bindings
+            || expected
+                .supplies
+                .iter()
+                .any(|(boundary, supply)| installation.supplies.get(boundary) != Some(supply))
+        {
+            return Err(reject());
+        }
+        // Ordinary execution may additionally install admitted host imports.
+        // It may not redirect the checked suppliers used by constant evaluation.
+        Ok(admission.values().clone())
+    }
+
     fn scalar_application_inputs(
         &self,
         request: TerminalScalarApplicationRequest<'_>,

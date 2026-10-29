@@ -79,6 +79,7 @@ pub(super) fn discover(
                                 .into(),
                         );
                     }
+                    extend_demand(&mut demanded, requirements.scalar_entry_conditions);
                     (
                         Execution::Entry {
                             machine,

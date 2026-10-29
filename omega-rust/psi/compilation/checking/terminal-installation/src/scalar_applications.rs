@@ -25,6 +25,10 @@ use crate::{
 
 mod conditions;
 pub use conditions::ScalarConditionSelection;
+mod closure;
+pub use closure::{
+    AdmittedScalarApplications, ScalarAddressModel, ScalarApplicationClosure, ScalarScopeInputs,
+};
 
 #[derive(Debug, Clone, Default)]
 struct ApplicationObservations {

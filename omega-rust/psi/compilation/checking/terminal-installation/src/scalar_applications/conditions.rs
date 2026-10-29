@@ -13,6 +13,9 @@ use terminal_psi::{
 /// Invocation-local rows selected from one immutable condition roster.
 pub struct ScalarConditionSelection<'artifact> {
     conditions: &'artifact ScalarConditions,
+    target: String,
+    primary: bool,
+    providers: Vec<(BoundaryMachineId, MachineId)>,
     ranges: Vec<usize>,
     predicates: Vec<usize>,
 }
@@ -26,8 +29,9 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         providers: impl IntoIterator<Item = (BoundaryMachineId, MachineId)>,
         demanded: &[ScalarApplicationId],
     ) -> Result<Self, String> {
+        let providers: Vec<_> = providers.into_iter().collect();
         let mut selected = Vec::new();
-        for (boundary, body) in providers {
+        for &(boundary, body) in &providers {
             let requirement = scope
                 .callable_declaration(TargetMachineCallable::Boundary(boundary))
                 .ok_or("selected provider requirement lost its proof declaration")?;
@@ -77,6 +81,9 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             .collect();
         Ok(Self {
             conditions,
+            target: target.to_owned(),
+            primary,
+            providers,
             ranges,
             predicates,
         })
@@ -87,6 +94,35 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
     }
     pub fn predicates(&self) -> &[usize] {
         &self.predicates
+    }
+
+    /// Selection is bound to the conditions and actual provider edges it read.
+    /// This is an input join, not a second membership or proof traversal.
+    pub(super) fn matches(
+        &self,
+        observations: &super::ScalarApplicationObservations<'_>,
+        primary: &str,
+    ) -> bool {
+        std::ptr::eq(
+            self.conditions,
+            &observations
+                .artifact()
+                .module()
+                .scalar_applications
+                .conditions,
+        ) && self.target == observations.targets().target()
+            && self.primary == (self.target == primary)
+            && self
+                .providers
+                .iter()
+                .copied()
+                .eq(observations.providers().providers().chain(
+                    observations
+                        .providers()
+                        .assumed_bindings()
+                        .iter()
+                        .map(|binding| (binding.required, binding.implementation)),
+                ))
     }
 
     /// Grow entry-owned debt as dependency discovery demands more jobs. The

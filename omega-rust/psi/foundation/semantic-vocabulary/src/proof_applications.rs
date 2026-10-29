@@ -176,6 +176,40 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         self.plan.symbols.span_or_empty(self.plan.declarations)
     }
 
+    /// Discover required authored scopes from the actual condition owners.
+    /// Portable consumers supply those owners directly instead of trusting a
+    /// separately serialized obligation-presence or owner-list summary.
+    pub fn required_scopes<'request>(
+        &'request self,
+        primary: &'request str,
+        owners: &[Declaration],
+        unscoped: bool,
+    ) -> Vec<&'request str> {
+        let mut scopes = vec![primary];
+        if owners.is_empty() && !unscoped {
+            return scopes;
+        }
+        for (_, machine) in self.plan.machines.iter() {
+            let Some(scope) = machine.authored_target.as_deref() else {
+                continue;
+            };
+            if !machine.product_selected || scopes.contains(&scope) {
+                continue;
+            }
+            let (machines, declarations) =
+                self.membership(scope, false, self.plan.provider_candidates.storage_slice());
+            if unscoped
+                || machines
+                    .iter()
+                    .chain(&declarations)
+                    .any(|owner| owners.contains(owner))
+            {
+                scopes.push(scope);
+            }
+        }
+        scopes
+    }
+
     pub fn membership(
         &self,
         scope: &str,
