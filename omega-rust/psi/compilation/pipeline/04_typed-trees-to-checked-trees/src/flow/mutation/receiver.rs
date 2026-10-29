@@ -167,6 +167,19 @@ pub(crate) fn family_attached_data_symbol(
     }
 }
 
+/// Inherited declaration scope selects a type; the current signature must
+/// still contain exactly one explicit parameter of that type. An absent or
+/// ambiguous parameter supplies no storage and no ambient parent argument.
+pub(crate) fn family_data_binding_parameter<'parameters>(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    parameters: &'parameters [typed_trees::signature::StateParameter],
+) -> Option<&'parameters typed_trees::signature::StateParameter> {
+    program
+        .data_binding_position(family_attached_data_symbol(program, machine), parameters)
+        .map(|ordinal| &parameters[ordinal])
+}
+
 /// A selected call's explicit data operand, at its actual positional ordinal.
 /// The declaration qualifier supplies no storage: retain the actual root and
 /// projection, including when a different record is supplied to the successor.
@@ -180,10 +193,7 @@ pub(in crate::flow) fn call_data_argument(
         call_site.target_symbol(program),
     ))?;
     let parameters = program.state_parameters(target);
-    let attached = family_attached_data_symbol(program, caller_machine_symbol);
-    let subject = program
-        .data_binding_position(attached, parameters)
-        .map(|index| &parameters[index])?;
+    let subject = family_data_binding_parameter(program, caller_machine_symbol, parameters)?;
     let ordinal = typed_trees::signature::state_parameter_position(parameters, subject.symbol)?;
     call_site_argument_expressions(program, call_site)
         .get(ordinal)

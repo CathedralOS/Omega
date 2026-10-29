@@ -392,12 +392,12 @@ impl FootprintOwner<'_> {
             return false;
         };
         root == self.machine_symbol
-            || program
-                .machine_by_symbol(self.machine_symbol)
-                .and_then(|machine| {
-                    program.data_binding_parameter(machine, program.state_parameters(self.state))
-                })
-                .is_some_and(|parameter| parameter.symbol == root)
+            || crate::flow::family_data_binding_parameter(
+                program,
+                self.machine_symbol,
+                program.state_parameters(self.state),
+            )
+            .is_some_and(|parameter| parameter.symbol == root)
     }
 }
 

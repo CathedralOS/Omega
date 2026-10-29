@@ -1,0 +1,1 @@
+while its mutable receiver reads `counter.count`

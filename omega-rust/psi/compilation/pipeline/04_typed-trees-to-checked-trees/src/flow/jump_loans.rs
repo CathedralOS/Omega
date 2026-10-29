@@ -180,10 +180,12 @@ pub(super) fn target_run(
     };
     let target = transfer.target;
     let caller = find_state_in_machine(program, machine_symbol, state_symbol);
-    let attached = crate::flow::family_attached_data_symbol(program, machine_symbol);
-    let data_parameter = program
-        .data_binding_position(attached, program.state_parameters(target))
-        .map(|ordinal| program.state_parameters(target)[ordinal].symbol);
+    let data_parameter = crate::flow::family_data_binding_parameter(
+        program,
+        machine_symbol,
+        program.state_parameters(target),
+    )
+    .map(|parameter| parameter.symbol);
     TargetRun::Jump(
         loan_parameters(program, target)
             .map(|parameter| {
