@@ -109,5 +109,9 @@ pass/layouts/runtime_indexed_restricted_field_read built 2132ms exit:0 interpret
 pass/layouts/runtime_nested_restricted_field_read built 2192ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/recast/runtime_restricted_field_call_arguments_exit built 2102ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/recast/runtime_restricted_field_loans_exit built 2095ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 2415ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_reborrow_exit built 2417ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_shared_observation_exit built 2419ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_whole_forward_exit built 2428ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/storage/runtime_machine_owned_indexed_integer_write_exit built 10066ms exit:79 interpreter-exit:79 interpreter:agrees @4235516305e1
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 10204ms exit:85 interpreter-exit:85 interpreter:agrees @4235516305e1
