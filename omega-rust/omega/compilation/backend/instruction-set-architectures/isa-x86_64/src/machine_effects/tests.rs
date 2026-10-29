@@ -2,11 +2,11 @@
 
 use super::{
     Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
-    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    NativeTarget, ObjectFormat, ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, NativeTarget, ObjectFormat,
+    ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64MachineEffectCatalogValidationError,
     validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
     x86_64_system_v_register_call_keys,
@@ -18,8 +18,8 @@ use crate::{
 use register_model::validate_physical_register_model;
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatToIntegerDomain,
-    MachineAlternativeFamily, SaturatingCarrier, SaturatingOperation, TrappingForm,
-    TrappingOperation,
+    MachineAlternativeFamily, MachineEffectCatalogValidationError, SaturatingCarrier,
+    SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 fn constraints() -> ValidatedRegisterConstraintCatalog {

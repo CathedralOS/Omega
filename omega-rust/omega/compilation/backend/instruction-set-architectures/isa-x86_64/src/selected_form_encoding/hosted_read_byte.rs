@@ -60,9 +60,9 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    super::alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::HostedReadByte,
+        constraint,
         MachineMemoryEffect::HostedReadByteV1,
         MachineTrapBehavior::HostedReadFailureV1,
         MachineBarrier::ExternalEffect,

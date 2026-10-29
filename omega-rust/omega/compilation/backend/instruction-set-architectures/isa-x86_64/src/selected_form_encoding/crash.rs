@@ -6,9 +6,9 @@ use selected_instructions::{
 };
 
 pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> MachineEffectDeclaration {
-    super::alternative_declaration(
-        constraint.key,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::Crash,
+        constraint.key,
         MachineMemoryEffect::NoneV1,
         MachineTrapBehavior::ExplicitCrashV1,
         MachineBarrier::ControlFlow,
