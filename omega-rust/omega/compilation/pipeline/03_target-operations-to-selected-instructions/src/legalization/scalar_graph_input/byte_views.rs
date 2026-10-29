@@ -417,7 +417,11 @@ where
             return Ok(Vec::new());
         }
         let slots = terminal_semantics::descriptor_results::DescriptorSlotKind::Views
-            .owned_slots(&self.unit.structural_types, result.place, result.structural_type)
+            .owned_slots(
+                &self.unit.structural_types,
+                result.place,
+                result.structural_type,
+            )
             .ok_or_else(LegalizationError::custody)?;
         // Only descriptors owned by this returned value belong to its view result
         // summary. Reference carriers have separately validated target origin rows;
@@ -467,13 +471,17 @@ where
             }
         };
         analysis
-            .call_origins(caller, result.place)
-            .ok_or(LegalizationError::custody())?
+            .try_call_origins(caller, result.place)
+            .map_err(|reason| LegalizationError::DescriptorCallOrigins {
+                machine: caller,
+                result: result.place,
+                reason,
+            })?
             .into_iter()
             .map(|origin| match origin {
-                terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation { .. } => {
-                    Err(LegalizationError::custody())
-                }
+                terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation {
+                    ..
+                } => Err(LegalizationError::custody()),
                 terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation {
                     ..
                 } => Err(LegalizationError::custody()),
@@ -498,7 +506,9 @@ where
                 terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
                     machine,
                     place,
-                } => Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place }),
+                } => {
+                    Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place })
+                }
             })
             .collect()
     }

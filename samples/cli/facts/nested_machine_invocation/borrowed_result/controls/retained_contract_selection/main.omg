@@ -1,0 +1,12 @@
+// A completed mutable borrow preserves its checked ASCII domain, so the caller can read the returned bytes.
+// Expected exit: 0
+public domain [u8; 4]::Ascii requires ascii_only(self);
+public domain [u8]::Ascii requires ascii_only(self);
+public machine same(buffer: &mut [u8; 4] in Ascii)
+ensures buffer in Ascii {}
+machine main() crashes Trap {
+    let mut buffer: [u8; 4] in Ascii = [65u8, 66u8, 0u8, 0u8];
+    same(&mut buffer);
+    transition buffer[0] == 65 && buffer[1] == 66 { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}

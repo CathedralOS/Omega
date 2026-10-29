@@ -1,7 +1,7 @@
 //! Normal graph results through the shared structural value producer. A
 //! primitive scalar result completes each returning state with the same
 //! binding or exit roster an ordinary single-state body retains.
-use super::super::{CheckedUnitEntryClaimPlan, CheckedUnitStructuralResultBindingPlan};
+use super::super::CheckedUnitEntryClaimPlan;
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TransitionExit,
@@ -222,7 +222,7 @@ pub(super) fn return_value_operation(
         program,
         shapes,
         state,
-        &[],
+        &crate::execution::terminal_unit::types::machine_binders(program, machine),
         count,
         statement_ordinal,
         expression,
@@ -332,36 +332,14 @@ pub(in crate::execution::terminal_unit) fn literal_result_operation(
         }
         None => return None,
     };
-    // A shared literal descriptor remains unrestricted after peeling its
-    // reference shell. Only a mutable descriptor owes affine retirement.
-    let (type_identity, multiplicity) =
-        if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type)
-            && let Some((referee, _)) =
-                validation::reference_result_custody::shared_place_borrowed_parts(
-                    program,
-                    state.return_type,
-                )
-        {
-            (
-                shapes.add_type(referee, binders, &[])?,
-                validation::reference_result_custody::binding_multiplicity(
-                    program,
-                    state.return_type,
-                ),
-            )
-        } else {
-            (
-                shapes.add_type(state.return_type, binders, &[])?,
-                Multiplicity::Unrestricted,
-            )
-        };
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity,
-        multiplicity,
-        local: Default::default(),
-    };
+    // Image residence does not change the completed value's carrier. Use the
+    // same result classifier as every other producer: a shared descriptor is
+    // unrestricted, but its stored reference presentation must not become its
+    // unborrowed referent merely because its bytes are a literal.
+    let mut result =
+        control::checked_structural_result_type(program, shapes, state.return_type, binders)?;
+    result.statement_index = statement_ordinal;
+    result.binding_ordinal = u32::try_from(*count).ok()?;
     let qualifications = parameter_qualifications(program, shapes, state.return_type, binders)?;
     *count = count.checked_add(1)?;
     Some(CheckedUnitEffectOperationPlan::EstablishLocal(

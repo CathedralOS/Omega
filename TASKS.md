@@ -161,10 +161,8 @@ retired-syntax deletions to completion.
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
-  - Migrate affected bundled/product Omega source, samples, and fixtures and
-    delete the retired `state` parser/declaration/dispatch paths.
-    Linked application repositories still need the corresponding
-    declaration-model migration.
+  - Complete the corresponding declaration-model migration in linked
+    application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and

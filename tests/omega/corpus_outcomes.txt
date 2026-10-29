@@ -10,6 +10,73 @@ fail/arithmetic/affine_difference_unpaired_term rejected 2122ms expected @a92f16
 	cannot prove ensures contract for exit from incomplete at statement 0: embed(first) + embed(third) >= embed(second) + embed(fourth)
 fail/arithmetic/affine_difference_wrong_coefficients rejected 2056ms expected @a92f16431042
 	cannot prove ensures contract for exit from weighted at statement 0: 2 * embed(first) + 3 * embed(third) >= 3 * embed(second) + 2 * embed(fourth)
+fail/borrows/nested_array_call_unrestored_field rejected 700ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from Builder::clear at statement 5: cell.parts[0].storage requires [u8; N]::Ascii
+fail/borrows/nested_parent_forwarding_overlapping_child rejected 798ms expected @90c334a2c095
+	state `observe` receives `counter.count` as mutable while its mutable receiver reads `counter.count`
+fail/borrows/returned_shared_reference_case_write rejected 330ms expected @90c334a2c095
+	machine `fill` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/calls/indexed_case_successor_unproved_bound rejected 722ms expected @90c334a2c095
+	cannot prove index `index` is within unknown slice length of `cells` in read::entry
+fail/calls/projected_call_domain_unproved rejected 693ms expected @90c334a2c095
+	cannot prove ensures contract for exit from update at statement 1: cell.storage in [u8; N]::Utf8
+fail/calls/qualified_literal_return_invalid rejected 694ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from label, state entry, at statement 1: "\\xc3\\xa9" requires [u8]::Ascii
+fail/facts/borrowed_result_field_domains_call_result rejected 721ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_const_name rejected 733ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_field rejected 708ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_local rejected 710ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_match_join rejected 758ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_other_machine rejected 715ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_other_state rejected 731ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_parameter rejected 724ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+fail/facts/borrowed_result_field_domains_target_body rejected 727ms expected @90c334a2c095
+	cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii
+pass/borrows/nested_array_call_restores_memberships_exit checked 1016ms check-target:macos_arm64 @90c334a2c095
+pass/borrows/nested_parent_forwarding_independent_object_exit checked 1033ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_call_result checked 1042ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_const_name checked 995ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_field checked 982ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_local checked 958ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_match_join checked 977ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_other_machine checked 970ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_other_state checked 1013ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_parameter checked 950ms check-target:macos_arm64 @90c334a2c095
+pass/facts/borrowed_result_field_domains_target_body checked 1003ms check-target:macos_arm64 @90c334a2c095
+run/calls/indexed_case_successor_exit checked 949ms check-target:macos_arm64 @90c334a2c095
+run/calls/nested_case_terminal_process_exit checked 4351ms check-target:macos_arm64 @90c334a2c095
+run/calls/projected_call_domain_exit checked 943ms check-target:macos_arm64 @90c334a2c095
+run/calls/projected_call_domain_plain_exit checked 979ms check-target:macos_arm64 @90c334a2c095
+run/calls/qualified_ancestor_reference_forwarding_exit checked 900ms check-target:macos_arm64 @90c334a2c095
+run/calls/qualified_literal_return_exit checked 934ms check-target:macos_arm64 @90c334a2c095
+run/calls/returned_reference_case_write_then_view_exit checked 937ms check-target:macos_arm64 @90c334a2c095
+
 fail/arithmetic/anonymous_decimal_zero_division_rejected rejected 1870ms expected @a92f16431042
 	anonymous division by zero has no exact numeric value
 fail/arithmetic/anonymous_large_literal_requires_representable_destination rejected 922ms expected @a92f16431042

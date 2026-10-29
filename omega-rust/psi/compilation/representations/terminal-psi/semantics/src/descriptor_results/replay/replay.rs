@@ -272,6 +272,14 @@ impl<'a> Replay<'a> {
                 ) {
                     return None;
                 }
+                // A carrier's own storage coordinate is an anchor, not an
+                // equation saying its pointer contents point back to itself.
+                // View-only replay retains these anchors for ordinary reference
+                // results without tracking their pointees. Keep the authored
+                // Referent path; only a distinct captured backing can replace it.
+                if origins.len() == 1 && origins.contains(&Origin::Storage(prefix.clone())) {
+                    continue;
+                }
                 let mut alternatives = false;
                 for origin in origins {
                     let Origin::Storage(backing) = origin else {
@@ -1292,8 +1300,15 @@ impl<'a> Replay<'a> {
         if let Some(cached) = self.summaries.get(&identity) {
             return cached.clone();
         }
-        self.summaries.insert(identity, None);
         let machine = self.machine(identity)?;
+        // A closed empty interface has no origins to discover. Establish its
+        // transitive invalidation effect without recursively replaying bodies;
+        // a scalar I/O cycle must not become an unknown descriptor result.
+        if let Some(summary) = self.empty_interface_summary(machine) {
+            self.summaries.insert(identity, Some(summary.clone()));
+            return Some(summary);
+        }
+        self.summaries.insert(identity, None);
         let states = self.states(identity, depth)?;
         // A result's carrier stays local storage. Only its exact descriptor
         // slots export backing, under the same case/field paths as construction
