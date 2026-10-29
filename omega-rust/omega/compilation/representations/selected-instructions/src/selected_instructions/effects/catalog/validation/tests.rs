@@ -46,6 +46,24 @@ fn operand_row(operand: u16, access: RegisterOperandAccess) -> RegisterOperandCo
     }
 }
 
+/// An always-applicable alternative of variant 0 with unavailable latency.
+fn always_alternative(
+    family: impl Into<crate::MachineAlternativeFamily>,
+    bytes: u16,
+    encoded: MachineEncodedEffects,
+) -> MachineAlternative {
+    MachineAlternative {
+        key: MachineAlternativeKey {
+            family: family.into(),
+            variant: 0,
+        },
+        applicability: MachineAlternativeApplicability::Always,
+        size: MachineSizeKnowledge::ExactBytes(bytes),
+        latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        encoded,
+    }
+}
+
 #[test]
 fn float_conversion_policy_traps_require_the_exact_control_surface() {
     use crate::{
@@ -78,16 +96,11 @@ fn float_conversion_policy_traps_require_the_exact_control_surface() {
         barrier: MachineBarrier::ExternalEffect,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic(IeeeFloatToIntegerDomain::Trapping).into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(32),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        alternatives: vec![always_alternative(
+            semantic(IeeeFloatToIntegerDomain::Trapping),
+            32,
             encoded,
-        }],
+        )],
     };
     validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..7 {
@@ -151,16 +164,11 @@ fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
         barrier: MachineBarrier::None,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineSemanticKind::CopyBytes.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(28),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        alternatives: vec![always_alternative(
+            MachineSemanticKind::CopyBytes,
+            28,
             encoded,
-        }],
+        )],
     };
     validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..8 {
@@ -232,16 +240,11 @@ fn zero_fill_catalog_requires_dynamic_operands_and_early_clobber_cursor() {
         barrier: MachineBarrier::None,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineSemanticKind::ZeroBytes.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(24),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        alternatives: vec![always_alternative(
+            MachineSemanticKind::ZeroBytes,
+            24,
             encoded,
-        }],
+        )],
     };
     validate_declaration(target::Architecture::Aarch64, &constraint, &source).unwrap();
     for mutation in 0..9 {
@@ -326,16 +329,7 @@ fn pointer_load_catalog_requires_the_semantic_exact_width() {
             barrier: MachineBarrier::None,
             call: crate::MachineCallEffect::NoneV1,
             cleanup: crate::MachineCleanupEffect::NoneV1,
-            alternatives: vec![MachineAlternative {
-                key: MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                },
-                applicability: MachineAlternativeApplicability::Always,
-                size: MachineSizeKnowledge::ExactBytes(4),
-                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded,
-            }],
+            alternatives: vec![always_alternative(semantic, 4, encoded)],
         };
         validate_declaration(target::Architecture::X86_64, &constraint, &declaration).unwrap();
         if packed {
@@ -383,16 +377,11 @@ fn linux_write_catalog_rejects_stripped_memory_trap_and_operand_effects() {
         barrier: MachineBarrier::ExternalEffect,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineSemanticKind::HostedWriteByteI32.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(40),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        alternatives: vec![always_alternative(
+            MachineSemanticKind::HostedWriteByteI32,
+            40,
             encoded,
-        }],
+        )],
     };
     validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..5 {
@@ -437,16 +426,7 @@ fn control_flow_rows_pin_their_encoded_control_shape() {
             barrier: MachineBarrier::ControlFlow,
             call: crate::MachineCallEffect::NoneV1,
             cleanup: crate::MachineCleanupEffect::NoneV1,
-            alternatives: vec![MachineAlternative {
-                key: MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                },
-                applicability: MachineAlternativeApplicability::Always,
-                size: MachineSizeKnowledge::ExactBytes(5),
-                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded,
-            }],
+            alternatives: vec![always_alternative(semantic, 5, encoded)],
         }
     };
     validate_declaration(
@@ -530,16 +510,7 @@ fn returns_and_calls_reject_each_others_stack_effects() {
                 crate::MachineCallEffect::NoneV1
             },
             cleanup: crate::MachineCleanupEffect::NoneV1,
-            alternatives: vec![MachineAlternative {
-                key: MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                },
-                applicability: MachineAlternativeApplicability::Always,
-                size: MachineSizeKnowledge::ExactBytes(5),
-                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded,
-            }],
+            alternatives: vec![always_alternative(semantic, 5, encoded)],
         }
     };
     let activation_stack = (
@@ -653,22 +624,17 @@ fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
         barrier: MachineBarrier::ControlFlow,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: crate::MachineAlternativeFamily::Crash,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(2),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: MachineEncodedEffects {
+        alternatives: vec![always_alternative(
+            crate::MachineAlternativeFamily::Crash,
+            2,
+            MachineEncodedEffects {
                 trap: MachineEncodedTrapBehavior::ExplicitCrashV1,
                 control: MachineEncodedControlEffect::CrashV1,
                 implicit_unit_uses: constraint.implicit_uses.clone(),
                 implicit_unit_defs: constraint.implicit_defs.clone(),
                 ..MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new())
             },
-        }],
+        )],
     };
     validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     for mutation in 0..13 {
@@ -746,16 +712,7 @@ fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
             barrier: MachineBarrier::None,
             call: crate::MachineCallEffect::NoneV1,
             cleanup: crate::MachineCleanupEffect::NoneV1,
-            alternatives: vec![MachineAlternative {
-                key: MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                },
-                applicability: MachineAlternativeApplicability::Always,
-                size: MachineSizeKnowledge::ExactBytes(9),
-                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded: encoded.clone(),
-            }],
+            alternatives: vec![always_alternative(semantic, 9, encoded.clone())],
         };
     validate_declaration(
         target::Architecture::X86_64,
@@ -1095,16 +1052,7 @@ fn encoded_rows_restate_the_contracted_implicit_custody() {
         barrier: MachineBarrier::None,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded,
-        }],
+        alternatives: vec![always_alternative(semantic, 4, encoded)],
     };
     // An ordinary rule restates every implicit unit the row contracts:
     // each read, each definition, each clobber.
@@ -1211,16 +1159,7 @@ fn declared_memory_and_trap_surfaces_bind_the_selected_semantic() {
             barrier,
             call,
             cleanup: crate::MachineCleanupEffect::NoneV1,
-            alternatives: vec![MachineAlternative {
-                key: MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                },
-                applicability: MachineAlternativeApplicability::Always,
-                size: MachineSizeKnowledge::ExactBytes(4),
-                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-                encoded,
-            }],
+            alternatives: vec![always_alternative(semantic, 4, encoded)],
         };
     // A never-faulting rule cannot claim the bare architectural fault, and
     // no arithmetic row carries a declared memory footprint.
@@ -1427,16 +1366,11 @@ fn hosted_exit_cannot_fall_through_to_the_plain_surface_row() {
         barrier: MachineBarrier::ExternalEffect,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineSemanticKind::HostedExitProcessI32.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(5),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        alternatives: vec![always_alternative(
+            MachineSemanticKind::HostedExitProcessI32,
+            5,
             encoded,
-        }],
+        )],
     };
     // The two-operand roster must be rejected by the hosted-exit row itself,
     // not waved through by the plain fallthrough row.
@@ -1486,16 +1420,11 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
             pre_call_stack_alignment: 16,
         },
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineSemanticKind::NormalizedForeignCall.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(5),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        alternatives: vec![always_alternative(
+            MachineSemanticKind::NormalizedForeignCall,
+            5,
             encoded,
-        }],
+        )],
     };
     let encoded = |row: &RegisterInstructionConstraint| {
         let mut encoded = MachineEncodedEffects::fallthrough_v1(
@@ -1674,16 +1603,7 @@ fn directed_stack_effect_cannot_borrow_unbalanced_or_nearest_custody() {
         barrier: MachineBarrier::None,
         call: crate::MachineCallEffect::NoneV1,
         cleanup: crate::MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(64),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded,
-        }],
+        alternatives: vec![always_alternative(semantic, 64, encoded)],
     };
     validate_declaration(target::Architecture::X86_64, &constraint, &source).unwrap();
     assert!(validate_declaration(target::Architecture::Aarch64, &constraint, &source).is_err());
