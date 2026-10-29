@@ -3543,6 +3543,19 @@ impl<'program> StructuralJudge<'program> {
         let Some(subject) = self.resolve_case_subject(subject, 0) else {
             return StructuralJudgment::Unknown;
         };
+        // Checked inline observations retain this value's case identity.
+        // A reference descriptor without an observed referent has no such tag.
+        let subject = if matches!(&subject, StructuralTerm::ObservedValue { .. }) {
+            if super::structural_terms::owned_observation_type(self.program, &subject).is_none()
+                && super::structural_terms::shared_inline_observation_type(self.program, &subject)
+                    .is_none()
+            {
+                return StructuralJudgment::Unknown;
+            }
+            subject.into_semantic_value()
+        } else {
+            subject
+        };
         if let StructuralTerm::Constructor { data, case, .. } = &subject {
             // Legacy value terms retain nominal names. Rejoin only a unique
             // declaration; same-spelled foreign data is not this classifier.

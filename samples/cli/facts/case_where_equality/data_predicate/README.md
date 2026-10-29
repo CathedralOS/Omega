@@ -40,3 +40,9 @@ The restoration controls retain ordinary completed-case metadata across local in
 The parent task remains open for its other migration and composition requirements. This production makes no claim of arbitrary generic GADT/type-equation support, deferred recast establishment, or native execution on unobserved hosts.
 
 A second actual PR conflict against pinned 4a9 changed only the checking golden text, but incoming compiler dependencies required a fresh 6d4ed producer. That exact producer repeated all 11 public engine agreements, 10 intended twins, 32 checking / 14 corpus agreements, the 3 owner tests and retained-constructor pair; two incoming computed-call controls also checked and ran 0/0. The prior 3ee / 433 evidence stays historical. Scoped 32/14 rows retain every pinned 4a9 outsider unchanged.
+
+The canonical data `requires` in each positive includes `self.lo >= 0` before
+`same(self.lo, self.hi)`. This is equivalent over `u64` and exercises formation
+through a mixed conjunction without changing the equality fact, the unconditional
+`hi - lo`, or its oracle. Each reject twin still removes the substantive data
+predicate. The intrinsic lower bound alone cannot justify subtraction.

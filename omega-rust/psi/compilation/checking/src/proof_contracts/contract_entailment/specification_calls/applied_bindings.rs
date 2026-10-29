@@ -178,7 +178,7 @@ impl AppliedProofBindings {
                 program
                     .trait_type_parameters(meaning.trait_definition)
                     .iter()
-                    .chain(program.state_signature_type_parameters(meaning.requirement))
+                    .chain(program.requirement_invocation_contract_parameters(meaning.requirement))
                     .collect(),
                 meaning.substitutions.as_slice(),
                 meaning.constants.as_slice(),
@@ -187,7 +187,7 @@ impl AppliedProofBindings {
                 program
                     .trait_type_parameters(meaning.trait_definition)
                     .iter()
-                    .chain(program.state_signature_type_parameters(meaning.requirement))
+                    .chain(program.requirement_invocation_contract_parameters(meaning.requirement))
                     .collect(),
                 meaning.substitutions.as_slice(),
                 meaning.constants.as_slice(),
@@ -196,7 +196,7 @@ impl AppliedProofBindings {
                 program
                     .trait_type_parameters(meaning.trait_definition)
                     .iter()
-                    .chain(program.state_signature_type_parameters(meaning.requirement))
+                    .chain(program.requirement_invocation_contract_parameters(meaning.requirement))
                     .collect(),
                 bindings.types.as_slice(),
                 bindings.constants.as_slice(),
@@ -294,6 +294,12 @@ impl AppliedProofBindings {
         if handle.is_valid() {
             let application = program.expression_table.static_machine_application(handle);
             if application.lexical_owner != caller {
+                if super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT application refused caller={caller:?} lexical={:?} handle={handle:?} stage=lexical-owner",
+                        application.lexical_owner
+                    );
+                }
                 return None;
             }
             if !matches!(
@@ -305,10 +311,24 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
+                .inspect_err(|reason| {
+                    if super::super::struct_trace() {
+                        eprintln!("STRUCT application refused caller={caller:?} handle={handle:?} stage=correspondence reason={reason:?}");
+                    }
+                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != declaration.symbol
                 {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT application refused caller={caller:?} handle={handle:?} stage=contract-owner expected={:?}/{:?} actual={:?}/{:?}",
+                            owner_symbol(owner),
+                            declaration.symbol,
+                            correspondence.public_owner,
+                            correspondence.declaration
+                        );
+                    }
                     return None;
                 }
                 // Decode the retained source tuple under its own declaration.
@@ -587,7 +607,7 @@ impl AppliedProofBindings {
             SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
             SelectedCallContract::Signature(signature)
             | SelectedCallContract::DynamicSlot { signature, .. } => {
-                program.state_signature_type_parameters(signature)
+                program.requirement_invocation_contract_parameters(signature)
             }
         };
         let conformance_bounds = match owner {
@@ -621,6 +641,19 @@ impl AppliedProofBindings {
             return None;
         }
         let application = program.expression_table.static_machine_application(handle);
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT application intake handle={handle:?} expected={declaration:?} actual={:?} registration={:?} parameters={} bounds={} retained={}",
+                application.binding_declaration,
+                application.registration_operation,
+                parameters.len(),
+                conformance_bounds.len(),
+                program
+                    .expression_table
+                    .static_machine_application_bindings(handle)
+                    .len()
+            );
+        }
         if application.binding_declaration != declaration {
             return None;
         }
@@ -1002,7 +1035,7 @@ impl AppliedProofBindings {
             slot_binders.push((selected.symbol, identity));
         }
         let requires_header = !program
-            .state_signature_type_parameters(signature)
+            .requirement_invocation_contract_parameters(signature)
             .is_empty()
             || !self.types.is_empty()
             || !self.constants.is_empty()

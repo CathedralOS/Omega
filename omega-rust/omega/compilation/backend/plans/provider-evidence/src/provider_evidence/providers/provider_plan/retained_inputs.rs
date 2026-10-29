@@ -1,4 +1,4 @@
-//! Bounded receiving view of the current complete plan commitment input.
+//! Bounded receiving view of the existing complete v5 plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -9,6 +9,7 @@
 use sha2::{Digest, Sha256};
 
 use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
+
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
 
@@ -41,13 +42,13 @@ impl<'a> ProviderPlanInput<'a> {
         }
         reader.nonempty_string()?; // selection name
         let provider = reader.string()?;
-        reader.string()?; // complete applied provider identity, or empty for a declaration
+        reader.string()?; // complete applied provider identity, empty for a declaration
         let provider_package = reader.package()?;
         let target = reader.string()?;
         reader.nonempty_string()?; // schema identity
         reader.package()?;
         for _ in 0..reader.count()? {
-            reader.string()?; // complete applied receiver identity
+            reader.string()?; // complete receiving trait application identity
             reader.nonempty_string()?;
             reader.package()?;
             reader.strings()?;
@@ -301,7 +302,9 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+    use crate::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
+    };
 
     fn selected_plan() -> ProviderPlan {
         let mut plan = ProviderPlan {
@@ -310,8 +313,21 @@ mod tests {
             target: "linux_x86_64".into(),
             ..ProviderPlan::default()
         };
+        plan.provider_application = plan.identities.intern("Provider<opaque>");
         plan.schema.trait_name = plan.schema.identities.intern("Boundary");
         let requirement = plan.schema.identities.intern("Boundary::consume(opaque)");
+        let application = plan.schema.identities.intern("Boundary<opaque>");
+        let argument = plan.schema.identities.intern("opaque");
+        plan.schema
+            .receiver_applications
+            .push(ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![argument],
+                lifetime_argument_identities: Vec::new(),
+                requirement_identities: vec![requirement],
+            });
         plan.schema.methods.push(ServiceMethod {
             name: "consume".into(),
             requirement_owner: "Boundary".into(),
@@ -367,6 +383,9 @@ mod tests {
         let mut unknown_schema = bytes.clone();
         unknown_schema[0] ^= 1;
         assert!(read(&unknown_schema).is_err());
+        let mut retired_schema = bytes.clone();
+        retired_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
+        assert!(read(&retired_schema).is_err());
         let mut overflowing_string = bytes;
         overflowing_string[PROVIDER_PLAN_DOMAIN.len()..PROVIDER_PLAN_DOMAIN.len() + 8]
             .copy_from_slice(&u64::MAX.to_le_bytes());
