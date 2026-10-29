@@ -12,7 +12,7 @@ The other transport places live in their sibling `descriptor_indexed_value/` fol
 
 Requirement boundaries:
 
-- Establishment: selector bounds use this descriptor’s own captured entry length, including for a literal selector; backing capacity and sibling lengths grant nothing.
+- Establishment: selector bounds use this descriptor’s own captured entry length, including for a literal selector; the indexed condition cannot prove its own formation. Ordered contract intake admits only independently formed preceding bounds. Backing capacity and sibling lengths grant nothing.
 - Identity/lifetime: the slice retains original backing and live extent. Borrowed observations retain exact source dependencies; owned copies remain independent snapshots. Stores withdraw overlapping facts.
 - Composition: every cyclic arrival substitutes the entire actual telescope, and every complete cycle encounters strict descent. Lexical ancestry supplies no premise.
 - Soundness: independently authenticated reference sources and readable access remain necessary. No proof or permission comes from type geometry.
@@ -21,3 +21,5 @@ Requirement boundaries:
 - Omega 03–09: the counter, selected payload and untouched neighbors trap on incorrect control, address calculation or stores. Execution records identify producer and target in qualification evidence.
 
 Case coordinates, further independent reference loads, richer joint measures, portable composed stack accounting, linked applications and the product compiler remain parent acceptance.
+
+The [entry-condition](../../controls/descriptor_circular_entry_bounds/main.omg) and [recursive-cycle](../../controls/descriptor_circular_cycle_bounds/main.omg) controls reject a read whose only proposed bound depends on that same unformed read.
