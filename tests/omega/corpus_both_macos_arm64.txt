@@ -26,6 +26,8 @@ pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpr
 pass/calls/converted_call_value_private_arrival_exit built 1101ms exit:0 interpreter-exit:0 interpreter:agrees @ef874b4d34bc
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
+pass/collections/runtime_owned_array_projection_snapshot_exit built 5859ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @27c558b731f4
+pass/collections/runtime_whole_array_value_copy_exit built 5604ms exit:70 interpreter-exit:70 interpreter:agrees @27c558b731f4
 pass/dependent/data_requires_clauses_exit built 1163ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/dependent/runtime_symbolic_slice_cell_theorem_exit built 1279ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
 pass/dependent/runtime_symbolic_slice_predicate_store_exit built 1328ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
@@ -212,6 +214,15 @@ pass/facts/saved_observation_snapshot_predicate_handback_other_machine_exit buil
 pass/facts/saved_observation_snapshot_predicate_handback_other_state_exit built 1027ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_parameter_exit built 1005ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_target_body_exit built 989ms exit:0 interpreter-exit:0 interpreter:agrees @5c5c178f82c7
+pass/facts/saved_observation_snapshot_stored_reference_handback_call_result_exit built 930ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_const_name_exit built 954ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_field_exit built 951ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_local_exit built 952ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_match_join_exit built 967ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_other_machine_exit built 956ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_other_state_exit built 935ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_parameter_exit built 952ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
+pass/facts/saved_observation_snapshot_stored_reference_handback_target_body_exit built 953ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
 pass/facts/static_callback_reach_through_call_result built 2024ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @ba4c5b471bb8
 pass/facts/static_callback_reach_through_const_name built 2032ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @ba4c5b471bb8
 pass/facts/static_callback_reach_through_field built 2028ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @ba4c5b471bb8
@@ -339,7 +350,7 @@ pass/borrows/copied_empty_case_before_active_replacement_exit built 2242ms exit:
 pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit built 2703ms exit:0 interpreter-exit:0 interpreter:agrees @bee167b35fd4
 pass/borrows/copied_image_descriptor_unrelated_write built 1300ms exit:0 interpreter-exit:0 interpreter:agrees @77f91fb3da34
 pass/borrows/copied_input_descriptor_independent_mutation_exit built 1913ms exit:0 interpreter-exit:0 interpreter:agrees @bee167b35fd4
-pass/borrows/copied_input_descriptor_local_copy_exit built 1821ms exit:0 interpreter-exit:0 interpreter:agrees @bee167b35fd4
+pass/borrows/copied_input_descriptor_local_copy_exit built 1081ms exit:0 interpreter-exit:0 interpreter:agrees @27c558b731f4
 pass/borrows/copied_input_descriptor_return_copy_exit built 2619ms exit:0 interpreter-exit:0 interpreter:agrees @bee167b35fd4
 pass/borrows/copied_intermediate_descriptor_snapshot_exit built 2437ms exit:0 interpreter-exit:0 interpreter:agrees @bee167b35fd4
 pass/borrows/dynamic_window_return_custody_exit built 3403ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
