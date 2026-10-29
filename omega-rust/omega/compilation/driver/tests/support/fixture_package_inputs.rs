@@ -285,6 +285,7 @@ pub fn observe_failed_scalar_accounting(
     prepared: &ReviewedFixtureCompilation,
     profile: TargetProfile,
     minimum_receipts: usize,
+    expected_diagnostics: &[String],
     build_directory: &Path,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut request = compiler::CompileRequest::for_targets(
@@ -295,13 +296,18 @@ pub fn observe_failed_scalar_accounting(
     if let Some(inputs) = &prepared.package_inputs {
         request = request.with_package_inputs(inputs.clone());
     }
-    let outcomes =
-        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
-            .map_err(|_| {
-                vec![Diagnostic::error(
-                    "failed scalar accounting probe did not reach target completion",
-                )]
-            })?;
+    let outcomes = omega_build::compile_sources(
+        &mut compiler::CompilationSession::default(),
+        request,
+    )
+    .map_err(|diagnostics| {
+        eprintln!(
+            "failed scalar accounting probe stopped before target completion: {diagnostics:?}"
+        );
+        vec![Diagnostic::error(
+            "failed scalar accounting probe did not reach target completion",
+        )]
+    })?;
     let outcomes = outcomes.into_outcomes();
     if outcomes.len() != 1 {
         return Err(vec![Diagnostic::error(
@@ -309,6 +315,11 @@ pub fn observe_failed_scalar_accounting(
         )]);
     }
     for outcome in outcomes {
+        if outcome.target_profile() != Some(profile) {
+            return Err(vec![Diagnostic::error(
+                "failed scalar accounting probe changed its target",
+            )]);
+        }
         let accounting = outcome.source_completion_accounting().ok_or_else(|| {
             vec![Diagnostic::error(
                 "failed scalar accounting probe lost its ledger",
@@ -334,10 +345,21 @@ pub fn observe_failed_scalar_accounting(
                 "failed scalar accounting probe requires {minimum_receipts} complete receipts, got {receipts}",
             ))]);
         }
-        if outcome.into_result().is_ok() {
-            return Err(vec![Diagnostic::error(
+        let diagnostics = outcome.into_result().err().ok_or_else(|| {
+            vec![Diagnostic::error(
                 "failed scalar accounting probe unexpectedly produced a product",
-            )]);
+            )]
+        })?;
+        for expected in expected_diagnostics {
+            if !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected))
+            {
+                eprintln!("failed scalar accounting probe had another refusal: {diagnostics:?}");
+                return Err(vec![Diagnostic::error(
+                    "failed scalar accounting probe missed its authored refusal",
+                )]);
+            }
         }
         eprintln!(
             "failed scalar accounting: {receipts} canonical receipts, valid complete charges"

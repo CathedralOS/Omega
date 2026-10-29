@@ -1445,6 +1445,13 @@ fn check_fail_fixture(
                     &prepared,
                     profile,
                     minimum,
+                    &fs::read_to_string(accounting_oracle.with_file_name("expected.txt"))
+                        .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>(),
                     &build_dir.join("failed-accounting"),
                 )?;
             }
