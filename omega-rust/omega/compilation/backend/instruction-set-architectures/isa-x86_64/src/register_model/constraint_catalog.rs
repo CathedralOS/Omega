@@ -537,22 +537,28 @@ pub fn x86_64_register_constraint_catalog(
             super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_DIVIDE_U64,
-        operands: vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Use, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: ["rdx", "rflags"]
-            .into_iter()
-            .flat_map(|name| view(name).units.iter().copied())
-            .collect(),
-    });
+    // Division accumulates in an explicit RAX and takes the divisor through an
+    // explicit RDX input, so RDX is redefined rather than preserved. The signed
+    // saturating form reuses that RDX as the bound scratch (narrow) or the
+    // MIN / -1 guard scratch (i64), which CQO introduces.
+    for key in [X86_64_DIVIDE_U64, X86_64_SATURATING_DIVIDE_SIGNED] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: vec![
+                fixed(0, RegisterOperandAccess::Use, "rax"),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                fixed(2, RegisterOperandAccess::Def, "rax"),
+                fixed(3, RegisterOperandAccess::Use, "rdx"),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: ["rdx", "rflags"]
+                .into_iter()
+                .flat_map(|name| view(name).units.iter().copied())
+                .collect(),
+        });
+    }
     constraints.push(rflags_clobbering_row(
         RegisterConstraintId(0),
         X86_64_SATURATING_ADD_U64,
@@ -638,25 +644,6 @@ pub fn x86_64_register_constraint_catalog(
             super::early_clobber(allocatable(2, RegisterOperandAccess::Def, GPR64)),
         ],
     ));
-    // Like unsigned division, the explicit RDX input keeps the divisor out of
-    // RDX; CQO then redefines RDX and the signed carriers reuse it as the
-    // bound scratch (narrow) or the MIN / -1 guard scratch (i64).
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: X86_64_SATURATING_DIVIDE_SIGNED,
-        operands: vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Use, "rdx"),
-        ],
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: ["rdx", "rflags"]
-            .into_iter()
-            .flat_map(|name| view(name).units.iter().copied())
-            .collect(),
-    });
     let scalar_call = constraints
         .iter()
         .find(|row| row.key == X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64)

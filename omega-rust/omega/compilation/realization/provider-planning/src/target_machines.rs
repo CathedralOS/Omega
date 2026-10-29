@@ -15,7 +15,9 @@ use target::TargetProfile;
 mod direct_body_absences;
 mod provider_publication;
 pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
-pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
+pub use provider_publication::{
+    PreparedTargetProviderPublication, TargetProviderPreparationRequest, provider_selection_roots,
+};
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(

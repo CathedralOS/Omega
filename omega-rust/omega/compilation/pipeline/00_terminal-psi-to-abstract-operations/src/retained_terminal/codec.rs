@@ -19,9 +19,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Selected provider rows retain exact external realization declarations.
+// Provider plans retain complete applications and exact numeric realization declarations.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI04";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI05";
 
 #[cfg(test)]
 mod tests {
@@ -95,7 +95,13 @@ fn capture(
     write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
     write_values(family_realizations, &mut output)?;
-    boundaries.selected_provider_plans.write(&mut output)?;
+    // Canonical Terminal owns checked-body associations. Persist only the
+    // independent source selections; recovery closes their instances normally.
+    boundaries
+        .selected_provider_plans
+        .clone()
+        .without_checked_specializations()
+        .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
     for crate::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
@@ -184,36 +190,24 @@ impl DerivationInputs {
         let evaluated_binding_identities =
             Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);
         input.context.binding_identities = Some(Arc::clone(&evaluated_binding_identities));
-        let checked_entry = RecordValue::read(input)?;
-        let physical_adapter_requested = RecordValue::read(input)?;
-        let provider_proposals = RecordValue::read(input)?;
-        let leaves = RecordValue::read(input)?;
-        let provider_declarations = RecordValue::read(input)?;
-        let profile = RecordValue::read(input)?;
-        let families = RecordValue::read(input)?;
-        let selected = RecordValue::read(input)?;
-        let intrinsic_provenance = RecordValue::read(input)?;
-        let calling = RecordValue::read(input)?;
-        let native = RecordValue::read(input)?;
-        let entry = match u8::read(input)? {
-            0 => None,
-            1 => Some(EntryRecord::read(input)?),
-            _ => return Err(input.error("invalid native entry presence tag")),
-        };
         Ok(Self {
             evaluated_binding_identities,
-            checked_entry,
-            physical_adapter_requested,
-            provider_proposals,
-            leaves,
-            provider_declarations,
-            profile,
-            families,
-            selected,
-            intrinsic_provenance,
-            calling,
-            native,
-            entry,
+            checked_entry: RecordValue::read(input)?,
+            physical_adapter_requested: RecordValue::read(input)?,
+            provider_proposals: RecordValue::read(input)?,
+            leaves: RecordValue::read(input)?,
+            provider_declarations: RecordValue::read(input)?,
+            profile: RecordValue::read(input)?,
+            families: RecordValue::read(input)?,
+            selected: RecordValue::read(input)?,
+            intrinsic_provenance: RecordValue::read(input)?,
+            calling: RecordValue::read(input)?,
+            native: RecordValue::read(input)?,
+            entry: match u8::read(input)? {
+                0 => None,
+                1 => Some(EntryRecord::read(input)?),
+                _ => return Err(input.error("invalid native entry presence tag")),
+            },
             application: RecordValue::read(input)?,
             optimizations: RecordValue::read(input)?,
             external: RecordValue::read(input)?,

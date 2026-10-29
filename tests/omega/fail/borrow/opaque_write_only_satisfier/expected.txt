@@ -1,0 +1,1 @@
+an opaque selected implementation requires an admitted write-only boundary claim

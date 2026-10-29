@@ -133,7 +133,7 @@ pub(crate) fn parse_logical_proof_facts_until<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
-    parse_fact_list(syntax_trees, input, is_terminator, false, true, false)
+    parse_fact_list(syntax_trees, input, is_terminator, true, true, false)
 }
 
 fn parse_fact_list<'tokens, 'source>(
@@ -334,14 +334,11 @@ fn parse_fact_list<'tokens, 'source>(
             continue;
         } else if input.at_punctuation(PunctuationKind::Semicolon) {
             let after = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            // A machine-final `;` (the CH10 bodyless `boundary machine ..
-            // ensures <fact>;` form) belongs to the MACHINE, not the fact
-            // list: when a HARD ITEM boundary follows -- the next item's
-            // keyword or end of input, never a clause keyword (`requires
-            // F; ensures ..` continues the signature) and never the body
-            // brace (`ensures F; {` keeps its body) -- leave the semicolon
-            // unconsumed for parse_machine's bodyless path. Only the
-            // machine-contract call site opts in.
+            // A final semicolon belongs to the enclosing declaration when
+            // a complete declaration head or end of input follows. Otherwise
+            // it remains a fact separator, including before another clause
+            // or a data/machine body. Logical declaration predicates and
+            // machine contracts share this boundary rule.
             if machine_final_semicolon
                 && (crate::declarations::parse_declaration::starts_following_item(
                     syntax_trees,

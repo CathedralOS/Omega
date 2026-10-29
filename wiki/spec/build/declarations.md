@@ -5,38 +5,43 @@ It is distinct from the hermetic semantic evaluator for constants, proofs,
 plans, and generators. Host effects need admitted build authority; there is no
 second configuration grammar or ambient runtime service.
 
-The default build environment is the benign confined snapshot/staging protocol.
+The default build environment supplies confined filesystem backing through
+ordinary service contracts. Snapshot/staging is a supported library profile.
 Checked declarations and transitive build contracts expose restricted host
 requests for [project acceptance](../packages/acceptance.md#restricted-build-acceptance)
 in `omega.lock`; they cannot approve those requests themselves. Build selections
 also cannot choose an external ecosystem's receiving policy. Producing a binary
 requires no such policy declaration.
 
-Project description is one interpreted Omega activation, not a privileged
-syntax subset or a pair of programs. The compiler checks `build.omg` through the
-Psi driver against toolchain-owned `omega::core`, package-local Build code, and
-interfaces known before dependency resolution. It then runs the Terminal
-artifact exactly once with one fresh mutable `Build`. Local helpers, control
-flow, explicit inputs, effects, and resource bounds use ordinary checking and
-admission. No Rust parser recognizes Build call names to decide project
-semantics.
+Named decision: `staged-build-capability-attenuation`, settled 2026-10-28.
+Project description is one logical interpreted Omega activation, not a
+privileged syntax subset or replayed discovery program. Psi checks and admits
+the initial prefix against core, local Build declarations and available exact
+dependencies, then resumes subsequent checked continuations as dependencies
+are explicitly prepared. The Terminal interpreter preserves the same mutable
+Build and live storage without rerunning earlier statements. The compiler owns
+stage checking, dependency/source identity and publication; ordinary libraries
+own filesystem and attenuation algorithms. No source-text call scanner decides
+the meaning of arbitrary same-spelled user code.
 
-`Build::depend*` and `Build::build_depend*` record exact dependency requests and
-may start package resolution, review, compilation, and admission without
-suspending the activation. Product dependencies grant no callable authority to
-Build code. Code from a build dependency enters through
-`suspend Build::await_provider<R, Backing>(builder)`, where the pre-known exact
-requirement application `R` defines its callable surface and effect, reach, and
-resource bounds. `Backing` explicitly names the implementation through its
-build-dependency-qualified path; there is no separate alias value argument.
-The [explicit Build provider selection](provider_selection.md#build-provider-readiness)
-contract governs deferred resolution without granting ordinary imports.
-The operation returns immediately when that exact admitted backing is installed
-in the Build-scoped static provider slot, or preserves the same Terminal
-continuation while package coordination recursively activates dependency Builds and Psi admits the
-selected implementation. The interpreter installs the slot and resumes without
-replaying any Build effect. Subsequent code calls `R::operation(arguments)`;
-awaiting readiness does not create or return a routing value.
+`Build::dependency` and `Build::build_dependency` atomically register configured
+product and interpreted-build dependencies respectively. A description's source,
+alias, purpose and delegated context are fixed before it may be scheduled.
+Ordinary description helpers may set an alias before registration; an alias
+cannot be renamed, reused ambiguously or retargeted afterward. Product
+dependencies supply no callable Build authority. `use dependency;` is inert
+logical name selection and can remain deferred until a dependent checked stage;
+it never acquires source or executes an imported package.
+
+`suspend Build::prepare_dependency(builder, registered)` prepares an exact
+registration under its supplied execution context. The dependent continuation
+resolves names, types and contracts and is admitted before executing them.
+Initial Build checking need not already know a newly admitted package's shared
+non-core interfaces. Exact provider-slot installation still checks the selected
+requirement and implementation under
+[Build provider readiness](provider_selection.md#build-provider-readiness).
+Neither preparation nor an ordinary import chooses a default implementation,
+grants host access or fabricates declaration identity.
 
 When `build` returns, package coordination joins every outstanding dependency
 request, rejects failed, cyclic, unresolved, or unadmitted dependency edges, and
@@ -74,8 +79,13 @@ existing entry-binding overload of `Build::bind`.
 
 ## Project role
 
-A selected `build.omg` has exactly one free
-`machine build(builder: &mut Build)` entry. Its kind is explicit:
+A selected `build.omg` has exactly one free build entry with the explicit mutable
+Build parameter and any declared execution-backing parameters selected and
+admitted by its invocation. A simple entry remains
+`machine build(builder: &mut Build)`; a filesystem-using entry may additionally
+take `filesystem: &mut FilesystemBacking` under an ordinary selected
+`Files satisfies Filesystem<FilesystemBacking>` binder. These are explicit
+source arguments, not a synthesized receiver or ambient provider. Its kind is explicit:
 
 | Build result | Role |
 | --- | --- |
@@ -98,21 +108,18 @@ still needs ordinary target-slot selections and provider checks; the default
 does not discover a machine named `main` or bypass
 [entry admission](entry_roots.md).
 
-`package`, `application`, `member`, `depend`, `depend_as`, `build_depend`, and
-`build_depend_as` are compiler-supplied boundary operations on the mutable Build
-output. Product and build dependency sets remain separate; aliases are unique
+`package`, `application`, `member`, `dependency` and `build_dependency` are
+compiler-owned operations on the activation's Build value. Product and build
+dependency sets remain separate; aliases are unique
 within each scope, with no cross-scope fallback. The interpreted result, not
 source spelling, determines the requested graph. Default configuration does not
 discover undeclared dependency edges from imports. Package tooling edits
 ordinary Build source when persisting dependency changes to a loose project.
 
-`depend`/`depend_as` authorize product imports; `build_depend`/`build_depend_as`
-request a host-profile implementation eligible for exact provider-slot
-installation in the build entry and its local helpers; only successful
-`Build::await_provider<R, Backing>` makes that Build-scoped slot callable. A newly
-requested package's static paths are unavailable when that entry is first
-checked; `R` and the readiness site must be meaningful before the package
-resolves. The host library uses its own ordinary
+Product registrations authorize product imports; Build registrations authorize
+checked interpreted dependency preparation. Unprepared external uses cannot
+execute, and a later registration cannot justify earlier code. The host library
+uses its own ordinary
 dependencies in that host context. Using a package in both contexts requires
 both edges, including std. Legacy locks cannot imply a missing edge.
 [Scoped execution](scoped_execution.md#two-checked-contexts) defines
@@ -130,7 +137,8 @@ completion and whole-result publication.
 Names begin with an ASCII lowercase letter, followed by lowercase letters,
 digits, and single underscore-separated segments. Leading, trailing and repeated
 underscores reject. Default import aliases preserve the declared name exactly;
-`depend_as` and `build_depend_as` provide explicit renaming. Directory/repository
+the dependency description provides explicit renaming before atomic registration.
+Directory/repository
 names are advisory; the fetched package declares its own name.
 
 | Identity | Binds |
@@ -209,9 +217,9 @@ nor execution authority.
 
 Local and package-owned helpers may borrow the root Build value for dependency
 requests, provider selection, root binding, staging, and other evaluated work.
-Build-dependency helpers call an exact static requirement only after
-`Build::await_provider<R, Backing>` has installed its admitted implementation
-for that activation. Authority follows ordinary operation arguments and the checked call
+Build-dependency helpers call ordinary prepared declarations or an exact static
+requirement after its admitted implementation is installed for that activation.
+Authority follows ordinary operation arguments and the checked call
 graph, not provider-slot selection. Transitive reach,
 invocation, blocking/suspension, termination, observations, and authority
 demands compose into the root's published ceiling.
@@ -222,13 +230,14 @@ evaluated root-authorized product selection under the
 projected project/dependency declaration. Its exact product references do not
 execute either requirement or grant any assumption to the build-host context.
 
-`BuildSource`, `BuildOutput`, and `BuildLog` are compiler-owned, activation-scoped
-facets. They do not enter normalized Build output. The sponsor enforces source
-read/output write roots, containment, limits, and custody; the confined view
-they resolve against is specified by
+Filesystem operations use ordinary explicitly supplied backing and selected
+implementations. The old BuildSource/BuildOutput filesystem facets are retired
+under `STAGED-BUILD-CAPABILITIES`, not the public dependency-helper interface.
+The sponsor enforces authorized roots, containment, limits and custody under
 [inputs and default filesystem](scoped_execution.md#inputs-and-default-filesystem),
-so this vocabulary is not itself the containment boundary. Logging is explicit
-and captured. Selecting a runtime filesystem or `Console` provider does
+not a constructor name or a fabricated handle. Compiler publication and
+diagnostic records remain activation-scoped and do not become filesystem
+authority. Logging is explicit and captured. Selecting a runtime provider does
 not route it into build execution. Additional host effects require explicit
 protocol operations and policy; package code gets no resolver credentials.
 

@@ -1,0 +1,11 @@
+// Expected exit: 0
+trait Value { machine total() -> u64; }
+Selected<T, const Tag: u64> satisfies Value {
+    machine total() -> u64 { Tag }
+}
+machine main() crashes Trap {
+    let first: u64 = Selected<[u64; 2], 17u64>::total();
+    let second: u64 = Selected<[u64; 2], 17u64>::total();
+    transition first == 17u64 && second == 17u64 { true -> done() false -> wrong() }
+    machine done() {} machine wrong() { crash Trap; }
+}

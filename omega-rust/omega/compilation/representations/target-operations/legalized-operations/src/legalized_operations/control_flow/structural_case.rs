@@ -9,6 +9,7 @@ pub struct LegalizedStructuralCaseSuccessor {
     pub case: StructuralCaseId,
     pub case_tag: i32,
     pub payloads: Vec<LegalizedStructuralCasePayload>,
+    pub structural_bindings: Vec<super::LegalizedStructuralBinding>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
     pub cleanup_calls: Vec<(target_operations::CallSiteOwner, super::LegalizedScalarCall)>,
     pub fuel: Vec<FuelSettlement>,

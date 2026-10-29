@@ -1,0 +1,214 @@
+use psi::checking::checker;
+use psi::checking::evaluation;
+use psi::checking::flow;
+use psi::checking::invocations;
+use psi::checking::places;
+use psi::checking::references;
+use psi::checks::checks;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// A numeric normal-completion interval belongs to an exact declaration under
+// its own entry contracts, never a caller's private arrival. The graph is
+// discovered first with declared result cuts. Summaries then follow completed
+// callee components; every intra-component call retains its declared cut.
+// This makes both the available facts and the refusal boundary independent of
+// declaration order. Places and local subjects never escape the query.
+public data NumericCompletion [copy] {
+    available: bool;
+    builtin: BuiltinType;
+    value: Value;
+}
+
+public machine Checker::derive_completions(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
+crashes Trap
+{
+    let nodes: u64 in Trapping = syntax.machine_count as u64 in Trapping;
+    let expressions: u64 in Trapping = syntax.expression_count as u64 in Trapping;
+    InvocationGraph::initialize(&mut checker.invocations, nodes, expressions);
+    checker.collecting_completion = false;
+    transition { _ -> clear(checker, syntax, resolution, typing, 0) }
+    machine clear(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        transition index < syntax.machine_count && index < 10240 {
+            true -> cleared(checker, syntax, resolution, typing, index)
+            false -> discover(checker, syntax, resolution, typing, 0)
+        }
+    }
+    machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
+    requires index < 10240
+    {
+        let value: Value = Value::unknown();
+        checker.completions[index] = NumericCompletion { available: false, builtin: BuiltinType::U8, value: value };
+        transition { _ -> clear(checker, syntax, resolution, typing, index + 1) }
+    }
+    machine discover(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        transition index < syntax.machine_count && index < 10240 {
+            true -> declaration(checker, syntax, resolution, typing, index)
+            false -> seal(checker, syntax, resolution, typing)
+        }
+    }
+    machine declaration(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        transition item.has_body {
+            true -> discovered(checker, syntax, resolution, typing, index, item)
+            false -> discover(checker, syntax, resolution, typing, index + 1)
+        }
+    }
+    machine discovered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+        let complete: bool = Checker::universal_completion_walk(checker, syntax, resolution, typing, index, item);
+        checker.invocations.complete = checker.invocations.complete && complete;
+        transition { _ -> discover(checker, syntax, resolution, typing, index + 1) }
+    }
+    machine seal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
+        let sealed: bool = InvocationGraph::seal(&mut checker.invocations);
+        transition sealed {
+            true -> ordered(checker, syntax, resolution, typing, 0)
+            false -> done(checker)
+        }
+    }
+    machine ordered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping) {
+        transition offset < checker.invocations.order_count && offset < 10240 {
+            true -> selected(checker, syntax, resolution, typing, offset)
+            false -> done(checker)
+        }
+    }
+    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping)
+    requires offset < 10240
+    {
+        let index: u64 in Trapping = checker.invocations.order[offset] as u64 in Trapping;
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        transition item.has_body && item.has_return_type && index < 10240 {
+            true -> typed(checker, syntax, resolution, typing, offset, index, item)
+            false -> ordered(checker, syntax, resolution, typing, offset + 1)
+        }
+    }
+    machine typed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, item: MachineItem) {
+        let handle: u64 in Trapping = Typing::reference_type(typing, item.return_type);
+        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
+        transition integer {
+            true -> summarize(checker, syntax, resolution, typing, offset, index, item, row.builtin)
+            false -> ordered(checker, syntax, resolution, typing, offset + 1)
+        }
+    }
+    machine summarize(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, item: MachineItem, builtin: BuiltinType) {
+        checker.collecting_completion = true;
+        checker.completion_seen = false;
+        checker.completion_value = Value::unknown();
+        let complete: bool = Checker::universal_completion_walk(checker, syntax, resolution, typing, index, item);
+        checker.collecting_completion = false;
+        transition complete && checker.invocations.complete && checker.completion_seen && index < 10240 {
+            true -> publish(checker, syntax, resolution, typing, offset, index, builtin)
+            false -> ordered(checker, syntax, resolution, typing, offset + 1)
+        }
+    }
+    machine publish(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, index: u64 in Trapping, builtin: BuiltinType)
+    requires index < 10240
+    {
+        let value: Value = Value::clamped(checker.completion_value, builtin);
+        checker.completions[index] = NumericCompletion { available: true, builtin: builtin, value: value };
+        transition { _ -> ordered(checker, syntax, resolution, typing, offset + 1) }
+    }
+    machine done(checker: &mut Checker) { checker.collecting_completion = false; }
+}
+
+// Speculative queries preserve diagnostics and never publish private arrivals.
+// The body still applies its real effects; replay would wrongly skip them.
+machine Checker::universal_completion_walk(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) -> bool
+crashes Trap
+{
+    let accepted: bool = checker.output.accepted;
+    let machine_accepted: bool = checker.output.machine_accepted;
+    let diagnostics: u64 = checker.output.diagnostic_count;
+    let obligations: u64 in Wrapping = checker.output.obligation_count;
+    Checker::prepare_body(checker, item, index);
+    checker.body_count = 0;
+    checker.queue_count = 0;
+    checker.trap_route = false;
+    checker.abort_route = false;
+    Checks::open_machine(&mut checker.output);
+    Checker::open_entry(checker, syntax, resolution, typing, item);
+    Checker::walk_body(checker, syntax, resolution, typing, item.first_statement, item.statement_count, false);
+    let complete: bool = checker.output.machine_accepted && !checker.overflowed;
+    checker.output.accepted = accepted;
+    checker.output.machine_accepted = machine_accepted;
+    checker.output.diagnostic_count = diagnostics;
+    checker.output.obligation_count = obligations;
+    complete
+}
+
+public machine Checker::observe_selected_invocation(checker: &mut Checker, selection: Selection, expression: u64 in Trapping)
+crashes Trap
+{
+    transition checker.zone.infeasible { true -> {} false -> selected(checker, selection, expression) }
+    machine selected(checker: &mut Checker, selection: Selection, expression: u64 in Trapping) {
+        transition selection {
+            Selection::Machine { handle } -> concrete(checker, expression, handle)
+            Selection::Binder { parameter } -> opaque(checker, expression, parameter)
+            _ -> done()
+        }
+    }
+    machine concrete(checker: &mut Checker, expression: u64 in Trapping, handle: u64 in Trapping) {
+        let recorded: bool = InvocationGraph::record(&mut checker.invocations, checker.machine, expression, InvocationTarget::Machine { machine: handle });
+        transition recorded { true -> done() false -> invalid(checker) }
+    }
+    machine opaque(checker: &mut Checker, expression: u64 in Trapping, parameter: u64 in Trapping) {
+        let recorded: bool = InvocationGraph::record(&mut checker.invocations, checker.machine, expression, InvocationTarget::Binder { parameter: parameter });
+        transition recorded { true -> done() false -> invalid(checker) }
+    }
+    machine invalid(checker: &mut Checker) { checker.overflowed = true; }
+    machine done() {}
+}
+
+public machine Checker::observe_normal_completion(checker: &mut Checker, value: Value) {
+    transition checker.collecting_completion && !checker.zone.infeasible {
+        true -> observed(checker, value)
+        false -> done()
+    }
+    machine observed(checker: &mut Checker, value: Value) {
+        let interval: Value = Value::interval(value);
+        transition checker.completion_seen {
+            true -> joined(checker, interval)
+            false -> first(checker, interval)
+        }
+    }
+    machine joined(checker: &mut Checker, interval: Value) {
+        let joined: Value = Value::hull(checker.completion_value, interval);
+        checker.completion_value = joined;
+    }
+    machine first(checker: &mut Checker, interval: Value) { checker.completion_seen = true; checker.completion_value = interval; }
+    machine done() {}
+}
+
+// A fresh call-result place receives only the universal interval. Its snapshot
+// has no relation to a callee local or mutable actual; authored ensures are
+// assumed separately by the existing call-contract owner.
+public machine Checker::completed_numeric_result(checker: &mut Checker, typing: &Typing, expression: u64 in Trapping, target: u64 in Trapping, row: TypeRow) -> bool
+crashes Trap
+{
+    let source_component: u64 in Trapping = InvocationGraph::component(&checker.invocations, checker.machine);
+    let target_component: u64 in Trapping = InvocationGraph::component(&checker.invocations, target);
+    transition checker.invocations.complete && source_component > 0 && target_component > 0 && source_component != target_component && target < 10240 && row.kind == TypeKind::Builtin {
+        true -> retained(checker, typing, expression, target, row)
+        false -> false
+    }
+    machine retained(checker: &mut Checker, typing: &Typing, expression: u64 in Trapping, target: u64 in Trapping, row: TypeRow) -> bool
+    requires target < 10240
+    {
+        let completion: NumericCompletion = checker.completions[target];
+        transition completion.available && completion.builtin == row.builtin {
+            true -> materialized(checker, typing, expression, completion.value)
+            false -> false
+        }
+    }
+    machine materialized(checker: &mut Checker, typing: &Typing, expression: u64 in Trapping, value: Value) -> bool {
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, expression);
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, expression, 0, type_handle);
+        Checker::initialize_place(checker, typing, place, value);
+        let result: Value = Checker::reference_value(checker, typing, place);
+        Checker::set_value(checker, expression, result);
+        place > 0
+    }
+}

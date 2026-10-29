@@ -17,10 +17,11 @@ pub fn prepare_native_provider_sources(
 ) -> Result<NativeProviderSources, Vec<Diagnostic>> {
     let mut declarations = Vec::with_capacity(provenance.len());
     for retained in provenance {
-        declarations.push(close_selected_provider_declarations(
+        declarations.push(close_provider_declarations(
             context,
             exact_toolchain_sources,
-            retained,
+            &retained.plan,
+            &retained.provider,
         )?);
     }
     let family_realizations = selected_family_realizations(context, provenance)?;
@@ -30,12 +31,14 @@ pub fn prepare_native_provider_sources(
     })
 }
 
-/// Close the exact selected declaration columns together with their whole plan.
-/// Public target proposals and immediate native production share this owner.
-pub(crate) fn close_selected_provider_declarations(
+/// Close exact declaration columns together with their whole plan.
+/// Preparation retains these identities without granting selection authority;
+/// public target proposals and immediate native production share this owner.
+pub(crate) fn close_provider_declarations(
     context: ProviderPlanningContext<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    retained: &SelectedProviderReviewProvenance,
+    plan: &effects::provider_plan::ProviderPlan,
+    provider: &crate::ProviderPlanProvenance,
 ) -> Result<TerminalTargetProviderPlan, Vec<Diagnostic>> {
     let typed = context.typed;
     let nominal = |symbol| {
@@ -48,20 +51,19 @@ pub(crate) fn close_selected_provider_declarations(
                 )]
             })
     };
-    if retained.provider.row_realizations.len() != retained.plan.rows.len()
-        || retained.provider.row_requirements.len() != retained.plan.rows.len()
+    if provider.row_realizations.len() != plan.rows.len()
+        || provider.row_requirements.len() != plan.rows.len()
     {
         return Err(vec![Diagnostic::error(
             "native provider selection lost row realization custody",
         )]);
     }
-    let provider_declaration = retained.provider.provider_type.map(nominal).transpose()?;
-    let row_numeric_realizations = retained
-        .plan
+    let provider_declaration = provider.provider_type.map(nominal).transpose()?;
+    let row_numeric_realizations = plan
         .rows
         .iter()
-        .zip(&retained.provider.row_realizations)
-        .zip(&retained.provider.row_requirements)
+        .zip(&provider.row_realizations)
+        .zip(&provider.row_requirements)
         .map(|((row, realization), requirement)| {
             if matches!(
                 row.binding,
@@ -75,7 +77,7 @@ pub(crate) fn close_selected_provider_declarations(
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     Ok(TerminalTargetProviderPlan {
-        plan: retained.plan.clone(),
+        plan: plan.clone(),
         provider_declaration,
         row_numeric_realizations,
     })

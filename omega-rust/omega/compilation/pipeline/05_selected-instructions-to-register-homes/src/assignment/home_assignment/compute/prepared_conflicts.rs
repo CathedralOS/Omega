@@ -379,6 +379,24 @@ impl PreparedConflicts {
                     .chain(&v.write_units)
                     .all(|u| usize::from(u.0) < 128)
         });
+        // One pair is recorded as a matrix byte plus the same byte reflected into
+        // the right view's per-class mask row; both view loops below share this step.
+        let mut record_pair = |left_idx: usize, right_idx: usize, mask: u8| -> bool {
+            if mask == 0 {
+                return false;
+            }
+            physical_matrix[left_idx * view_count + right_idx] = mask;
+            if use_conflict_masks {
+                let bit = 1u128 << left_idx;
+                let right_masks = &mut conflict_masks[right_idx];
+                for pm in 1..8u8 {
+                    if (mask & pm) != 0 {
+                        right_masks[pm as usize] |= bit;
+                    }
+                }
+            }
+            true
+        };
         if can_use_unit_masks {
             let mut view_masks = vec![(0u128, 0u128, 0u128); view_count];
             let mut active_indices = Vec::with_capacity(view_count);
@@ -400,7 +418,6 @@ impl PreparedConflicts {
             }
             for &left_idx in &active_indices {
                 let (left_u, left_w, left_all) = view_masks[left_idx];
-                let row_base = left_idx * view_count;
                 let mut count = 0u16;
                 for &right_idx in &active_indices {
                     let (right_u, right_w, right_all) = view_masks[right_idx];
@@ -409,19 +426,8 @@ impl PreparedConflicts {
                         left_defines: (left_w & right_u) != 0,
                         right_defines: (right_w & left_u) != 0,
                     };
-                    let mask = pair.to_mask();
-                    if mask != 0 {
-                        physical_matrix[row_base + right_idx] = mask;
+                    if record_pair(left_idx, right_idx, pair.to_mask()) {
                         count += 1;
-                        if use_conflict_masks {
-                            let bit = 1u128 << left_idx;
-                            let right_masks = &mut conflict_masks[right_idx];
-                            for pm in 1..8u8 {
-                                if (mask & pm) != 0 {
-                                    right_masks[pm as usize] |= bit;
-                                }
-                            }
-                        }
                     }
                 }
                 physical_counts[left_idx] = count;
@@ -432,7 +438,6 @@ impl PreparedConflicts {
                 if !used_views[left_idx] {
                     continue;
                 }
-                let row_base = left_idx * view_count;
                 let mut count = 0u16;
                 for right in &model.views {
                     let right_idx = usize::from(right.id.0);
@@ -444,19 +449,8 @@ impl PreparedConflicts {
                         left_defines: definition_overwrites_use(left, right),
                         right_defines: definition_overwrites_use(right, left),
                     };
-                    let mask = pair.to_mask();
-                    if mask != 0 {
-                        physical_matrix[row_base + right_idx] = mask;
+                    if record_pair(left_idx, right_idx, pair.to_mask()) {
                         count += 1;
-                        if use_conflict_masks {
-                            let bit = 1u128 << left_idx;
-                            let right_masks = &mut conflict_masks[right_idx];
-                            for pm in 1..8u8 {
-                                if (mask & pm) != 0 {
-                                    right_masks[pm as usize] |= bit;
-                                }
-                            }
-                        }
                     }
                 }
                 physical_counts[left_idx] = count;

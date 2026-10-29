@@ -260,56 +260,33 @@ fn tied_components<'a>(
                     edge: edge.psi_edge.get(),
                 });
             }
-            for right in extra {
-                if registers_interfere(
-                    leader.virtual_register,
-                    right.virtual_register,
-                    &ranges.interference,
-                ) {
-                    let (lower, higher) =
-                        ordered_pair(leader.virtual_register, right.virtual_register);
-                    if let Some(edge) = ranges
-                        .edge_transfers
-                        .iter()
-                        .find(|edge| has_member(edge.parameter))
-                    {
-                        return Err(RegisterHomeError::UnsupportedEdgeTransfer {
-                            function,
-                            edge: edge.psi_edge.get(),
-                        });
-                    }
-                    return Err(RegisterHomeError::TiedRegistersInterfere {
+            let reject = |left: VirtualRegisterId, right: VirtualRegisterId| {
+                if !registers_interfere(left, right, &ranges.interference) {
+                    return Ok(());
+                }
+                let (lower, higher) = ordered_pair(left, right);
+                if let Some(edge) = ranges
+                    .edge_transfers
+                    .iter()
+                    .find(|edge| has_member(edge.parameter))
+                {
+                    return Err(RegisterHomeError::UnsupportedEdgeTransfer {
                         function,
-                        lower: lower.0,
-                        higher: higher.0,
+                        edge: edge.psi_edge.get(),
                     });
                 }
+                Err(RegisterHomeError::TiedRegistersInterfere {
+                    function,
+                    lower: lower.0,
+                    higher: higher.0,
+                })
+            };
+            for right in extra {
+                reject(leader.virtual_register, right.virtual_register)?;
             }
             for (index, left) in extra.iter().enumerate() {
                 for right in extra.iter().skip(index + 1) {
-                    if registers_interfere(
-                        left.virtual_register,
-                        right.virtual_register,
-                        &ranges.interference,
-                    ) {
-                        let (lower, higher) =
-                            ordered_pair(left.virtual_register, right.virtual_register);
-                        if let Some(edge) = ranges
-                            .edge_transfers
-                            .iter()
-                            .find(|edge| has_member(edge.parameter))
-                        {
-                            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
-                                function,
-                                edge: edge.psi_edge.get(),
-                            });
-                        }
-                        return Err(RegisterHomeError::TiedRegistersInterfere {
-                            function,
-                            lower: lower.0,
-                            higher: higher.0,
-                        });
-                    }
+                    reject(left.virtual_register, right.virtual_register)?;
                 }
             }
         }

@@ -204,6 +204,9 @@ pub struct CallStorage {
     /// calls retain `None`.
     pub authored_call_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    /// Exact original-call static-input attachments, including nested actuals.
+    pub authored_static_argument_selections:
+        Box<[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId]>,
 }
 
 deref_to_storage!(Call => CallStorage);
@@ -396,16 +399,19 @@ impl StatementTable {
             let StatementNode::Call(call) = statement else {
                 continue;
             };
-            let Some(occurrence) = call.authored_call_selection else {
-                continue;
-            };
-            let valid = if index < statement_frontier {
-                rebase.retain_base(occurrence)
-            } else {
-                rebase.rebase_appended(occurrence)
-            };
-            if valid.is_none() {
-                return Err(AuthoredSelectionStatementStore::Statements);
+            for occurrence in call
+                .authored_call_selection
+                .into_iter()
+                .chain(call.authored_static_argument_selections.iter().copied())
+            {
+                let valid = if index < statement_frontier {
+                    rebase.retain_base(occurrence)
+                } else {
+                    rebase.rebase_appended(occurrence)
+                };
+                if valid.is_none() {
+                    return Err(AuthoredSelectionStatementStore::Statements);
+                }
             }
         }
         for (index, (_, target)) in self.nodes.transition_targets.iter().enumerate() {
@@ -440,17 +446,19 @@ impl StatementTable {
             let StatementNode::Call(call) = statement else {
                 return;
             };
-            let Some(occurrence) = call.authored_call_selection else {
-                return;
-            };
             if usize::try_from(handle.arena_index()).expect("statement index overflow")
                 > statement_frontier
             {
-                call.authored_call_selection = Some(
+                call.authored_call_selection = call.authored_call_selection.map(|occurrence| {
                     rebase
                         .rebase_appended(occurrence)
-                        .expect("statement occurrence was validated before mutation"),
-                );
+                        .expect("statement occurrence was validated before mutation")
+                });
+                for occurrence in call.authored_static_argument_selections.iter_mut() {
+                    *occurrence = rebase
+                        .rebase_appended(*occurrence)
+                        .expect("static input occurrence was validated before mutation");
+                }
             }
         });
         self.nodes
@@ -556,6 +564,9 @@ impl StatementTable {
                     operational_acknowledgement: call.operational_acknowledgement,
                     discards_result: call.discards_result,
                     authored_call_selection: call.authored_call_selection,
+                    authored_static_argument_selections: call
+                        .authored_static_argument_selections
+                        .clone(),
                 }))
             }
             Statement::ProofOutputBindingStatement(package) => {
@@ -815,6 +826,9 @@ pub struct TableCall {
     pub discards_result: bool,
     pub authored_call_selection:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    /// Exact original-call static-input attachments, including nested actuals.
+    pub authored_static_argument_selections:
+        Box<[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]

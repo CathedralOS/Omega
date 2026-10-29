@@ -11,9 +11,51 @@ use terminal_psi_to_abstract_operations::provider_admission;
 
 #[test]
 fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
+    let recovered = reload("tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg");
+    let proposal = recovered.native_realization_proposal().unwrap();
+    assert!(
+        proposal
+            .providers()
+            .intrinsic_executions
+            .iter()
+            .flatten()
+            .all(|execution| execution.is_none_or(|execution| !execution.is_numeric()))
+    );
+    assert!(
+        recovered
+            .artifact()
+            .semantic_module()
+            .external_providers
+            .iter()
+            .any(|candidate| candidate.numeric_intrinsic.is_some())
+    );
+}
+
+#[test]
+fn checked_native_inputs_reload_from_canonical_inherited_instances() {
+    let recovered =
+        reload("tests/omega/pass/providers/canonical_inherited_provider_instances_exit/main.omg");
+    let proposal = recovered.native_realization_proposal().unwrap();
+    let rows = proposal
+        .providers()
+        .selection
+        .specialized_requirement_rows();
+    assert_eq!(rows.len(), 4, "three finite instances and inherited spare");
+    assert_eq!(
+        proposal.providers().checked_adapters.len(),
+        5,
+        "three echo instances, spare and choose"
+    );
+}
+
+#[test]
+fn unused_source_provider_demand_does_not_require_terminal_instances() {
+    reload("tests/omega/pass/providers/uncalled_boundary_provider_exit/main.omg");
+}
+
+fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
     let target = "macos_arm64";
-    let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg");
+    let fixture = fixture_package_inputs::repo_root().join(fixture);
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("review numeric fixture inputs");
@@ -47,9 +89,17 @@ fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
         .expect("native proposal");
     let selections = optimization_core::OptimizationRollback::default()
         .settle(&checked.build().config.settings.optimizations);
-    let request = checked
+    let mut request = checked
         .terminal_native_proposal_request(selections.effective(), &[])
         .expect("source-owned derivation inputs");
+    // Simulate the source owner releasing its checked instance projection.
+    // Native preparation and persistence must use only canonical associations.
+    let selection = request
+        .boundaries
+        .selected_provider_plans
+        .clone()
+        .without_checked_specializations();
+    request.boundaries.selected_provider_plans = &selection;
     let permissions = provider_admission::terminal_authority_permission_policy_with_rows(
         proposal.package_terminal_authority_permissions().to_vec(),
         proposal
@@ -70,6 +120,7 @@ fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
             .expect("reload canonical Terminal"),
     );
     drop(request);
+    drop(selection);
     drop(checked);
     drop(session);
     let (recovered, recovered_permissions) =
@@ -78,26 +129,11 @@ fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
     assert_eq!(recovered_permissions, permissions);
     assert_eq!(recovered, retained);
     let proposal = recovered.native_realization_proposal().unwrap();
-    assert!(
-        proposal
-            .providers()
-            .intrinsic_executions
-            .iter()
-            .flatten()
-            .all(|execution| execution.is_none_or(|execution| !execution.is_numeric()))
-    );
-    assert!(
-        recovered
-            .artifact()
-            .semantic_module()
-            .external_providers
-            .iter()
-            .any(|candidate| candidate.numeric_intrinsic.is_some())
-    );
     proposal
         .prepare_native_callable_execution(
             recovered.artifact(),
             recovered.artifact().semantic_module().entry,
         )
         .expect("reloaded numeric providers settle executable demand");
+    recovered
 }

@@ -112,6 +112,77 @@ pub(crate) fn lower_type_reference_handle_from_table(
     )
 }
 
+/// Issue selection custody from a real original source type token before
+/// Product substitution. This reuses ordinary retention for resolved names;
+/// an unresolved Product recipe remains late-bound until immutable checking.
+/// Binder/local tokens never acquire the supplying actual's declaration ID.
+pub(crate) fn retain_type_reference_recipe_selection(
+    source: &resolved::SymbolResolvedTrees,
+    typed: &mut typed::TypedTrees,
+    name: &resolved::name::DiagnosticName,
+    symbol: symbols::SymbolHandle,
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+) -> Result<
+    Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    Diagnostic,
+> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionCoordinateError as CoordinateError,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+    };
+    let Some(exposure) = exposure else {
+        return Ok(None);
+    };
+    if !name.is_source_backed() {
+        return Ok(None);
+    }
+    if symbol.is_valid()
+        && (source.symbols.builtin_type_atom(symbol).is_some()
+            || matches!(
+                source.symbols.get(symbol).kind,
+                symbols::SymbolKind::Parameter
+                    | symbols::SymbolKind::TypeParameter
+                    | symbols::SymbolKind::MachineParameter
+                    | symbols::SymbolKind::ConformanceParameter
+                    | symbols::SymbolKind::PropositionParameter
+                    | symbols::SymbolKind::PropositionMachineParameter
+                    | symbols::SymbolKind::Local
+            ))
+    {
+        return Ok(None);
+    }
+    if symbol.is_valid() {
+        retain_type_reference_selection(source, typed, name, symbol, Some(exposure), kind)?;
+    }
+    match typed
+        .authored_declaration_selections()
+        .source_coordinate_occurrence(name.source_span(), exposure, kind)
+    {
+        Ok(occurrence) => Ok(Some(occurrence)),
+        Err(CoordinateError::Missing) if !symbol.is_valid() => typed
+            .record_late_bound_authored_declaration_selection(
+                name.source_span(),
+                exposure,
+                kind,
+                Binding::CheckedStaticPathSegment,
+            )
+            .map(Some)
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "failed to retain original static type recipe selection: {reason:?}"
+                ))
+                .with_source_span(name.source_span())
+            }),
+        Err(reason) => Err(Diagnostic::error(format!(
+            "original static type recipe selection has no unique source custody: {reason}"
+        ))
+        .with_source_span(name.source_span())),
+    }
+}
+
 pub(super) fn retain_type_reference_selection(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,

@@ -65,6 +65,27 @@ pub(crate) fn validate_foreign_call_site(
     )
 }
 
+/// Earliest pre-call custody site: the first scalar argument or callback
+/// materialization, else the outbound allocation, else the call word itself.
+fn pre_call_custody_start(call: &machine_code::ForeignCallRelocation, call_start: usize) -> usize {
+    call.unit_stack.outbound.map_or_else(
+        || {
+            call.scalar_arguments
+                .first()
+                .map(|argument| argument.code_offset)
+                .into_iter()
+                .chain(
+                    call.callback_addresses
+                        .iter()
+                        .map(|callback| callback.code_offset),
+                )
+                .min()
+                .unwrap_or(call_start)
+        },
+        |outbound| outbound.allocation_offset,
+    )
+}
+
 pub(crate) fn validate_foreign_call_floating_control(
     target: NativeTarget,
     function: &machine_code::MachineCodeFunction,
@@ -184,22 +205,7 @@ pub(crate) fn validate_foreign_call_floating_control(
         Architecture::Aarch64 => call.offset,
     };
     let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
-    let pre_call_start = call.unit_stack.outbound.map_or_else(
-        || {
-            call.scalar_arguments
-                .first()
-                .map(|argument| argument.code_offset)
-                .into_iter()
-                .chain(
-                    call.callback_addresses
-                        .iter()
-                        .map(|callback| callback.code_offset),
-                )
-                .min()
-                .unwrap_or(call_start)
-        },
-        |outbound| outbound.allocation_offset,
-    );
+    let pre_call_start = pre_call_custody_start(call, call_start);
     let post_call_end = match call.unit_stack.outbound {
         Some(outbound) => outbound
             .release_offset
@@ -669,24 +675,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
             .aarch64_floating_control
             .map(|control| control.save_offset),
     }
-    .unwrap_or_else(|| {
-        call.unit_stack.outbound.map_or_else(
-            || {
-                call.scalar_arguments
-                    .first()
-                    .map(|argument| argument.code_offset)
-                    .into_iter()
-                    .chain(
-                        call.callback_addresses
-                            .iter()
-                            .map(|callback| callback.code_offset),
-                    )
-                    .min()
-                    .unwrap_or(call_start)
-            },
-            |outbound| outbound.allocation_offset,
-        )
-    });
+    .unwrap_or_else(|| pre_call_custody_start(call, call_start));
     let post_save = match target.architecture {
         Architecture::X86_64 => call.x86_floating_control.map(|control| {
             control

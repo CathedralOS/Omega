@@ -72,6 +72,13 @@ impl TypedTrees {
                 .into_iter()
                 .filter_map(|(_, _, _, application)| application.trait_scope.scope(self)),
             )
+            .chain(
+                self.live_product_operand_applications().into_iter().filter_map(|handle| {
+                    let application = self.product_operand_applications.get(handle);
+                    (application.role == Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject))
+                        .then(|| application.scope.scope(self)).flatten()
+                }),
+            )
             .chain(source_fields::contract_application_roots(
                 self,
                 &occurrences.types,

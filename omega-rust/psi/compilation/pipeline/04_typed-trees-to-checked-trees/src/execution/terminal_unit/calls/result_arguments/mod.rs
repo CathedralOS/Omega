@@ -37,6 +37,7 @@ pub(crate) use reference::{
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -56,6 +57,7 @@ pub(super) fn argument(
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
         program,
+        shapes,
         facts,
         machine,
         state,
@@ -90,6 +92,7 @@ pub(super) fn argument(
 #[allow(clippy::too_many_arguments)]
 fn argument_contract(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -507,6 +510,7 @@ fn argument_contract(
         // when publication retains a reference descriptor.
         let argument = super::computation_arguments::borrowed_storage_argument(
             program,
+            shapes,
             &facts.borrow,
             machine,
             source_state,

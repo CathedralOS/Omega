@@ -358,7 +358,7 @@ trait Visitor<Context> {
 machine visit_pair<Context, Step>(
     context: &mut Context, first: u32, second: u32
 )
-where machine Step satisfies Visitor<Context>::visit;
+requires machine Step satisfies Visitor<Context>::visit;
 {
     Step(context, first);
     Step(context, second);
@@ -575,22 +575,24 @@ provenance, and the distinction between promises and actual receipts.
 
 ### Package builds
 
-`build.omg` runs with compiler-issued, package-scoped facets, not ambient
-filesystem, network, process, secret, or package-acceptance power. `BuildSource`
-observes the verified source snapshot, `BuildOutput` writes to its sponsored
-staging tree and publishes explicit generated-source handoffs, and `BuildLog`
-records observations. Helpers inherit no extra authority; their effects compose
-into the root.
+`build.omg` receives explicit execution backing, not ambient filesystem, network,
+process, secret or package-acceptance power. It uses ordinary filesystem traits
+and selected implementations, just as library code does. A parent may supply a
+read-only subtree, snapshot or copy-on-write virtual view. The child uses the
+same contract without needing to know the physical backing, and imports cannot open
+an alternative host route. Changeset inspection and applying changes are
+ordinary library operations under the destination's authority.
 
 The [scoped build contract](../spec/build/scoped_execution.md) requires an exact
 captured input inventory, no implicit symlink traversal, deterministic logical
 metadata, and fresh append-and-seal staging. A build dependency makes an admitted
-implementation eligible for explicit provider-slot readiness; it grants neither
-undeclared nameability nor host authority. Pass narrowed inputs and linear required-output
+implementation eligible for explicit preparation and checked continuation
+execution; it grants neither undeclared nameability nor host authority. Pass
+narrowed filesystem capabilities and linear required-artifact
 obligations to helpers; borrowing the whole builder delegates its operations.
 No new successful result set is published after a required output fails or final
 product checking rejects. These requirements are not a claim that every current
-filesystem facet already implements snapshot isolation.
+legacy compiler facet already implements the ratified ordinary-service model.
 
 The resolver retrieves dependencies before their code runs. Its transport and
 credential authority does not pass to dependency builds. Generated source also
@@ -598,6 +600,8 @@ inherits no build authority: ordinary runtime contracts apply to it. The root's
 filesystem selection governs descendants, whose delegated access cannot exceed
 their caller's. Lock mismatches and missing capabilities reject before restricted
 actions; executing the build does not require a second replay run.
+Different granted views are distinct Build execution contexts; a shared package
+name is not permission to union their grants or reuse inapplicable results.
 See [build execution](../spec/build/execution.md).
 
 Package acceptance is a root policy decision over compiler-derived findings,
@@ -892,7 +896,7 @@ machine install<machine Handler>(
     module: ModuleHandle,
     thread: ThreadId,
 ) -> Registration
-where machine Handler satisfies HookProcedure::call;
+requires machine Handler satisfies HookProcedure::call;
 
 install<ApplicationHook>(hook, module, thread)
 ```

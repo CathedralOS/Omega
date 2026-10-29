@@ -350,7 +350,7 @@ fn terminal(
         .ok_or(SelectedInstructionError::custody())
 }
 
-fn successor(
+pub(super) fn successor(
     source: &LegalizedScalarFunction,
     order: &[usize],
     builder: &mut Builder<'_>,

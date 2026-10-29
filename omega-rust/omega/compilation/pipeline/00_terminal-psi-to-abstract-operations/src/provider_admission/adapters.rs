@@ -1,8 +1,8 @@
 //! Carry checked provider choices without reconstructing their owner from code.
 //!
 //! Source custody qualifies whole plans before release. The selected closure
-//! remains authoritative for specialization and family aliases; this projection
-//! preserves those joins rather than rewriting selected rows. Native admission
+//! carries Terminal-derived specialization and family aliases; this projection
+//! preserves those joins rather than reopening source facts. Native admission
 //! selects its executable subset without rebuilding this producer's output. Neither a
 //! display label nor sharing one realizing machine merges selecting declarations.
 

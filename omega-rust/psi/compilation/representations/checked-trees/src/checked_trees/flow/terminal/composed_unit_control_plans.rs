@@ -216,7 +216,7 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// executable cleanup and result custody consume only this coordinate.
     /// None preserves the ordinary runtime control alternatives.
     pub selected_exit: Option<crate::FlowClaimJoinExit>,
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

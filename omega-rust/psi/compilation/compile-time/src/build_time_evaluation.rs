@@ -672,6 +672,7 @@ impl PreCheckEvaluation {
                 "restored pre-check has not rejoined current declaration authority",
             )]);
         }
+        const_initializers::retain_deferred_entries(typed, &self.domain);
         let defer = {
             let _g = phase_profile::guard("evaluate_or_defer.check_defer");
             phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
@@ -698,14 +699,7 @@ impl PreCheckEvaluation {
                     self.selection_authority.clone(),
                     &self.domain,
                 )
-            })? || data_layout_queries::pending_layout_queries_need_operator_selection(
-                typed,
-                self.domain.work(),
-            ) || typed.const_declarations().iter().any(|declaration| {
-                self.domain.contains(declaration.symbol)
-                    && declaration.pending_target_observation
-                    && declaration.evaluated_value.is_none()
-            })
+            })? || data_layout_queries::has_pending_target_observations(typed, self.domain.work())
         };
         if defer {
             let _g = phase_profile::guard("evaluate_or_defer.defer_path");
@@ -801,6 +795,7 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
+        const_initializers::retain_deferred_entries(typed, &self.domain);
         phase_profile::scope(
             "evaluate_or_defer.evaluate_work.const_array_lengths",
             || {

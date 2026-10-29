@@ -114,6 +114,9 @@ fn project_scalar_expression(
     use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
+        // Review cannot serialize an unresolved source-owned application as a
+        // public crash value. Its exact target value must close first.
+        CheckedScalarExpression::ConstantApplication { .. } => return None,
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => return None,
         // A selector has no public crash-predicate vocabulary.

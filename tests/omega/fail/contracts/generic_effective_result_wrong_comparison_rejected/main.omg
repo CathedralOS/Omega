@@ -1,6 +1,6 @@
 // Expected rejection: below32 computes greater-than but promises less-than.
 machine threshold<T>() -> T
-where T == u32 || T == u64
+requires T == u32 || T == u64
 {
     transition T == u32 { true -> (37u32) _ -> (73u64) }
 }

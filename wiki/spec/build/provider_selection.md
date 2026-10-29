@@ -164,7 +164,7 @@ selecting one benign provider now does not certify every later binding.
 ## Build provider readiness
 
 The owner-ratified `explicit-build-provider-backing` decision (2026-10-26)
-requires the caller to name both the pre-known exact boundary requirement
+requires the caller to name both the exact boundary requirement
 application and its exact named implementation:
 
 ```omega
@@ -174,8 +174,12 @@ suspend Build::await_provider<
 >(builder);
 ```
 
-`topology_api::TopologyBuild` must already be available when the root Build is
-checked. `topology_impl` names the caller's explicitly requested build dependency;
+Under `staged-build-capability-attenuation` (2026-10-28),
+`topology_api::TopologyBuild` must be available when its invoking continuation
+is checked, not necessarily before the first Build stage. Explicit dependency
+preparation admits ordinary shared non-core interfaces before that continuation
+executes; unresolved names cannot execute or be substituted structurally.
+`topology_impl` names the caller's explicitly registered build dependency;
 the rest of the qualified path names its implementation. Both operands support
 ordinary namespace qualification and retain exact declaration ownership. The
 dependency qualifier supplies the edge identity, so there is no redundant alias
@@ -183,10 +187,11 @@ value argument and no fallback to the product-dependency namespace.
 
 The backing operand is an inert designated selection reference until dependency
 preparation resolves it against that exact immutable package instance. This uses
-Build's designated-selection mechanism, not an ordinary import of unresolved
-code. It grants no general nameability, direct calls, execution authority, or
-new source-level conformance evidence. The root is checked against the known
-requirement; preparation checks the named implementation's visibility, exact
+Build's designated-selection mechanism, not execution through an unresolved
+import. Provider installation itself grants no general nameability, host
+authority or new source-level conformance evidence; ordinary imports follow
+the separately admitted dependency scope. The invoking continuation is checked
+against the exact requirement; preparation checks the implementation's visibility, exact
 satisfaction of that requirement, and admission for the Build execution profile
 before installing it. Matching names or signatures cannot replace nominal
 identity. Missing, inaccessible, mismatched, or unadmitted supply rejects rather
@@ -311,7 +316,7 @@ reordering is permitted; collapsing independent binders or strengthening an
 unrestricted input to `[copy]` is not.
 
 The quantifier ranges over source applications satisfying the telescope and
-`where` requirements, excluding target layout limits. Target-dependent routing
+`requires` requirements, excluding target layout limits. Target-dependent routing
 or admissions may qualify the row, but symbolic coverage proves only routing
 and dispatch, not calling policy, byte layout, register classes, or stack
 placement. Bodyless, external, opaque, intrinsic, and separately supplied

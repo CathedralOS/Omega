@@ -560,13 +560,19 @@ The rules that touch every edit:
 - Data and code are independent: named implementations satisfy traits; data
   does not. Trait data types are ordinary explicit parameters. There is no
   conformance subject, `Self` type binding, or machine `self` receiver.
-  Predicate-only `self` names the subject in data default-domain `where` and
+  Predicate-only `self` names the subject in data default-domain `requires` and
   domain `requires`; it is not a receiver or runtime parameter. `dyn`
   selects an implementation at runtime; data arguments stay separate. Authored
   implementations declare member machines inline; reuse is an ordinary call,
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Source `where` is retired. Use `requires` for data/default-domain and generic
+  predicates and static callable requirements; assembly carries `requires`,
+  `ensures` and `clobbers` directly after `asm`. Keep nested callable contracts
+  and their terminators scoped, and preserve each declaration's checking boundary.
+  Follow [requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses);
+  `REQUIRES-UNIFICATION` owns compiler/source/tooling migration.
 - Source `via` binding clauses and one-to-one bodyless native forwarding
   declarations are retired. The owning package records
   `Build::bind<Requirement>(builder, target, locator)` intent; literal locator

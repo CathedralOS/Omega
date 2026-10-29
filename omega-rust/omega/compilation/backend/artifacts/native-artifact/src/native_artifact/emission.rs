@@ -70,70 +70,53 @@ impl RequestedNativeArtifact {
     pub fn emit(
         parts: NativeArtifactEmissionParts<ExecutableImageEmissionRequest>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let NativeArtifactEmissionParts {
-            target,
-            psi_artifact,
-            object,
-            image: image_request,
-            selected_provider_closure_report_identity,
-            selected_provider_closure_digest,
-            selected_provider_plans,
-            provider_executions,
-            terminal_authority_policy_identity,
-            terminal_authority_permission_policy_identity,
-            terminal_authority_closure_review,
-            boundary_application_coverage,
-            physical_evidence_scope,
-        } = parts;
-        let image = image_emission::emit_executable_image(&object, image_request)
+        let image = image_emission::emit_executable_image(&parts.object, parts.image.clone())
             .map_err(|error| vec![error.diagnostic().clone()])?;
         match image {
             RequestedExecutableImage::Direct(image) => {
-                NativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
-                    target,
-                    psi_artifact,
-                    object,
-                    image,
-                    selected_provider_closure_report_identity,
-                    selected_provider_closure_digest,
-                    selected_provider_plans,
-                    provider_executions,
-                    terminal_authority_policy_identity,
-                    terminal_authority_permission_policy_identity,
-                    terminal_authority_closure_review,
-                    boundary_application_coverage,
-                    physical_evidence_scope,
-                })
-                .map(Self::Direct)
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "native artifact native artifact replay failed: {error}"
-                    ))]
-                })
+                NativeArtifact::from_emitted_parts(with_emitted_image(parts, image))
+                    .map(Self::Direct)
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "native artifact native artifact replay failed: {error}"
+                        ))]
+                    })
             }
             RequestedExecutableImage::DynamicElf(image) => {
-                DynamicElfNativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
-                    target,
-                    psi_artifact,
-                    object,
-                    image,
-                    selected_provider_closure_report_identity,
-                    selected_provider_closure_digest,
-                    selected_provider_plans,
-                    provider_executions,
-                    terminal_authority_policy_identity,
-                    terminal_authority_permission_policy_identity,
-                    terminal_authority_closure_review,
-                    boundary_application_coverage,
-                    physical_evidence_scope,
-                })
-                .map(Self::DynamicElf)
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "native artifact dynamic ELF native artifact replay failed: {error}"
-                    ))]
-                })
+                DynamicElfNativeArtifact::from_emitted_parts(with_emitted_image(parts, image))
+                    .map(Self::DynamicElf)
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "native artifact dynamic ELF native artifact replay failed: {error}"
+                        ))]
+                    })
             }
         }
+    }
+}
+
+/// Reassemble one emission row around the image the writer selected, retaining
+/// every custody column unchanged. The image carrier is the only column whose
+/// class differs between the two authority-distinct products, so each branch
+/// names its own artifact and refusal instead of its own row.
+fn with_emitted_image<Image, EmittedImage>(
+    parts: NativeArtifactEmissionParts<Image>,
+    image: EmittedImage,
+) -> NativeArtifactEmissionParts<EmittedImage> {
+    NativeArtifactEmissionParts {
+        target: parts.target,
+        psi_artifact: parts.psi_artifact,
+        object: parts.object,
+        image,
+        selected_provider_closure_report_identity: parts.selected_provider_closure_report_identity,
+        selected_provider_closure_digest: parts.selected_provider_closure_digest,
+        selected_provider_plans: parts.selected_provider_plans,
+        provider_executions: parts.provider_executions,
+        terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity: parts
+            .terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review: parts.terminal_authority_closure_review,
+        boundary_application_coverage: parts.boundary_application_coverage,
+        physical_evidence_scope: parts.physical_evidence_scope,
     }
 }

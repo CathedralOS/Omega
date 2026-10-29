@@ -1,0 +1,1 @@
+requires contract for call require_size from main state entry statement 0: requires 8 >= `constant expression`, but the selected target realization closes `constant expression` to 16

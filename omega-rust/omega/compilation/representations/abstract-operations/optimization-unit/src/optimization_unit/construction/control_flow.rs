@@ -36,7 +36,7 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
                 // Payloads are produced on this case edge, not by preceding SSA
                 // operations. Their complete telescope stays on StructuralCase.
                 bindings: Vec::new(),
-                structural_bindings: Vec::new(),
+                structural_bindings: case.structural_bindings.clone(),
                 cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
                 fuel: vec![FuelSettlement {

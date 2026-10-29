@@ -69,7 +69,7 @@ pub(crate) fn expected_edges(
                 psi_edge: case.psi_edge,
                 target: case.target,
                 bindings: Vec::new(),
-                structural_bindings: Vec::new(),
+                structural_bindings: case.structural_bindings.clone(),
                 cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {

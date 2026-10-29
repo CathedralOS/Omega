@@ -354,8 +354,21 @@ fn complete_build_source(
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
+    if computed_build_config
+        .declared_product_selections
+        .iter()
+        .any(|request| {
+            request
+                .operands
+                .iter()
+                .any(|operand| operand.application.is_some())
+        })
+    {
+        source = source
+            .materialize_authored_bodies(&mut crate::observations::PsiStageTimings::new(timings))?;
+    }
     super::product_selections::admit(
-        source.typed(),
+        &mut source,
         Arc::make_mut(&mut computed_build_config),
         package_inputs,
     )?;

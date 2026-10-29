@@ -189,6 +189,7 @@ fn mint_toolchain_settled_plan(
         ),
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
+        provider_application: Default::default(),
         target: target_name.to_owned(),
         schema,
         rows,
@@ -223,7 +224,7 @@ pub struct SettledTargetMachineDeclarations {
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
-    pub settlement: ProviderSettlement<crate::UnpreparedIntrinsicDeclaration>,
+    pub settlement: ProviderSettlement<crate::UnpreparedProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
 }
@@ -232,7 +233,7 @@ pub struct CheckedProviderSelection {
 /// trust replay and native realization. Candidate plans stay separate from the
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderSettlement<Intrinsic = crate::intrinsic_declarations::IntrinsicDeclaration> {
+pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -245,7 +246,7 @@ pub struct ProviderSettlement<Intrinsic = crate::intrinsic_declarations::Intrins
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
-    pub provider_candidates: Vec<crate::ProviderPlanCandidate<Intrinsic>>,
+    pub provider_candidates: Vec<crate::ProviderPlanCandidate<Rows>>,
     /// Complete authored native candidates, including private/unselected rows.
     /// Package output and audit use this inventory, never runtime demand as an
     /// excuse to discard a declared foreign promise.
@@ -269,10 +270,10 @@ pub struct ProviderSettlement<Intrinsic = crate::intrinsic_declarations::Intrins
         Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
-impl ProviderSettlement<crate::UnpreparedIntrinsicDeclaration> {
+impl ProviderSettlement<crate::UnpreparedProviderRows> {
     /// Close declaration facts against the finalized source snapshot, after
     /// target constant/layout closure and before source-free leaf completion.
-    pub fn prepare_intrinsic_declarations(
+    pub fn prepare_row_declarations(
         self,
         typed: &TypedTrees,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
@@ -292,7 +293,7 @@ impl ProviderSettlement<crate::UnpreparedIntrinsicDeclaration> {
         for candidate in provider_candidates {
             prepared.push(
                 candidate
-                    .prepare_intrinsic_declarations(typed, exact_toolchain_sources)
+                    .prepare_row_declarations(typed, exact_toolchain_sources)
                     .map_err(|diagnostic| vec![diagnostic])?,
             );
         }
@@ -436,6 +437,7 @@ fn demanded_provider_plans(
                         selection.subject.selects_schema(
                             candidate.provenance.schema.symbol(),
                             candidate.plan.identity_text(row.requirement_identity),
+                            candidate.plan.schema.root_application_identity(),
                         )
                     })
                 })
@@ -516,9 +518,7 @@ pub fn settle_checked_providers(
     };
     let mut provider_candidates = derived_provider_plans
         .into_iter()
-        .map(|source| {
-            crate::provider_planning::direct_boundary_inputs::prepare(source, &direct_context)
-        })
+        .map(|source| crate::provider_planning::provider_rows::prepare(source, &direct_context))
         .collect::<Result<Vec<_>, _>>()?;
     // The canonical `FilesystemHost` slot admits no authored conformance or
     // selection row; the toolchain mints the per-target realization plan

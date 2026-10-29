@@ -18,10 +18,64 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
+#[derive(Clone)]
 pub(super) struct SiteFallthrough {
     pub location: CrashSiteLocation,
     pub guards: Vec<(ExpressionHandle, bool)>,
     pub entry_value_consequences: Vec<CrashPredicateIdentity>,
+}
+
+/// One machine's source-path inventory for checked-site coverage. Possibility
+/// summaries consume evaluation's entry-path receipts instead of source walks.
+pub(super) struct SourceCrashPaths<'a> {
+    program: &'a dyn validation::CheckingInput,
+    machine: &'a Machine,
+    parameter_names: &'a [String],
+    conservation: &'a [validation::ContentConservationSourcePlan],
+    sites: Vec<SiteFallthrough>,
+}
+
+impl<'a> SourceCrashPaths<'a> {
+    pub(super) fn new(
+        program: &'a dyn validation::CheckingInput,
+        machine: &'a Machine,
+        parameter_names: &'a [String],
+        conservation: &'a [validation::ContentConservationSourcePlan],
+    ) -> Self {
+        Self {
+            program,
+            machine,
+            parameter_names,
+            conservation,
+            sites: collect(program, machine, parameter_names, conservation),
+        }
+    }
+    pub(super) fn at_site(&self, location: CrashSiteLocation) -> Option<&SiteFallthrough> {
+        self.sites.iter().find(|site| site.location == location)
+    }
+    pub(super) fn at_call(
+        &self,
+        location: checked_trees::CrashCallSiteLocation,
+    ) -> SiteFallthrough {
+        let site = CrashSiteLocation::new(location.state(), location.statement_ordinal());
+        let mut path = self.at_site(site).cloned().unwrap_or(SiteFallthrough {
+            location: site,
+            guards: Vec::new(),
+            entry_value_consequences: Vec::new(),
+        });
+        if let Some(selected) = selected_call_path(
+            self.program,
+            self.machine,
+            location,
+            self.parameter_names,
+            self.conservation,
+        ) {
+            path.guards.extend(selected.guards);
+            path.entry_value_consequences
+                .extend(selected.entry_value_consequences);
+        }
+        path
+    }
 }
 
 /// A call in a selected target (including its argument evaluation) observes

@@ -52,6 +52,43 @@ fn boundary_operator_plan_singletons<'plan>(
     Ok((method, row, requirement_symbol, realization_symbol))
 }
 
+/// One selected boundary-operator plan and the provenance it was selected
+/// alongside, which must join the operator's requirement identity.
+type SelectedBoundaryOperatorPlan<'a> = (
+    &'a effects::provider_plan::ProviderPlan,
+    &'a provider_planning::SelectedProviderReviewProvenance,
+);
+
+fn selected_boundary_operator_plans<'a>(
+    compilation: &PackageReviewInput<'a>,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> Result<(String, Vec<SelectedBoundaryOperatorPlan<'a>>), Vec<Diagnostic>> {
+    let selected_execution = compilation.custody.execution();
+    let plans = selected_execution.selected_provider_plan_facts.plans();
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
+    if plans.len() != provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "selected boundary-operator provider plans are not aligned with retained declaration provenance",
+        )]);
+    }
+    let slot = typed_trees::operator::boundary_operator_requirement_identity(
+        compilation.checking_input,
+        operator,
+    );
+    let matches = plans
+        .iter()
+        .zip(provenance)
+        .filter(|(plan, retained)| {
+            plan.schema.identity_text(plan.schema.trait_name) == slot
+                && retained.provider.schema
+                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
+                        operator.symbol,
+                    )
+        })
+        .collect();
+    Ok((slot, matches))
+}
+
 pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -96,29 +133,7 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
     machine: &typed_trees::machine::Machine,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Result<(), Vec<Diagnostic>> {
-    let selected_execution = compilation.custody.execution();
-    let plans = selected_execution.selected_provider_plan_facts.plans();
-    let provenance = selected_execution.selected_provider_provenance.as_slice();
-    if plans.len() != provenance.len() {
-        return Err(vec![Diagnostic::error(
-            "selected boundary-operator provider plans are not aligned with retained declaration provenance",
-        )]);
-    }
-    let slot = typed_trees::operator::boundary_operator_requirement_identity(
-        compilation.checking_input,
-        operator,
-    );
-    let matches = plans
-        .iter()
-        .zip(provenance)
-        .filter(|(plan, retained)| {
-            plan.schema.identity_text(plan.schema.trait_name) == slot
-                && retained.provider.schema
-                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
-                        operator.symbol,
-                    )
-        })
-        .collect::<Vec<_>>();
+    let (slot, matches) = selected_boundary_operator_plans(compilation, operator)?;
     let [(plan, retained)] = matches.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed checked adapter `{}` realizes boundary operator `{slot}`, but package review found {} exact selected provider plans for that operator",
@@ -179,32 +194,15 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
     operator: &typed_trees::operator::OperatorDefinition,
     binding: &PackageReviewExternalBinding,
 ) -> Result<(), Vec<Diagnostic>> {
-    let selected_execution = compilation.custody.execution();
-    let plans = selected_execution.selected_provider_plan_facts.plans();
-    let provenance = selected_execution.selected_provider_provenance.as_slice();
-    if plans.len() != provenance.len() {
-        return Err(vec![Diagnostic::error(
-            "selected boundary-operator provider plans are not aligned with retained declaration provenance",
-        )]);
-    }
-    let slot = typed_trees::operator::boundary_operator_requirement_identity(
-        compilation.checking_input,
-        operator,
-    );
-    let matches = plans
-        .iter()
-        .zip(provenance)
-        .filter(|(plan, retained)| {
-            plan.schema.identity_text(plan.schema.trait_name) == slot
-                && retained.provider.schema
-                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
-                        operator.symbol,
-                    )
-                && retained
-                    .provider
-                    .row_realizations
-                    .iter()
-                    .any(|row| row.authored() == Some(machine.symbol))
+    let (slot, matches) = selected_boundary_operator_plans(compilation, operator)?;
+    let matches = matches
+        .into_iter()
+        .filter(|(_, retained)| {
+            retained
+                .provider
+                .row_realizations
+                .iter()
+                .any(|row| row.authored() == Some(machine.symbol))
         })
         .collect::<Vec<_>>();
     if matches.is_empty() {

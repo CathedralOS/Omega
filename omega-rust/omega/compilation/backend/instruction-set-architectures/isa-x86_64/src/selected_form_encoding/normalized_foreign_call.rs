@@ -1474,42 +1474,30 @@ mod tests {
         )
         .unwrap();
         // A substituted boundary or ordinal cannot validate.
+        let rejects_fixup = |foreign| {
+            assert_eq!(
+                validate_x86_64_selected_normalized_foreign_call_template(
+                    NativeTarget::linux_x64(),
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    &accesses,
+                    &effects,
+                    template.bytes(),
+                    foreign,
+                    &[],
+                    &record,
+                ),
+                Err(X86_64NormalizedForeignCallTemplateError::FixupMismatch)
+            );
+        };
         let mut foreign = template.fixup().clone();
         foreign.boundary = BoundaryMachineId::new(9).unwrap();
-        assert_eq!(
-            validate_x86_64_selected_normalized_foreign_call_template(
-                NativeTarget::linux_x64(),
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                &accesses,
-                &effects,
-                template.bytes(),
-                foreign,
-                &[],
-                &record,
-            ),
-            Err(X86_64NormalizedForeignCallTemplateError::FixupMismatch)
-        );
+        rejects_fixup(foreign);
         foreign = template.fixup().clone();
         foreign.ordinal = 7;
-        assert_eq!(
-            validate_x86_64_selected_normalized_foreign_call_template(
-                NativeTarget::linux_x64(),
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                &accesses,
-                &effects,
-                template.bytes(),
-                foreign,
-                &[],
-                &record,
-            ),
-            Err(X86_64NormalizedForeignCallTemplateError::FixupMismatch)
-        );
+        rejects_fixup(foreign);
         // The canonical placeholder is the only admitted byte sequence.
         assert_eq!(
             validate_x86_64_selected_normalized_foreign_call_template(

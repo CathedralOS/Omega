@@ -146,6 +146,7 @@ pub(super) fn record(
         let statement_nodes_start = plans.nodes.storage_slice().len();
         let mut builder = Builder {
             program,
+            shapes: crate::execution::terminal_unit::types::ShapeCollector::new(program),
             operators,
             semantic,
             flow,
@@ -344,6 +345,7 @@ fn distance(
         template(1),
         ArithmeticDomain::Exact,
         true,
+        false,
     )?;
     let operands = builder.plans.operands.insert_many([ceiling, lower]);
     Some(builder.insert(

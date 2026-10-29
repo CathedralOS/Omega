@@ -55,6 +55,10 @@ impl ContractStructuralResult<'_> {
 /// `ContractViewNamespace::EMPTY`.
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
+    /// Values supplied by this checked product's exact target closure. The
+    /// retained predicate owns recipe identity; this roster supplies atoms,
+    /// never source syntax or authority to discharge pending obligations.
+    pub constant_values: &'a [typed_trees::constant_recipes::ClosedConstantRecipe],
     pub parameters: &'a [(u32, StructuralParameterDeclaration)],
     /// Normal guarantees observe the declared result place, never a synthetic
     /// entry parameter or a returned body-local place.
@@ -73,6 +77,7 @@ static EMPTY_ELEMENT_VIEWS: std::collections::BTreeMap<StructuralTypeId, Option<
 impl ContractViewNamespace<'static> {
     /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
     pub(crate) const EMPTY: ContractViewNamespace<'static> = ContractViewNamespace {
+        constant_values: &[],
         parameters: &[],
         result: ContractStructuralResult::Absent,
         structural_types: &[],
@@ -717,6 +722,30 @@ impl ScalarContractTerms<'_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
+        if let CheckedScalarExpression::ConstantApplication {
+            recipe,
+            primitive_type,
+        } = expression
+        {
+            let value = self
+                .views
+                .constant_values
+                .iter()
+                .find(|value| value.recipe == *recipe)
+                .ok_or(LoweringError::Unsupported(
+                    "contract constant application has no admitted target value",
+                ))?;
+            let value = typed_trees::closed_numeric::land_integer(&value.value, *primitive_type)
+                .ok_or(LoweringError::Unsupported(
+                    "contract constant application does not fit its declared carrier",
+                ))?;
+            let scalar_type = crate::emission::scalar_types::integer_scalar_type(*primitive_type)?
+                .as_integer()
+                .ok_or(LoweringError::Unsupported(
+                    "contract constant application has no integer carrier",
+                ))?;
+            return Ok(ScalarTerm::Integer { scalar_type, value });
+        }
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(identities, predicate);
         }

@@ -45,11 +45,31 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         }
     }
     let mut changed = Vec::new();
-    let selected_roots = program
+    let mut selected_roots = program
         .trait_implementation_applications
         .iter()
         .map(|(_, selected)| (selected.supplying_application, selected.application.clone()))
         .collect::<Vec<_>>();
+    // Source formation also retains applications in unexecuted helpers. Only
+    // a reached Build choice demands its owned realization's capture tuple.
+    // The source census independently excludes discarded preparation rows.
+    selected_roots.extend(
+        program
+            .live_product_operand_applications()
+            .into_iter()
+            .filter_map(|handle| {
+                let selected = program.product_operand_applications.get(handle);
+                if selected.demand
+                    != typed_trees::product_operand::ProductApplicationDemand::Selected
+                {
+                    return None;
+                }
+                Some((
+                    selected.supplying_application,
+                    selected.implementation.as_ref()?.clone(),
+                ))
+            }),
+    );
     for (supplying, application) in selected_roots {
         let conformance = program
             .conformance_by_symbol(application.declaration)
@@ -222,7 +242,10 @@ fn realize_capture(
         .iter()
         .filter(|(_, captured)| {
             captured.template == realization_machine
-                && captured.conformance_application == *application
+                && program.closed_conformance_applications_match(
+                    &captured.conformance_application,
+                    application,
+                )
                 && program
                     .expression_table
                     .static_machine_application(captured.supplying_application)
@@ -476,7 +499,10 @@ fn realize_capture(
                 .iter()
                 .find(|(_, capture)| {
                     capture.template == realization_machine
-                        && capture.conformance_application == *application
+                        && program.closed_conformance_applications_match(
+                            &capture.conformance_application,
+                            application,
+                        )
                         && program
                             .expression_table
                             .static_machine_application(capture.supplying_application)

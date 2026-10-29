@@ -1,6 +1,6 @@
 // Expected exit: 0
 machine threshold<T>() -> T
-where T == u32 || T == u64
+requires T == u32 || T == u64
 {
     transition T == u32 { true -> (37u32) _ -> (73u64) }
 }

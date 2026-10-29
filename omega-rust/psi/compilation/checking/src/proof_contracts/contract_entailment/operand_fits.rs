@@ -82,6 +82,10 @@ enum OperandSource {
     TruncatedFloat(TypeReferenceHandle),
     AnonymousInteger,
     AnonymousValue,
+    CompletedIntegerExclusion {
+        references: [TypeReferenceHandle; 2],
+        excluded: [Option<i64>; 2],
+    },
     CompletedOperation {
         operator: BinaryOperator,
         references: [TypeReferenceHandle; 2],
@@ -359,6 +363,57 @@ pub(crate) fn anonymous_value_fit_at_occurrence(
     )
 }
 
+/// Exclude one simultaneous tuple of integer operand values at the operation
+/// cut. Earlier operands are captured before later operands' writes; neither
+/// the requested operation nor its normal result contributes a premise.
+pub(crate) fn integer_operands_exclude_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+    excluded: [Option<i64>; 2],
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    let Some(position) = excluded.iter().position(Option::is_some) else {
+        return false;
+    };
+    let references = [binary.left, binary.right].map(|operand| {
+        crate::expression_result_type_reference(program, machine, state, operand)
+            .unwrap_or_default()
+    });
+    if !primitive.is_fixed_integer()
+        || references.iter().zip(excluded).any(|(reference, value)| {
+            value.is_some() && program.primitive_type_reference(*reference) != Some(primitive)
+        })
+    {
+        return false;
+    }
+    let context_reference =
+        crate::expression_result_type_reference(program, machine, state, expression)
+            .unwrap_or(state.return_type);
+    matches!(
+        operand_fits_at_occurrence(
+            program,
+            machine,
+            state,
+            OperandFitRequest {
+                expression,
+                position,
+                source: OperandSource::CompletedIntegerExclusion {
+                    references,
+                    excluded
+                },
+                target: primitive,
+                context_reference,
+            }
+        ),
+        CarrierFit::Proven
+    )
+}
+
 fn operand_fits_at_occurrence(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -442,7 +497,7 @@ impl StructuralPrefixVisitor for OperandFit {
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-        let (_, machine, state, judge, environment) = observation;
+        let (program, machine, state, judge, environment) = observation;
         let entries = match self.request.source {
             OperandSource::AnonymousValue => judge.normal_value_entries(
                 self.site.statement_index,
@@ -500,6 +555,56 @@ impl StructuralPrefixVisitor for OperandFit {
                 OperandSource::AnonymousInteger | OperandSource::AnonymousValue => entry
                     .judge
                     .integer_term_fit_judgment(value.clone(), self.request.target),
+                OperandSource::CompletedIntegerExclusion {
+                    references,
+                    excluded,
+                } => {
+                    let predicates = excluded
+                        .into_iter()
+                        .enumerate()
+                        .filter_map(|(position, excluded)| {
+                            excluded.map(|excluded| {
+                                let value = entry.arguments.get(position)?.as_ref()?.clone();
+                                Some(StructuralTerm::ScalarBinary {
+                                    references: [references[position]; 2],
+                                    operator: BinaryOperator::NotEqual,
+                                    meaning: [(
+                                        self.request.target,
+                                        numerics::arithmetic::ArithmeticDomain::Exact,
+                                    ); 2],
+                                    left: Box::new(value),
+                                    right: Box::new(StructuralTerm::Integer(
+                                        numerics::bignum::BigInt::from_i64(excluded),
+                                    )),
+                                })
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>();
+                    let predicate = predicates.and_then(|mut predicates| {
+                        let first = predicates.pop()?;
+                        if let Some(other) = predicates.pop() {
+                            let boolean = crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                                program, symbols::BuiltinTypeAtom::Bool,
+                            )?;
+                            Some(StructuralTerm::ScalarBinary {
+                                references: [boolean; 2],
+                                operator: BinaryOperator::Or,
+                                meaning: [(PrimitiveType::Bool, numerics::arithmetic::ArithmeticDomain::Exact); 2],
+                                left: Box::new(other), right: Box::new(first),
+                            })
+                        } else { Some(first) }
+                    });
+                    if predicate.is_some_and(|predicate| {
+                        matches!(
+                            entry.judge.judge_observed_predicate(predicate, 0),
+                            super::structural_judgment::StructuralJudgment::Proven
+                        )
+                    }) {
+                        CarrierFit::Proven
+                    } else {
+                        CarrierFit::Unknown
+                    }
+                }
                 OperandSource::CompletedOperation {
                     operator,
                     references,

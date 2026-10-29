@@ -6,12 +6,46 @@
 //! checks the declared carrier, every authored operator and admitted helper.
 //! Only completed declaration values return from the private evaluation forest.
 
-use super::invocations::{CheckedInitializers, append_probe};
+use super::invocations::{CheckedInitializers, create_probe};
 use crate::build_time_evaluation::EvaluationDomain;
 use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
+
+/// Each deferred declaration owns one complete expression entry before target
+/// selection. Detached entries are not ordinary checked/runtime machines; the
+/// exact evaluator still establishes their arithmetic and call obligations.
+pub(crate) fn retain_entries(typed: &mut TypedTrees, domain: &EvaluationDomain) {
+    let declarations = typed
+        .roots
+        .const_declarations
+        .handles()
+        .filter_map(|handle| {
+            let declaration = typed.tables.const_declarations.get(handle);
+            (domain.contains(declaration.symbol)
+                && declaration.evaluated_value.is_none()
+                && !declaration.evaluation_entry.is_valid()
+                && scalar_probe_destination(typed, declaration.declared_type).is_some())
+            .then(|| (handle, declaration.clone()))
+        })
+        .collect::<Vec<_>>();
+    for (handle, declaration) in declarations {
+        let entry = create_probe(
+            typed,
+            declaration.symbol,
+            format!("@constant-{}", typed.symbols.name(declaration.symbol)),
+            declaration.materialized_initializer,
+            declaration.declared_type,
+        );
+        let entry = typed.tables.machines.insert(entry);
+        typed
+            .tables
+            .const_declarations
+            .get_mut(handle)
+            .evaluation_entry = entry;
+    }
+}
 
 pub(crate) fn settle(
     typed: &mut TypedTrees,
@@ -42,14 +76,20 @@ pub(crate) fn settle(
     while !declarations.is_empty() {
         let mut ready = None;
         for (ordinal, (declaration, _)) in declarations.iter().enumerate() {
+            if !typed.tables.machines.is_valid(declaration.evaluation_entry) {
+                return Err(super::failure(
+                    declaration.initializer_source_span,
+                    "deferred constant lost its source-owned evaluation entry",
+                ));
+            }
             let mut source_probes = typed.clone();
-            let owner = append_probe(
-                &mut source_probes,
-                declaration.symbol,
-                format!("@target-constant-{ordinal}"),
-                declaration.materialized_initializer,
-                declaration.declared_type,
-            );
+            let entry = source_probes
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .clone();
+            let owner = entry.symbol;
+            source_probes.push_machine(entry);
             let execution_probes =
                 crate::machine_execution::selected_operators::prepare_selected_execution(
                     &source_probes,

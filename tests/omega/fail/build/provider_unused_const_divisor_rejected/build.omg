@@ -1,0 +1,17 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_target_provider_local");
+    Build::bind(builder, windows_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, macos_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, first_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, second_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, second_entry);
+    Build::select_provider<Reading<17u64>, FirstReading<(8u64 + 9u64)>>(builder, windows_x86_64);
+    Build::select_provider<Reading<17u64>, FirstReading<(8u64 + 9u64)>>(builder, macos_x86_64);
+    Build::select_provider<Reading<17u64>, FirstReading<(8u64 + 9u64)>>(builder, linux_x86_64);
+    Build::select_provider<Reading<17u64>, SecondReading<(8u64 + 9u64)>>(builder, macos_arm64);
+    Build::select_provider<Reading<17u64>, SecondReading<(8u64 + 9u64)>>(builder, linux_arm64);
+}
+
+machine unused_bad_selection(builder: &mut Build) {
+    Build::select_provider<Reading<17u64>, FirstReading<(8u64 / 0u64)>>(builder, macos_arm64);
+}

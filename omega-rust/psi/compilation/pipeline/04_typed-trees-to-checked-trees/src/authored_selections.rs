@@ -19,6 +19,7 @@ mod finalization;
 mod member_targets;
 mod operator_targets;
 mod selection_collection;
+mod static_inputs;
 
 pub(crate) use contract_resolution::{
     CheckedContractOperatorResolution, checked_named_operator_call, checked_operator_resolution,

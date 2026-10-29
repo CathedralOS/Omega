@@ -16,13 +16,13 @@
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
-pub(crate) mod direct_boundary_inputs;
 pub(crate) mod external_binding_rows;
 mod external_requirements;
 mod independent_components;
 mod installation_reach;
 mod operator_provider_evidence;
 mod provenance_replay;
+pub(crate) mod provider_rows;
 mod qualification_grants;
 mod selected_plan_bindings;
 mod selection_provenance;
@@ -45,11 +45,12 @@ pub use provenance_replay::{
     selected_requirement_checked_adapter,
 };
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
+pub(crate) use selection_provenance::{
+    PreparedSelectionDeclarations, SelectedProviderPlanWithProvenance,
+    selected_provider_plan_facts_with_independent_components,
+};
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, selected_provider_plan_facts,
-};
-pub(crate) use selection_provenance::{
-    SelectedProviderPlanWithProvenance, selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 

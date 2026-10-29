@@ -157,6 +157,7 @@ impl PreparedStructuralArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredDirectCallBinding {
     pub(crate) source_coordinate: SourceCallCoordinate,
+    pub(crate) caller_types: crate::expression_preparation::bindings::PublishedStructuralTypes,
     pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
@@ -285,6 +286,7 @@ fn emit_direct_call_operation(
         identities,
         checked,
         call.source_coordinate,
+        &call.caller_types,
         call.target_machine,
         arguments,
         erased_arguments,

@@ -9,7 +9,7 @@ use syntax_trees::types::TypeReferenceNode;
 fn logical_domain_subject_preserves_ordinary_machine_operands() {
     let source = r#"
         data Player { health: u64; }
-        domain Player::Alive requires self.health > 0 { }
+        domain Player::Alive requires self.health > 0;
         machine health(player: Player) -> u64 { player.health }
     "#;
     let parsed =

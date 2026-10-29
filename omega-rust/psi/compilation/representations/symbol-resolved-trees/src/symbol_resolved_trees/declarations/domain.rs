@@ -26,7 +26,7 @@ pub struct DomainDefinition {
     /// inferred from the declaration's shape or uses.
     pub classification: Option<language_semantics::DomainClassification>,
     /// Explicit predicate-body presence from the source declaration.
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub semantic_clause_token_count: usize,
@@ -36,7 +36,7 @@ pub struct DomainDefinition {
     pub semantic_id: language_semantics::SemanticDomainId,
     /// Role-keyed semantic contributions, populated once at syntax->resolved
     /// and copied downstream. Predicate membership remains independent in
-    /// `predicate_body`.
+    /// `predicate_presence`.
     pub semantic_roles: language_semantics::DomainSemanticRoles,
     /// Normalized authored relationships that may introduce membership.
     /// Populated once after symbol assignment and copied downstream.

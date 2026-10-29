@@ -152,6 +152,24 @@ pub(super) fn project_external_binding(
     }
 }
 
+/// The one evaluated-via row this machine's first trait conformance selects,
+/// if custody retained it.
+fn evaluated_row<'a>(
+    compilation: &'a PackageReviewInput<'_>,
+    machine: &typed_trees::machine::Machine,
+) -> Option<&'a provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow> {
+    let conformance = compilation.machine_trait_conformances(machine).first()?;
+    compilation
+        .custody
+        .providers()
+        .evaluated_via_bindings
+        .exact(
+            machine.symbol,
+            conformance.symbol,
+            conformance.requirement_symbol,
+        )
+}
+
 pub(super) fn external_binding_matches_provider_binding(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -169,55 +187,26 @@ pub(super) fn external_binding_matches_provider_binding(
         (
             PackageReviewExternalBinding::NormalizedImport(reviewed),
             effects::provider_plan::ProviderBinding::Import { evaluated },
-        ) => compilation
-            .machine_trait_conformances(machine)
-            .first()
-            .and_then(|conformance| {
-                compilation
-                    .custody
-                    .providers()
-                    .evaluated_via_bindings
-                    .exact(
-                        machine.symbol,
-                        conformance.symbol,
-                        conformance.requirement_symbol,
-                    )
-            })
-            .is_some_and(|row| {
-                row.evaluated().as_import() == Some(evaluated)
-                    && project_evaluated_binding(compilation, row).is_ok_and(|projected| {
-                        projected
-                            == PackageReviewExternalBinding::NormalizedImport(reviewed.clone())
-                    })
-            }),
+        ) => evaluated_row(compilation, machine).is_some_and(|row| {
+            row.evaluated().as_import() == Some(evaluated)
+                && project_evaluated_binding(compilation, row).is_ok_and(|projected| {
+                    projected == PackageReviewExternalBinding::NormalizedImport(reviewed.clone())
+                })
+        }),
         (
             PackageReviewExternalBinding::NormalizedSyscall(reviewed),
             effects::provider_plan::ProviderBinding::Syscall {
                 number: selected_number,
             },
-        ) => compilation
-            .machine_trait_conformances(machine)
-            .first()
-            .and_then(|conformance| {
-                compilation
-                    .custody
-                    .providers()
-                    .evaluated_via_bindings
-                    .exact(
-                        machine.symbol,
-                        conformance.symbol,
-                        conformance.requirement_symbol,
-                    )
+        ) => evaluated_row(compilation, machine).is_some_and(|row| {
+            row.evaluated().as_syscall().is_some_and(|evaluated| {
+                evaluated.number() == *selected_number
+                    && project_evaluated_binding(compilation, row).is_ok_and(|projected| {
+                        projected
+                            == PackageReviewExternalBinding::NormalizedSyscall(reviewed.clone())
+                    })
             })
-            .is_some_and(|row| {
-                row.evaluated().as_syscall().is_some_and(|evaluated| {
-                    evaluated.number() == *selected_number
-                        && project_evaluated_binding(compilation, row).is_ok_and(|projected| {
-                            projected
-                                == PackageReviewExternalBinding::NormalizedSyscall(reviewed.clone())
-                        })
-                })
-            }),
+        }),
         (
             PackageReviewExternalBinding::Syscall { number },
             effects::provider_plan::ProviderBinding::Syscall {

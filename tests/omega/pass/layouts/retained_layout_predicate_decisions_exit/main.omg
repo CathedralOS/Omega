@@ -1,0 +1,15 @@
+// Expected exit: 0.
+// The retained predicate keeps negation, Boolean equality and both decisions
+// in a composed ground clause while layout observations close later.
+data Cell { first: u64; second: u64; }
+const BYTES: u64 = size_of<Cell>();
+machine require_layout()
+    requires (BYTES < 8u64 || BYTES == 16u64)
+        && !(BYTES != 16u64)
+        && ((align_of<Cell>() == 8u64) == true)
+{}
+machine main() crashes Trap {
+    require_layout();
+    transition BYTES == 16u64 { true -> {} _ -> bad() }
+    machine bad() { crash Trap; }
+}

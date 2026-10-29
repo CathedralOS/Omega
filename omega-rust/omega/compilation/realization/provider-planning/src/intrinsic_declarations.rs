@@ -391,19 +391,6 @@ impl HostedService {
                 realization_source,
             )
     }
-
-    fn accepted_binding_matches(
-        self,
-        typed: &TypedTrees,
-        plan: &ProviderPlan,
-        trait_symbol: SymbolHandle,
-        requirement_symbol: SymbolHandle,
-        realization_symbol: SymbolHandle,
-        binding: &package_compilation::AcceptedSemanticBinding,
-    ) -> bool {
-        HostedSubject::prepare(typed, trait_symbol, requirement_symbol, realization_symbol)
-            .matches(self, plan, binding)
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -542,58 +529,97 @@ fn exact_bundled_standalone_source(
 /// toolchain-owned ProcessExit trait carries no package identity and the
 /// bound package owns the provider nominal. Neither claims that the selected
 /// target has a closed compiler lowering, so inferred supply is not required.
-pub fn accepted_binding_matches_exit_process_row(
-    service: HostedService,
-    checked: &TypedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    checked_external_completion: bool,
-    binding: &package_compilation::AcceptedSemanticBinding,
-) -> Result<bool, Diagnostic> {
-    if !service.accepted_binding_matches(
-        checked,
-        plan,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        binding,
-    ) {
-        return Ok(false);
-    }
-    let hosted = service.exit_process_row();
-    if matches!(
-        row.binding,
-        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-    ) {
-        // The exact selected public plan consumes the binding. Its checked
-        // completion is not an intrinsic identity for this adapter.
-        return Ok(checked_external_completion
-            && matches!(
-                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
-                    checked,
-                    requirement_symbol
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExitProcessDeclaration {
+    subject: HostedSubject,
+    kind: ExitProcessDeclarationKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ExitProcessDeclarationKind {
+    CheckedAdapter {
+        requirement_exits: bool,
+    },
+    Boundary {
+        console: Result<bool, Diagnostic>,
+        process_exit: Result<bool, Diagnostic>,
+    },
+}
+
+impl ExitProcessDeclaration {
+    pub fn prepare(
+        typed: &TypedTrees,
+        plan: &ProviderPlan,
+        row: &ProviderPlanRow,
+        service: SymbolHandle,
+        requirement: SymbolHandle,
+        realization: SymbolHandle,
+    ) -> Self {
+        let kind = if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+            ExitProcessDeclarationKind::CheckedAdapter {
+                requirement_exits: matches!(
+                    checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                        typed, requirement,
+                    ),
+                    semantic_vocabulary::BoundaryCompletion::External(
+                        semantic_vocabulary::ExternalCompletionKind::ProcessExit
+                    )
                 ),
-                semantic_vocabulary::BoundaryCompletion::External(
-                    semantic_vocabulary::ExternalCompletionKind::ProcessExit
+            }
+        } else {
+            let shape = |host: HostedService| {
+                let hosted = host.exit_process_row();
+                boundary_row_shape(
+                    typed,
+                    plan,
+                    row,
+                    service,
+                    requirement,
+                    realization,
+                    host.trait_name(),
+                    false,
+                    hosted.requirement,
+                    hosted.realization,
+                    hosted.shape,
                 )
-            ));
+            };
+            ExitProcessDeclarationKind::Boundary {
+                console: shape(HostedService::Console),
+                process_exit: shape(HostedService::ProcessExit),
+            }
+        };
+        Self {
+            subject: HostedSubject::prepare(typed, service, requirement, realization),
+            kind,
+        }
     }
-    boundary_row_shape(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        service.trait_name(),
-        false,
-        hosted.requirement,
-        hosted.realization,
-        hosted.shape,
-    )
+
+    /// The exact public plan gates deferred source-shape refusals. A checked
+    /// adapter additionally needs its selected completion evidence; recognizing
+    /// the requirement alone does not grant a completion or intrinsic identity.
+    pub fn matches(
+        &self,
+        service: HostedService,
+        plan: &ProviderPlan,
+        checked_external_completion: bool,
+        binding: &package_compilation::AcceptedSemanticBinding,
+    ) -> Result<bool, Diagnostic> {
+        if !self.subject.matches(service, plan, binding) {
+            return Ok(false);
+        }
+        match &self.kind {
+            ExitProcessDeclarationKind::CheckedAdapter { requirement_exits } => {
+                Ok(checked_external_completion && *requirement_exits)
+            }
+            ExitProcessDeclarationKind::Boundary {
+                console,
+                process_exit,
+            } => match service {
+                HostedService::Console => console.clone(),
+                HostedService::ProcessExit => process_exit.clone(),
+            },
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

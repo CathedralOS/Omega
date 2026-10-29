@@ -120,7 +120,13 @@ pub(crate) fn build_contract_plans(
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
-) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        checked_trees::MachineContractPlans,
+        crash_calls::CompletedBodyCrashSummaries,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let content_conservation = validation::content_conservation_plans(program);
     let trapping_index = phase_profile::scope("05.d.3.c.5c.1.trapping_index", || {
         PrecomputedTrappingSites::build(
@@ -350,7 +356,7 @@ pub(crate) fn build_contract_plans(
                 });
         });
     });
-    phase_profile::scope("05.d.3.c.5c.7.attach_crash_calls", || {
+    let completed_crashes = phase_profile::scope("05.d.3.c.5c.7.attach_crash_calls", || {
         crash_calls::attach_checked_crash_calls(
             program,
             operators,
@@ -361,7 +367,7 @@ pub(crate) fn build_contract_plans(
             &crash_capsules,
             &mut machines,
             &summary_graph,
-        );
+        )
     });
     let mut capabilities_by_machine = symbols::SymbolKeyMap::<
         symbols::SymbolHandle,
@@ -479,7 +485,7 @@ pub(crate) fn build_contract_plans(
         ))]
     })?;
     validate_checked_resource_envelope_coverage(program, &plans)?;
-    Ok(plans)
+    Ok((plans, completed_crashes))
 }
 
 /// Reconstruct the complete per-entry resource roster from typed ownership
@@ -848,9 +854,9 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
 /// operator plans so per-machine contract assembly performs O(1) lookups.
 struct PrecomputedTrappingSites {
     expressions_by_state:
-        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CrashSiteLocation>>,
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CheckedTrappingSite>>,
     computations_by_machine:
-        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CrashSiteLocation>>,
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CheckedTrappingSite>>,
     float_adapters_by_machine:
         symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<(symbols::SymbolHandle, usize)>>,
 }
@@ -864,31 +870,43 @@ impl PrecomputedTrappingSites {
     ) -> Self {
         let mut expressions_by_state = symbols::SymbolKeyMap::<
             symbols::SymbolHandle,
-            Vec<checked_trees::CrashSiteLocation>,
+            Vec<checked_trees::CheckedTrappingSite>,
         >::default();
         for located in &scalar_expressions.expressions {
             if located.expression.contains_trapping_operation() {
                 expressions_by_state.entry(located.state).or_default().push(
-                    checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal),
+                    checked_trees::CheckedTrappingSite::new(
+                        checked_trees::CrashSiteLocation::new(
+                            located.state,
+                            located.statement_ordinal,
+                        ),
+                        located.expression.contains_possible_trapping_operation(),
+                    ),
                 );
             }
         }
         let mut computations_by_machine = symbols::SymbolKeyMap::<
             symbols::SymbolHandle,
-            Vec<checked_trees::CrashSiteLocation>,
+            Vec<checked_trees::CheckedTrappingSite>,
         >::default();
         for (_, root) in scalar_computations.roots.iter() {
             if computation_contains_trapping_operation(
                 scalar_computations,
                 structural_values,
                 root.root,
+                TrapObservation::Physical,
             ) {
                 computations_by_machine
                     .entry(root.machine)
                     .or_default()
-                    .push(checked_trees::CrashSiteLocation::new(
-                        root.state,
-                        root.statement_ordinal,
+                    .push(checked_trees::CheckedTrappingSite::new(
+                        checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal),
+                        computation_contains_trapping_operation(
+                            scalar_computations,
+                            structural_values,
+                            root.root,
+                            TrapObservation::Possible,
+                        ),
                     ));
             }
         }
@@ -928,7 +946,7 @@ impl PrecomputedTrappingSites {
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
-    ) -> Result<Vec<checked_trees::CrashSiteLocation>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<Vec<checked_trees::CheckedTrappingSite>, Vec<diagnostics::Diagnostic>> {
         let states = program.machine_states(machine);
         let mut sites = Vec::new();
         for state in states {
@@ -950,13 +968,28 @@ impl PrecomputedTrappingSites {
                     return Err(invalid_site());
                 }
                 let statement = u32::try_from(statement_index).map_err(|_| invalid_site())?;
-                sites.push(checked_trees::CrashSiteLocation::new(
-                    state_symbol,
-                    statement,
+                sites.push(checked_trees::CheckedTrappingSite::new(
+                    checked_trees::CrashSiteLocation::new(state_symbol, statement),
+                    true,
                 ));
             }
         }
         Ok(sites)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum TrapObservation {
+    Physical,
+    Possible,
+}
+
+impl TrapObservation {
+    fn scalar(self, expression: &checked_trees::CheckedScalarExpression) -> bool {
+        match self {
+            Self::Physical => expression.contains_trapping_operation(),
+            Self::Possible => expression.contains_possible_trapping_operation(),
+        }
     }
 }
 
@@ -966,6 +999,7 @@ fn computation_contains_trapping_operation(
     plans: &checked_trees::CheckedScalarComputationPlans,
     values: &checked_trees::CheckedStructuralValuePlans,
     root: checked_trees::CheckedScalarComputationHandle,
+    query: TrapObservation,
 ) -> bool {
     use checked_trees::{
         CheckedScalarComputationKind as Kind,
@@ -974,11 +1008,12 @@ fn computation_contains_trapping_operation(
     };
     fn push_argument(
         plans: &checked_trees::CheckedScalarComputationPlans,
+        query: TrapObservation,
         argument: &Argument,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
         match argument {
-            Argument::Place(place) => return push_place(plans, place, pending),
+            Argument::Place(place) => return push_place(plans, query, place, pending),
             Argument::Case(case) => pending.extend(
                 plans
                     .case_fields
@@ -991,20 +1026,20 @@ fn computation_contains_trapping_operation(
     }
     fn push_place(
         plans: &checked_trees::CheckedScalarComputationPlans,
+        query: TrapObservation,
         place: &checked_trees::CheckedUnitStructuralArgumentPlan,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
         pending.extend(place.computation_operands(&plans.operands));
         place.scalar_operands().any(|operand| match operand {
-            checked_trees::CheckedCallScalarArgument::Pure(value) => {
-                value.contains_trapping_operation()
-            }
+            checked_trees::CheckedCallScalarArgument::Pure(value) => query.scalar(value),
             checked_trees::CheckedCallScalarArgument::Computation(_) => false,
         })
     }
     fn push_structural(
         plans: &checked_trees::CheckedScalarComputationPlans,
         values: &checked_trees::CheckedStructuralValuePlans,
+        query: TrapObservation,
         root: checked_trees::CheckedStructuralValueHandle,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
@@ -1051,7 +1086,7 @@ fn computation_contains_trapping_operation(
                         for argument in call.scalar_operands() {
                             match argument {
                                 checked_trees::CheckedCallScalarArgument::Pure(expression) => {
-                                    if expression.contains_trapping_operation() {
+                                    if query.scalar(expression) {
                                         return true;
                                     }
                                 }
@@ -1080,7 +1115,7 @@ fn computation_contains_trapping_operation(
                 }
                 Value::Reference { source, selectors, .. } => {
                     pending.extend(plans.operands.span_or_empty(*selectors));
-                    if push_place(plans, source, pending) {
+                    if push_place(plans, query, source, pending) {
                         return true;
                     }
                 }
@@ -1096,7 +1131,7 @@ fn computation_contains_trapping_operation(
                     for endpoint in start.iter().chain(end.iter()) {
                         match endpoint {
                             checked_trees::CheckedCallScalarArgument::Pure(expression) => {
-                                if expression.contains_trapping_operation() {
+                                if query.scalar(expression) {
                                     return true;
                                 }
                             }
@@ -1115,13 +1150,13 @@ fn computation_contains_trapping_operation(
                     }
                 }
                 Value::Place(source) | Value::CopiedStructuralPlace { source, .. } => {
-                    if push_place(plans, source, pending) {
+                    if push_place(plans, query, source, pending) {
                         return true;
                     }
                 }
                 Value::BorrowedSliceView { source, region }
                 | Value::MutableSliceView { source, region } => {
-                    if push_place(plans, source, pending) {
+                    if push_place(plans, query, source, pending) {
                         return true;
                     }
                     if let checked_trees::CheckedElementViewRegion::RepresentationBytes { start, .. } = region {
@@ -1147,7 +1182,7 @@ fn computation_contains_trapping_operation(
         match &plans.nodes.get(handle).kind {
             Kind::RetainedConstant { .. } => {}
             Kind::Value(expression) => {
-                if expression.contains_trapping_operation() {
+                if query.scalar(expression) {
                     return true;
                 }
             }
@@ -1161,7 +1196,7 @@ fn computation_contains_trapping_operation(
                 operands,
                 ..
             } => {
-                if expression.contains_trapping_operation() {
+                if query.scalar(expression) {
                     return true;
                 }
                 pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
@@ -1169,13 +1204,13 @@ fn computation_contains_trapping_operation(
             Kind::StorageAddress { subject, .. }
             | Kind::ByteSequenceLiteralComparison { subject, .. }
             | Kind::ByteSequencePredicate { subject, .. } => {
-                if push_place(plans, subject, &mut pending) {
+                if push_place(plans, query, subject, &mut pending) {
                     return true;
                 }
             }
             Kind::StructuralField { .. } => {}
             Kind::CaseMembership { subject, .. } => {
-                if push_argument(plans, subject, &mut pending) {
+                if push_argument(plans, query, subject, &mut pending) {
                     return true;
                 }
             }
@@ -1189,7 +1224,7 @@ fn computation_contains_trapping_operation(
                             pending.push(*value);
                         }
                         checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
-                            if push_structural(plans, values, *value, &mut pending) {
+                            if push_structural(plans, values, query, *value, &mut pending) {
                                 return true;
                             }
                         }
@@ -1227,7 +1262,7 @@ fn computation_contains_trapping_operation(
                     .structural_arguments
                     .span_or_empty(*structural_arguments)
                 {
-                    if push_argument(plans, structural, &mut pending) {
+                    if push_argument(plans, query, structural, &mut pending) {
                         return true;
                     }
                 }

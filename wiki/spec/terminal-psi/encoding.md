@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 203 even when every table
+order below. This layout uses semantic format marker 204 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -664,7 +664,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 18 | ReturnStructural | edge id + source place id + counted bindings (claim id + structural path relative to the returned value) + counted trivial discards |
 | 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
-| 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted affine cleanup actions) |
+| 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted structural arguments + counted affine cleanup actions) |
 | 19 | InvokeNoNormal | edge id + `bool` static-reach presence (when present `u32` binder) + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 
 A Jump with no residual affine discards uses tag 1; a nonempty residual list
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 203 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 204 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -1366,6 +1366,13 @@ nonempty. Numeric meaning agrees with any corresponding callable boundary.
 These are checked satisfaction edges, not provider choices or external execution
 grants. Authored target membership retains the existing family migration
 vocabulary; it is never inferred from a normalized overload's spelling.
+
+Marker 204 adds counted structural arguments to each structural-case successor,
+after its payload field ids and before its affine cleanup actions. These are
+simultaneous bindings in the selected edge's ordinary source namespace, using
+the same structural-argument encoding as other successors. The selected case,
+payload fields and cleanup actions keep their existing meaning. Marker 204 also
+retains all marker-203 fields; either earlier layout rejects.
 
 Marker 203 adds the requirement-schema presence Boolean followed, when present,
 by three identity-table indices: expected provider schema, method name, and

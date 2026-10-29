@@ -155,8 +155,9 @@ receipts; a reused frontend never substitutes another occurrence's return or
 grants. Package operations supply requested
 products and exact root permission consent, and receive reports or inspections,
 not checked activations to resume. Standalone and session products share
-selection, Terminal production, then installation; source checking no longer
-installs the package product ahead of that sequence. Review descriptions supply
+complete source-side selection, Terminal production, then permission/trust
+admission and artifact completion. No source-reading installation phase follows
+Terminal production. Review descriptions supply
 the same borrowed production facts without a second producer mode. Demanded
 components and lazy review descriptions enter the same product sequence as root
 compilation. Component completion owns its exported plans, description and
@@ -165,6 +166,15 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
+Before shared production, each application prepares the exact target-provider
+candidates, nominal owners and authored family declarations for its Build rows.
+After production, provider publication consumes that owned preparation and the
+artifact's demand catalog, not typed trees. It uses the ordinary whole-provider
+selector and canonical roster join; unused competing candidates stay harmless,
+family coordinates remain complete and unavailable targets retain refusal rows.
+Preparation is application-local: a source cohort does not establish equality of
+Build defaults, overrides or assumptions. This removes late source reconstruction
+from publication, not all source dependencies from provider planning.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -333,6 +343,18 @@ target-companion leaves from those borrowed rows. There is no placeholder-leaf
 mutation pass or per-leaf source-plan copy. The projected callable contract stays
 distinct from the original satisfied schema and accepted public-plan identity;
 native demand and receiving authority still decide which supplies may execute.
+Source-dependent grants, callbacks, selected review, host roles and direct-call
+supplies now close together in `selected-dispatch/src/provider_binding.rs`.
+The returned `SelectedExecution` owns its provenance and target custody before
+Terminal production borrows it. There is no intermediate checked-provider
+result or post-Terminal source installation phase: that old operation consumed
+no artifact. Conversion to `CheckedCompilation` only assembles the completed
+custody. Checking-only task validation remains separate from artifact-based
+native task demand. Source/role failures can therefore precede Terminal or task
+diagnostics; native source failures remain deferred, and receiving permission,
+trust admission and actual native demand stay at their existing boundaries.
+This consolidates the source preparation owner, not the intended future
+Terminal-only provider selection.
 Accepted-service preparation likewise retains the exact nominal owner, complete
 target-side schema and ordered requirement identities once at checked-provider
 binding. Resolved semantic bindings carry that record, not a source-arena symbol.
@@ -343,7 +365,13 @@ immutable custody and uses only its own source correspondence for remaining
 contract capture. Unsupported or unowned unused declarations retain deferred
 projection refusals. Host classification still uses a catalog-local source join;
 this does not claim all accepted-service preparation is portable Psi.
-Original direct-call candidates also retain intrinsic declaration facts:
+Original provider rows retain declaration facts shared by selected review and
+direct-call completion. Each row owns its optional direct-call input; bodyful
+checked completion adapters keep their host-role facts without acquiring a
+direct leaf. Selected settlement rejoins the exact original plan/provenance and
+consumes prepared placed-catalog and exit-role facts, not checked trees.
+Independent package review still projects its supplied candidate afresh.
+These original rows retain intrinsic declaration facts:
 exact nominal owners, bundled-source eligibility, signature/effect/supply checks
 and sealed placed-operation contracts. Selected-row review projects the supplied
 source through that same producer. Direct-call completion joins target and accepted

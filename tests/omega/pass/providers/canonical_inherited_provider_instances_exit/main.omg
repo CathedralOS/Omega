@@ -1,0 +1,29 @@
+// Expected exit: 0
+// Closed inherited requirements retain their selecting owner and body. Count=12
+// and spare are uncalled, but remain in the complete selected provider roster.
+boundary trait Parent<Value> {
+    machine echo<const Count: u64>(value: Value) -> Value reaches
+        where Count == 4 || Count == 8 || Count == 12;
+    machine spare() -> i32 reaches;
+}
+boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
+
+Selected satisfies Child {
+    machine echo<const Count: u64>(value: i32) -> i32 {
+        transition Count == 4 { true -> 18 _ -> 27 }
+    }
+    machine spare() -> i32 { 33 }
+    machine choose() -> i32 { 19 }
+}
+
+machine main() reaches Child + Parent crashes Trap {
+    let chosen: i32 = Child::choose();
+    let first: i32 = Parent<i32>::echo<4>(17);
+    let second: i32 = Parent<i32>::echo<8>(25);
+    transition chosen == 19 && first == 18 && second == 27 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -483,13 +483,15 @@ pub(crate) fn exact_checked_adapter_invocations(
             summaries.len(),
         )));
     };
-    let target_identity = typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity));
+    let target_identity =
+        typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity));
     let top_level_requirement = if target_identity.is_valid() {
         typed
             .machines_by_callable_identity(target_identity)
             .into_iter()
             .find(|requirement| {
-                requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                requirement.supply_mode
+                    == language_semantics::MachineSupplyMode::TopLevelRequirement
                     && context.contains(requirement.symbol)
                     && typed.symbols.symbol_package_identity(requirement.symbol)
                         == method.requirement_owner_package_identity

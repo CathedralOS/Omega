@@ -265,7 +265,8 @@ pub(super) fn matches(
                 || actual.cleanup_actions != expected.cleanup_actions
                 || actual.payloads.len() != expected.payloads.len()
                 || actual.payloads.len() != target.parameters.len()
-                || !target.structural_parameters.is_empty()
+                || actual.structural_bindings != expected.structural_bindings
+                || actual.structural_bindings.len() != target.structural_parameters.len()
             {
                 return false;
             }

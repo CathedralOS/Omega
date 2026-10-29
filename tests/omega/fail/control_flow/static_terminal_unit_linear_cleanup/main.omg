@@ -7,7 +7,7 @@ machine release_frame(frame: &mut Frame) {
     frame.cleanup.calls = frame.cleanup.calls + 1;
 }
 machine drive<T>(effects: &mut Effects, cleanup: &mut Cleanup)
-where T == f32 || T == f64 {
+requires T == f32 || T == f64 {
     effects.prefixes = effects.prefixes + 1;
     let mut frame: Frame = Frame { passes: 41, cleanup: cleanup };
     transition T == f32 {

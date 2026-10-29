@@ -513,7 +513,20 @@ impl BuildTimeAdmissionPlan {
                     .filter_map(|edge| edge.target_machine(program)),
             );
         }
-        false
+        // Values depend on declarations as well as executable call edges.
+        // Reuse the demanded closure so a layout observation reached through
+        // a helper or constant waits for target closure, while unrelated
+        // Product observations cannot defer an independent Build value.
+        let domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_admission(
+            program,
+            self,
+            &[root],
+            &[],
+        );
+        crate::const_evaluation::data_layout_queries::has_pending_target_observations(
+            program,
+            domain.work(),
+        )
     }
 
     pub fn require_common_floor(

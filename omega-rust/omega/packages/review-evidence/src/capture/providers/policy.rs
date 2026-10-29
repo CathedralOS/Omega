@@ -54,6 +54,10 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         })
         .collect::<Result<Vec<_>, _>>()?;
     plans.sort_by(|(_, left), (_, right)| left.compare_canonical(right));
+    // Row-local substitution checks cannot justify a circular collection of
+    // mutually asserted rows. Require grounded checked dependency paths before
+    // publishing the complete selected-provider policy.
+    super::installation::validate_installation_dependency_order(compilation)?;
     let families = families::project(compilation, target, &plans)?;
     let projected_installation_reaches = plans
         .iter()

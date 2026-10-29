@@ -1,16 +1,16 @@
 // Expected exit: 0
 // Copied calls retain one authored declaration and distinct executable applications.
 machine selected<T>(value: u32) -> bool
-where T == u32
+requires T == u32
 { value == 37u32 }
 machine selected<T>(value: u64) -> bool
-where T == u64
+requires T == u64
 { value == 73u64 }
 machine forwarded<T>(value: u32) -> bool
-where T == u32
+requires T == u32
 { selected<T>(value) }
 machine forwarded<T>(value: u64) -> bool
-where T == u64
+requires T == u64
 { selected<T>(value) }
 machine main() crashes Trap {
     transition forwarded<u32>(37u32) && !forwarded<u32>(38u32) && forwarded<u64>(73u64) && !forwarded<u64>(74u64) {

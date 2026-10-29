@@ -13,6 +13,37 @@ use target_operations::{
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
+/// Present a referent whole: no projection, byte offset or runtime selector,
+/// so primitive storage and descriptor sources share one guard and one literal.
+fn direct_referent(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    identity: semantic_vocabulary::StructuralTypeId,
+    source: TargetStructuralArgumentSource,
+    types: &StructuralTypeLookup<'_>,
+) -> Option<TargetStructuralArgument> {
+    terminal_semantics::borrowed_referent_matches(
+        types.values().copied(),
+        identity,
+        declaration.structural_type,
+    )
+    .then(|| TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: identity,
+        structural_type: declaration.structural_type,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source,
+        destination: destination.placement.clone(),
+    })
+}
+
 /// Resolve borrowed storage or an explicit reference crossing independently
 /// of the call result.
 pub(super) fn argument(
@@ -206,27 +237,8 @@ pub(super) fn argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if !terminal_semantics::borrowed_referent_matches(
-        types.values().copied(),
-        identity,
-        declaration.structural_type,
-    ) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    Ok(TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: Vec::new(),
-        root_structural_type: identity,
-        structural_type: declaration.structural_type,
-        shape: destination.shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source,
-        destination: destination.placement.clone(),
-    })
+    direct_referent(argument, declaration, destination, identity, source, types)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))
 }
 
 /// Invocation and joined storage lend from their existing address, not a copy.
@@ -713,25 +725,6 @@ pub(super) fn byte_argument(
         }
         (source.structural_type, source.placement.clone().into())
     };
-    if !terminal_semantics::borrowed_referent_matches(
-        types.values().copied(),
-        identity,
-        declaration.structural_type,
-    ) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    Ok(TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: Vec::new(),
-        root_structural_type: identity,
-        structural_type: declaration.structural_type,
-        shape: destination.shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source,
-        destination: destination.placement.clone(),
-    })
+    direct_referent(argument, declaration, destination, identity, source, types)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))
 }

@@ -60,6 +60,19 @@ pub struct CheckedRuntimeMembershipSubject {
     pub predicate_count: u32,
 }
 
+/// One physical trapping statement and the checked possibility of its traps.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedTrappingSite {
+    pub location: CrashSiteLocation,
+    pub may_trap: bool,
+}
+
+impl CheckedTrappingSite {
+    pub fn new(location: CrashSiteLocation, may_trap: bool) -> Self {
+        Self { location, may_trap }
+    }
+}
+
 /// The published and body-derived halves of CRASH-CONTRACT remain independent:
 /// published route buckets are contract identity, while checked sites are
 /// implementation evidence and never enter that fingerprint. Path guards,
@@ -85,10 +98,10 @@ pub struct CrashPlan {
     checked_operators:
         Vec<crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite>,
     /// Body statements whose planned scalar value executes a Trapping
-    /// primitive. Each such operation is its own `Trap` site; like an
-    /// explicit crash it is unconditional implementation evidence for an
-    /// inferred body, never part of the published contract identity.
-    trapping_sites: Vec<CrashSiteLocation>,
+    /// primitive, including operations proved unable to trap. Physical
+    /// inventory stays independent of the implementation possibility and
+    /// never changes published contract identity.
+    trapping_sites: Vec<CheckedTrappingSite>,
 }
 
 impl CrashPlan {
@@ -120,21 +133,34 @@ impl CrashPlan {
     }
 
     /// Attach the canonical (state, statement) roster of Trapping sites.
-    pub fn with_trapping_sites(mut self, mut sites: Vec<CrashSiteLocation>) -> Self {
+    pub fn with_trapping_sites(mut self, mut sites: Vec<CheckedTrappingSite>) -> Self {
         sites.sort_by_key(|site| {
             (
-                site.state.arena_index(),
-                site.state.generation(),
-                site.statement_ordinal,
+                site.location.state.arena_index(),
+                site.location.state.generation(),
+                site.location.statement_ordinal,
             )
         });
-        sites.dedup();
+        sites.dedup_by(|next, previous| {
+            if next.location == previous.location {
+                previous.may_trap |= next.may_trap;
+                true
+            } else {
+                false
+            }
+        });
         self.trapping_sites = sites;
         self
     }
 
-    pub fn trapping_sites(&self) -> &[CrashSiteLocation] {
+    pub fn trapping_sites(&self) -> &[CheckedTrappingSite] {
         &self.trapping_sites
+    }
+
+    /// Every operation at a physical site must be discharged before its
+    /// runtime Trap possibility disappears from an inferred summary.
+    pub fn has_possible_trapping_site(&self) -> bool {
+        self.trapping_sites.iter().any(|site| site.may_trap)
     }
 
     pub fn with_structural_runtime_requirements(

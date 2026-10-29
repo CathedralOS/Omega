@@ -75,7 +75,17 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 bind(when_true, &mut pending);
                 bind(when_false, &mut pending);
             }
-            Terminator::Crash { .. } | Terminator::StructuralCase { .. } => {}
+            Terminator::StructuralCase { cases, .. } => {
+                pending.extend(
+                    cases
+                        .iter()
+                        .flat_map(|case| &case.structural_bindings)
+                        .flat_map(|binding| {
+                            binding.indices.iter().map(|index| index.operand.value)
+                        }),
+                );
+            }
+            Terminator::Crash { .. } => {}
         }
     }
     let mut required = BTreeSet::new();

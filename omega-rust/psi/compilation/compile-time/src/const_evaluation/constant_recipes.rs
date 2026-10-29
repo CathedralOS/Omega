@@ -30,37 +30,54 @@ pub(crate) fn retain_deferred_constant_recipes(
             source_span,
         });
     }
-    let endpoints = range_endpoints::pending_endpoints(typed, domain)?;
-    for endpoint in &endpoints {
-        let position = if endpoint.contract_expression {
-            RetainedConstantPosition::ContractExpression(endpoint.root)
-        } else {
-            RetainedConstantPosition::RangeEndpoint(endpoint.expression)
-        };
-        if recipes.iter().any(|recipe| recipe.position == position)
-            || typed
-                .constant_recipes
-                .iter()
-                .any(|(_, recipe)| recipe.position == position)
-        {
-            continue;
-        }
-        let invocations = if endpoint.contract_expression {
-            typed.expression_table.insert_expression_handles(
-                endpoints
-                    .iter()
-                    .filter(|call| call.contract_expression && call.root == endpoint.root)
-                    .map(|call| call.expression),
-            )
-        } else {
-            Default::default()
-        };
+    let integers = range_endpoints::integer_root_plan(typed, domain)?;
+    for endpoint in integers
+        .calls
+        .iter()
+        .filter(|call| !call.contract_expression)
+    {
         recipes.push(RetainedConstantRecipe {
-            position,
-            invocations,
+            position: RetainedConstantPosition::RangeEndpoint(endpoint.expression),
+            invocations: Default::default(),
             machine: endpoint.machine,
             name: Identifier::generated(typed.symbols.name(endpoint.machine)),
             source_span: typed.expression_table.source_span(endpoint.root),
+        });
+    }
+    // A constant root exists independently of its helper-call roster. Layout
+    // observations have no authored callee, but the same target closure owns
+    // their value and the contracts that depend on it.
+    for root in integers
+        .roots
+        .iter()
+        .filter(|root| root.constrained_type.is_none())
+    {
+        let position = RetainedConstantPosition::ContractExpression(root.expression);
+        if typed
+            .constant_recipes
+            .iter()
+            .any(|(_, recipe)| recipe.position == position)
+        {
+            continue;
+        }
+        let calls: Vec<_> = integers
+            .calls
+            .iter()
+            .filter(|call| call.contract_expression && call.root == root.expression)
+            .collect();
+        let machine = calls.first().map(|call| call.machine).unwrap_or_default();
+        recipes.push(RetainedConstantRecipe {
+            position,
+            invocations: typed
+                .expression_table
+                .insert_expression_handles(calls.iter().map(|call| call.expression)),
+            machine,
+            name: Identifier::generated(if machine.is_valid() {
+                typed.symbols.name(machine)
+            } else {
+                "constant expression"
+            }),
+            source_span: typed.expression_table.source_span(root.expression),
         });
     }
     let plan = const_applications::const_application_plan(typed, domain);

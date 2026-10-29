@@ -1,0 +1,15 @@
+use omega::language::core::external_binding;
+// Same boundary call as runtime_write_only_boundary_satisfier_exit, but the
+// requirement's satisfier is an opaque foreign binding rather than a checked
+// Omega body. There is no admitted write-only boundary claim, so the
+// declaration and the call both reject.
+boundary trait Sink {
+    machine write(value: &write i32) reaches;
+}
+
+machine opaque_write(value: &write i32) satisfies Sink::write via ForeignBinding::Syscall(1);
+
+machine main() {
+    let mut slot: i32;
+    Sink::write(&write slot);
+}

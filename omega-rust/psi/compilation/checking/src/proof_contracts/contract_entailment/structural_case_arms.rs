@@ -2053,6 +2053,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     if requirement.is_some() && matches!(target, TransitionTargetNode::Value(_)) {
                         continue;
                     }
+                    let mut branch_judge =
+                        structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
+                    let judge = &mut branch_judge;
                     let completions = judge.terminal_completion_paths(
                         target,
                         &branch_environment,

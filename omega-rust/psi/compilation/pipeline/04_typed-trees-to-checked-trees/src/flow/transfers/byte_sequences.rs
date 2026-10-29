@@ -43,7 +43,7 @@ pub(super) fn append_derived_predicates(
         if !domain.establishment_routes.is_empty()
             || !typed_trees::domain::index_parameters(program, domain).is_empty()
             || domain.alias.is_some()
-            || !domain.predicate_body.is_present()
+            || !domain.predicate_presence.is_present()
             || !value_proves_predicate(
                 program,
                 semantic,

@@ -10,7 +10,7 @@ struct PendingInstallationReachRow<'a> {
     requirement_identity: String,
     provider_plan_report_identity: u64,
     upper_bound: Vec<String>,
-    concrete_service_reach: Vec<String>,
+    resolved_service_reach: Vec<String>,
     unresolved: Vec<flow_effects::InstallationReachRequirement>,
     plan: &'a ProviderPlan,
     realization: &'a checked_trees::typed_trees::machine::Machine,
@@ -331,7 +331,7 @@ fn record_installation_reach_row<'a>(
             requirement_identity,
             provider_plan_report_identity: plan.report_fingerprint(),
             upper_bound,
-            concrete_service_reach: envelope.concrete_service_reach.clone(),
+            resolved_service_reach: envelope.concrete_service_reach.clone(),
             unresolved: envelope.unresolved_installation_reaches.clone(),
             plan,
             realization,
@@ -382,7 +382,7 @@ fn substitute_nested_installation_reaches(
         let mut next = Vec::new();
         let mut progressed = false;
         for mut row in pending.drain(..) {
-            let mut resolved_row = row.concrete_service_reach.clone();
+            let mut resolved_row = std::mem::take(&mut row.resolved_service_reach);
             row.unresolved.retain(|reach| {
                 let resolved =
                     nested_requirement_identity(typed, reach.requirement).and_then(|identity| {
@@ -413,6 +413,9 @@ fn substitute_nested_installation_reaches(
                 });
                 progressed = true;
             } else {
+                // Consumed dependencies leave `unresolved`; their contribution
+                // must survive while this row waits for another selected row.
+                row.resolved_service_reach = resolved_row;
                 next.push(row);
             }
         }

@@ -541,7 +541,8 @@ fn uses_structural_storage(expression: &CheckedScalarExpression) -> bool {
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. }
             | CheckedScalarExpression::RepresentationView { operand, .. } => pending.push(operand),
-            CheckedScalarExpression::StorageRead { .. }
+            CheckedScalarExpression::ConstantApplication { .. }
+            | CheckedScalarExpression::StorageRead { .. }
             | CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::Local { .. }
@@ -661,6 +662,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
             LoweringError,
         >,
     ) -> Result<(), LoweringError> {
+        let conjunction = matches!(proposition, Proposition::Conjunction(_));
         match proposition {
             semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
                 let mut pending = vec![left, right];
@@ -672,7 +674,15 @@ pub(crate) fn substitute_structural_crash_route_roots(
                     }
                 }
             }
-            semantic_vocabulary::ordered_comparison_operands!(left, right) => {
+            Proposition::Equal(left, right) => {
+                substitute_term(left, substitutions)?;
+                substitute_term(right, substitutions)?;
+                *proposition = crate::proofs::contract_predicates::canonical_equality(
+                    left.clone(),
+                    right.clone(),
+                )?;
+            }
+            Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
             }
@@ -694,6 +704,13 @@ pub(crate) fn substitute_structural_crash_route_roots(
                 for proposition in propositions.iter_mut() {
                     substitute_proposition(proposition, substitutions)?;
                 }
+                // Actual roots may reverse formal order or identify two
+                // formals. Rebuild the same connective in its new namespace;
+                // declaration-local canonical order is not caller order.
+                *proposition = crate::proofs::contract_predicates::canonical_connectives(
+                    std::mem::take(propositions),
+                    conjunction,
+                )?;
             }
             Proposition::Implication {
                 premise,
@@ -744,6 +761,11 @@ pub(crate) fn substitute_structural_crash_route_roots(
             }
             Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
         }
+        if let Proposition::IntegerMathEqual(left, right) = proposition
+            && *right < *left
+        {
+            std::mem::swap(left, right);
+        }
         Ok(())
     }
 
@@ -756,6 +778,9 @@ pub(crate) fn substitute_structural_crash_route_roots(
             substitute_proposition(&mut proposition, substitutions)?;
             *predicate = terminal_psi::CrashPredicateTerm::new(proposition);
         }
+        // Root substitution can also identify or reorder whole alternatives.
+        bucket.alternatives.sort();
+        bucket.alternatives.dedup();
     }
     Ok(())
 }

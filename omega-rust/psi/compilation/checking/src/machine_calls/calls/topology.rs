@@ -654,6 +654,54 @@ pub fn completing_transition_invocation(
     }
 }
 
+/// All invocations that complete a selected result of this transition.
+/// A match selects its arm's result in the same completion position; calls
+/// evaluating the subject, patterns, receivers or arguments remain ordinary.
+/// Consumers share this roster rather than rediscovering a subset of tail
+/// topology from a particular syntactic transition target.
+pub fn completing_transition_invocations(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Vec<CompletingInvocation<'_>> {
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::statement::TransitionTargetNode;
+    let root = match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { .. } => {
+            return completing_transition_invocation(program, target)
+                .into_iter()
+                .collect();
+        }
+        TransitionTargetNode::Value(expression) => *expression,
+        TransitionTargetNode::Terminal => return Vec::new(),
+    };
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    let mut invocations = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                pending.extend(
+                    program
+                        .expression_table
+                        .match_arms(dispatch.arms)
+                        .iter()
+                        .rev()
+                        .map(|arm| arm.value),
+                );
+            }
+            ExpressionNode::Call(_) => {
+                invocations.extend(completing_call_invocation(program, expression));
+            }
+            _ => {}
+        }
+    }
+    invocations
+}
+
 fn concrete_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
     invocation: CompletingInvocation<'program>,

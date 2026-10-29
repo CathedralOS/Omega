@@ -33,6 +33,7 @@ use typed_trees::types::TypeReferenceNode;
 
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
+    pub(super) shapes: crate::execution::terminal_unit::types::ShapeCollector<'program>,
     pub(super) operators: &'program CheckedOperatorFacts,
     pub(super) semantic: &'program facts::FactPlan,
     pub(super) flow: &'program FlowFacts,

@@ -19,4 +19,9 @@ pub struct ConstDeclaration {
     /// Every declaration retains its evaluated evidence root, including
     /// semantic-only values. This is never runtime constant storage.
     pub materialized_initializer: crate::expression::ExpressionHandle,
+    /// Source-owned evaluation entry for a deferred scalar initializer. This
+    /// machine is detached from executable roots: its expression still owes
+    /// exact scalar formation and invocation checks before it supplies a value.
+    /// Target closure installs this entry rather than inventing another owner.
+    pub evaluation_entry: arena::Handle<crate::machine::Machine>,
 }

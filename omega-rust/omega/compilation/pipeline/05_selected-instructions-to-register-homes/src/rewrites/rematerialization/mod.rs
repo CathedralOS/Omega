@@ -25,7 +25,7 @@ use selected_instructions_to_selected_instructions::{
     PressureRematerializationPolicy, RecoveryClassificationError, SpillChoiceError,
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
+    ValidatedPressureRematerialization,
 };
 
 pub(crate) use compute::{
@@ -94,56 +94,53 @@ impl StagedOptimizedActiveResidentRematerialization {
     });
 }
 
+/// Custody receipt for the completed sweep: the proven rematerialization
+/// prefix the pressure stage already minted, plus the terminal homes
+/// assignment and the typed manifest that assignment rebuilt. The prefix
+/// receipt is carried whole, so no stage identity is projected twice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    choices: SpillChoiceIdentity,
-    choice_policy: SpillChoicePolicy,
-    choice_usage: optimization_core::OptimizationWorkUsage,
-    classifications: RecoveryClassificationIdentity,
-    classification_policy: RecoveryClassificationPolicy,
-    classification_usage: optimization_core::OptimizationWorkUsage,
-    rematerialization: PressureRematerializationIdentity,
-    rematerialization_policy: PressureRematerializationPolicy,
-    rematerialization_usage: optimization_core::OptimizationWorkUsage,
-    budget: OptimizationWorkBudget,
-    transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: LivenessIdentity,
-    ranges: LiveRangeIdentity,
-    legality: AllocationLegalityIdentity,
+    prefix: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
     homes: crate::RegisterHomeIdentity,
     manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-    function_count: usize,
-    virtual_register_count: usize,
-    applied_count: usize,
-    rewritten_use_count: usize,
     assignment_count: usize,
 }
 
+/// Re-serve a receipt's rows from the prefix receipt it carries: one internal
+/// rule per accessor, so the completion names the prefix field instead of
+/// restating each delegation body.
+macro_rules! prefix_accessor_rows {
+    ($prefix:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$prefix.$field } )*
+    };
+}
+
 impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
+    prefix_accessor_rows!(prefix {
+        source: StagedOptimizedAllocationLegalityCustodyReceipt,
+        choices: SpillChoiceIdentity,
+        choice_policy: SpillChoicePolicy,
+        choice_usage: optimization_core::OptimizationWorkUsage,
+        classifications: RecoveryClassificationIdentity,
+        classification_policy: RecoveryClassificationPolicy,
+        classification_usage: optimization_core::OptimizationWorkUsage,
+        rematerialization: PressureRematerializationIdentity,
+        rematerialization_policy: PressureRematerializationPolicy,
+        rematerialization_usage: optimization_core::OptimizationWorkUsage,
+        budget: OptimizationWorkBudget,
+        transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
+        liveness: LivenessIdentity,
+        ranges: LiveRangeIdentity,
+        legality: AllocationLegalityIdentity,
+        function_count: usize,
+        virtual_register_count: usize,
+        applied_count: usize,
+        rewritten_use_count: usize,
+    });
     receipt_accessor_rows!(
         StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-            source: StagedOptimizedAllocationLegalityCustodyReceipt,
-            choices: SpillChoiceIdentity,
-            choice_policy: SpillChoicePolicy,
-            choice_usage: optimization_core::OptimizationWorkUsage,
-            classifications: RecoveryClassificationIdentity,
-            classification_policy: RecoveryClassificationPolicy,
-            classification_usage: optimization_core::OptimizationWorkUsage,
-            rematerialization: PressureRematerializationIdentity,
-            rematerialization_policy: PressureRematerializationPolicy,
-            rematerialization_usage: optimization_core::OptimizationWorkUsage,
-            budget: OptimizationWorkBudget,
-            transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-            liveness: LivenessIdentity,
-            ranges: LiveRangeIdentity,
-            legality: AllocationLegalityIdentity,
             homes: crate::RegisterHomeIdentity,
             manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-            function_count: usize,
-            virtual_register_count: usize,
-            applied_count: usize,
-            rewritten_use_count: usize,
             assignment_count: usize,
         }
     );
@@ -157,8 +154,6 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
 #[derive(Debug)]
 pub(crate) struct StagedOptimizedActiveResidentRematerializationPressure {
     source: StagedOptimizedAllocationLegality,
-    choices: ValidatedSpillChoices,
-    classifications: ValidatedRecoveryClassifications,
     rematerialization: ValidatedPressureRematerialization,
     liveness: ValidatedLiveness,
     ranges: ValidatedLiveRanges,

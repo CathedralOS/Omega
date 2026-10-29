@@ -55,7 +55,9 @@ pub use contract_identity::{
     DeclaredTermination, contract_declarations_commitment, contract_identity,
     declared_termination_commitment,
 };
-pub use crash_plans::{CheckedRuntimeMembershipSubject, CrashPlan, CrashRouteBucket};
+pub use crash_plans::{
+    CheckedRuntimeMembershipSubject, CheckedTrappingSite, CrashPlan, CrashRouteBucket,
+};
 pub use crash_predicates::{
     CrashCause, CrashInterface, CrashPredicateExpression, CrashPredicateIdentity,
     CrashRouteBucketId, CrashRouteGuard,

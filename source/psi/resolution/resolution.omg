@@ -87,7 +87,6 @@ public data ValueBinding [copy] {
     case Local(statement: u64 in Trapping);
     case Parameter(parameter: u64 in Trapping);
     case PatternBinder(field: u64 in Trapping);
-    case State(handle: u64 in Trapping);
     case Machine(handle: u64 in Trapping);
     case Data(item: u64 in Trapping);
     case DataCase(item: u64 in Trapping, data_case: u64 in Trapping);
@@ -144,6 +143,8 @@ public data PathBinding [copy] {
 // contiguous range of `SyntaxTrees::generic_parameters`, then, for a trait or
 // conformance member, its container's range, which the member's own shadow.
 public data TypeScope [copy] {
+    // Declaration handle plus one, never a runtime environment.
+    lexical_machine: u64 in Trapping;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
     first_outer_parameter: u64 in Trapping;
@@ -195,7 +196,6 @@ public data ResolveDiagnosticCode [copy] {
     case UnknownDataType;
     case UnknownDomain;
     case DuplicateParameter;
-    case DuplicateState;
     case DuplicateMachine;
     case DuplicateGenericParameter;
     case UnknownName;
@@ -269,7 +269,7 @@ where
     binding_count <= 65536,
     value_binding_count <= 131072,
     path_binding_count <= 2048,
-    machine_owner_count <= 2048,
+    machine_owner_count <= 10240,
     requirement_count <= 2048,
 {
     type_bindings: [TypeBinding; 65536];
@@ -280,7 +280,7 @@ where
     value_binding_count: u64;
     path_bindings: [PathBinding; 2048];
     path_binding_count: u64;
-    machine_owners: [MachineOwner; 2048];
+    machine_owners: [MachineOwner; 10240];
     machine_owner_count: u64;
     // Each clause's exact trait requirement, by clause handle: a `satisfies`
     // clause binds the requirement machine it names, every other clause
@@ -290,7 +290,7 @@ where
     // Each machine's operator home, by machine handle: the data declaration
     // a token-bound machine's owner names; `Unresolved` for a machine
     // binding no token.
-    operator_homes: [TypeBinding; 2048];
+    operator_homes: [TypeBinding; 10240];
     // Each generic parameter's callable contract, by generic parameter
     // handle.
     binder_contracts: [BinderContract; 256];
@@ -302,10 +302,6 @@ where
     // For each component of a lexicographic measure, by member handle, the
     // field handle of its owner it names, plus one; zero for none.
     component_fields: [u64; 32000];
-    // For each state parameter of a ranked machine, by parameter handle, the
-    // offset among its machine's entry parameters of the one of the same
-    // spelling, plus one; zero for none.
-    rank_carriers: [u64; 32768];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -646,8 +642,7 @@ crashes Trap
     }
 }
 
-// The offset of the entry parameter state parameter `parameter` carries,
-// plus one; zero for none or a parameter beyond the table.
+// The exact declared measure selected by this witness clause.
 public machine NameResolution::ranking_measure(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
     transition clause < 2048 {
         true -> read(resolution, clause)
@@ -713,42 +708,6 @@ crashes Trap
     requires member < 32000
     {
         resolution.component_fields[member] = bound as u64;
-    }
-
-    machine invalid() {
-        crash Trap;
-    }
-}
-
-public machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
-    transition parameter < 32768 {
-        true -> read(resolution, parameter)
-        _ -> none()
-    }
-
-    machine read(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping
-    requires parameter < 32768
-    {
-        resolution.rank_carriers[parameter] as u64 in Trapping
-    }
-
-    machine none() -> u64 in Trapping {
-        0
-    }
-}
-
-public machine NameResolution::set_rank_carrier(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
-crashes Trap
-{
-    transition parameter < 32768 {
-        true -> write(resolution, parameter, carried)
-        _ -> invalid()
-    }
-
-    machine write(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
-    requires parameter < 32768
-    {
-        resolution.rank_carriers[parameter] = carried as u64;
     }
 
     machine invalid() {

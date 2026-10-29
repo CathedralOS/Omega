@@ -1,0 +1,753 @@
+// Exact invocation topology is shared by completion inference and termination.
+// Declarations own bodies; lexical ancestry contributes no runtime edge. Each
+// selected expression has one authenticated owner and destination, including
+// selected operators. A binder stays opaque instead of acquiring an arbitrary
+// concrete implementation from one caller's static arguments.
+//
+// Sparse adjacency and bounded iterative traversals keep storage linear. Once
+// sealed, observing a new occurrence invalidates the graph: a missing edge can
+// never be interpreted as evidence of acyclicity or a completed callee.
+public data InvocationTarget [copy] {
+    case Machine(machine: u64 in Trapping);
+    case Binder(parameter: u64 in Trapping);
+}
+
+public data InvocationEdge [copy] {
+    owner: u64 in Trapping;
+    expression: u64 in Trapping;
+    target: InvocationTarget;
+    next: u64 in Trapping;
+    reverse_next: u64 in Trapping;
+    examined: bool;
+    non_increasing: bool;
+    strict: bool;
+}
+
+public data InvocationGraph {
+    complete: bool;
+    sealed: bool;
+    node_count: u64 in Trapping;
+    expression_count: u64 in Trapping;
+    edge_count: u64 in Trapping;
+    edges: [InvocationEdge; 32768];
+    // Edge handles are index+1; declaration and expression index zero are valid.
+    slots: [u64; 131072];
+    first: [u64; 10240];
+    reverse_first: [u64; 10240];
+    components: [u64; 10240];
+    component_sizes: [u64; 10240];
+    component_count: u64 in Trapping;
+    component_first: [u64; 10240];
+    component_next: [u64; 10240];
+    order: [u64; 10240];
+    order_count: u64 in Trapping;
+    visited: [bool; 10240];
+    work_nodes: [u64; 10240];
+    work_edges: [u64; 10240];
+    work_count: u64 in Trapping;
+    component_ranked: [bool; 10240];
+    node_cyclic: [bool; 10240];
+}
+
+public machine InvocationTarget::same(left: InvocationTarget, right: InvocationTarget) -> bool {
+    transition left {
+        InvocationTarget::Machine { machine } -> concrete(right, machine)
+        InvocationTarget::Binder { parameter } -> opaque(right, parameter)
+    }
+    machine concrete(right: InvocationTarget, expected: u64 in Trapping) -> bool {
+        transition right {
+            InvocationTarget::Machine { machine } -> (machine == expected)
+            _ -> false
+        }
+    }
+    machine opaque(right: InvocationTarget, expected: u64 in Trapping) -> bool {
+        transition right {
+            InvocationTarget::Binder { parameter } -> (parameter == expected)
+            _ -> false
+        }
+    }
+}
+
+public machine InvocationGraph::initialize(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping)
+crashes Trap
+{
+    graph.complete = nodes <= 10240 && expressions <= 131072;
+    graph.sealed = false;
+    graph.node_count = nodes;
+    graph.expression_count = expressions;
+    graph.edge_count = 0;
+    graph.order_count = 0;
+    graph.component_count = 0;
+    graph.work_count = 0;
+    transition graph.complete {
+        true -> node(graph, nodes, expressions, 0)
+        false -> done()
+    }
+    machine node(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping, index: u64 in Trapping) {
+        transition index < nodes && index < 10240 {
+            true -> clear_node(graph, nodes, expressions, index)
+            false -> expression(graph, expressions, 0)
+        }
+    }
+    machine clear_node(graph: &mut InvocationGraph, nodes: u64 in Trapping, expressions: u64 in Trapping, index: u64 in Trapping)
+    requires index < 10240
+    {
+        graph.first[index] = 0;
+        graph.reverse_first[index] = 0;
+        graph.components[index] = 0;
+        graph.component_first[index] = 0;
+        graph.component_next[index] = 0;
+        graph.component_sizes[index] = 0;
+        graph.visited[index] = false;
+        transition { _ -> node(graph, nodes, expressions, index + 1) }
+    }
+    machine expression(graph: &mut InvocationGraph, expressions: u64 in Trapping, index: u64 in Trapping) {
+        transition index < expressions && index < 131072 {
+            true -> clear_expression(graph, expressions, index)
+            false -> done()
+        }
+    }
+    machine clear_expression(graph: &mut InvocationGraph, expressions: u64 in Trapping, index: u64 in Trapping)
+    requires index < 131072
+    {
+        graph.slots[index] = 0;
+        transition { _ -> expression(graph, expressions, index + 1) }
+    }
+    machine done() {}
+}
+
+public machine InvocationGraph::record(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool
+crashes Trap
+{
+    transition graph.complete && owner < graph.node_count && owner < 10240 && expression < graph.expression_count && expression < 131072 {
+        true -> slot(graph, owner, expression, target)
+        false -> invalid(graph)
+    }
+    machine slot(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool
+    requires owner < 10240 && expression < 131072
+    {
+        let retained: u64 in Trapping = graph.slots[expression] as u64 in Trapping;
+        transition retained > 0 {
+            true -> existing(graph, owner, target, retained - 1)
+            false -> available(graph, owner, expression, target)
+        }
+    }
+    machine existing(graph: &mut InvocationGraph, owner: u64 in Trapping, target: InvocationTarget, index: u64 in Trapping) -> bool {
+        transition index < graph.edge_count && index < 32768 {
+            true -> authenticate(graph, owner, target, index)
+            false -> invalid(graph)
+        }
+    }
+    machine authenticate(graph: &mut InvocationGraph, owner: u64 in Trapping, target: InvocationTarget, index: u64 in Trapping) -> bool
+    requires index < 32768
+    {
+        let retained: InvocationEdge = graph.edges[index];
+        let same: bool = InvocationTarget::same(retained.target, target);
+        transition retained.owner == owner && same {
+            true -> true
+            false -> invalid(graph)
+        }
+    }
+    machine available(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool {
+        transition !graph.sealed && graph.edge_count < 32768 {
+            true -> destination(graph, owner, expression, target)
+            false -> invalid(graph)
+        }
+    }
+    machine destination(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget) -> bool {
+        transition target {
+            InvocationTarget::Machine { machine } -> concrete(graph, owner, expression, target, machine)
+            InvocationTarget::Binder { parameter } -> publish(graph, owner, expression, target, 0)
+        }
+    }
+    machine concrete(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, machine: u64 in Trapping) -> bool {
+        transition machine < graph.node_count && machine < 10240 {
+            true -> reversed(graph, owner, expression, target, machine)
+            false -> invalid(graph)
+        }
+    }
+    machine reversed(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, machine: u64 in Trapping) -> bool
+    requires machine < 10240
+    {
+        let next: u64 in Trapping = graph.reverse_first[machine] as u64 in Trapping;
+        transition { _ -> publish(graph, owner, expression, target, next) }
+    }
+    machine publish(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, reverse_next: u64 in Trapping) -> bool {
+        let index: u64 in Trapping = graph.edge_count;
+        transition owner < 10240 && expression < 131072 && index < 32768 {
+            true -> bounded(graph, owner, expression, target, reverse_next, index)
+            false -> invalid(graph)
+        }
+    }
+    machine bounded(graph: &mut InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping, target: InvocationTarget, reverse_next: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires owner < 10240 && expression < 131072 && index < 32768
+    {
+        let next: u64 in Trapping = graph.first[owner] as u64 in Trapping;
+        graph.edges[index] = InvocationEdge { owner: owner, expression: expression, target: target, next: next, reverse_next: reverse_next, examined: false, non_increasing: false, strict: false };
+        let handle: u64 in Trapping = index + 1;
+        graph.first[owner] = handle as u64;
+        graph.slots[expression] = handle as u64;
+        graph.edge_count = handle;
+        transition target {
+            InvocationTarget::Machine { machine } -> reverse(graph, machine, handle)
+            InvocationTarget::Binder { parameter } -> true
+        }
+    }
+    machine reverse(graph: &mut InvocationGraph, machine: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        transition machine < 10240 {
+            true -> retain_reverse(graph, machine, handle)
+            false -> invalid(graph)
+        }
+    }
+    machine retain_reverse(graph: &mut InvocationGraph, machine: u64 in Trapping, handle: u64 in Trapping) -> bool
+    requires machine < 10240
+    {
+        graph.reverse_first[machine] = handle as u64;
+        true
+    }
+    machine invalid(graph: &mut InvocationGraph) -> bool { graph.complete = false; false }
+}
+
+// Complete components before any consumer grants summary or rank authority.
+// Marking on push and advancing each frame's edge cursor before descent makes
+// the explicit stack bounded by declarations, including diamonds and cycles.
+public machine InvocationGraph::seal(graph: &mut InvocationGraph) -> bool
+crashes Trap
+{
+    graph.sealed = true;
+    graph.work_count = 0;
+    transition graph.complete {
+        true -> root(graph, 0)
+        false -> false
+    }
+    machine root(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool {
+        transition index < graph.node_count && index < 10240 {
+            true -> candidate(graph, index)
+            false -> ordered(graph)
+        }
+    }
+    machine candidate(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool
+    requires index < 10240
+    {
+        transition graph.visited[index] {
+            true -> root(graph, index + 1)
+            false -> start(graph, index)
+        }
+    }
+    machine start(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        let first: u64 in Trapping = graph.first[node] as u64 in Trapping;
+        graph.visited[node] = true;
+        graph.work_nodes[0] = node as u64;
+        graph.work_edges[0] = first as u64;
+        graph.work_count = 1;
+        transition { _ -> depth(graph, node + 1) }
+    }
+    machine depth(graph: &mut InvocationGraph, next_root: u64 in Trapping) -> bool {
+        transition graph.work_count > 0 {
+            true -> frame(graph, next_root, graph.work_count - 1)
+            false -> root(graph, next_root)
+        }
+    }
+    machine frame(graph: &mut InvocationGraph, next_root: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition index < 10240 {
+            true -> cursor(graph, next_root, index)
+            false -> invalid(graph)
+        }
+    }
+    machine cursor(graph: &mut InvocationGraph, next_root: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires index < 10240
+    {
+        let retained: u64 in Trapping = graph.work_edges[index] as u64 in Trapping;
+        transition retained > 0 {
+            true -> edge(graph, next_root, index, retained - 1)
+            false -> finish(graph, next_root, index)
+        }
+    }
+    machine edge(graph: &mut InvocationGraph, next_root: u64 in Trapping, frame: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition frame < 10240 && index < graph.edge_count && index < 32768 {
+            true -> selected(graph, next_root, frame, index)
+            false -> invalid(graph)
+        }
+    }
+    machine selected(graph: &mut InvocationGraph, next_root: u64 in Trapping, frame: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires frame < 10240 && index < 32768
+    {
+        let selected: InvocationEdge = graph.edges[index];
+        graph.work_edges[frame] = selected.next as u64;
+        transition selected.target {
+            InvocationTarget::Machine { machine } -> neighbor(graph, next_root, machine)
+            InvocationTarget::Binder { parameter } -> depth(graph, next_root)
+        }
+    }
+    machine neighbor(graph: &mut InvocationGraph, next_root: u64 in Trapping, node: u64 in Trapping) -> bool {
+        transition node < graph.node_count && node < 10240 {
+            true -> unseen(graph, next_root, node)
+            false -> invalid(graph)
+        }
+    }
+    machine unseen(graph: &mut InvocationGraph, next_root: u64 in Trapping, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        transition graph.visited[node] {
+            true -> depth(graph, next_root)
+            false -> room(graph, next_root, node)
+        }
+    }
+    machine room(graph: &mut InvocationGraph, next_root: u64 in Trapping, node: u64 in Trapping) -> bool {
+        transition node < 10240 && graph.work_count < 10240 {
+            true -> push(graph, next_root, node, graph.work_count)
+            false -> invalid(graph)
+        }
+    }
+    machine push(graph: &mut InvocationGraph, next_root: u64 in Trapping, node: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires node < 10240 && index < 10240
+    {
+        let first: u64 in Trapping = graph.first[node] as u64 in Trapping;
+        graph.visited[node] = true;
+        graph.work_nodes[index] = node as u64;
+        graph.work_edges[index] = first as u64;
+        graph.work_count = index + 1;
+        transition { _ -> depth(graph, next_root) }
+    }
+    machine finish(graph: &mut InvocationGraph, next_root: u64 in Trapping, frame: u64 in Trapping) -> bool {
+        transition frame < 10240 && graph.order_count < 10240 {
+            true -> publish_order(graph, next_root, frame, graph.order_count)
+            false -> invalid(graph)
+        }
+    }
+    machine publish_order(graph: &mut InvocationGraph, next_root: u64 in Trapping, frame: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires frame < 10240 && index < 10240
+    {
+        let node: u64 = graph.work_nodes[frame];
+        graph.order[index] = node;
+        graph.order_count = index + 1;
+        graph.work_count = frame;
+        transition { _ -> depth(graph, next_root) }
+    }
+    machine ordered(graph: &mut InvocationGraph) -> bool {
+        transition graph.order_count == graph.node_count {
+            true -> component(graph, graph.order_count)
+            false -> invalid(graph)
+        }
+    }
+    machine component(graph: &mut InvocationGraph, remaining: u64 in Trapping) -> bool {
+        transition remaining > 0 {
+            true -> component_root(graph, remaining - 1)
+            false -> graph.complete
+        }
+    }
+    machine component_root(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool {
+        transition index < graph.order_count && index < 10240 {
+            true -> component_node(graph, index)
+            false -> invalid(graph)
+        }
+    }
+    machine component_node(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool
+    requires index < 10240
+    {
+        let node: u64 in Trapping = graph.order[index] as u64 in Trapping;
+        transition node < graph.node_count && node < 10240 {
+            true -> unclaimed(graph, index, node)
+            false -> invalid(graph)
+        }
+    }
+    machine unclaimed(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        transition graph.components[node] == 0 {
+            true -> new_component(graph, next_component, node)
+            false -> component(graph, next_component)
+        }
+    }
+    machine new_component(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping) -> bool {
+        transition graph.component_count < 10240 {
+            true -> identified(graph, next_component, node, graph.component_count + 1)
+            false -> invalid(graph)
+        }
+    }
+    machine identified(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping, identity: u64 in Trapping) -> bool {
+        graph.component_count = identity;
+        graph.work_count = 0;
+        transition { _ -> claim(graph, next_component, node, identity, 0) }
+    }
+    machine claim(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping, identity: u64 in Trapping, next_edge: u64 in Trapping) -> bool {
+        transition node < 10240 && identity > 0 && identity <= 10240 && graph.work_count < 10240 {
+            true -> claimed(graph, next_component, node, identity, next_edge, graph.work_count, identity - 1)
+            false -> invalid(graph)
+        }
+    }
+    machine claimed(graph: &mut InvocationGraph, next_component: u64 in Trapping, node: u64 in Trapping, identity: u64 in Trapping, next_edge: u64 in Trapping, frame: u64 in Trapping, component_index: u64 in Trapping) -> bool
+    requires node < 10240 && frame < 10240 && component_index < 10240
+    {
+        let size: u64 in Trapping = graph.component_sizes[component_index] as u64 in Trapping;
+        let next: u64 = graph.component_first[component_index];
+        graph.component_next[node] = next;
+        graph.component_first[component_index] = (node + 1) as u64;
+        graph.components[node] = identity as u64;
+        graph.component_sizes[component_index] = (size + 1) as u64;
+        graph.work_nodes[frame] = node as u64;
+        graph.work_count = frame + 1;
+        transition { _ -> reverse_edges(graph, next_component, identity, next_edge) }
+    }
+    machine reverse_depth(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping) -> bool {
+        transition graph.work_count > 0 {
+            true -> reverse_frame(graph, next_component, identity, graph.work_count - 1)
+            false -> component(graph, next_component)
+        }
+    }
+    machine reverse_frame(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, frame: u64 in Trapping) -> bool {
+        transition frame < 10240 {
+            true -> reverse_node(graph, next_component, identity, frame)
+            false -> invalid(graph)
+        }
+    }
+    machine reverse_node(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, frame: u64 in Trapping) -> bool
+    requires frame < 10240
+    {
+        let node: u64 in Trapping = graph.work_nodes[frame] as u64 in Trapping;
+        graph.work_count = frame;
+        transition node < 10240 {
+            true -> reverse_first(graph, next_component, identity, node)
+            false -> invalid(graph)
+        }
+    }
+    machine reverse_first(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        let first: u64 in Trapping = graph.reverse_first[node] as u64 in Trapping;
+        transition { _ -> reverse_edges(graph, next_component, identity, first) }
+    }
+    machine reverse_edges(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, cursor: u64 in Trapping) -> bool {
+        transition cursor > 0 {
+            true -> reverse_edge(graph, next_component, identity, cursor - 1)
+            false -> reverse_depth(graph, next_component, identity)
+        }
+    }
+    machine reverse_edge(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition index < graph.edge_count && index < 32768 {
+            true -> predecessor(graph, next_component, identity, index)
+            false -> invalid(graph)
+        }
+    }
+    machine predecessor(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires index < 32768
+    {
+        let edge: InvocationEdge = graph.edges[index];
+        transition edge.owner < graph.node_count && edge.owner < 10240 {
+            true -> predecessor_component(graph, next_component, identity, edge.owner, edge.reverse_next)
+            false -> invalid(graph)
+        }
+    }
+    machine predecessor_component(graph: &mut InvocationGraph, next_component: u64 in Trapping, identity: u64 in Trapping, node: u64 in Trapping, next_edge: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        transition graph.components[node] == 0 {
+            true -> claim(graph, next_component, node, identity, next_edge)
+            false -> reverse_edges(graph, next_component, identity, next_edge)
+        }
+    }
+    machine invalid(graph: &mut InvocationGraph) -> bool { graph.complete = false; false }
+}
+
+// Component handles and edge handles use zero only for an unavailable query.
+// They never turn an invalid/incomplete graph into an acyclic declaration.
+public machine InvocationGraph::component(graph: &InvocationGraph, node: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition graph.complete && graph.sealed && node < graph.node_count && node < 10240 {
+        true -> selected(graph, node)
+        false -> 0
+    }
+    machine selected(graph: &InvocationGraph, node: u64 in Trapping) -> u64 in Trapping
+    requires node < 10240
+    {
+        graph.components[node] as u64 in Trapping
+    }
+}
+
+public machine InvocationGraph::edge_handle(graph: &InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition graph.complete && graph.sealed && expression < graph.expression_count && expression < 131072 {
+        true -> slot(graph, owner, expression)
+        false -> 0
+    }
+    machine slot(graph: &InvocationGraph, owner: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping
+    requires expression < 131072
+    {
+        let handle: u64 in Trapping = graph.slots[expression] as u64 in Trapping;
+        transition handle > 0 && handle <= graph.edge_count && handle <= 32768 {
+            true -> selected(graph, owner, handle, handle - 1)
+            false -> 0
+        }
+    }
+    machine selected(graph: &InvocationGraph, owner: u64 in Trapping, handle: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    requires index < 32768
+    {
+        let edge: InvocationEdge = graph.edges[index];
+        transition edge.owner == owner {
+            true -> handle
+            false -> 0
+        }
+    }
+}
+
+// An occurrence can be visited under several feasible contexts. Certification
+// is the conjunction of all observations: a preserving visit cannot inherit a
+// different visit's strict decrease, and one unknown comparison stays unknown.
+public machine InvocationGraph::observe_rank(graph: &mut InvocationGraph, handle: u64 in Trapping, non_increasing: bool, strict: bool) -> bool
+crashes Trap
+{
+    transition graph.complete && graph.sealed && handle > 0 && handle <= graph.edge_count && handle <= 32768 {
+        true -> selected(graph, handle - 1, non_increasing, strict)
+        false -> false
+    }
+    machine selected(graph: &mut InvocationGraph, index: u64 in Trapping, non_increasing: bool, strict: bool) -> bool
+    requires index < 32768
+    {
+        let mut edge: InvocationEdge = graph.edges[index];
+        transition edge.examined {
+            true -> repeated(graph, index, edge, non_increasing, strict)
+            false -> first(graph, index, edge, non_increasing, strict)
+        }
+    }
+    machine repeated(graph: &mut InvocationGraph, index: u64 in Trapping, edge: InvocationEdge, non_increasing: bool, strict: bool) -> bool
+    requires index < 32768
+    {
+        let mut observed: InvocationEdge = edge;
+        observed.non_increasing = edge.non_increasing && non_increasing;
+        observed.strict = edge.strict && non_increasing && strict;
+        graph.edges[index] = observed;
+        true
+    }
+    machine first(graph: &mut InvocationGraph, index: u64 in Trapping, edge: InvocationEdge, non_increasing: bool, strict: bool) -> bool
+    requires index < 32768
+    {
+        let mut observed: InvocationEdge = edge;
+        observed.examined = true;
+        observed.non_increasing = non_increasing;
+        observed.strict = non_increasing && strict;
+        graph.edges[index] = observed;
+        true
+    }
+}
+
+// Every internal edge must have a complete non-increase proof. A component
+// terminates exactly when its residual non-strict graph is acyclic. Kahn's
+// elimination examines every cycle, independent of declaration/DFS order.
+// Unvisited occurrences and incomplete graphs never acquire a certificate.
+public machine InvocationGraph::certify_ranking(graph: &mut InvocationGraph) -> bool
+crashes Trap
+{
+    graph.work_count = 0;
+    transition { _ -> initialize(graph, 0) }
+    machine initialize(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
+        transition node < graph.node_count && node < 10240 {
+            true -> initialized(graph, node)
+            false -> edges(graph, 0)
+        }
+    }
+    machine initialized(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        graph.component_ranked[node] = graph.complete && graph.sealed;
+        graph.node_cyclic[node] = false;
+        graph.work_edges[node] = 0;
+        graph.visited[node] = false;
+        transition { _ -> initialize(graph, node + 1) }
+    }
+    machine edges(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool {
+        transition index < graph.edge_count && index < 32768 {
+            true -> edge(graph, index)
+            false -> roots(graph, 0)
+        }
+    }
+    machine edge(graph: &mut InvocationGraph, index: u64 in Trapping) -> bool
+    requires index < 32768
+    {
+        let selected: InvocationEdge = graph.edges[index];
+        transition selected.target {
+            InvocationTarget::Machine { machine } -> concrete(graph, index, selected, machine)
+            InvocationTarget::Binder { parameter } -> edges(graph, index + 1)
+        }
+    }
+    machine concrete(graph: &mut InvocationGraph, index: u64 in Trapping, selected: InvocationEdge, target: u64 in Trapping) -> bool {
+        transition selected.owner < graph.node_count && selected.owner < 10240 && target < graph.node_count && target < 10240 {
+            true -> components(graph, index, selected, target, selected.owner)
+            false -> invalid(graph)
+        }
+    }
+    machine components(graph: &mut InvocationGraph, index: u64 in Trapping, selected: InvocationEdge, target: u64 in Trapping, owner: u64 in Trapping) -> bool
+    requires owner < 10240 && target < 10240
+    {
+        let source: u64 in Trapping = graph.components[owner] as u64 in Trapping;
+        let destination: u64 in Trapping = graph.components[target] as u64 in Trapping;
+        transition source > 0 && source == destination && source <= 10240 {
+            true -> internal(graph, index, selected, target, owner, source - 1)
+            false -> edges(graph, index + 1)
+        }
+    }
+    machine internal(graph: &mut InvocationGraph, index: u64 in Trapping, selected: InvocationEdge, target: u64 in Trapping, owner: u64 in Trapping, component: u64 in Trapping) -> bool
+    requires owner < 10240 && target < 10240 && component < 10240
+    {
+        graph.node_cyclic[owner] = true;
+        graph.node_cyclic[target] = true;
+        graph.component_ranked[component] = graph.component_ranked[component] && selected.examined && selected.non_increasing;
+        transition selected.strict {
+            true -> edges(graph, index + 1)
+            false -> residual(graph, index, target)
+        }
+    }
+    machine residual(graph: &mut InvocationGraph, index: u64 in Trapping, target: u64 in Trapping) -> bool
+    requires target < 10240
+    {
+        let degree: u64 in Trapping = graph.work_edges[target] as u64 in Trapping;
+        graph.work_edges[target] = (degree + 1) as u64;
+        transition { _ -> edges(graph, index + 1) }
+    }
+    machine roots(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
+        transition node < graph.node_count && node < 10240 {
+            true -> root(graph, node)
+            false -> dequeue(graph, 0)
+        }
+    }
+    machine root(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        transition graph.work_edges[node] == 0 {
+            true -> enqueue_root(graph, node)
+            false -> roots(graph, node + 1)
+        }
+    }
+    machine enqueue_root(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
+        let queued: bool = InvocationGraph::rank_queue(graph, node);
+        transition queued {
+            true -> roots(graph, node + 1)
+            false -> invalid(graph)
+        }
+    }
+    machine dequeue(graph: &mut InvocationGraph, cursor: u64 in Trapping) -> bool {
+        transition cursor < graph.work_count && cursor < 10240 {
+            true -> queued(graph, cursor)
+            false -> remaining(graph, 0)
+        }
+    }
+    machine queued(graph: &mut InvocationGraph, cursor: u64 in Trapping) -> bool
+    requires cursor < 10240
+    {
+        let node: u64 in Trapping = graph.work_nodes[cursor] as u64 in Trapping;
+        transition node < 10240 {
+            true -> outgoing(graph, cursor, node)
+            false -> invalid(graph)
+        }
+    }
+    machine outgoing(graph: &mut InvocationGraph, cursor: u64 in Trapping, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        let first: u64 in Trapping = graph.first[node] as u64 in Trapping;
+        transition { _ -> successor(graph, cursor, first) }
+    }
+    machine successor(graph: &mut InvocationGraph, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        transition handle > 0 && handle <= graph.edge_count && handle <= 32768 {
+            true -> selected(graph, cursor, handle - 1)
+            false -> dequeue(graph, cursor + 1)
+        }
+    }
+    machine selected(graph: &mut InvocationGraph, cursor: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires index < 32768
+    {
+        let selected: InvocationEdge = graph.edges[index];
+        transition selected.target {
+            InvocationTarget::Machine { machine } -> destination(graph, cursor, selected, machine)
+            InvocationTarget::Binder { parameter } -> successor(graph, cursor, selected.next)
+        }
+    }
+    machine destination(graph: &mut InvocationGraph, cursor: u64 in Trapping, selected: InvocationEdge, target: u64 in Trapping) -> bool {
+        transition target < 10240 && selected.owner < 10240 {
+            true -> same_component(graph, cursor, selected, target, selected.owner)
+            false -> invalid(graph)
+        }
+    }
+    machine same_component(graph: &mut InvocationGraph, cursor: u64 in Trapping, selected: InvocationEdge, target: u64 in Trapping, owner: u64 in Trapping) -> bool
+    requires target < 10240 && owner < 10240
+    {
+        transition !selected.strict && graph.components[owner] == graph.components[target] {
+            true -> decrement(graph, cursor, selected.next, target)
+            false -> successor(graph, cursor, selected.next)
+        }
+    }
+    machine decrement(graph: &mut InvocationGraph, cursor: u64 in Trapping, next: u64 in Trapping, target: u64 in Trapping) -> bool
+    requires target < 10240
+    {
+        let degree: u64 in Trapping = graph.work_edges[target] as u64 in Trapping;
+        transition degree > 0 {
+            true -> decremented(graph, cursor, next, target, degree - 1)
+            false -> invalid(graph)
+        }
+    }
+    machine decremented(graph: &mut InvocationGraph, cursor: u64 in Trapping, next: u64 in Trapping, target: u64 in Trapping, degree: u64 in Trapping) -> bool
+    requires target < 10240
+    {
+        graph.work_edges[target] = degree as u64;
+        transition degree == 0 {
+            true -> enqueue_successor(graph, cursor, next, target)
+            false -> successor(graph, cursor, next)
+        }
+    }
+    machine enqueue_successor(graph: &mut InvocationGraph, cursor: u64 in Trapping, next: u64 in Trapping, target: u64 in Trapping) -> bool {
+        let queued: bool = InvocationGraph::rank_queue(graph, target);
+        transition queued {
+            true -> successor(graph, cursor, next)
+            false -> invalid(graph)
+        }
+    }
+    machine remaining(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool {
+        transition node < graph.node_count && node < 10240 {
+            true -> retained(graph, node)
+            false -> (graph.complete && graph.sealed)
+        }
+    }
+    machine retained(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
+    requires node < 10240
+    {
+        let component: u64 in Trapping = graph.components[node] as u64 in Trapping;
+        transition !graph.visited[node] && component > 0 && component <= 10240 {
+            true -> cyclic_residual(graph, node, component - 1)
+            false -> remaining(graph, node + 1)
+        }
+    }
+    machine cyclic_residual(graph: &mut InvocationGraph, node: u64 in Trapping, component: u64 in Trapping) -> bool
+    requires component < 10240
+    {
+        graph.component_ranked[component] = false;
+        transition { _ -> remaining(graph, node + 1) }
+    }
+    machine invalid(graph: &mut InvocationGraph) -> bool { graph.complete = false; false }
+}
+
+machine InvocationGraph::rank_queue(graph: &mut InvocationGraph, node: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition node < 10240 && graph.work_count < 10240 {
+        true -> room(graph, node, graph.work_count)
+        false -> false
+    }
+    machine room(graph: &mut InvocationGraph, node: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires node < 10240 && index < 10240
+    {
+        transition !graph.visited[node] {
+            true -> publish(graph, node, index)
+            false -> false
+        }
+    }
+    machine publish(graph: &mut InvocationGraph, node: u64 in Trapping, index: u64 in Trapping) -> bool
+    requires node < 10240 && index < 10240
+    {
+        graph.visited[node] = true;
+        graph.work_nodes[index] = node as u64;
+        graph.work_count = index + 1;
+        true
+    }
+}

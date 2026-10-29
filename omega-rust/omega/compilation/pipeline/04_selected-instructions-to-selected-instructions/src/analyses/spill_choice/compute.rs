@@ -186,34 +186,17 @@ fn compute_function(
         }
         active.retain(|entry| entry.end > start);
         let candidates = common_candidates(function_index, register)?;
-        let mut selected = None;
-        for candidate in &candidates {
-            work.validation_steps(1)?;
-            let view = checked_view(
-                function_index,
-                register.virtual_register,
-                register.class,
-                *candidate,
-                physical,
-            )?;
-            if !blocked(
-                register.virtual_register,
-                view,
-                &active,
-                &ranges.interference,
-                physical,
-                None,
-            ) && !early_clobber_conflicts(
-                register.virtual_register,
-                view,
-                &assigned,
-                ranges,
-                physical,
-            ) {
-                selected = Some(*candidate);
-                break;
-            }
-        }
+        let selected = first_free(
+            function_index,
+            register,
+            &candidates,
+            &active,
+            ranges,
+            physical,
+            None,
+            &assigned,
+            work,
+        )?;
         if let Some(view) = selected {
             active.push(ActiveHome {
                 register: register.virtual_register,
@@ -298,28 +281,17 @@ fn compute_function(
             reclaimed_view: None,
         }];
         for resident in &active {
-            let mut reclaimed = None;
-            for candidate in &candidates {
-                work.validation_steps(1)?;
-                let view = checked_view(
-                    function_index,
-                    register.virtual_register,
-                    register.class,
-                    *candidate,
-                    physical,
-                )?;
-                if !blocked(
-                    register.virtual_register,
-                    view,
-                    &active,
-                    &ranges.interference,
-                    physical,
-                    Some(resident.register),
-                ) {
-                    reclaimed = Some(*candidate);
-                    break;
-                }
-            }
+            let reclaimed = first_free(
+                function_index,
+                register,
+                &candidates,
+                &active,
+                ranges,
+                physical,
+                Some(resident.register),
+                &assigned,
+                work,
+            )?;
             if let Some(view) = reclaimed {
                 contenders.push(PressureContender {
                     virtual_register: resident.register,
@@ -461,40 +433,56 @@ fn early_clobber_conflicts(
     })
 }
 
-fn checked_view(
+fn checked_view<'a>(
     function: usize,
-    register: VirtualRegisterId,
-    class: register_model::RegisterClassId,
+    register: &register_homes::VirtualRegisterAllocationLegality,
     candidate: RegisterViewId,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> Result<&RegisterView, SpillChoiceError> {
+    physical: &'a ValidatedPhysicalRegisterModel,
+) -> Result<&'a RegisterView, SpillChoiceError> {
     physical
         .model()
         .views
         .get(usize::from(candidate.0))
-        .filter(|view| view.id == candidate && view.class == class)
+        .filter(|view| view.id == candidate && view.class == register.class)
         .ok_or(SpillChoiceError::UnknownOrIncompatibleView {
             function,
-            register: register.0,
+            register: register.virtual_register.0,
             view: candidate.0,
         })
 }
 
-fn blocked(
-    incoming: VirtualRegisterId,
-    view: &RegisterView,
+/// First candidate view the incoming register can take: unblocked by every
+/// seated home except an explicitly omitted one, and free of seated
+/// early-clobber hazards. The pressure path runs only with no early
+/// clobbers, so the same rule serves both scans.
+#[allow(clippy::too_many_arguments)]
+fn first_free(
+    function: usize,
+    register: &register_homes::VirtualRegisterAllocationLegality,
+    candidates: &BTreeSet<RegisterViewId>,
     active: &[ActiveHome],
-    interference: &[VirtualInterference],
+    ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
     omitted: Option<VirtualRegisterId>,
-) -> bool {
-    active
-        .iter()
-        .filter(|entry| Some(entry.register) != omitted)
-        .any(|entry| {
-            interferes(incoming, entry.register, interference)
-                && view.footprints_overlap(&physical.model().views[usize::from(entry.view.0)])
-        })
+    seated: &[(VirtualRegisterId, RegisterViewId)],
+    work: &mut Work,
+) -> Result<Option<RegisterViewId>, SpillChoiceError> {
+    let incoming = register.virtual_register;
+    for candidate in candidates {
+        work.validation_steps(1)?;
+        let view = checked_view(function, register, *candidate, physical)?;
+        let blocked = active
+            .iter()
+            .filter(|entry| Some(entry.register) != omitted)
+            .any(|entry| {
+                interferes(incoming, entry.register, &ranges.interference)
+                    && view.footprints_overlap(&physical.model().views[usize::from(entry.view.0)])
+            });
+        if !blocked && !early_clobber_conflicts(incoming, view, seated, ranges, physical) {
+            return Ok(Some(*candidate));
+        }
+    }
+    Ok(None)
 }
 
 fn interferes(

@@ -13,6 +13,22 @@ use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
 
+/// The producing layer joins source invocation reachability with its completed
+/// physical control. Unknown source outcomes remain potentially normal.
+pub(in crate::execution::terminal_unit) fn completed_body_outcome(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    physical_continuation: bool,
+) -> checked_trees::CheckedNormalCompletion {
+    if physical_continuation
+        && validation::normal_completion_possible(program, state) != Some(false)
+    {
+        checked_trees::CheckedNormalCompletion::Possible
+    } else {
+        checked_trees::CheckedNormalCompletion::NoNormal
+    }
+}
+
 /// Mutable construction scratch; only the shared cleanup arena is published.
 struct NormalExitConstruction {
     exit: checked_trees::FlowClaimJoinExit,
@@ -23,7 +39,8 @@ struct NormalExitConstruction {
 fn retain_normal_exits(
     shapes: &mut ShapeCollector<'_>,
     rows: Vec<NormalExitConstruction>,
-) -> arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan> {
+    completion: checked_trees::CheckedNormalCompletion,
+) -> checked_trees::CheckedNormalExitCleanups {
     let owner = &mut shapes.cleanup_control;
     let retained = rows
         .into_iter()
@@ -33,7 +50,10 @@ fn retain_normal_exits(
             actions: owner.actions.insert_many(row.actions),
         })
         .collect::<Vec<_>>();
-    owner.normal_exit_rows.insert_many(retained)
+    checked_trees::CheckedNormalExitCleanups {
+        completion,
+        rows: owner.normal_exit_rows.insert_many(retained),
+    }
 }
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
@@ -42,7 +62,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
-) -> Result<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>, &'static str> {
+) -> Result<checked_trees::CheckedNormalExitCleanups, &'static str> {
     let (machine, state) = program
         .machines()
         .iter()
@@ -52,33 +72,16 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
                 .map(|state| (machine, state))
         })
         .ok_or("normal cleanup state has no owning machine")?;
-    if state_plan
-        .terminator
-        .has_normal_continuation(&state_plan.operations, &facts.flow.guarded_exits)
-        == Some(false)
-    {
-        // A suspended or crashing terminator has no exits to plan. A
-        // transfer terminator also reports no normal resumption of this
-        // state, but its machine-boundary exits still transfer custody into
-        // their callee; only a genuinely edge-less terminator skips rows.
-        let Some(flow_state) = facts.flow.control.state(machine.symbol, state.symbol) else {
-            return Ok(Default::default());
-        };
-        if facts
-            .flow
-            .control
-            .outgoing
-            .span_or_empty(flow_state.outgoing)
-            .is_empty()
-            && facts
-                .flow
-                .control
-                .exits
-                .span_or_empty(flow_state.exits)
-                .is_empty()
-        {
-            return Ok(Default::default());
-        }
+    let completion = state_plan.normal_exit_cleanups.completion;
+    let exits = state_exits(program, facts, machine.symbol, state)?;
+    // No normal return does not erase an authored transfer's cleanup. Only
+    // the absent source exit roster permits an unreachable physical edge to
+    // carry no transaction.
+    if completion == checked_trees::CheckedNormalCompletion::NoNormal && exits.is_empty() {
+        return Ok(checked_trees::CheckedNormalExitCleanups {
+            completion,
+            ..Default::default()
+        });
     }
     // A statically selected abnormal completion has no normal cleanup edge.
     // Source flow remains complete; this grants no normal-return disposition.
@@ -90,7 +93,10 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
                 | checked_trees::CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal
         )
     {
-        return Ok(Default::default());
+        return Ok(checked_trees::CheckedNormalExitCleanups {
+            completion: checked_trees::CheckedNormalCompletion::NoNormal,
+            ..Default::default()
+        });
     }
     let rows = cleanup_rows(
         program,
@@ -99,10 +105,11 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         shapes,
         machine.symbol,
         state,
+        exits,
         state_plan.selected_exit,
         |root| owner_source(program, facts, state, state_plan, root).map(Some),
     )?;
-    Ok(retain_normal_exits(shapes, rows))
+    Ok(retain_normal_exits(shapes, rows, completion))
 }
 
 /// Sequence completion disposes current named storage through the same checked
@@ -114,35 +121,22 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
-) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
+) -> Option<checked_trees::CheckedNormalExitCleanups> {
     let machine = program.machine_by_symbol(plan.machine)?;
     let state = program.state_in_machine(machine, plan.state)?;
-    if plan
-        .operations
-        .iter()
-        .any(|operation| !operation.has_normal_continuation())
-    {
-        // Same distinction as state terminators: an exit edge that exists in
-        // flow still owes its transfer cleanup even when no operation
-        // resumes this body.
-        let Some(flow_state) = facts.flow.control.state(plan.machine, plan.state) else {
-            return None;
-        };
-        if facts
-            .flow
-            .control
-            .outgoing
-            .span_or_empty(flow_state.outgoing)
-            .is_empty()
-            && facts
-                .flow
-                .control
-                .exits
-                .span_or_empty(flow_state.exits)
-                .is_empty()
-        {
-            return Some(Default::default());
-        }
+    let completion = completed_body_outcome(
+        program,
+        state,
+        plan.operations
+            .iter()
+            .all(|operation| operation.has_normal_continuation()),
+    );
+    let exits = state_exits(program, facts, plan.machine, state).ok()?;
+    if completion == checked_trees::CheckedNormalCompletion::NoNormal && exits.is_empty() {
+        return Some(checked_trees::CheckedNormalExitCleanups {
+            completion,
+            ..Default::default()
+        });
     }
     let rows = cleanup_rows(
         program,
@@ -151,6 +145,7 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         shapes,
         plan.machine,
         state,
+        exits,
         None,
         |root| {
             let operations = &plan.operations;
@@ -182,7 +177,7 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         },
     )
     .ok()?;
-    Some(retain_normal_exits(shapes, rows))
+    Some(retain_normal_exits(shapes, rows, completion))
 }
 
 fn cleanup_rows(
@@ -192,6 +187,7 @@ fn cleanup_rows(
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
+    source_exits: Vec<checked_trees::FlowClaimJoinExit>,
     selected_exit: Option<checked_trees::FlowClaimJoinExit>,
     mut source_for_owner: impl FnMut(
         PlaceRoot,
@@ -202,7 +198,6 @@ fn cleanup_rows(
         .control
         .state(machine, state.symbol)
         .ok_or("normal cleanup state has no retained control flow")?;
-    let source_exits = state_exits(program, facts, machine, state)?;
     if selected_exit.is_some_and(|selected| !source_exits.contains(&selected)) {
         return Err("selected normal cleanup has no exact source exit");
     }

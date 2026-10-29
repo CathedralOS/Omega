@@ -2,7 +2,6 @@
 //! service binding and retaining the selected review identities.
 
 use crate::SelectedCompilerIntrinsicExecutionIdentity;
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::service_declarations::{ServiceDeclaration, ServiceDeclarations};
@@ -86,7 +85,7 @@ pub(crate) fn resolve_accepted_service_binding(
 /// review rederives that unsupported child and rejects it until a closed
 /// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
-    checked: &CheckedTrees,
+    candidates: &[provider_planning::ProviderPlanCandidate],
     external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     services: &ServiceDeclarations,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
@@ -122,26 +121,34 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             continue;
         }
 
-        let catalog_context = provider_planning::ProviderPlanningContext::new(
-            checked,
-            source::DependencyScope::Product,
-        );
-        let expected_placed =
-            match provider_planning::SealedPlacedAccessor::rejoin_plan(catalog_context, plan) {
-                Ok(witness) => witness,
-                Err(error) => {
-                    diagnostics.push(error);
-                    retained_rows.push(Vec::new());
-                    continue;
-                }
-            };
+        let mut candidates = candidates
+            .iter()
+            .filter(|candidate| candidate.matches_selection(retained));
+        let candidate = match (candidates.next(), candidates.next()) {
+            (Some(candidate), None) => candidate,
+            _ => {
+                diagnostics.push(Diagnostic::error(
+                    "selected intrinsic review has no unique original provider candidate",
+                ));
+                retained_rows.push(Vec::new());
+                continue;
+            }
+        };
+        let expected_placed = match candidate.placed_accessor() {
+            Ok(witness) => witness,
+            Err(error) => {
+                diagnostics.push(error);
+                retained_rows.push(Vec::new());
+                continue;
+            }
+        };
         let catalog_role_matches = match retained.provider.schema {
             provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
                 expected_placed
                     .as_ref()
                     .is_some_and(|witness| witness.machine() == symbol)
                     && retained.provider.row_placed_accessors.as_slice()
-                        == std::slice::from_ref(&expected_placed)
+                        == std::slice::from_ref(&expected_placed.cloned())
             }
             _ => {
                 expected_placed.is_none()
@@ -160,12 +167,13 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             continue;
         }
         let mut rows = Vec::with_capacity(plan.rows.len());
-        for (((row, requirement_symbol), realization_symbol), completion_leaves) in plan
-            .rows
-            .iter()
-            .zip(&retained.provider.row_requirements)
-            .zip(&retained.provider.row_realizations)
-            .zip(&retained.row_external_completion_leaves)
+        for (row_index, (((row, requirement_symbol), realization_symbol), completion_leaves)) in
+            plan.rows
+                .iter()
+                .zip(&retained.provider.row_requirements)
+                .zip(&retained.provider.row_realizations)
+                .zip(&retained.row_external_completion_leaves)
+                .enumerate()
         {
             let Some(realization_symbol) = realization_symbol.authored() else {
                 // Neither a Build locator nor a settlement table supplies a
@@ -181,6 +189,13 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 rows.push(None);
                 continue;
             };
+            let Some(declarations) = candidate.row_declarations(row_index) else {
+                diagnostics.push(Diagnostic::error(
+                    "selected intrinsic review lost its prepared original-row declarations",
+                ));
+                rows.push(None);
+                continue;
+            };
             if !matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -191,12 +206,9 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 // exit row does; the binding names the requirement and the
                 // provider row, not the realization behind them.
                 accumulate_accepted_row_match(
-                    checked,
+                    &declarations.exit_process,
                     plan,
-                    row,
                     retained.provider.schema.symbol(),
-                    *requirement_symbol,
-                    realization_symbol,
                     !completion_leaves.is_empty(),
                     accepted_console_binding,
                     accepted_process_exit_binding,
@@ -212,33 +224,43 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 declaration_identity: None,
                 public_plan: None,
             };
-            match crate::compiler_intrinsic::row_execution_identity(
-                checked,
+            let Some(intrinsic) = declarations.intrinsic.as_ref() else {
+                diagnostics.push(Diagnostic::error(
+                    "selected intrinsic review has no prepared intrinsic declaration",
+                ));
+                rows.push(None);
+                continue;
+            };
+            let numeric = crate::compiler_intrinsic::numeric_execution(
                 crate::NumericProviderSelection {
                     candidate: external_providers,
                     custody: external_providers,
                     provider: retained.provider.provider_type,
                 },
-                services,
                 plan,
                 retained.provider.schema,
                 row,
                 *requirement_symbol,
                 realization_symbol,
-                selected_target,
-                accepted_console_binding.map(unresolved),
-                accepted_process_exit_binding.map(unresolved),
-            ) {
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
+            );
+            let execution = numeric.and_then(|numeric| match numeric {
+                Some(identity) => Ok(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)),
+                None => crate::compiler_intrinsic::settle_declaration(
+                    intrinsic,
+                    plan,
+                    selected_target,
+                    accepted_console_binding.map(unresolved),
+                    accepted_process_exit_binding.map(unresolved),
+                ),
+            });
+            match execution {
+                Ok(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => {
                     if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                     {
                         accumulate_accepted_row_match(
-                            checked,
+                            &declarations.exit_process,
                             plan,
-                            row,
                             retained.provider.schema.symbol(),
-                            *requirement_symbol,
-                            realization_symbol,
                             !completion_leaves.is_empty(),
                             accepted_console_binding,
                             accepted_process_exit_binding,
@@ -249,14 +271,11 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     }
                     rows.push((!identity.is_numeric()).then_some(identity))
                 }
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported)) => {
+                Ok(SelectedCompilerIntrinsicExecutionIdentity::Unsupported) => {
                     accumulate_accepted_row_match(
-                        checked,
+                        &declarations.exit_process,
                         plan,
-                        row,
                         retained.provider.schema.symbol(),
-                        *requirement_symbol,
-                        realization_symbol,
                         !completion_leaves.is_empty(),
                         accepted_console_binding,
                         accepted_process_exit_binding,
@@ -266,7 +285,6 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     );
                     rows.push(None)
                 }
-                Ok(None) => rows.push(None),
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
                     rows.push(None);
@@ -345,7 +363,17 @@ pub(crate) fn produce_direct_boundary_leaves(
                 provider_planning::DirectBoundaryMechanism::Foreign(binding) => {
                     backend_plan::DirectBoundaryExecution::Foreign(binding.clone())
                 }
-                provider_planning::DirectBoundaryMechanism::Intrinsic(declaration) => {
+                provider_planning::DirectBoundaryMechanism::Intrinsic => {
+                    let declaration = candidate
+                        .direct_declarations(input)
+                        .map_err(|diagnostic| vec![diagnostic])?
+                        .intrinsic
+                        .as_ref()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "direct intrinsic has no prepared original-row declaration",
+                            )]
+                        })?;
                     let source = candidate
                         .direct_source(input)
                         .map_err(|diagnostic| vec![diagnostic])?;
@@ -415,12 +443,9 @@ pub(crate) fn produce_direct_boundary_leaves(
 /// declaration below.
 #[allow(clippy::too_many_arguments)]
 fn accumulate_accepted_row_match(
-    checked: &CheckedTrees,
+    declaration: &provider_planning::intrinsic_declarations::ExitProcessDeclaration,
     plan: &effects::provider_plan::ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
     schema_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
     checked_external_completion: bool,
     accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
@@ -429,14 +454,9 @@ fn accumulate_accepted_row_match(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(binding) = accepted_console_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+        match declaration.matches(
             crate::compiler_intrinsic::HostedService::Console,
-            checked,
             plan,
-            row,
-            schema_symbol,
-            requirement_symbol,
-            realization_symbol,
             checked_external_completion,
             binding,
         ) {
@@ -446,14 +466,9 @@ fn accumulate_accepted_row_match(
         }
     }
     if let Some(binding) = accepted_process_exit_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+        match declaration.matches(
             crate::compiler_intrinsic::HostedService::ProcessExit,
-            checked,
             plan,
-            row,
-            schema_symbol,
-            requirement_symbol,
-            realization_symbol,
             checked_external_completion,
             binding,
         ) {

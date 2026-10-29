@@ -105,6 +105,7 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
         &[],
         checked_trees_to_lowered_psi::TerminalProgramRoots::default(),
         terminal_codec::TerminalPublication::Portable,
+        None,
     )
     .expect("lower measure");
     let semantic =

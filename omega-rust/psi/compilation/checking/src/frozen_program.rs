@@ -690,6 +690,9 @@ pub struct CheckingMemos {
             Vec<crate::DeclaredFloatFieldBound>,
         >,
     >,
+    // Contract-output demand also reads the checked context's authored ceilings;
+    // unlike the typed call inventory, it resets when context is replaced.
+    pub(crate) trapping_receipt_demand: OnceLock<Arc<crate::proof_contracts::arithmetic_domains::TrappingReceiptDemand>>,
     pub(crate) private_arrival_index: OnceLock<
         Arc<
             crate::proof_contracts::contract_entailment::structural_prefix::ProgramPrivateArrivalIndex,
@@ -790,6 +793,7 @@ impl CheckingMemos {
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
             ),
+            trapping_receipt_demand: self.trapping_receipt_demand.clone(),
             private_arrival_index: self.private_arrival_index.clone(),
             private_closed_arrivals: Mutex::new(
                 self.private_closed_arrivals

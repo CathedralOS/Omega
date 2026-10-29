@@ -143,13 +143,13 @@ public machine Resolver::homed_at(home: TypeBinding, data: u64 in Trapping) -> b
 machine Resolver::set_operator_home(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
 crashes Trap
 {
-    transition handle < 2048 {
+    transition handle < 10240 {
         true -> store(resolver, handle, home)
         _ -> invalid()
     }
 
     machine store(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
-    requires handle < 2048
+    requires handle < 10240
     {
         resolver.output.operator_homes[handle] = home;
     }

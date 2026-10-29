@@ -113,9 +113,8 @@ crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
     let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
-    let ranked: bool = Checker::ranked_locally(checker, machine);
     let terminating: bool = Checker::settled_termination(checker, machine);
-    transition item.has_body && termination.promised && ranked && !terminating && checker.output.machine_accepted {
+    transition item.has_body && termination.promised && !terminating && checker.output.machine_accepted {
         true -> unproven(checker, syntax, termination.promise)
         _ -> done()
     }
