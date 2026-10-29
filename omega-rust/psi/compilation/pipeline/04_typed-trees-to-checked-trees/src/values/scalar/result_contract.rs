@@ -1206,21 +1206,21 @@ fn contract_storage_root(
     parameter: &StateParameter,
     allow_result: bool,
 ) -> bool {
-    // Rebinding a reference formal changes only the callee's descriptor.
-    // Its post-state cannot be published onto the caller's original actual.
-    if allow_result && parameter.is_mutable {
-        return false;
-    }
     let mut type_reference = parameter.type_reference;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Reference { access, .. } => {
-                return matches!(
-                    access,
-                    language_core::ReferenceAccess::Shared
-                        | language_core::ReferenceAccess::Mutable
-                );
+                // Exclusive formals retain a fixed incoming address. A mutable
+                // shared binding can replace its own descriptor, so its exit
+                // referent is not necessarily the caller's original actual.
+                return match access {
+                    language_core::ReferenceAccess::Shared => {
+                        !allow_result || !parameter.is_mutable
+                    }
+                    language_core::ReferenceAccess::Mutable => true,
+                    _ => false,
+                };
             }
             _ => return !allow_result,
         }
