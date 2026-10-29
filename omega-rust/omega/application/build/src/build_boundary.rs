@@ -227,6 +227,43 @@ fn source_and_package_execution_have_one_application_owner() {
 }
 
 #[test]
+fn application_completes_native_products_without_source_continuations() {
+    let completion = include_str!("native_completion.rs");
+    assert!(completion.contains("run_on_compile_thread(|| complete_native(*product))"));
+    let compact = completion.split_whitespace().collect::<String>();
+    let mut lifecycle = compact.as_str();
+    for operation in [
+        "native_production::prepare(",
+        "prepared.scalar_completions()",
+        "build_evaluation::scalar_completion::complete(",
+        "completion.complete(completed)",
+        "native_production::compile(prepared)",
+        ".finish_native(",
+        ".with_runtime_provisions(",
+    ] {
+        let position = lifecycle.find(operation).expect("ordered native lifecycle");
+        lifecycle = &lifecycle[position + operation.len()..];
+    }
+    for forbidden in [
+        "CheckedCompilation",
+        "CheckedTrees",
+        "compile_with_session",
+        ".select_build_batch(",
+    ] {
+        assert!(
+            !completion.contains(forbidden),
+            "native completion reopens {forbidden}"
+        );
+    }
+    for source in [
+        include_str!("source_compilation.rs"),
+        include_str!("package_compilation.rs"),
+    ] {
+        assert!(source.contains("crate::complete_product"));
+    }
+}
+
+#[test]
 fn build_entrance_shows_the_ordered_project_lifecycle() {
     let mut source = include_str!("build.rs");
     for operation in [

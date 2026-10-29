@@ -48,7 +48,7 @@ fn selected_constant_evaluation_belongs_to_psi() {
 #[test]
 fn deferred_constants_use_canonical_entries_without_source_snapshots() {
     let checking = include_str!("checked/checking/source_checking.rs");
-    let closure = include_str!("terminal/scalar_completion.rs");
+    let closure = include_str!("../../build-evaluation/src/scalar_completion.rs");
     let product = include_str!("../../products/src/prepared_build.rs");
     for source in [checking, closure, product] {
         for forbidden in [
@@ -111,7 +111,7 @@ fn reused_product_selection_shares_the_checked_program() {
 
 #[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
-    let coordinator = include_str!("terminal/scalar_completion.rs");
+    let coordinator = include_str!("../../build-evaluation/src/scalar_completion.rs");
     assert!(coordinator.contains("build_time_evaluation::complete_scalar_applications("));
     for forbidden in [
         "discharge_all(",
@@ -470,8 +470,7 @@ fn components_use_the_shared_product_sequence() {
 
 #[test]
 fn component_handoff_retains_the_producing_join() {
-    let handoff = include_str!("product_execution/native_inputs.rs");
-    let components = handoff.split("/// Project and validate").next().unwrap();
+    let components = include_str!("../../../application/build/src/native_completion.rs");
     for forbidden in [
         "checked: &",
         ".providers()",
@@ -592,11 +591,21 @@ fn product_coordinator_has_no_native_stage_dependency() {
 #[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
-    assert!(source.contains("native_production::prepare(&terminal, request)"));
-    assert!(source.contains("native_production::compile(prepared)"));
-    let inputs = include_str!("product_execution/native_inputs.rs");
+    let inputs = include_str!("../../../application/build/src/native_completion.rs");
+    for operation in [
+        "native_production::prepare(&terminal, request)",
+        "build_evaluation::scalar_completion::complete(",
+        "native_production::compile(prepared)",
+    ] {
+        assert!(
+            !source.contains(operation),
+            "compiler still drives {operation}"
+        );
+        assert!(inputs.contains(operation), "application lost {operation}");
+    }
+    assert!(source.contains("PendingNativeProduct"));
     assert!(inputs.contains("ComponentCompilation"));
-    assert!(inputs.contains("receiving_identities: facts.identities()"));
+    assert!(inputs.contains("receiving_identities: component.receiving_identities()"));
     for source in [source, inputs] {
         for forbidden in [
             "emit_component_exports(",

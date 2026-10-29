@@ -180,6 +180,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
+ "backend-plan",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -1444,6 +1445,8 @@ dependencies = [
  "compilation-products",
  "compiler",
  "diagnostics",
+ "image-emission",
+ "native-production",
  "package-compilation",
  "package-manager",
  "phase-profile",
