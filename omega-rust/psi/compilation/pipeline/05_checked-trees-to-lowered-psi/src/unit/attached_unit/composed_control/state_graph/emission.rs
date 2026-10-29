@@ -1205,13 +1205,17 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     };
     ranking::retain(&mut machine, &block_ranks, &rank_edges).inspect_err(|_| {
         if std::env::var_os("OMEGA_TRACE_UNIT_RANK_OWNERS").is_some() {
-            for (position, state) in plan.states.iter().enumerate() {
+            for state in &plan.states {
                 if let Ok(owner) = super::owner(checked, state.state) {
                     eprintln!(
-                        "unit_rank source_state={:?} owner={} live={}",
+                        "unit_rank source_state={:?} owner={} emitted={:?}",
                         state.state,
                         checked.typed.symbols.display_path(owner, "::"),
-                        admitted.live[position]
+                        occurrences
+                            .state_blocks
+                            .iter()
+                            .filter(|block| block.state == state.state)
+                            .collect::<Vec<_>>()
                     );
                 }
             }

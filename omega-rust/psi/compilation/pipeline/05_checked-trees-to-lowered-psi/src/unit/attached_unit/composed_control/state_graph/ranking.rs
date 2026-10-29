@@ -230,8 +230,8 @@ pub(super) fn retain(
     if components.is_empty() {
         if std::env::var_os("OMEGA_TRACE_UNIT_RANK_OWNERS").is_some() {
             eprintln!(
-                "unit_rank machine={} entry={:?} ranks={ranks:?} rank_edges={edges:?}",
-                machine.name, machine.entry
+                "unit_rank machine={:?} entry={:?} ranks={ranks:?} rank_edges={edges:?}",
+                machine.id, machine.entry
             );
             for block in &machine.blocks {
                 eprintln!(
