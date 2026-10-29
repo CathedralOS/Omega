@@ -406,9 +406,22 @@ fn require_closed_argument(
                 ))
             }
         }
-        TypeParameterKind::Machine { .. }
-        | TypeParameterKind::Implementation
-        | TypeParameterKind::Proposition { .. } => Err(format!(
+        TypeParameterKind::Implementation => {
+            let operand = program
+                .static_operand_from_type_reference(argument)
+                .map_err(|reason| {
+                    format!("{path} lost its erased implementation operand: {reason}")
+                })?;
+            validation::conformance_applications::close_conformance_application(program, &operand)
+                .map(|_| ())
+                .map_err(|reason| {
+                    format!(
+                        "{path} is not a closed named implementation: {}",
+                        reason.message
+                    )
+                })
+        }
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => Err(format!(
             "{path} is not a data parameter; only closed const atoms and closed types can cross the const boundary"
         )),
     }

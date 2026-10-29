@@ -312,7 +312,18 @@ pub struct TypeOccurrence {
 /// Retain the supplying declaration for every live type operand. A shared
 /// arena handle does not transfer its author's lexical checking scope.
 pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
-    let mut occurrences = TypeOccurrences::default();
+    collect_selected_program_type_occurrences(program, &DeclarationSelection::all())
+}
+
+/// Source-owned type operands under one operation's declaration roster.
+pub fn collect_selected_program_type_occurrences(
+    program: &TypedTrees,
+    selection: &DeclarationSelection,
+) -> Vec<TypeOccurrence> {
+    let mut occurrences = TypeOccurrences {
+        selection: selection.clone(),
+        ..TypeOccurrences::default()
+    };
     visit_program(program, &mut occurrences);
     occurrences.types
 }
@@ -353,6 +364,7 @@ pub(crate) fn collect_program_application_occurrences(
 
 #[derive(Default)]
 struct TypeOccurrences {
+    selection: DeclarationSelection,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -437,6 +449,9 @@ impl TypedReferences for TypeOccurrences {
     }
 
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        if !self.selection.contains(symbol) {
+            return false;
+        }
         self.owner = symbol;
         true
     }
