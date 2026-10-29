@@ -1,0 +1,18 @@
+[package]
+name = "provider-selection"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+backend-plan = { path = "../../backend/plans/backend-plan" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+optimization-core = { path = "../../../foundation/optimization-core" }
+component-description = { path = "../../backend/artifacts/component-description" }
+effects = { path = "../../backend/plans/provider-evidence" }
+target = { path = "../../backend/target" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+

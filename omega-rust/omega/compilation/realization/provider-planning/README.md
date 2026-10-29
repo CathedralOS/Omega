@@ -1,7 +1,9 @@
 # Provider planning
 
-Omega realization owns provider selection and its calling and component
-plans here, beside selected execution settlement. Exact provider-grant resolution
+Omega realization prepares source provider declarations and calling/component
+plans here, beside selected execution settlement. Shared whole-provider choice
+and admission live in [provider-selection](../provider-selection/src/provider_selection.rs).
+Exact provider-grant resolution
 belongs to [backend provider evidence](../../backend/plans/provider-evidence/src/provider_grants.rs),
 not compiler trust-report reconstruction.
 
@@ -32,8 +34,12 @@ only wires the public API.
 [Receipt binding](src/provider_planning/receipt_binding.rs) validates admitted
 receipts against exact granted requirements; [installation reach](src/provider_planning/installation_reach.rs)
 resolves the selected realization's reach. Both return planned results without
-mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs) owns authored
-selection inputs and target defaults.
+mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs)
+adapts source provenance to shared selection policy, preserving invocation-local
+identities for Check/review. [Publication preparation](src/target_machines/provider_publication.rs)
+closes the same choices into nominal declarations, overload identities and deferred
+family refusals. The source-free publication consumer selects against actual
+Terminal demand; it does not retain source symbols or reopen typed declarations.
 
 For selected compile-time execution,
 [adapter conformance](src/provider_planning/provenance_replay/adapter_conformance.rs)
