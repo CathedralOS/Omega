@@ -1,7 +1,6 @@
 //! Resolve inert source requests only after Build has joined Product sources.
 //! Semantic admission belongs to Psi; this coordinator publishes its results.
 
-mod additional_declarations;
 mod exclusions;
 
 use compilation_products::ComputedBuildConfig;
@@ -85,7 +84,14 @@ pub(super) fn admit(
             );
         }
     }
-    additional_declarations::admit(typed, computed)?;
+    let declarations = source.admit_product_declarations(
+        computed.selected_build_machine_symbol,
+        &computed.declared_product_selections,
+        &computed.product_selection_requests,
+    )?;
+    computed.config.service_audits = declarations.service_audits;
+    computed.config.assumed_bindings = declarations.assumed_bindings;
+    computed.config.wire_compatibility_demands = declarations.wire_demands;
     computed.config.behavior_exclusions = exclusions::resolve(
         typed,
         computed.selected_build_machine_symbol,
