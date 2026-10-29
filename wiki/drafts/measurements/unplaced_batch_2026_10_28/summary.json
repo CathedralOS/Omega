@@ -1,0 +1,214 @@
+{
+  "warm": {
+    "length": {
+      "baseline": {
+        "wall_median_ms": 897.7308500034269,
+        "wall_range_ms": [
+          794.3470000027446,
+          1664.8405000014463
+        ],
+        "root_cpu_median_ms": 882.8125,
+        "peak_private_commit_median_bytes": 668801024.0,
+        "artifact_bytes": 1536
+      },
+      "candidate": {
+        "wall_median_ms": 942.0629500018549,
+        "wall_range_ms": [
+          848.3416999952169,
+          1995.623599999817
+        ],
+        "root_cpu_median_ms": 882.8125,
+        "peak_private_commit_median_bytes": 668831744.0,
+        "artifact_bytes": 1536
+      },
+      "median_wall_reduction_percent": -4.938239562365365,
+      "paired_wall_reductions_percent": [
+        -7.128111734550213,
+        -19.86875619604902,
+        -5.252655151588126,
+        3.333601870222047,
+        -4.309089786734588,
+        -13.076917265900612
+      ]
+    },
+    "dispatch": {
+      "baseline": {
+        "wall_median_ms": 905.3368499953649,
+        "wall_range_ms": [
+          751.3173000043025,
+          1480.2058000059333
+        ],
+        "root_cpu_median_ms": 898.4375,
+        "peak_private_commit_median_bytes": 669280256.0,
+        "artifact_bytes": 2560
+      },
+      "candidate": {
+        "wall_median_ms": 993.3922000054736,
+        "wall_range_ms": [
+          817.9190000082599,
+          2367.1101999934763
+        ],
+        "root_cpu_median_ms": 945.3125,
+        "peak_private_commit_median_bytes": 669280256.0,
+        "artifact_bytes": 2560
+      },
+      "median_wall_reduction_percent": -9.726252721355543,
+      "paired_wall_reductions_percent": [
+        -6.598291644227072,
+        -59.91764118097551,
+        12.971649505099558,
+        -28.944641631624023,
+        -2.865580609816454,
+        4.382964955990265
+      ]
+    },
+    "stack32": {
+      "baseline": {
+        "wall_median_ms": 2315.2271999933873,
+        "wall_range_ms": [
+          2094.953000007081,
+          3130.4244000057224
+        ],
+        "root_cpu_median_ms": 2234.375,
+        "peak_private_commit_median_bytes": 668809216.0,
+        "artifact_bytes": 114176
+      },
+      "candidate": {
+        "wall_median_ms": 1580.107699999644,
+        "wall_range_ms": [
+          1148.6942000046838,
+          2358.8557000039145
+        ],
+        "root_cpu_median_ms": 1492.1875,
+        "peak_private_commit_median_bytes": 668792832.0,
+        "artifact_bytes": 81408
+      },
+      "median_wall_reduction_percent": 31.751505856351503,
+      "paired_wall_reductions_percent": [
+        25.284486577568586,
+        24.647415219495393,
+        31.957789876701536,
+        50.44856267263904,
+        29.004464539793705,
+        47.40378179069986
+      ]
+    }
+  },
+  "cold": {
+    "length": {
+      "baseline": {
+        "wall_median_ms": 1627.4046000035014,
+        "wall_range_ms": [
+          1536.7234999866923,
+          2445.188000012422
+        ],
+        "root_cpu_median_ms": 2625.0,
+        "peak_private_commit_median_bytes": 1023971328.0,
+        "artifact_bytes": 1536
+      },
+      "candidate": {
+        "wall_median_ms": 1642.2475500003202,
+        "wall_range_ms": [
+          1565.748100008932,
+          1861.1450000025798
+        ],
+        "root_cpu_median_ms": 2679.6875,
+        "peak_private_commit_median_bytes": 1047519232.0,
+        "artifact_bytes": 1536
+      },
+      "median_wall_reduction_percent": -0.9120626792370468,
+      "paired_wall_reductions_percent": [
+        23.88540267688518,
+        7.838832569290788,
+        -7.96412473894148,
+        0.6832606173221678,
+        -3.877483490366096,
+        -9.883450676825166
+      ]
+    },
+    "dispatch": {
+      "baseline": {
+        "wall_median_ms": 1655.626450003183,
+        "wall_range_ms": [
+          1535.74189999199,
+          1746.689100007643
+        ],
+        "root_cpu_median_ms": 2656.25,
+        "peak_private_commit_median_bytes": 1063983104.0,
+        "artifact_bytes": 2560
+      },
+      "candidate": {
+        "wall_median_ms": 1626.6115499965963,
+        "wall_range_ms": [
+          1573.7018000072567,
+          1767.5598000059836
+        ],
+        "root_cpu_median_ms": 2539.0625,
+        "peak_private_commit_median_bytes": 1053718528.0,
+        "artifact_bytes": 2560
+      },
+      "median_wall_reduction_percent": 1.7525028068095305,
+      "paired_wall_reductions_percent": [
+        4.571242468203918,
+        -2.4717629971197974,
+        -9.181356544694275,
+        1.9840659898076152,
+        0.23426607612246908,
+        4.052926993887141
+      ]
+    },
+    "stack32": {
+      "baseline": {
+        "wall_median_ms": 3816.6123000046355,
+        "wall_range_ms": [
+          3704.7451000107685,
+          4262.356899998849
+        ],
+        "root_cpu_median_ms": 5812.5,
+        "peak_private_commit_median_bytes": 1130340352.0,
+        "artifact_bytes": 114176
+      },
+      "candidate": {
+        "wall_median_ms": 3011.2717999945744,
+        "wall_range_ms": [
+          2874.9647999939043,
+          3456.449100005557
+        ],
+        "root_cpu_median_ms": 5148.4375,
+        "peak_private_commit_median_bytes": 1111009280.0,
+        "artifact_bytes": 81408
+      },
+      "median_wall_reduction_percent": 21.100925027388374,
+      "paired_wall_reductions_percent": [
+        24.14405744952911,
+        20.92533427973038,
+        17.91160746837066,
+        24.28545728229592,
+        18.907562620894325,
+        21.16542229019035
+      ]
+    }
+  },
+  "small_followup": {
+    "length": {
+      "baseline": 922.1473000070546,
+      "candidate": 923.3725000012782,
+      "block_wall_reductions_percent": [
+        -16.909136958578873,
+        5.146321255173525,
+        -10.191000016743669,
+        11.139991450400888
+      ]
+    },
+    "dispatch": {
+      "baseline": 934.6065499994438,
+      "candidate": 903.9815499927499,
+      "block_wall_reductions_percent": [
+        7.476212765288159,
+        2.920132541788867,
+        -0.3224828138617797,
+        -0.31295196724645535
+      ]
+    }
+  }
+}
