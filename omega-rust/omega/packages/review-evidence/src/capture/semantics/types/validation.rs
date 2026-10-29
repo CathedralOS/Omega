@@ -28,29 +28,27 @@ pub(crate) fn validate_package_type_identity_input_inner(
     allow_const_value: bool,
     extent_exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<(), Vec<Diagnostic>> {
+    macro_rules! identity {
+        ($type_reference:expr, $allow_const_value:expr) => {
+            validate_package_type_identity_input_inner(
+                compilation,
+                program,
+                $type_reference,
+                binders,
+                $allow_const_value,
+                extent_exposure,
+            )
+        };
+    }
     use typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => validate_package_type_identity_input_inner(
-            compilation,
-            program,
-            *referee,
-            binders,
-            false,
-            extent_exposure,
-        ),
+        TypeReferenceNode::Reference { referee, .. } => identity!(*referee, false),
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_package_type_identity_input_inner(
-                compilation,
-                program,
-                *base_type,
-                binders,
-                false,
-                extent_exposure,
-            )?;
+            identity!(*base_type, false)?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
                     TypeConstraintNode::Range {
@@ -121,14 +119,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                                         typed_trees::data::TypeParameterKind::Const { .. }
                                     )
                                 });
-                            validate_package_type_identity_input_inner(
-                                compilation,
-                                program,
-                                *argument,
-                                binders,
-                                is_const,
-                                extent_exposure,
-                            )?;
+                            identity!(*argument, is_const)?;
                         }
                     }
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
@@ -140,14 +131,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
             element_type,
             length,
         } => {
-            validate_package_type_identity_input_inner(
-                compilation,
-                program,
-                *element_type,
-                binders,
-                false,
-                extent_exposure,
-            )?;
+            identity!(*element_type, false)?;
             match length {
                 FixedArrayLength::Literal(_) => Ok(()),
                 FixedArrayLength::ConstParameter { symbol, name } => {
@@ -174,14 +158,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                 )]),
             }
         }
-        TypeReferenceNode::Slice { element_type } => validate_package_type_identity_input_inner(
-            compilation,
-            program,
-            *element_type,
-            binders,
-            false,
-            extent_exposure,
-        ),
+        TypeReferenceNode::Slice { element_type } => identity!(*element_type, false),
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
@@ -209,14 +186,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                             typed_trees::data::TypeParameterKind::Const { .. }
                         )
                     });
-                validate_package_type_identity_input_inner(
-                    compilation,
-                    program,
-                    *argument,
-                    binders,
-                    is_const,
-                    extent_exposure,
-                )?;
+                identity!(*argument, is_const)?;
             }
             Ok(())
         }
