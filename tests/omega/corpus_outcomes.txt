@@ -13952,6 +13952,31 @@ fail/facts/saved_symbolic_observation_wrong_primitive_delivery_rejected rejected
 	machine `invalid` state `entry` terminal expression expects `u64`, got `match expression`
 fail/facts/saved_symbolic_observation_wrong_reference_delivery_rejected rejected 446ms expected @b800c26bd214
 	machine `invalid` state `entry` terminal expression expects `&mut u64`, got `match expression`
+fail/facts/scalar_array_row_construction_through_call_result_rejected rejected 1306ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_const_name_rejected rejected 1903ms expected @5722ff9ddde2+wt
+	constant array destination conflicts with its declared dimensions or element carrier
+	literal `3` is suffixed `u32` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	literal `5` is suffixed `u32` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	array literal element has type `u32`, expected `u64`; use an explicit conversion
+	array literal element has type `u32`, expected `u64`; use an explicit conversion
+fail/facts/scalar_array_row_construction_through_field_rejected rejected 1617ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_local_rejected rejected 1198ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_match_join_rejected rejected 939ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_other_machine_rejected rejected 1259ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	argument `second` for state `entry` expects `[u32; 2]`, got `named value`
+fail/facts/scalar_array_row_construction_through_other_state_rejected rejected 929ms expected @5722ff9ddde2+wt
+	machine `combine` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_parameter_rejected rejected 880ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+fail/facts/scalar_array_row_construction_through_target_body_rejected rejected 816ms expected @5722ff9ddde2+wt
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
+	machine `pair` state `entry` terminal expression expects `[[u64; 2]; 2]`, got `array literal`
 fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 780ms expected @a92f16431042
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
@@ -29034,6 +29059,15 @@ pass/facts/saved_symbolic_observation_through_other_machine_exit checked 2036ms 
 pass/facts/saved_symbolic_observation_through_other_state_exit checked 2049ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_parameter_exit checked 2003ms check-target:macos_arm64 @b800c26bd214
 pass/facts/saved_symbolic_observation_through_target_body_exit checked 2198ms check-target:macos_arm64 @b800c26bd214
+pass/facts/scalar_array_row_construction_through_call_result_exit checked 3634ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_const_name_exit checked 3550ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_field_exit checked 3463ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_local_exit checked 3482ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_match_join_exit checked 3140ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_machine_exit checked 3627ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_state_exit checked 3311ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_parameter_exit checked 3473ms check-target:macos_arm64 @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_target_body_exit checked 3334ms check-target:macos_arm64 @5722ff9ddde2+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit checked 5953ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_const_name_exit checked 5620ms check-target:macos_arm64 @a92f16431042
 pass/facts/scalar_boundary_parameter_through_field_exit checked 3873ms check-target:macos_arm64 @a92f16431042
