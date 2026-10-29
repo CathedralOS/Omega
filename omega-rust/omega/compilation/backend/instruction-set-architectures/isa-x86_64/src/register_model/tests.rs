@@ -1,22 +1,22 @@
 //! Register model tests: the physical model layout, the constraint catalog and its validation.
 
+use super::operation_keys::X86_64_ORDINARY_REGISTER_CONSTRAINTS;
 use super::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
     X86_64_COPY_I64, X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT,
-    X86_64_MICROSOFT_RETURN, X86_64_ORDINARY_REGISTER_CONSTRAINTS, X86_64_REMAINDER_I64,
-    X86_64_SUBTRACT_I64, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
-    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_fixed_register_view, x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
+    X86_64_MICROSOFT_RETURN, X86_64_REMAINDER_I64, X86_64_SUBTRACT_I64, X86_64_SYSTEM_V_CALL,
+    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64RegisterConstraintCatalogValidationError,
+    validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
+    x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
     x86_64_indirect_aggregate_call_keys, x86_64_microsoft_aggregate_call_keys,
     x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_mixed_aggregate_call_keys,
     x86_64_microsoft_mixed_unit_call_keys, x86_64_microsoft_normalized_foreign_call_keys,
     x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
     x86_64_physical_register_model, x86_64_preservation_convention_for_target,
-    x86_64_register_constraint_catalog, x86_64_required_register_constraints,
-    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
-    x86_64_system_v_mixed_aggregate_call_keys, x86_64_system_v_mixed_unit_call_keys,
-    x86_64_system_v_normalized_foreign_call_keys, x86_64_system_v_register_call_keys,
-    x86_64_system_v_register_unit_call_keys,
+    x86_64_register_constraint_catalog, x86_64_system_v_aggregate_call_keys,
+    x86_64_system_v_aggregate_return_keys, x86_64_system_v_mixed_aggregate_call_keys,
+    x86_64_system_v_mixed_unit_call_keys, x86_64_system_v_normalized_foreign_call_keys,
+    x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::physical_model::GPR64;
 use crate::register_model::physical_model::VECTOR128;

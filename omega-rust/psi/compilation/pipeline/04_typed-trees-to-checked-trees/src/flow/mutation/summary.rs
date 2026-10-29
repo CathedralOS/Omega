@@ -22,7 +22,6 @@ use validation::find_call_site;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
 
-use super::local_origins::rebase_storage_region;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
 use symbols::SymbolHandle;

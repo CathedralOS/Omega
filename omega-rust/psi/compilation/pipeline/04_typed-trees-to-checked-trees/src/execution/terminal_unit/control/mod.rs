@@ -34,6 +34,5 @@ use super::{
     CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
-    MachineSupplyMode, Multiplicity, PermissionEventSource, StatementNode, SymbolHandle,
-    TypeReferenceHandle,
+    Multiplicity, PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceHandle,
 };

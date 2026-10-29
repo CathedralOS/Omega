@@ -11,11 +11,10 @@ pub(super) enum StoredReferenceContents {
     Incoming,
     Captured {
         referents: HandleSpan<FlowOperandReferent>,
-        retention: Handle<checked_trees::FlowOperandRetention>,
     },
 }
 use super::Execution;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowOperandReferent};
 use facts::{PlaceRoot, PlaceSegment, ScalarValue};
 use typed_trees::expression::ExpressionHandle;
@@ -784,12 +783,7 @@ impl Execution<'_, '_, '_> {
                     )
                     .unwrap_or_default();
                     let referents = self.append_captured_references(&places);
-                    let capture = *self.context.control.operands.get(capture);
-                    let retention = self.captured_retention_at_path(capture, &projection);
-                    alternatives.push(StoredReferenceContents::Captured {
-                        referents,
-                        retention,
-                    });
+                    alternatives.push(StoredReferenceContents::Captured { referents });
                 }
             }
         }

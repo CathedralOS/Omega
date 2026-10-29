@@ -15,7 +15,7 @@ use facts::{
 };
 use std::hash::{Hash, Hasher};
 use symbols::SymbolHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::flow) struct QualifiedInput {

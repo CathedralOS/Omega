@@ -8,8 +8,7 @@ mod reference_places;
 mod result_memberships;
 pub(crate) use captured_operand::CapturedOperand;
 pub(crate) use reference_places::{
-    captured_operand_reference_places_with_formation, captured_reference_places,
-    captured_reference_places_with_formation,
+    captured_operand_reference_places_with_formation, captured_reference_places_with_formation,
 };
 pub(crate) use result_memberships::captured_result_membership;
 

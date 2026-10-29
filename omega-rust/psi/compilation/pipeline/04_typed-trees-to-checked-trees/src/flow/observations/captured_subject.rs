@@ -145,7 +145,6 @@ pub(crate) fn captured_case_subject_in_state(
     {
         trace_captured_subject_refusal(
             program,
-            semantic,
             control,
             contexts,
             borrow,
@@ -461,7 +460,6 @@ fn completed_case_subject(
 #[allow(clippy::too_many_arguments)]
 fn trace_captured_subject_refusal(
     program: &dyn validation::CheckingInput,
-    semantic: &facts::FactPlan,
     control: &checked_trees::FlowControlFacts,
     contexts: &checked_trees::FlowContextFacts,
     borrow: &BorrowFacts,

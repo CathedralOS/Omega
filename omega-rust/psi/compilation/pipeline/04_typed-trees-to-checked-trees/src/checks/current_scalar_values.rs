@@ -1396,7 +1396,6 @@ struct ScopedOccurrence<'roster, 'tree> {
     program: &'tree dyn ::validation::CheckingInput,
     machine: &'tree Machine,
     state: &'tree State,
-    statement_index: usize,
     lengths: &'roster [Length],
     hypotheses: &'roster [ScopedArithmeticHypothesis],
 }
@@ -1407,7 +1406,6 @@ impl<'program> CurrentScalarValues<'program> {
             program: self.program,
             machine: self.machine,
             state: self.state,
-            statement_index: self.statement_index,
             lengths: &self.lengths,
             hypotheses: &self.hypotheses,
         }
@@ -1427,7 +1425,6 @@ impl<'program> CurrentScalarValues<'program> {
             program,
             machine,
             state,
-            statement_index: self.statement_index,
             lengths,
             hypotheses: &self.hypotheses,
         }
