@@ -824,6 +824,21 @@ pub(super) fn collect(
             )
         };
     }
+    macro_rules! collect_subject {
+        ($subject:expr $(,)?) => {
+            collect_structural_argument_calls(
+                program,
+                facts,
+                state,
+                statement,
+                $subject,
+                calls,
+                minimum_call_ordinal,
+                visits,
+                consumed,
+            )
+        };
+    }
     match &plans.nodes.get(handle).kind {
         CheckedScalarComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
@@ -831,17 +846,7 @@ pub(super) fn collect(
         }
         | CheckedScalarComputationKind::StorageAddress { subject, .. }
         | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
-            collect_structural_argument_calls(
-                program,
-                facts,
-                state,
-                statement,
-                subject,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            collect_subject!(subject)?;
         }
         CheckedScalarComputationKind::CaseMembership {
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
@@ -876,17 +881,7 @@ pub(super) fn collect(
             receiver_value,
             ..
         } => {
-            collect_structural_argument_calls(
-                program,
-                facts,
-                state,
-                statement,
-                subject,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            collect_subject!(subject)?;
             if receiver_value.is_valid() {
                 let machine = facts.flow.control.state_by_symbol(state)?.machine_symbol;
                 super::structural_values::collect(
@@ -909,17 +904,7 @@ pub(super) fn collect(
             subject,
             ..
         } => {
-            collect_structural_argument_calls(
-                program,
-                facts,
-                state,
-                statement,
-                subject,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            collect_subject!(subject)?;
             // This selected primitive owns its authored call occurrence even
             // though execution emits an observation, not a machine invocation.
             // Join the occurrence here, where every enclosing computation
@@ -987,17 +972,7 @@ pub(super) fn collect(
                 if let checked_trees::CheckedScalarComputationStructuralArgument::Place(source) =
                     argument
                 {
-                    collect_structural_argument_calls(
-                        program,
-                        facts,
-                        state,
-                        statement,
-                        source,
-                        calls,
-                        minimum_call_ordinal,
-                        visits,
-                        consumed,
-                    )?;
+                    collect_subject!(source)?;
                 }
                 if let checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) =
                     argument
