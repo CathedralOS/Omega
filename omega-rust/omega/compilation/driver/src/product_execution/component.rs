@@ -1,5 +1,6 @@
 //! Publish a dependency's checked component for an independent consumer.
 
+use super::CompilationProductError;
 use crate::CheckedCompilation;
 use crate::terminal::{TerminalProductRequest, TerminalProductionView};
 use artifacts::compile_timings::CompileTimings;
@@ -81,6 +82,53 @@ impl ComponentPublication {
     }
 
     pub(crate) fn finish(
+        self,
+        produced: TerminalApplication,
+    ) -> Result<IndependentComponentProduct, CompilationProductError> {
+        let mut accounting = self.checked.source_completion_accounting().clone();
+        // Application production retains the full declaration graph and every
+        // evaluation entry, including obligations outside executable reach.
+        // Complete those conditions before describing or caching the component;
+        // a separate rootless production would repeat the same Psi work.
+        let completed = self.complete_conditions(&produced, &mut accounting);
+        if let Err(diagnostics) = completed {
+            return Err(CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting,
+            });
+        }
+        match self.publish(produced) {
+            Ok(product) => Ok(product),
+            Err(diagnostics) => Err(CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting,
+            }),
+        }
+    }
+
+    fn complete_conditions(
+        &self,
+        produced: &TerminalApplication,
+        accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let execution = self.checked.execution();
+        if execution.program.facts.proof_applications.has_obligations {
+            let profile = execution
+                .selected_target_profile
+                .unwrap_or_else(target::TargetProfile::host);
+            crate::terminal::scalar_completion::complete(
+                &produced.artifact,
+                profile.target_name(),
+                &[],
+                &produced.provider_proposals,
+                accounting,
+            )
+            .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
+        }
+        crate::execution_settlement::check_task_activations(execution)
+    }
+
+    fn publish(
         self,
         produced: TerminalApplication,
     ) -> Result<IndependentComponentProduct, Vec<Diagnostic>> {
