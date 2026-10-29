@@ -1262,7 +1262,89 @@
       "diagnostics": 59,
       "displayed_frontier": "portable target-family contract refusals; CLI truncates after16, no complete SDK acceptance inferred"
     },
-    "focused_recast_replay": "build/layout-storage-evidence/producer35-recast-formation-terminal-raw.txt (running at checkpoint; no acceptance inferred)",
-    "portable_entry_query_control": "build/layout-storage-evidence/producer35-entry-query-baseline-raw.txt: four retains an unclosed scalar constant during lowering"
+    "focused_recast_replay": {
+      "path": "build/layout-storage-evidence/producer35-recast-formation-terminal-raw.txt",
+      "sha256": "4b2e485b18bceb292505a5727fca76129bd33e45aa4b5ab0829b32855e1fe249",
+      "positive_terminal_zero": 2,
+      "legacy_sdk_family_contract_refusals": 4,
+      "intended_rejects": 8,
+      "wrong_reject_fragment": 1,
+      "remaining_diagnostic_correction": "shared_byte_slice_cannot_add_atomic_authority rejects fact-free target but must retain established slice-specific diagnostic; corrected after producer35, not yet remeasured"
+    },
+    "portable_entry_query_control": "build/layout-storage-evidence/producer35-entry-query-baseline-raw.txt: four retains an unclosed scalar constant during lowering",
+    "borrowed_lifetime_host_actual": {
+      "command": [
+        "build/layout-storage-evidence/producer35/omega",
+        "run",
+        "--both",
+        "tests/omega/pass/layouts/fixed_layout_borrowed_lifetime_exit/main.omg"
+      ],
+      "returncode": 0,
+      "seconds": 2.861817042,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n"
+    },
+    "lifetime_and_unapplied_x86_actual": {
+      "target": "macos_x86_64",
+      "observations": [
+        {
+          "fixture": "pass/layouts/fixed_layout_borrowed_lifetime_exit",
+          "tier": "pass",
+          "status": "built",
+          "millis": 4250,
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": [],
+          "regressed_from": null,
+          "recorded_at": null
+        },
+        {
+          "fixture": "pass/layouts/unapplied_record_recast_description_exit",
+          "tier": "pass",
+          "status": "built",
+          "millis": 4250,
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": [],
+          "regressed_from": null,
+          "recorded_at": null
+        }
+      ],
+      "gate_exit": 1,
+      "gate_reason": "new fixtures absent from golden; actual engine observations satisfied",
+      "oracle_failures": []
+    },
+    "lifetime_linear_rejects": [
+      {
+        "command": [
+          "build/layout-storage-evidence/producer35/omega",
+          "--check",
+          "tests/omega/fail/layouts/fixed_layout_borrowed_lifetime_escape/main.omg"
+        ],
+        "returncode": 1,
+        "seconds": 1.045949792,
+        "stdout": "",
+        "stderr": "cannot compile admitted project: checked compilation failed for package `layout_borrowed_lifetime` with 1 diagnostic(s)\n  error: machine `make` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead\n"
+      },
+      {
+        "command": [
+          "build/layout-storage-evidence/producer35/omega",
+          "--check",
+          "tests/omega/fail/layouts/fixed_layout_linear_child_scope_duplicate/main.omg"
+        ],
+        "returncode": 1,
+        "seconds": 0.7093520419999999,
+        "stdout": "",
+        "stderr": "cannot compile admitted project: checked compilation failed for package `layout_borrowed_lifetime` with 1 diagnostic(s)\n  error: cannot use `original` in machine `exercise` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first\n"
+      }
+    ]
   }
 }

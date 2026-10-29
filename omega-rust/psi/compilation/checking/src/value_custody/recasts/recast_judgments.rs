@@ -312,6 +312,16 @@ fn form_scalar_recast(
                         "may weaken established facts but cannot strengthen them"
                     }
                 )
+            } else if matches!(
+                program
+                    .type_reference_table
+                    .type_reference(cast.target_type),
+                TypeReferenceNode::Slice { .. }
+            ) {
+                format!(
+                    "{context}: interior slice recast `{}` requires a recursively fact-free element whose scalar leaves exactly tile its byte stride; raw storage cannot establish element facts or implicit padding",
+                    program.display_type_reference(cast.target_type)
+                )
             } else {
                 format!(
                     "{context}: byte-region recast target `{}` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants",

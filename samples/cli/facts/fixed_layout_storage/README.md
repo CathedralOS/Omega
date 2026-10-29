@@ -64,3 +64,10 @@ also reports native exit 0 and interpreter exit 0. These are two actual host
 pairs, not a fresh whole-row qualification. The legacy SDK import remains red
 with 59 diagnostics; the displayed frontier is target-family contracts. The
 portable entry-query control still refuses lowering an unclosed query.
+
+The same producer35 also executes the lifetime-bearing full semantic `Pair`
+application on macOS arm64 and macOS x86_64: native exit 0 and interpreter exit 0
+on each, with canonical x86 agreement recorded. Escape and linear-duplicate
+controls still reject. The focused recast comparison retains one diagnostic
+fragment regression for a fact-free slice-element rejection; its correction is
+a later compiler input and has not been retroactively attributed to producer35.
