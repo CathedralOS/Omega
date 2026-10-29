@@ -214,12 +214,16 @@ pub(super) fn validate(
 mod tests {
     use super::*;
     use crate::selected_form_encoding::selected_forms::resolve_registers;
-    use crate::test_support::reject_every_bit_flip;
-    use encoded_scalar_plan::replay;
+    use encoded_scalar_plan::{harness, replay};
 
-    fn operands(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 6] {
-        ["x0", "x1", "x2", "x3", "x4", "x5"]
-            .map(|name| physical.model().view_named(name).unwrap().id)
+    fn form() -> (ValidatedPhysicalRegisterModel, [RegisterViewId; 6]) {
+        let physical = register_model::validate_physical_register_model(
+            crate::aarch64_physical_register_model(),
+        )
+        .unwrap();
+        let operands = ["x0", "x1", "x2", "x3", "x4", "x5"]
+            .map(|name| physical.model().view_named(name).unwrap().id);
+        (physical, operands)
     }
 
     fn execute(bytes: &[u8], state: &mut [u64; 32], memory: &mut [u8]) -> Vec<usize> {
@@ -237,132 +241,32 @@ mod tests {
 
     #[test]
     fn encoded_scalar_access_has_exact_footprint_and_extension() {
-        let physical = register_model::validate_physical_register_model(
-            crate::aarch64_physical_register_model(),
-        )
-        .unwrap();
-        let operands = operands(&physical);
+        let (physical, operands) = form();
         let registers: [u8; 6] = resolve_registers(&physical, &operands)
             .unwrap()
             .try_into()
             .unwrap();
-        let codecs = (1..=8u64)
-            .flat_map(|width| [width, width | 256])
-            .chain([516, 520, 1025, 2056]);
-        for codec in codecs {
-            let width = codec & 255;
-            let signed = codec & 256 != 0;
-            let payload = if codec == 1025 {
-                1
-            } else {
-                0x807f_6655_4433_2280u64
-            };
-            let mut memory = [85u8; 10];
-            let mut state = [0u64; 32];
-            state[registers[0] as usize] = 1;
-            state[registers[1] as usize] = codec;
-            state[registers[2] as usize] = payload;
-            let original = state;
-            let store = encode(
-                &physical,
-                SelectedInstructionKind::StoreEncodedScalar,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::StoreEncodedScalar,
-                    variant: 0,
-                },
-                &operands,
-            )
-            .unwrap();
-            let writes = execute(&store.bytes, &mut state, &mut memory);
-            assert_eq!(writes, (1..=width as usize).collect::<Vec<_>>());
-            assert_eq!(memory[0], 85);
-            assert_eq!(memory[width as usize + 1], 85);
-            assert_eq!(
-                &memory[1..=width as usize],
-                &payload.to_le_bytes()[..width as usize]
-            );
-            for input in 0..3 {
-                assert_eq!(
-                    state[registers[input] as usize],
-                    original[registers[input] as usize]
-                );
-            }
-            let load = encode(
-                &physical,
-                SelectedInstructionKind::LoadEncodedScalar,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::LoadEncodedScalar,
-                    variant: 0,
-                },
-                &operands,
-            )
-            .unwrap();
-            let reads = execute(&load.bytes, &mut state, &mut memory);
-            assert_eq!(reads, (1..=width as usize).rev().collect::<Vec<_>>());
-            let shift = 64 - width * 8;
-            let expected = if signed {
-                ((payload << shift) as i64 >> shift) as u64
-            } else {
-                (payload << shift) >> shift
-            };
-            assert_eq!(state[registers[5] as usize], expected);
-            for input in 0..2 {
-                assert_eq!(
-                    state[registers[input] as usize],
-                    original[registers[input] as usize]
-                );
-            }
-        }
+        harness::exact_footprint_and_extension(
+            registers,
+            operands,
+            |kind, alternative, operands| {
+                encode(&physical, kind, alternative, operands).map(|encoded| encoded.bytes)
+            },
+            execute,
+        );
     }
 
     #[test]
     fn encoded_scalar_stream_rejects_every_single_bit_mutation() {
-        let physical = register_model::validate_physical_register_model(
-            crate::aarch64_physical_register_model(),
-        )
-        .unwrap();
-        let operands = operands(&physical);
-        for (kind, family) in [
-            (
-                SelectedInstructionKind::LoadEncodedScalar,
-                MachineAlternativeFamily::LoadEncodedScalar,
-            ),
-            (
-                SelectedInstructionKind::StoreEncodedScalar,
-                MachineAlternativeFamily::StoreEncodedScalar,
-            ),
-        ] {
-            let alternative = MachineAlternativeKey { family, variant: 0 };
-            let encoded = encode(&physical, kind, alternative, &operands).unwrap();
-            reject_every_bit_flip(&encoded.bytes, &format!("{kind:?}"), |changed| {
-                validate(&physical, kind, alternative, &operands, &changed).is_err()
-            });
-            let input_count = if kind == SelectedInstructionKind::LoadEncodedScalar {
-                2
-            } else {
-                3
-            };
-            for scratch in input_count..6 {
-                for prior in 0..scratch {
-                    let mut aliased = operands;
-                    aliased[scratch] = operands[prior];
-                    assert!(
-                        encode(&physical, kind, alternative, &aliased).is_err(),
-                        "{kind:?} scratch {scratch} aliases operand {prior}"
-                    );
-                    assert!(
-                        validate(&physical, kind, alternative, &aliased, &encoded.bytes).is_err()
-                    );
-                }
-            }
-            for input in 1..input_count {
-                let mut shared_input = operands;
-                shared_input[input] = operands[0];
-                let encoded = encode(&physical, kind, alternative, &shared_input).unwrap();
-                assert!(
-                    validate(&physical, kind, alternative, &shared_input, &encoded.bytes).is_ok()
-                );
-            }
-        }
+        let (physical, operands) = form();
+        harness::rejects_every_single_bit_mutation(
+            operands,
+            |kind, alternative, operands| {
+                encode(&physical, kind, alternative, operands).map(|encoded| encoded.bytes)
+            },
+            |kind, alternative, operands, bytes| {
+                validate(&physical, kind, alternative, operands, bytes).is_err()
+            },
+        );
     }
 }
