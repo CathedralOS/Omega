@@ -19,6 +19,9 @@ impl CurrentScalarValues<'_> {
     /// leaves inside the record need separate load evidence and are not walked.
     pub(super) fn seed_parameter_fields(&mut self) {
         for parameter in self.program.state_parameters(self.state) {
+            if parameter.is_const || parameter.relevance.is_erased() {
+                continue;
+            }
             let reference = if let Some(shell) =
                 validation::reference_shell(self.program, parameter.type_reference)
             {
@@ -135,7 +138,9 @@ impl CurrentScalarValues<'_> {
                     continue;
                 };
                 for member in self.program.data_members(data) {
-                    if let typed_trees::data::DataMember::Field(field) = member {
+                    if let typed_trees::data::DataMember::Field(field) = member
+                        && !field.relevance.is_erased()
+                    {
                         let mut child = path.clone();
                         child.push(field.symbol);
                         pending.push((field.type_reference, child, depth + 1));
