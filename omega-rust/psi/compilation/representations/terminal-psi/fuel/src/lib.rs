@@ -257,6 +257,12 @@ impl TerminalFuelMeter {
         self.schedule
     }
 
+    /// Execution must use this same account for storage as well as fuel.
+    /// Borrowing it does not increase the sponsor's allowance.
+    pub fn invocation_account(&self) -> Option<&EvaluationInvocationAccount> {
+        self.invocation.as_ref()
+    }
+
     pub const fn remaining_allowance(&self) -> Option<u64> {
         self.remaining_allowance
     }

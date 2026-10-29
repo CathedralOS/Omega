@@ -112,7 +112,9 @@ pub use instance::{
     TerminalEntryStorageValue, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
     TerminalProcessExitAdmission,
 };
-pub use program::{TerminalInstantiation, TerminalProgram, TerminalProgramEntry};
+pub use program::{
+    TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
+};
 pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };

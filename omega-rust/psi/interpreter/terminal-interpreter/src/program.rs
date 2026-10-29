@@ -454,6 +454,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .installation
             .map(TerminalRuntimeSupplies::from)
             .unwrap_or_else(|| TerminalRuntimeSupplies {
+                provider_selections: None,
                 x86_flags: None,
                 memory_ordering: None,
                 code_identity: self.program.identity.clone(),
@@ -666,6 +667,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             installation,
             account: None,
             entry_results: None,
+            scalar_application: None,
         })
         .map(|(execution, _)| execution)
     }
@@ -701,7 +703,29 @@ impl<'artifact> TerminalProgram<'artifact> {
             installation,
             account,
             entry_results,
+            scalar_application,
         } = request;
+        let scalar_values = match scalar_application {
+            Some(request) => Some(
+                self.scalar_application_inputs(request, installation)
+                    .map_err(TerminalArtifactInterpretError::Execution)?,
+            ),
+            None => None,
+        };
+        if scalar_values.is_none()
+            && !self
+                .program
+                .catalogs
+                .scalar_applications
+                .conditions
+                .is_empty()
+        {
+            return Err(TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::ScalarApplicationEvaluation(
+                    "ordinary execution requires admission of retained scalar conditions".into(),
+                ),
+            ));
+        }
         if let Some(account) = account
             && !matches!(
                 account.measurement(),
@@ -771,6 +795,7 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .request_entry_results(request)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
         }
+        execution.scalar_applications = scalar_values;
         execution
             .bind_structural_cases(structural_inputs.cases)
             .map_err(TerminalArtifactInterpretError::Execution)?;
@@ -799,6 +824,53 @@ pub struct TerminalInstantiation<'input> {
     pub installation: Option<&'input crate::effects::TerminalRuntimeSupplies>,
     pub account: Option<&'input EvaluationInvocationAccount>,
     pub entry_results: Option<crate::TerminalEntryResultRequest<'input>>,
+    /// Provisional compile-time evaluation, restricted to the catalog's exact
+    /// complete entry. This never admits ordinary execution with proof debt.
+    pub scalar_application: Option<TerminalScalarApplicationRequest<'input>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct TerminalScalarApplicationRequest<'input> {
+    pub application: semantic_vocabulary::ScalarApplicationId,
+    pub observations: &'input terminal_installation::ScalarApplicationObservations<'input>,
+}
+
+impl TerminalProgram<'_> {
+    fn scalar_application_inputs(
+        &self,
+        request: TerminalScalarApplicationRequest<'_>,
+        installation: Option<&TerminalRuntimeSupplies>,
+    ) -> Result<terminal_installation::ScalarApplicationValues, TerminalInterpretError> {
+        let reject = || {
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "scalar evaluation inputs differ from the exact artifact, entry, target or provider selections",
+            )
+        };
+        let observations = request.observations;
+        let installation = installation.ok_or_else(reject)?;
+        let expected_providers = TerminalRuntimeSupplies::from(observations.providers());
+        if self.program.identity
+            != terminal_codec::TerminalExecutionIdentity::portable(
+                observations.artifact().identity(),
+            )
+            || installation.target_machines.as_ref() != Some(observations.targets())
+            || installation.provider_selections.as_ref() != Some(observations.providers())
+            || installation.supplies != expected_providers.supplies
+            || installation.assumed_bindings != expected_providers.assumed_bindings
+            || installation.target_layouts.as_deref() != Some(observations.layouts())
+            || observations
+                .entry(request.application)
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
+                != self.program.resolve_entry(Some(installation))?
+            || observations
+                .value(request.application)
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
+                .is_some()
+        {
+            return Err(reject());
+        }
+        Ok(observations.values())
+    }
 }
 
 /// Execution ownership comes from the authenticated callable, not from an

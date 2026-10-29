@@ -249,8 +249,12 @@ dependencies = [
  "symbols",
  "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
@@ -2426,7 +2430,9 @@ dependencies = [
 name = "terminal-installation"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "compiler-storage",
+ "numerics",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",

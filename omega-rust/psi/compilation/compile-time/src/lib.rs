@@ -36,6 +36,8 @@ mod layouts;
 mod machine_execution;
 pub mod provider_declarations;
 mod reflection;
+mod scalar_applications;
+pub use scalar_applications::evaluate_scalar_applications;
 mod syntax_probes;
 mod wire_demands;
 

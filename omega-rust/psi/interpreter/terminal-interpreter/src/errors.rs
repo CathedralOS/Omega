@@ -178,6 +178,7 @@ pub enum TerminalInterpretError {
     FoldedConstantClosure(&'static str),
     EntryResultObservation(&'static str),
     UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
+    ScalarApplicationEvaluation(String),
     UnclosedArrayExtent(semantic_vocabulary::StructuralTypeId),
     TargetMachineSelectionIdentityMismatch,
     TargetLayoutSelectionIdentityMismatch,

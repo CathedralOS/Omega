@@ -68,6 +68,7 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
+    pub(crate) scalar_applications: Option<terminal_installation::ScalarApplicationValues>,
     pub(crate) entry_results: Option<crate::entry_results::EntryResults>,
     pub(crate) account: Option<EvaluationInvocationAccount>,
     /// A host fault is not a resumable pause. Retain its exact site and custody
@@ -652,6 +653,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             current,
             next_operation: 0,
             entry_results: None,
+            scalar_applications: None,
             call_stack: Vec::new(),
             awaiting_effect: None,
             result: None,
@@ -1064,7 +1066,15 @@ impl<'artifact> TerminalExecution<'artifact> {
                 let flow = dispatch_operations!(self, operation, operation.kind;
                                     literal {
                                     OperationKind::ReadScalarApplication { application } => {
-                                        return Err(TerminalInterpretError::UnclosedScalarApplication(application));
+                                        let value = self.scalar_applications.as_ref()
+                                            .and_then(|values| values.value(application))
+                                            .ok_or(TerminalInterpretError::UnclosedScalarApplication(application))?;
+                                        let result = operation.result.scalar().ok_or_else(crate::errors::malformed)?;
+                                        if result.scalar_type != value.scalar_type() {
+                                            return Err(crate::errors::malformed());
+                                        }
+                                        self.values.insert(result.id, value)?;
+                                        OperationFlow::Advance
                                     }
                                     OperationKind::EstablishNativeCodeLayout { machine } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::NativeCodeLayout { machine }));

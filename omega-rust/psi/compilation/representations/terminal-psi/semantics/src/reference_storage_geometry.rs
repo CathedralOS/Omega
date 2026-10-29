@@ -4,7 +4,9 @@
 //! the caller supplies admitted target-closed declarations. These queries
 //! describe bytes, never access or lifetime.
 
-use semantic_vocabulary::{AuthoredFieldStorage, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{
+    AuthoredFieldStorage, ScalarApplicationId, ScalarType, StructuralTypeId,
+};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralPathSegment, StructuralRecordStorage,
     StructuralTypeDeclaration, StructuralTypeShape,
@@ -41,7 +43,8 @@ fn field_geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     field: &StructuralFieldDeclaration,
     active: &mut Vec<StructuralTypeId>,
-) -> Option<(u64, u64)> {
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+) -> Result<(u64, u64), StorageGeometryError> {
     if let Some(scalar) = field.field_type.scalar_type() {
         return scalar_geometry(
             field
@@ -49,28 +52,87 @@ fn field_geometry<'types>(
                 .as_ref()
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
-        );
+        )
+        .ok_or(StorageGeometryError::UnsupportedScalar(scalar));
     }
-    let child = field.field_type.as_structural()?;
-    geometry(types, child, active)
+    let child = field
+        .field_type
+        .as_structural()
+        .ok_or(StorageGeometryError::UnsupportedField)?;
+    geometry(types, child, active, extents)
+}
+
+/// A missing application is a dependency, never a zero element count. The
+/// caller owns evaluation and admission; byte geometry only consumes the exact
+/// count supplied for the catalog coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageGeometryError {
+    MissingType(StructuralTypeId),
+    RecursiveType(StructuralTypeId),
+    NestingLimit,
+    UnsupportedType(StructuralTypeId),
+    UnsupportedScalar(ScalarType),
+    UnsupportedField,
+    UnresolvedExtent(ScalarApplicationId),
+    Overflow,
+}
+
+impl std::fmt::Display for StorageGeometryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "storage geometry: {self:?}")
+    }
+}
+impl std::error::Error for StorageGeometryError {}
+
+/// One geometry algorithm over borrowed declarations and exact scalar inputs.
+/// This does not copy or rewrite the canonical structural catalog. A resolver
+/// can report an outstanding extent so its owner evaluates that dependency
+/// before attempting geometry again; no guest computation runs in this query.
+pub struct ReferenceStorageGeometry<Types, Extents> {
+    types: Types,
+    extents: Extents,
+}
+
+impl<'types, Types, Extents> ReferenceStorageGeometry<Types, Extents>
+where
+    Types: Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    Extents: FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+{
+    pub fn new(types: Types, extents: Extents) -> Self {
+        Self { types, extents }
+    }
+
+    pub fn layout(&mut self, root: StructuralTypeId) -> Result<(u64, u64), StorageGeometryError> {
+        geometry(self.types.clone(), root, &mut Vec::new(), &mut self.extents)
+    }
 }
 
 fn geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,
-) -> Option<(u64, u64)> {
-    if active.len() >= 128 || active.contains(&root) {
-        return None;
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+) -> Result<(u64, u64), StorageGeometryError> {
+    if active.len() >= 128 {
+        return Err(StorageGeometryError::NestingLimit);
     }
-    let shape = &types.clone().find(|row| row.id == root)?.shape;
+    if active.contains(&root) {
+        return Err(StorageGeometryError::RecursiveType(root));
+    }
+    let shape = &types
+        .clone()
+        .find(|row| row.id == root)
+        .ok_or(StorageGeometryError::MissingType(root))?
+        .shape;
     active.push(root);
-    let result = match shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar),
+    let result = (|| match shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => {
+            scalar_geometry(*scalar).ok_or(StorageGeometryError::UnsupportedScalar(*scalar))
+        }
         StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Authored(storage),
             ..
-        } => Some((storage.byte_size, storage.byte_alignment)),
+        } => Ok((storage.byte_size, storage.byte_alignment)),
         StructuralTypeShape::Record {
             fields,
             storage: StructuralRecordStorage::Packed,
@@ -78,21 +140,31 @@ fn geometry<'types>(
             let mut size = 0;
             let mut alignment = 1;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let (child_size, child_alignment) = field_geometry(types.clone(), field, active)?;
-                size = align(size, child_alignment)?.checked_add(child_size)?;
+                let (child_size, child_alignment) =
+                    field_geometry(types.clone(), field, active, extents)?;
+                size = align(size, child_alignment)
+                    .and_then(|offset| offset.checked_add(child_size))
+                    .ok_or(StorageGeometryError::Overflow)?;
                 alignment = alignment.max(child_alignment);
             }
-            Some((align(size, alignment)?, alignment))
+            Ok((
+                align(size, alignment).ok_or(StorageGeometryError::Overflow)?,
+                alignment,
+            ))
         }
-        StructuralTypeShape::FixedArray {
-            element,
-            length: terminal_psi::ArrayExtent::Literal(length),
-        } => {
-            let (size, alignment) = geometry(types.clone(), *element, active)?;
-            Some((align(size, alignment)?.checked_mul(*length)?, alignment))
+        StructuralTypeShape::FixedArray { element, length } => {
+            let length = match length {
+                terminal_psi::ArrayExtent::Literal(length) => *length,
+                terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
+            };
+            let (size, alignment) = geometry(types.clone(), *element, active, extents)?;
+            let size = align(size, alignment)
+                .and_then(|stride| stride.checked_mul(length))
+                .ok_or(StorageGeometryError::Overflow)?;
+            Ok((size, alignment))
         }
-        _ => None,
-    };
+        _ => Err(StorageGeometryError::UnsupportedType(root)),
+    })();
     active.pop();
     result
 }
@@ -110,7 +182,11 @@ pub fn reference_storage_layout<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Option<(u64, u64)> {
-    geometry(types, root, &mut Vec::new())
+    ReferenceStorageGeometry::new(types, |application| {
+        Err(StorageGeometryError::UnresolvedExtent(application))
+    })
+    .layout(root)
+    .ok()
 }
 
 /// Resolve an already-captured static path. Runtime selectors are frozen into
@@ -221,8 +297,15 @@ fn storage_path<'types>(
                         let mut offset = 0;
                         for candidate in fields.iter().filter(|field| !field.relevance.is_erased())
                         {
-                            let (size, alignment) =
-                                field_geometry(types.clone(), candidate, &mut Vec::new())?;
+                            let (size, alignment) = field_geometry(
+                                types.clone(),
+                                candidate,
+                                &mut Vec::new(),
+                                &mut |application| {
+                                    Err(StorageGeometryError::UnresolvedExtent(application))
+                                },
+                            )
+                            .ok()?;
                             offset = align(offset, alignment)?;
                             if candidate.id == field.id {
                                 break;
@@ -255,7 +338,7 @@ fn storage_path<'types>(
                 },
                 StructuralPathSegment::FixedIndex(index),
             ) if index < length => {
-                let (size, alignment) = geometry(types.clone(), *element, &mut Vec::new())?;
+                let (size, alignment) = reference_storage_layout(types.clone(), *element)?;
                 let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
                 byte_offset = byte_offset.checked_add(index.checked_mul(stride)?)?;
                 carrier = *element;
@@ -304,6 +387,66 @@ mod tests {
             field_type,
             storage,
         }
+    }
+
+    #[test]
+    fn resolved_array_extent_uses_the_same_geometry_and_reports_missing_or_overflow() {
+        let dependency = ScalarApplicationId::new(1).unwrap();
+        let mut types = [
+            StructuralTypeDeclaration {
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: true,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                id: identity(1),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::PrimitiveScalar(scalar(64)),
+            },
+            StructuralTypeDeclaration {
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: true,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                id: identity(2),
+                identity: terminal_psi::TerminalIdentityIndex(2),
+                shape: StructuralTypeShape::FixedArray {
+                    element: identity(1),
+                    length: terminal_psi::ArrayExtent::Application(dependency),
+                },
+            },
+        ];
+        assert_eq!(reference_storage_layout(types.iter(), identity(2)), None);
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), |application| Err(
+                StorageGeometryError::UnresolvedExtent(application)
+            ))
+            .layout(identity(2)),
+            Err(StorageGeometryError::UnresolvedExtent(dependency))
+        );
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), |_| Ok(3)).layout(identity(2)),
+            Ok((24, 8))
+        );
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), |_| Ok(0)).layout(identity(2)),
+            Ok((0, 8))
+        );
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), |_| Ok(u64::MAX)).layout(identity(2)),
+            Err(StorageGeometryError::Overflow)
+        );
+        types[1].shape = StructuralTypeShape::FixedArray {
+            element: identity(2),
+            length: terminal_psi::ArrayExtent::Application(dependency),
+        };
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), |_| Ok(3)).layout(identity(2)),
+            Err(StorageGeometryError::RecursiveType(identity(2)))
+        );
     }
 
     #[test]

@@ -17,10 +17,13 @@ mod component_provider;
 mod entry_values;
 mod private_entry_ram;
 mod provider_installation;
+mod scalar_applications;
 mod target_families;
 
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
-pub use entry_values::{TerminalPlacedViewEstablishment, TerminalStructuralValue};
+pub use entry_values::{
+    TerminalPlacedViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
+};
 pub use private_entry_ram::{
     CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,
     PrivateEntryRamScalarInitialization, admit_private_entry_ram,
@@ -31,6 +34,9 @@ pub use provider_installation::{
     AssumedBindingSelection, ProviderInstallationError, ProviderInstallationSelection,
     admit_provider_installation, admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
+};
+pub use scalar_applications::{
+    ScalarApplicationObservations, ScalarApplicationValues, ScalarLayoutObservationError,
 };
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
