@@ -137,7 +137,7 @@ fn predicate_call(
                         program
                             .machine_contracts(selected)
                             .iter()
-                            .map(|c| c.kind)
+                            .map(|contract| &contract.kind)
                             .collect::<Vec<_>>(),
                     ),
                 );
