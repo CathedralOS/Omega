@@ -90,6 +90,7 @@ pub struct TerminalBuildHost {
     bindings: std::sync::Arc<TerminalBuildBindingHost>,
     filesystem: std::sync::Arc<crate::terminal_filesystem::TerminalBuildFilesystemHost>,
     started: std::sync::atomic::AtomicBool,
+    execution_profile: Option<target::TargetProfile>,
     value_admission: BuildValueAdmission,
     machine: std::sync::Arc<package_compilation::build_execution::SelectedBuildMachine>,
 }
@@ -100,6 +101,7 @@ impl TerminalBuildHost {
         account: &EvaluationInvocationAccount,
         machine: std::sync::Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
+        execution_profile: Option<target::TargetProfile>,
     ) -> Result<std::sync::Arc<Self>, String> {
         let artifact = produced.view();
         let program = TerminalProgram::borrow(artifact);
@@ -140,6 +142,7 @@ impl TerminalBuildHost {
             bindings,
             filesystem,
             started: std::sync::atomic::AtomicBool::new(false),
+            execution_profile,
             value_admission: machine.value_admission,
             machine,
         }))
@@ -260,6 +263,7 @@ impl TerminalBuildHost {
             state: ActivationState::Running,
             requests: Vec::new(),
             demanded_sources: Vec::new(),
+            helper_accounting: Default::default(),
         })
     }
 }
@@ -279,6 +283,7 @@ pub struct TerminalBuildActivation {
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
+    helper_accounting: build_time_evaluation::SourceCompletionAccounting,
 }
 
 pub struct TerminalBuildStep<'step> {
@@ -289,6 +294,15 @@ pub struct TerminalBuildStep<'step> {
 }
 
 impl TerminalBuildActivation {
+    /// Invocation-local scalar observations, including work before a refusal.
+    /// The live Build account already owns their charges; consumers must not
+    /// debit these receipts again. Normal Build publication snapshots that account.
+    pub fn helper_evaluation_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.helper_accounting
+    }
+
     /// Resume only the exact demand that paused this activation. A failed answer
     /// poisons it rather than allowing later effects to conceal query failure.
     pub fn answer_query(
@@ -381,8 +395,20 @@ impl TerminalBuildActivation {
                 "Build provider differs from its exact acquired dependency selection".into(),
             );
         }
-        let bindings = provider_installation::prepare(self.view(), &request, provider)?;
+        provider_installation::admit_request(self.view(), &request, provider)?;
         if !self.host.bindings.has_installed_backing(provider)? {
+            let profile = self
+                .host
+                .execution_profile
+                .ok_or("Build provider installation has no admitted execution profile")?;
+            let bindings = provider_installation::prepare(
+                self.host.produced.view(),
+                &request,
+                provider,
+                profile,
+                &self.host.account,
+                &mut self.helper_accounting,
+            )?;
             for binding in bindings {
                 self.instance.bind_component(binding)?;
             }

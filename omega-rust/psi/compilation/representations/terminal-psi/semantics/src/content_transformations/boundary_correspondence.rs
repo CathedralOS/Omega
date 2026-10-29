@@ -402,6 +402,9 @@ fn owned_addresses(
                     declared_addresses,
                 )?;
                 if !element_paths.is_empty() {
+                    let length = &length
+                        .literal()
+                        .ok_or("boundary backing addresses require a closed array extent")?;
                     let count = usize::try_from(*length)
                         .ok()
                         .and_then(|length| length.checked_mul(element_paths.len()))

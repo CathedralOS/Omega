@@ -111,3 +111,59 @@ places. An authored `Slice::Length` rank transports its descriptor through a
 private helper with reordered arguments and no separate ranking clause.
 [Requirements, witnesses and controls](local/structural_view/README.md) describe
 the exact admitted coordinate and current-versus-entry descriptor observations.
+
+## Optional rank ranges
+
+Each place also carries the same fact through `ranged_value/`.
+[Formation, invocation premises and changed-bound examples](local/ranged_value/README.md)
+explain why optional intervals are instantiated at each invocation while the
+nonnegative rank relation stays fixed. The accompanying controls retain strict
+descent, arithmetic formation and ordinary call obligations.
+
+[Projected scalar coordinates](local/projected_value/README.md) carry the same
+private-cycle fact through inline record fields in all nine places, with
+nested-field, moved-copy, entry-reset and wrong-subject controls.
+
+[Descriptor field coordinates](local/descriptor_field/README.md) carry that same
+private-cycle fact through slice descriptors stored in inline records across all
+nine places. Nested records, moved copies and mutable payload stores exercise
+composition; restoring an earlier descriptor or shortening only another field
+still rejects. Call requirements observe prepared operands before callee writes.
+
+## Borrowed record coordinates
+
+The `borrowed_value/` child in every place carries the same count through a
+readable, binding-stable formal reference to the caller's original record.
+Each caller checks count zero, canary641 and counter3→10, then exercises the
+empty path. Each child's `invalid/` removes only the strict decrement.
+The [local compositions](local/borrowed_value/README.md) additionally cover a
+moved reference carrier, a disjoint write, nested inline fields and a borrowed
+slice descriptor updated through the original record. Recursive normal-exit
+summaries compose windows without identifying opaque windows as exact values.
+Reset, whole-record replacement, alias-write and pointer-reseat controls under
+`controls/borrowed_*/` must still fail the same rank obligation. Saved entry
+coordinates grant no permission to reuse invalidated current observations.
+
+## Stored-reference coordinates
+
+The `borrowed_value/stored_reference/` child in every place carries the same
+seven/empty payload through a `Remaining` record whose `child` is `&mut Payload`.
+The selected rank is `remaining.child.count`. The caller checks count zero and
+guard 827 on its original payload after the temporary reference carrier dies;
+the explicit counter still advances from 3 to 10 and then stays 10.
+[Requirements and controls](local/borrowed_value/stored_reference/README.md)
+distinguish matched entry loads from current storage observations. The local
+compositions cover carrier, child and scalar aliases plus an observable disjoint
+referent write. Their twins remove only descent. Separate controls reject a
+reset after descent, an alias reset, decrementing another child, write-only
+observation and reliance on an enclosing helper's arrival facts.
+
+Scalar stores publish their completed value to proven identical current storage
+coordinates, retaining independent owned snapshots and refreshing invalidation
+dependencies. Reference production consumes checked occurrence captures;
+borrowed descriptor storage cannot become an owned field extraction. Native
+geometry uses the shared structural path grammar for every reference crossing,
+while access, lineage and original backing remain independent obligations.
+The frozen local source refuses on `54fa5d06d77` before this repair. Further
+reference loads without independently retained evidence, indexed/case private
+coordinates and the parent's other accepted requirements remain unfinished.

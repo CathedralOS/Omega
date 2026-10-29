@@ -85,7 +85,7 @@ fn scalar_rank(
             })
     };
     let scalar = match rank.measure {
-        CheckedNaturalRankMeasure::IntegerParameter { .. }
+        CheckedNaturalRankMeasure::IntegerValue { .. }
         | CheckedNaturalRankMeasure::BoundedDistance { .. } => exact(rank.parameter_position),
         // Declared views retain their body's formation and descent authority;
         // the primitive-formal judgment cannot stand in for that application.
@@ -143,11 +143,7 @@ fn prove_edge(
         authored_call_selection: *authored_call_selection,
     };
     // The arriving value of the target formal at `position`.
-    let arriving = |position: u32| {
-        values
-            .current(*edge.arguments.get(position as usize)?)
-            .map(ScopedArithmeticValue::Term)
-    };
+    let arriving = |position: u32| values.current_value(*edge.arguments.get(position as usize)?);
     let relation = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         values.proves_values_relation(program, machine, operator, left, right)
     };
@@ -193,7 +189,7 @@ fn prove_edge(
     }
     if !matches!(
         source_rank.measure,
-        CheckedNaturalRankMeasure::IntegerParameter { .. }
+        CheckedNaturalRankMeasure::IntegerValue { .. }
     ) {
         return None;
     }

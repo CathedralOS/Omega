@@ -206,6 +206,7 @@ pub use terminal_installation::{
 /// adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
+    pub(crate) provider_selections: Option<terminal_installation::AdmittedProviderSelections>,
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
@@ -256,6 +257,7 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
 impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntimeSupplies {
     fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
         Self {
+            provider_selections: Some(selected.clone()),
             x86_flags: None,
             memory_ordering: None,
             code_identity: terminal_codec::TerminalExecutionIdentity::portable(

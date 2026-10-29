@@ -114,10 +114,10 @@ impl crate::CompilationSession {
                     Ok(output) => output.into_report(),
                     Err(error) => Err(error),
                 };
-                outcomes.push(CompileTargetOutcome::new(
-                    profile,
-                    report.map_err(CompilationProductError::into_diagnostics),
-                ));
+                outcomes.push(match report {
+                    Ok(report) => CompileTargetOutcome::new(profile, Ok(report)),
+                    Err(error) => error.into_target_outcome(profile),
+                });
             }
             Ok(CompileOutcomes::new(outcomes))
         })

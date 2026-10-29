@@ -1,0 +1,17 @@
+// Nested conjunctions preserve each call's exact actual bound.
+// Expected exit: 0
+machine projected(value: u64) -> u64
+requires value >= 7u64 && value <= 9u64
+ensures result >= 7u64 &&
+    (((result <= 9u64 && result == value) && (true && true)) && result >= 7u64)
+{ value }
+machine main() crashes Trap {
+    let first: u64 = projected(7u64) - 7u64;
+    let second: u64 = projected(8u64) - 9u64;
+    transition first == 0u64 && second == 0u64 {
+        true -> good()
+        _ -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

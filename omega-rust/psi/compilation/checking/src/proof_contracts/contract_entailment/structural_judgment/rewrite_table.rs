@@ -215,6 +215,10 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
         StructuralTerm::IntegerEmbedding { .. } => (15, 0),
         StructuralTerm::MathematicalBinary { operator, .. } => (16, discriminant_key(operator)),
         StructuralTerm::CollectionMeasure { measure, .. } => (17, discriminant_key(measure)),
+        StructuralTerm::ScalarRepresentation { source, target, .. } => (
+            19,
+            discriminant_key(source) ^ discriminant_key(target).rotate_left(32),
+        ),
     }
 }
 
@@ -280,7 +284,8 @@ fn term_has_mathematical_or_integer_embedding(term: &StructuralTerm) -> bool {
             term_has_mathematical_or_integer_embedding(collection)
                 || term_has_mathematical_or_integer_embedding(index)
         }
-        StructuralTerm::Projection { subject, .. } => {
+        StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
             term_has_mathematical_or_integer_embedding(subject)
         }
         StructuralTerm::ScalarBinary { left, right, .. } => {
@@ -324,7 +329,8 @@ fn max_captured_occurrence(term: &StructuralTerm) -> usize {
         | StructuralTerm::MathematicalBinary { left, right, .. } => {
             max_captured_occurrence(left).max(max_captured_occurrence(right))
         }
-        StructuralTerm::IntegerEmbedding { value, .. } => max_captured_occurrence(value),
+        StructuralTerm::IntegerEmbedding { value, .. }
+        | StructuralTerm::ScalarRepresentation { value, .. } => max_captured_occurrence(value),
         StructuralTerm::Variable(_)
         | StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. }
@@ -338,6 +344,7 @@ fn term_may_produce_mathematical_value(term: &StructuralTerm) -> bool {
     !matches!(
         term.semantic_value(),
         StructuralTerm::Float(_)
+            | StructuralTerm::ScalarRepresentation { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
             | StructuralTerm::Constructor { .. }

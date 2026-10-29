@@ -1,9 +1,9 @@
 //! A pure Build cache hit owes the current occurrence its recorded logical charge.
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
-#[path = "../tests/support/joined_product_execution.rs"]
-mod joined_product_execution;
-use joined_product_execution::{execute_joined_product, execute_report};
+#[path = "../tests/support/joined_product_native.rs"]
+mod joined_product_native;
+use joined_product_native::{execute_joined_product, execute_report};
 
 use artifacts::compile_timings::counters;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
@@ -1036,7 +1036,6 @@ fn terminal_build_filesystem() {
 /// Preparing the Build must not load the Product root or resolve its imports.
 /// Both phases still consume the same closed source capture.
 fn initial_build_source_isolation() {
-    let mut catalogue = source::SourceCatalogue::default();
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
@@ -1104,7 +1103,6 @@ fn initial_build_source_isolation() {
 /// An import discovered after Build still resolves in the captured namespace,
 /// including existence/canonicalization, not just the final file-byte read.
 fn deferred_product_uses_captured_imports() {
-    let mut catalogue = source::SourceCatalogue::default();
     let authored = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/build/separate_build_product_imports_exit");
     let nonce = std::time::SystemTime::now()

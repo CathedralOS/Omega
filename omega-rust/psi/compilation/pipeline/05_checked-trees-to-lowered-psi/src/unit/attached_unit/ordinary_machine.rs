@@ -63,6 +63,8 @@ use lowered_psi::{LoweredSelectedComparisonOccurrence, LoweredSourceCallOccurren
 /// type roster travels separately because a body may extend it.
 #[derive(Clone, Copy)]
 pub(super) struct ClosureCatalog<'a> {
+    pub(super) scalar_applications:
+        &'a std::sync::Arc<super::scalar_applications::SourceScalarApplications>,
     pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) domain_ids: &'a [StructuralDomainBinding],
     pub(super) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
@@ -173,6 +175,7 @@ pub(super) fn emit(
     counters: EmissionCounters<'_>,
 ) -> Result<EmittedMachine, LoweringError> {
     let ClosureCatalog {
+        scalar_applications,
         type_ids,
         domain_ids,
         domain_declarations,
@@ -307,7 +310,10 @@ pub(super) fn emit(
         })
         .collect::<Vec<_>>();
     let structural_result_places = Vec::<(Option<StructuralPlaceDeclaration>, bool)>::new();
-    let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    let mut evaluation = argument_evaluation::Evaluation::new(
+        &mut next_block,
+        std::sync::Arc::clone(scalar_applications),
+    )?;
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
@@ -1141,6 +1147,7 @@ pub(super) fn emit(
         &declared_result,
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications,
             constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &evaluation.structural_parameters,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,

@@ -271,3 +271,54 @@ fn pressure_batch_defers_shared_and_interfering_regions_but_keeps_disjoint_ones(
     domain.retain_unrelieved(VirtualRegisterId(7), &mut pending);
     assert_eq!(pending, vec![pressure(2, 20)]);
 }
+
+#[test]
+fn rewriting_unplaced_component_retains_interfering_pressure_in_order() {
+    use super::BatchFunctionIndex;
+    let ranges = split_ranges(&[(0, 1), (7, 8)], &[], &[(1, 7)]);
+    let index = BatchFunctionIndex::new(&ranges);
+    let domains = [
+        FailedDomain::in_function(2, &ranges, VirtualRegisterId(0)),
+        FailedDomain::in_function_indexed(2, &ranges, &index, VirtualRegisterId(0)),
+    ];
+    for domain in domains {
+        let mut pending = vec![
+            pressure(2, 7),
+            pressure(2, 1),
+            pressure(3, 20),
+            pressure(2, 8),
+            pressure(2, 20),
+        ];
+        domain.retain_unrelieved(VirtualRegisterId(1), &mut pending);
+        assert_eq!(
+            pending,
+            vec![pressure(2, 7), pressure(2, 8), pressure(2, 20)]
+        );
+    }
+}
+
+#[test]
+fn unplaced_component_precedes_neighbors_and_falls_back_after_retirement() {
+    use super::{FunctionRoster, select_roster_candidate};
+    let ranges = split_ranges(&[(9, 10)], &[], &[(7, 9)]);
+    let domain = FailedDomain::in_function(2, &ranges, VirtualRegisterId(9));
+    let mut roster = FunctionRoster::new(
+        2,
+        vec![
+            (2, VirtualRegisterId(7)),
+            (2, VirtualRegisterId(9)),
+            (2, VirtualRegisterId(10)),
+        ],
+    );
+    for register in [9, 10, 7] {
+        assert_eq!(
+            select_roster_candidate(&pressure(2, 9), &roster, Some(&domain)),
+            Some((2, VirtualRegisterId(register)))
+        );
+        roster.remove_register(VirtualRegisterId(register));
+    }
+    assert_eq!(
+        select_roster_candidate(&pressure(2, 9), &roster, Some(&domain)),
+        None
+    );
+}

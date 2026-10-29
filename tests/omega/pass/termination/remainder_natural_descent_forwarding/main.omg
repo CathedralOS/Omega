@@ -1,0 +1,25 @@
+// Expected exit: 0
+// A private helper forwards the caller rank, then its captured remainder descends.
+machine reduce_pair(numerator: u64, denominator: u64) -> u64
+terminates by denominator -> Nat::Descending;
+{
+    transition denominator > 0 {
+        true -> advance(numerator, denominator)
+        false -> numerator
+    }
+    machine advance(numerator: u64, denominator: u64) -> u64
+    requires denominator > 0 {
+        let remainder: u64 = numerator % denominator;
+        transition { _ -> reduce_pair(denominator, remainder) }
+    }
+}
+machine main() crashes Trap {
+    let common: u64 = reduce_pair(48, 18);
+    let coprime: u64 = reduce_pair(17, 5);
+    transition common == 6 && coprime == 1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

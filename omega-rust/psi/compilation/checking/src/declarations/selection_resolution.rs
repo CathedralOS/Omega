@@ -24,9 +24,22 @@ pub enum AuthoredSelectionResolutionTarget {
 }
 
 pub fn push_consistent_resolution(
+    program: &dyn crate::CheckingInput,
     resolutions: &mut Vec<AuthoredSelectionResolution>,
     candidate: AuthoredSelectionResolution,
 ) -> Result<(), Diagnostic> {
+    let candidate = match (candidate.binding, candidate.target) {
+        (
+            AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            AuthoredSelectionResolutionTarget::Declaration(target),
+        ) => AuthoredSelectionResolution {
+            target: AuthoredSelectionResolutionTarget::Declaration(authored_callable(
+                program, target,
+            )?),
+            ..candidate
+        },
+        _ => candidate,
+    };
     if let Some(existing) = resolutions
         .iter()
         .find(|resolution| resolution.occurrence == candidate.occurrence)
@@ -44,6 +57,59 @@ pub fn push_consistent_resolution(
     }
     resolutions.push(candidate);
     Ok(())
+}
+
+/// The ledger records a source declaration, while calls keep their executable
+/// specialization and exact static tuple. Rejoin only the producer's retained
+/// instance/template edge and state position; no spelling or signature search
+/// can make two unrelated declarations one authored selection.
+fn authored_callable(
+    program: &dyn crate::CheckingInput,
+    mut selected: SymbolHandle,
+) -> Result<SymbolHandle, Diagnostic> {
+    for _ in 0..=program.machine_specializations.len() {
+        let declaration = program.machine_by_symbol(selected);
+        let owner = declaration.or_else(|| program.machine_holding_state(selected));
+        let Some(owner) = owner else {
+            return Ok(selected);
+        };
+        let Some(application) = program.machine_specialization(owner.symbol) else {
+            return Ok(selected);
+        };
+        if application.instance == application.template {
+            return Ok(selected);
+        }
+        let template = program
+            .machine_by_symbol(application.template)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "authored call selection lost its specialization template declaration",
+                )
+            })?;
+        selected = if declaration.is_some() {
+            template.symbol
+        } else {
+            // Specialization clones retain state order. This is the same
+            // correspondence used by signature and authored binder checking.
+            let ordinal =
+                typed_trees::state::state_position(program.machine_states(owner), selected)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "authored call selection lost its specialized state position",
+                        )
+                    })?;
+            program
+                .machine_states(template)
+                .get(ordinal)
+                .ok_or_else(|| {
+                    Diagnostic::error("authored call selection has no corresponding template state")
+                })?
+                .symbol
+        };
+    }
+    Err(Diagnostic::error(
+        "authored call selection has cyclic specialization provenance",
+    ))
 }
 
 pub fn finalization_diagnostic(
@@ -147,6 +213,7 @@ pub fn collect_checked_transition_target_selections(
                             continue;
                         }
                         push_consistent_resolution(
+                            program,
                             resolutions,
                             AuthoredSelectionResolution {
                                 occurrence: *occurrence,

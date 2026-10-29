@@ -131,35 +131,6 @@ pub(super) fn float_to_integer_trap_message(
     format!("float-to-int conversion failed in {operation} domain: {reason} for {target:?}")
 }
 
-/// Preserve an f32 NaN's sign and payload while carrying interpreter floats in
-/// the existing f64-backed `Value::Float`. Finite values and infinities remain
-/// ordinary numeric f64 values; only NaNs use this reversible payload embedding.
-pub(super) fn interpreter_f32_from_bits(bits: u32) -> f64 {
-    let value = f32::from_bits(bits);
-    if !value.is_nan() {
-        return value as f64;
-    }
-
-    let sign = ((bits as u64) >> 31) << 63;
-    let payload = (u64::from(bits) & 0x007f_ffff) << 29;
-    f64::from_bits(sign | 0x7ff0_0000_0000_0000 | payload)
-}
-
-pub(super) fn interpreter_f32_to_bits(value: f64) -> u32 {
-    if !value.is_nan() {
-        return (value as f32).to_bits();
-    }
-
-    let bits = value.to_bits();
-    let sign = ((bits >> 63) as u32) << 31;
-    let mut payload = ((bits & 0x000f_ffff_ffff_ffff) >> 29) as u32;
-    payload &= 0x007f_ffff;
-    if payload == 0 {
-        payload = 0x0040_0000;
-    }
-    sign | 0x7f80_0000 | payload
-}
-
 /// Apply a write target's arithmetic domain (decision 17) to a raw i64 result,
 /// mirroring the native backend so the differential oracle agrees:
 /// Exact/Wrapping truncate to width; Saturating clamps to [min, max]; Trapping

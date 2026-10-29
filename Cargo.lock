@@ -196,6 +196,7 @@ dependencies = [
  "provider-planning",
  "psi-compiler",
  "representation-planning",
+ "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
@@ -233,6 +234,7 @@ dependencies = [
  "checked-trees",
  "compiler-storage",
  "diagnostics",
+ "evaluation-accounting",
  "flow-effects",
  "language-core",
  "language-semantics",
@@ -248,8 +250,12 @@ dependencies = [
  "symbols",
  "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
+ "terminal-codec",
  "terminal-fuel",
+ "terminal-installation",
  "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
@@ -270,6 +276,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "layout-plans",
  "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
@@ -644,6 +651,10 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 [[package]]
 name = "encoded-scalar-plan"
 version = "0.1.0"
+dependencies = [
+ "register-model",
+ "selected-instructions",
+]
 
 [[package]]
 name = "errno"
@@ -717,6 +728,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-semantics",
+ "semantic-vocabulary",
  "symbols",
 ]
 
@@ -1305,6 +1317,7 @@ dependencies = [
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
+ "semantic-vocabulary",
  "target",
  "target-operations-to-selected-instructions",
  "task-plans",
@@ -1358,6 +1371,7 @@ name = "normalized-foreign-call-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "function-identity",
  "legalized-operations",
  "optimization-unit",
  "register-model",
@@ -1432,6 +1446,7 @@ dependencies = [
  "diagnostics",
  "package-compilation",
  "package-manager",
+ "phase-profile",
  "platform-custody",
  "semantic-vocabulary",
  "target",
@@ -2425,6 +2440,7 @@ dependencies = [
  "arena",
  "language-semantics",
  "layout-plans",
+ "numerics",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
@@ -2446,7 +2462,9 @@ dependencies = [
 name = "terminal-installation"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "compiler-storage",
+ "numerics",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
@@ -2482,6 +2500,7 @@ dependencies = [
  "compiler-storage",
  "language-core",
  "language-semantics",
+ "numerics",
  "optimization",
  "semantic-vocabulary",
  "source",
@@ -2511,6 +2530,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
+ "runtime-abi",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -2552,6 +2572,7 @@ dependencies = [
  "access-plans",
  "extents",
  "language-semantics",
+ "layout-plans",
  "numerics",
  "optimization",
  "proof-admission",

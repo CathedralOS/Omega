@@ -49,7 +49,7 @@ pub fn admit_executable_entry(
             .optimization_input()
             .target_machine_selections()
             .is_some_and(|retained| retained != &selections)
-        || terminal.entry != terminal_psi::TargetMachineCallable::Machine(plan.entry)
+        || terminal.entry != Some(terminal_psi::TargetMachineCallable::Machine(plan.entry))
             && (input
                 .optimization_input()
                 .target_machine_selections()

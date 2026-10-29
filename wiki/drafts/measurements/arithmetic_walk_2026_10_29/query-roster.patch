@@ -1,0 +1,11 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+index a6c88017e45..832cd0099cd 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+@@ -26,0 +27,2 @@ pub(super) fn normal_return_interval(
++    let started = std::time::Instant::now();
++    let answer = (|| {
+@@ -81,0 +84,3 @@ pub(super) fn normal_return_interval(
++    })();
++    eprintln!("RETURN_QUERY\t{}\t{:?}", started.elapsed().as_secs_f64() * 1000.0, (crate::frozen_program::frozen_program_memos(program).map(|memos| std::ptr::from_ref(memos) as usize), callee.callable, callee.return_type, callee.parameters.as_ptr() as usize, callee.parameters.len(), callee.contracts.as_ptr() as usize, callee.contracts.len(), declared, &actuals.values, &actuals.lengths));
++    answer

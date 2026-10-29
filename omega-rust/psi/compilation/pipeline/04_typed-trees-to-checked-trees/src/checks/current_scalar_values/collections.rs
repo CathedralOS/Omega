@@ -170,6 +170,45 @@ impl CurrentScalarValues<'_> {
         self.collection_length(expression, 0)
     }
 
+    /// Inline descriptor fields carry their own extent at this invocation.
+    /// The selected frame decides whether this is an entry observation or a
+    /// current association that survived the executed prefix.
+    pub(crate) fn length_field_observations(
+        &self,
+        parameter: SymbolHandle,
+    ) -> impl Iterator<Item = (&[SymbolHandle], &ScopedArithmeticValue)> {
+        self.lengths.iter().filter_map(move |length| {
+            let LengthSubject::Field { owner, path } = &length.subject else {
+                return None;
+            };
+            (*owner == parameter)
+                .then_some(length.value.as_ref())?
+                .map(|value| (path.as_slice(), value))
+        })
+    }
+
+    /// Project the destination's selected descriptor from the completed
+    /// actual. Use the same captured roster as ordinary member reads, so
+    /// copies, constructors, joins and replacement share one extent owner.
+    pub(crate) fn projected_collection_length(
+        &self,
+        actual: ExpressionHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<ScopedArithmeticValue> {
+        if path.is_empty() {
+            return self.current_collection_length(actual);
+        }
+        self.captured_field_lengths(actual, 0)
+            .into_iter()
+            .find(|field| {
+                field.path.len() == path.len()
+                    && field.path.iter().zip(path).all(|(field, segment)| {
+                        matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
+                    })
+            })
+            .map(|field| field.value)
+    }
+
     pub(super) fn collection_length(
         &self,
         expression: ExpressionHandle,
@@ -887,18 +926,16 @@ impl CurrentScalarValues<'_> {
         &mut self,
         owner: SymbolHandle,
         path: &[SymbolHandle],
-        owner_name: &str,
         initializer: ExpressionHandle,
     ) {
         let fields = self.captured_field_lengths(initializer, 0);
-        self.replace_record_fields(owner, path, owner_name, fields);
+        self.replace_record_fields(owner, path, fields);
     }
 
     pub(super) fn replace_record_fields(
         &mut self,
         owner: SymbolHandle,
         prefix: &[SymbolHandle],
-        owner_name: &str,
         fields: Vec<CapturedFieldLength>,
     ) {
         self.lengths.retain(|length| !matches!(&length.subject,
@@ -906,13 +943,21 @@ impl CurrentScalarValues<'_> {
         for field in fields {
             let mut path = prefix.to_vec();
             path.extend(field.path);
+            let coordinate = path
+                .iter()
+                .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                .collect::<Vec<_>>();
+            // Extent belongs to the descriptor binding, not its payload.
+            // Whole/field replacement overlaps `.len`; an element store does
+            // not. Entry seeds and later copies use this same frame owner.
+            let Some(name) =
+                validation::frame_length_coordinate_path(self.program, owner, &coordinate)
+            else {
+                continue;
+            };
             self.lengths.push(Length {
                 subject: LengthSubject::Field { owner, path },
-                name: if field.name.is_empty() {
-                    owner_name.to_owned()
-                } else {
-                    format!("{owner_name}.{}", field.name)
-                },
+                name,
                 stable: false,
                 type_reference: field.type_reference,
                 value: Some(field.value),

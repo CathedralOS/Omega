@@ -51,6 +51,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         &self.descriptors
     }
 
+    #[cfg(test)]
     pub(crate) fn logical_slot_count(&self) -> usize {
         self.contents.slots.len()
     }
@@ -59,6 +60,7 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         self.contents.jump_slot_relocations.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn direct_call_site_count(&self) -> usize {
         self.contents
             .slots

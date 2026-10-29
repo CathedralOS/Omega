@@ -838,7 +838,10 @@ pub(crate) fn primitive_array_shape(
             return None;
         }
         match declaration.shape {
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 array = true;
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));
@@ -1484,6 +1487,7 @@ fn shape_inner(
             Some(ValueShape::integer(align(bytes, alignment)?, alignment))
         }
         StructuralTypeShape::FixedArray { element, length } => {
+            let length = length.literal()?;
             // Owned primitive arrays already define their recursive ABI,
             // including zero-byte arrays. Borrowing must observe that same
             // layout instead of independently imposing a nonempty extent.
@@ -1493,8 +1497,8 @@ fn shape_inner(
                 let element = shape_inner(*element, declarations, active)?;
                 let stride = align(element.byte_size, element.alignment)?;
                 Some(ValueShape::integer(
-                    u32::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
-                    if *length == 0 { 1 } else { element.alignment },
+                    u32::try_from(u64::from(stride).checked_mul(length)?).ok()?,
+                    if length == 0 { 1 } else { element.alignment },
                 ))
             }
         }
@@ -2023,9 +2027,10 @@ fn project_storage<'types>(
             }
             (selection @ (Projection::FixedIndex(_) | Projection::RuntimeIndex(..)), array) => {
                 let (element, extent) = match array {
-                    StructuralTypeShape::FixedArray { element, length } => {
-                        (*element, Some(*length))
-                    }
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => (*element, Some(*length)),
                     StructuralTypeShape::ElementView { element, .. } => (*element, None),
                     _ => return None,
                 };

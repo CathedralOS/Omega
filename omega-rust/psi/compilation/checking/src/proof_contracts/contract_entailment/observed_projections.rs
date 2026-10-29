@@ -110,6 +110,7 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         StructuralTerm::CollectionMeasure { .. }
         | StructuralTerm::Integer(_)
         | StructuralTerm::Float(_)
+        | StructuralTerm::ScalarRepresentation { .. }
         | StructuralTerm::ScalarBinary { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }
@@ -336,8 +337,13 @@ fn inline_projection_source(
     else {
         return Some((reference, value));
     };
-    crate::declared_carriers_match(program, reference, observed).then_some(())?;
     let shell = crate::reference_shell(program, observed)?;
+    // Default-domain predicates name the nominal value, while a checked
+    // shared borrow retains its exact reference shell. Both views project the
+    // same authenticated inline cells; neither may cross a reference child.
+    (crate::declared_carriers_match(program, reference, observed)
+        || crate::declared_carriers_match(program, reference, shell.referee))
+    .then_some(())?;
     let StructuralTerm::ObservedValue { value, .. } = value else {
         return None;
     };

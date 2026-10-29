@@ -260,6 +260,12 @@ pub fn prune_checked_tree_product(
             .typed
             .constant_recipes
             .iter()
+            .filter(|(_, recipe)| {
+                !matches!(
+                    recipe.position,
+                    typed_trees::constant_recipes::RetainedConstantPosition::ContractExpression(_)
+                )
+            })
             .map(|(_, recipe)| recipe.machine)
             .filter(|machine| machine.is_valid()),
     );

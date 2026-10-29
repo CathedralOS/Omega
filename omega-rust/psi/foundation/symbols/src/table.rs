@@ -919,14 +919,46 @@ impl SymbolTable {
         })
     }
 
+    /// Preserve the complete declaration roster after namespace and import
+    /// precedence. Typed call selection consumes this roster; a signature-free
+    /// reference still requires the existing unique/ambiguous lookup verdict.
+    pub fn top_level_candidates_from_source(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+    ) -> Vec<SymbolHandle> {
+        self.lookup_top_level_candidates(
+            name,
+            kinds,
+            reference,
+            |_| true,
+            TopLevelSelection::SignatureFree,
+        )
+    }
+
     fn lookup_top_level(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+        matches_candidate: impl FnMut(SymbolHandle) -> bool,
+        selection: TopLevelSelection,
+    ) -> SymbolLookup {
+        SymbolLookup::from_candidates(
+            self.lookup_top_level_candidates(name, kinds, reference, matches_candidate, selection)
+                .into_iter(),
+        )
+    }
+
+    fn lookup_top_level_candidates(
         &self,
         name: &str,
         kinds: &[SymbolKind],
         reference: SourceSpan,
         mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
         selection: TopLevelSelection,
-    ) -> SymbolLookup {
+    ) -> Vec<SymbolHandle> {
         let reference_is_source_backed = reference.span.start != reference.span.end;
         if reference_is_source_backed
             && self
@@ -934,18 +966,22 @@ impl SymbolTable {
                 .as_deref()
                 .is_some_and(|sources| !sources.source_is_selected(reference.source_id))
         {
-            return SymbolLookup::NotFound;
+            return Vec::new();
         }
         // A dummy span may retain a real SourceId, but it has no lexical
         // occurrence. Do not let that id authorize a relative module path.
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
-            && let Some(result) =
-                self.find_module_qualified_reference(name, kinds, reference, &mut matches_candidate)
+            && let Some(result) = self.find_module_qualified_candidates(
+                name,
+                kinds,
+                reference,
+                &mut matches_candidate,
+            )
         {
             return result;
         }
         if self.child_handles(self.root).is_none() {
-            return SymbolLookup::NotFound;
+            return Vec::new();
         }
         let candidates = self
             .top_level_children_matching_name(
@@ -962,12 +998,9 @@ impl SymbolTable {
 
         if !reference_is_source_backed {
             if selection == TopLevelSelection::SignatureFree {
-                return SymbolLookup::from_candidates(candidates.into_iter());
+                return candidates;
             }
-            return candidates
-                .first()
-                .copied()
-                .map_or(SymbolLookup::NotFound, SymbolLookup::Unique);
+            return candidates.into_iter().take(1).collect();
         }
 
         if let Some(binding) = self
@@ -981,22 +1014,22 @@ impl SymbolTable {
                         .symbol_source_span(*symbol)
                         .is_some_and(|span| span.source_id == binding.declaration_source)
             });
-            return SymbolLookup::from_candidates(targets);
+            return targets.collect();
         }
 
         if self.has_namespace_context(reference) {
-            return self.select_namespace_candidate(&candidates, name, reference);
+            return self.select_namespace_candidates(&candidates, name, reference);
         }
         if selection == TopLevelSelection::SignatureFree {
-            let local =
-                SymbolLookup::from_candidates(candidates.iter().copied().filter(|symbol| {
+            let local = candidates
+                .iter()
+                .copied()
+                .filter(|symbol| {
                     self.symbol_provenance_source_span(*symbol)
                         .is_some_and(|declaration| self.same_source_package(reference, declaration))
-                }));
-            return match local {
-                SymbolLookup::NotFound => SymbolLookup::from_candidates(candidates.into_iter()),
-                _ => local,
-            };
+                })
+                .collect::<Vec<_>>();
+            return if local.is_empty() { candidates } else { local };
         }
         candidates
             .iter()
@@ -1028,7 +1061,8 @@ impl SymbolTable {
                 })
             })
             .or_else(|| candidates.first().copied())
-            .map_or(SymbolLookup::NotFound, SymbolLookup::Unique)
+            .into_iter()
+            .collect()
     }
 
     /// Resolve either one exact declaration or one source-scoped overloaded

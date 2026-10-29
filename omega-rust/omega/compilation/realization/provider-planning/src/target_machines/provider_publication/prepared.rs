@@ -9,7 +9,8 @@ use diagnostics::Diagnostic;
 pub(super) struct PreparedCandidate {
     pub(super) derived: crate::DerivedProviderPlan,
     pub(super) schema_owner: String,
-    pub(super) provider_owner: Result<Option<String>, Vec<Diagnostic>>,
+    pub(super) closed_declarations:
+        Result<backend_plan::TerminalTargetProviderPlan, Vec<Diagnostic>>,
     pub(super) explicitly_selected: bool,
 }
 
@@ -114,10 +115,7 @@ impl PreparedTarget {
                         "selected provider lost its exact prepared declaration",
                     )]
                 })?;
-            plans.push(backend_plan::TerminalTargetProviderPlan {
-                plan: selected.plan,
-                provider_declaration: candidate.provider_owner.clone()?,
-            });
+            plans.push(candidate.closed_declarations.clone()?);
         }
         backend_plan::TerminalTargetProviderSelection::from_plans(plans, artifact)
             .map_err(|reason| vec![Diagnostic::error(reason)])

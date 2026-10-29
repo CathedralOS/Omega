@@ -301,7 +301,11 @@ fn observed_byte_predicate(
         return None;
     }
     let selected = crate::canonical_structural_path_tip(types.iter(), contract.carrier, path)?;
-    let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = selected.shape else {
+    let terminal_psi::StructuralTypeShape::FixedArray {
+        length: terminal_psi::ArrayExtent::Literal(length),
+        ..
+    } = selected.shape
+    else {
         return None;
     };
     if !crate::byte_predicate_carrier(types.iter(), selected.id)

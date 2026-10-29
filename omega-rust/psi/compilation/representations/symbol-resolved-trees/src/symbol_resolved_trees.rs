@@ -553,6 +553,21 @@ impl SymbolResolvedTrees {
             .record_late_bound(source_span, exposure, kind, late_binding)
     }
 
+    /// Complete the exact retained source obligation with its checked declaration.
+    pub fn finalize_authored_declaration_selection(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        expected_binding: AuthoredDeclarationSelectionLateBinding,
+        selected_symbol: symbols::SymbolHandle,
+    ) -> Result<
+        (),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .finalize_late_bound(occurrence, expected_binding, selected_symbol)
+    }
+
     /// Finalize a retained occurrence whose checked meaning is compiler-owned.
     pub fn finalize_intrinsic_authored_declaration_selection(
         &mut self,

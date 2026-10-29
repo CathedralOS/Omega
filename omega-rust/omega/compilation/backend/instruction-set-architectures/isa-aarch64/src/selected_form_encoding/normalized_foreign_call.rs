@@ -302,10 +302,7 @@ mod tests {
         validate_aarch64_selected_normalized_foreign_call_template,
     };
     use normalized_foreign_call_plan::fixture;
-    use register_model::{
-        RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel,
-        validate_physical_register_model,
-    };
+    use register_model::{RegisterOperandAccess, validate_physical_register_model};
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
         MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
@@ -316,64 +313,42 @@ mod tests {
 
     use crate::aarch64_physical_register_model;
 
-    fn inputs(
-        darwin: bool,
-        input_layout: usize,
-        result: usize,
-    ) -> (
-        ValidatedPhysicalRegisterModel,
-        SelectedInstructionKind,
-        MachineAlternativeKey,
-        Vec<RegisterViewId>,
-        Vec<RegisterOperandAccess>,
-        MachineEncodedEffects,
-        SelectedNormalizedForeignCall,
-    ) {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let kind = SelectedInstructionKind::NormalizedForeignCall {
-            boundary: BoundaryMachineId::new(3).unwrap(),
-            ordinal: 2,
-        };
-        let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::NormalizedForeignCall,
-            variant: 0,
-        };
-        let record = record(darwin, input_layout, result);
-        let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-        let (operands, accesses) = row_operand_columns(&row);
-        let effects = MachineEncodedEffects {
-            external_operand_reads: row.operand_reads(),
-            external_operand_writes: row.operand_writes(),
-            implicit_unit_uses: row.implicit_uses.clone(),
-            implicit_unit_defs: row.implicit_defs.clone(),
-            implicit_unit_clobbers: row.clobbers.clone(),
-            memory: MachineEncodedMemoryEffect::NoneV1,
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            control: MachineEncodedControlEffect::DirectRelativeCallV1,
-        };
-        (
-            physical,
-            kind,
-            alternative,
-            operands,
-            accesses,
-            effects,
-            record,
-        )
+    /// The AArch64 spelling of a fixture callback destination, and the byte
+    /// counts its two materialization groups charge.
+    fn callback_destination(
+        placement: fixture::CallbackPlacement,
+    ) -> super::Aarch64CallbackMaterializationDestination {
+        match placement.field_byte_offset {
+            None => super::Aarch64CallbackMaterializationDestination::Register(placement.register),
+            Some(byte_offset) => super::Aarch64CallbackMaterializationDestination::RecordField {
+                root_register: placement.register,
+                byte_offset: u32::try_from(byte_offset).unwrap(),
+            },
+        }
     }
 
-    /// The row's operand view and access columns, in roster order.
-    fn row_operand_columns(
-        row: &register_model::RegisterInstructionConstraint,
-    ) -> (Vec<RegisterViewId>, Vec<RegisterOperandAccess>) {
-        let views = row
-            .operands
-            .iter()
-            .map(|operand| operand.fixed_view.unwrap())
-            .collect();
-        let accesses = row.operands.iter().map(|operand| operand.access).collect();
-        (views, accesses)
+    const CALLBACK_BYTE_COUNTS: fixture::CallbackByteCounts = fixture::CallbackByteCounts {
+        register: 8,
+        field: 12,
+    };
+
+    fn inputs(darwin: bool, input_layout: usize, result: usize) -> fixture::Case {
+        fixture::case(
+            validate_physical_register_model(aarch64_physical_register_model()).unwrap(),
+            record(darwin, input_layout, result),
+            crate::machine_effects::normalized_foreign_constraint,
+            |row, _| MachineEncodedEffects {
+                external_operand_reads: row.operand_reads(),
+                external_operand_writes: row.operand_writes(),
+                implicit_unit_uses: row.implicit_uses.clone(),
+                implicit_unit_defs: row.implicit_defs.clone(),
+                implicit_unit_clobbers: row.clobbers.clone(),
+                memory: MachineEncodedMemoryEffect::NoneV1,
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: MachineEncodedControlEffect::DirectRelativeCallV1,
+            },
+        )
     }
 
     /// These records carry physical call inputs only; source ownership and
@@ -402,118 +377,22 @@ mod tests {
 
     #[test]
     fn retained_multiple_callbacks_bind_operands_effects_bytes_and_fixups() {
-        use calling_conventions::{
-            CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
-            CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand,
-            NativeParameterApplication, NativeParameterId, NativePlace, StaticMachineBinderId,
-            ValueLocation,
-        };
-        use function_identity::MachineFunctionIdentity;
-
         for alternate_abi in [false, true] {
-            let (physical, kind, _, _, _, _, mut record) = inputs(alternate_abi, 3, 1);
+            let (physical, kind, _, _, _, _, record) = inputs(alternate_abi, 3, 1);
             let target = record.call.binding.native_target().unwrap();
             let original = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-            let root = NativeParameterId::new(81).unwrap();
-            let destinations = [
-                NativePlace::Parameter(NativeParameterId::new(82).unwrap()),
-                NativePlace::Field {
-                    parameter: root,
-                    layout: LayoutPlanId::new(83).unwrap(),
-                    field_path: vec![LayoutSlotId::new(1).unwrap()],
-                },
-                NativePlace::Parameter(NativeParameterId::new(84).unwrap()),
-                NativePlace::Field {
-                    parameter: root,
-                    layout: LayoutPlanId::new(83).unwrap(),
-                    field_path: vec![LayoutSlotId::new(2).unwrap()],
-                },
-            ];
-            let requirement = CallbackRequirementId::new(85).unwrap();
-            let context = CallbackMaterializationContext {
-                binders: (1..=4)
-                    .map(|identity| CallbackBinderRequirement {
-                        binder: StaticMachineBinderId::new(identity).unwrap(),
-                        requirement,
-                    })
-                    .collect(),
-                demands: destinations
-                    .iter()
-                    .cloned()
-                    .map(|destination| NativeCallbackDemand {
-                        destination,
-                        requirement,
-                    })
-                    .collect(),
-            };
-            let plan = &mut record.call.binding.boundary_entry_plan;
-            plan.call.callback_materializations = destinations
-                .iter()
-                .cloned()
-                .enumerate()
-                .map(|(position, destination)| CallbackMaterialization {
-                    binder: context.binders[position].binder,
-                    destination,
-                })
-                .collect();
-            let continuation = terminal_psi::TerminalPsiIdentity {
-                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
-                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
-            };
-            let mut encoded_destinations = Vec::new();
-            for (placement_index, destination) in destinations.into_iter().enumerate() {
-                let (parameter, native_ordinal, field_byte_offset) = match destination {
-                    NativePlace::Parameter(parameter) => (parameter, placement_index / 2 + 1, None),
-                    NativePlace::Field { parameter, .. } => {
-                        (parameter, 0, Some((placement_index / 2) * 8))
-                    }
-                };
-                let placement = plan.call.parameters[native_ordinal].clone();
-                let [ValueLocation::Register { register, .. }] = placement.locations.as_slice()
-                else {
-                    panic!("fixture callback root must be register resident")
-                };
-                encoded_destinations.push(match field_byte_offset {
-                    None => super::Aarch64CallbackMaterializationDestination::Register(*register),
-                    Some(byte_offset) => {
-                        super::Aarch64CallbackMaterializationDestination::RecordField {
-                            root_register: *register,
-                            byte_offset: byte_offset as u32,
-                        }
-                    }
-                });
-                record
-                    .call
-                    .callbacks
-                    .push(target_operations::TargetNativeCallbackArgument {
-                        registrar_invokes_callback: true,
-                        terminal_operation: record
-                            .invocation_site
-                            .operation()
-                            .expect("callback is owned by a returning operation"),
-                        placement_index,
-                        callback_function: MachineFunctionIdentity::callback_thunk(
-                            continuation,
-                            placement_index,
-                        )
-                        .unwrap(),
-                        destination,
-                        field_byte_offset,
-                        application: NativeParameterApplication {
-                            parameter,
-                            native_ordinal: native_ordinal as u32,
-                            shape: placement.shape,
-                            placement,
-                        },
-                        registrar_boundary_entry_plan: plan.clone(),
-                        registrar_context: context.clone(),
-                        registrar_application_commitment: [0x66; 32],
-                    });
-            }
-            // The two private parameter slots are materialized inside the call.
-            // The field root remains an explicit input; source custody is checked upstream.
-            record.call.scalar_arguments.truncate(1);
-            let scratch_register = plan.call.policy.callback_field_scratch();
+            let fixture::CallbackFixture {
+                record,
+                destinations: encoded_destinations,
+                byte_counts,
+            } = fixture::callback_fixture(record, callback_destination, CALLBACK_BYTE_COUNTS);
+            let scratch_register = record
+                .call
+                .binding
+                .boundary_entry_plan
+                .call
+                .policy
+                .callback_field_scratch();
             let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
             assert_eq!(row.key, original.key);
             assert_eq!(row.operands.len(), 2);
@@ -553,7 +432,7 @@ mod tests {
             );
             assert_eq!(alternative.encoded.external_operand_reads, vec![0]);
             assert_eq!(alternative.encoded.external_operand_writes, vec![1]);
-            let (operands, accesses) = row_operand_columns(&row);
+            let (operands, accesses) = fixture::operand_columns(&row);
             let template = encode_aarch64_selected_normalized_foreign_call_template(
                 target,
                 &physical,
@@ -573,10 +452,7 @@ mod tests {
             for (position, fixup) in template.fixup().callbacks.iter().enumerate() {
                 assert_eq!(fixup.destination, encoded_destinations[position]);
                 assert_eq!(fixup.materialization_byte_offset, byte_offset);
-                assert_eq!(
-                    fixup.materialization_byte_count,
-                    if position % 2 == 0 { 8 } else { 12 }
-                );
+                assert_eq!(fixup.materialization_byte_count, byte_counts[position]);
                 byte_offset += fixup.materialization_byte_count;
             }
             let replay =

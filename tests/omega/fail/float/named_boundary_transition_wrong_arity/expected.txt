@@ -1,1 +1,1 @@
-does not resolve to a callable machine entry or requirement
+state `from_i32` expects 1 argument(s), got 2

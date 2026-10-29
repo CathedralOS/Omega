@@ -48,11 +48,23 @@ fn measure() {
     .expect("batch workspace");
     let mut session = BuildSession::create(workspace.path()).expect("batch resources");
     let mut completed = Vec::new();
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--inspection-scalars")) {
+        measure_inspection_scalars(&mut session, &mut completed, &root);
+        measure_inspection_roots(&mut session, &mut completed, &root);
+        session.close().expect("close batch resources");
+        return;
+    }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--component-scalars")) {
+        measure_component_scalars(&mut session, &mut completed, &root);
+        session.close().expect("close batch resources");
+        return;
+    }
     let (mut first, first_custody) = discover(
         &mut session,
         &mut completed,
         &root.join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg"),
         &[TargetProfile::WindowsX64, TargetProfile::LinuxX64],
+        native_product(),
     );
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--component-review")) {
         measure_component_review(&mut session, &mut completed, first.remove(0));
@@ -65,6 +77,7 @@ fn measure() {
         &mut completed,
         &root.join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
         &[TargetProfile::LinuxX64],
+        native_product(),
     );
     assert_eq!(first.len(), 2);
     assert_eq!(second.len(), 1);
@@ -147,6 +160,7 @@ fn discover(
     completed: &mut Vec<CompletedBuild>,
     entry: &Path,
     targets: &[TargetProfile],
+    product: CompilationProduct,
 ) -> (Vec<PackageCompilationRequest>, ProjectCompilationCompletion) {
     let host = TargetProfile::host_if_supported().expect("Build host");
     let preparation = begin_local_project_preparation(entry, targets, true)
@@ -180,12 +194,7 @@ fn discover(
             snapshot: None,
             verify: false,
             timings: false,
-            product: CompilationProduct::Native(NativeProductRequest {
-                private_entry_ram: Vec::new(),
-                terminal_authority_policy: current_terminal_authority_policy(),
-                terminal_authority_permission_policy: None,
-                optimization_rollback: Default::default(),
-            }),
+            product,
         },
         session.resources(),
         host,
@@ -212,6 +221,15 @@ fn work_counts() -> (u64, u64, u64, u64) {
         counters::product_source_completion_count(),
         counters::terminal_production_count(),
     )
+}
+
+fn native_product() -> CompilationProduct {
+    CompilationProduct::Native(NativeProductRequest {
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    })
 }
 
 fn reject_unsettled_inputs(
@@ -311,4 +329,261 @@ fn measure_component_review(
     println!(
         "lazy_component_publications=2 equal_descriptions=true builds=0 checks=0 source_completions=0"
     );
+}
+
+/// A component cohort owes one portable production, including scalar checks.
+/// These are unchanged authored fixtures; component publication gets no new
+/// ProgramEntry authority and the false contract must still reject both targets.
+fn measure_component_scalars(
+    session: &mut BuildSession,
+    completed: &mut Vec<CompletedBuild>,
+    root: &Path,
+) {
+    let targets = [TargetProfile::WindowsX64, TargetProfile::MacosArm64];
+    let mut observed = Vec::new();
+    for (fixture, expected_failure) in [
+        ("pass/layouts/runtime_constant_layout_contract_exit", None),
+        (
+            "fail/layouts/false_constant_layout_contract",
+            Some("scalar predicate is false"),
+        ),
+        (
+            "pass/build/component_declaration_scalar_conditions_exit",
+            None,
+        ),
+        (
+            "fail/build/component_declaration_scalar_conditions",
+            Some("cause: Trap"),
+        ),
+    ] {
+        let (requests, custody) = discover(
+            session,
+            completed,
+            &root.join("tests/omega").join(fixture).join("main.omg"),
+            &targets,
+            native_product(),
+        );
+        let mut builds = Vec::new();
+        for (target, request) in targets.into_iter().zip(requests) {
+            let build =
+                omega_build::prepare_package(session.compiler(), request.occurrences, completed)
+                    .unwrap_or_else(|error| {
+                        panic!("preparation: {:?}", error.failure.into_diagnostics())
+                    });
+            builds.push((target, build));
+        }
+        let before = work_counts();
+        let outputs = session
+            .compiler()
+            .complete_package_components(builds)
+            .expect("component batch");
+        let counts = work_since(before);
+        assert_eq!(outputs.len(), 2);
+        let mut subjects = Vec::new();
+        for (expected_target, (target, output)) in targets.into_iter().zip(outputs) {
+            assert_eq!(target, expected_target, "target order and identity");
+            match expected_failure {
+                Some(reason) => {
+                    let diagnostics = output.expect_err("false component contract must reject");
+                    assert!(
+                        diagnostics
+                            .iter()
+                            .any(|diagnostic| diagnostic.message.contains(reason)),
+                        "{diagnostics:?}"
+                    );
+                }
+                None => subjects.push(output.expect("valid component").expected_subject()),
+            }
+        }
+        if expected_failure.is_none() {
+            assert_eq!(
+                subjects[0], subjects[1],
+                "targets retain one canonical component identity"
+            );
+        }
+        println!(
+            "component_fixture={fixture} builds={} checks={} source_completions={} terminal_productions={} outcomes=2 rejected={}",
+            counts.0,
+            counts.1,
+            counts.2,
+            counts.3,
+            if expected_failure.is_some() { 2 } else { 0 }
+        );
+        observed.push(counts);
+        drop(custody);
+    }
+    for counts in observed {
+        assert_eq!(counts.0, 0, "component publication must not replay Build");
+        assert_eq!(
+            counts.3, 1,
+            "scalar checking and component publication share one Terminal production"
+        );
+    }
+}
+
+/// Inspection shares portable production without requiring a ProgramEntry.
+fn measure_inspection_scalars(
+    session: &mut BuildSession,
+    completed: &mut Vec<CompletedBuild>,
+    root: &Path,
+) {
+    let targets = [TargetProfile::WindowsX64, TargetProfile::MacosArm64];
+    let mut observed = Vec::new();
+    for (fixture, machine, expected_failure) in [
+        (
+            "pass/layouts/runtime_constant_layout_contract_exit",
+            "program",
+            None,
+        ),
+        (
+            "fail/layouts/false_constant_layout_contract",
+            "program",
+            Some("scalar predicate is false"),
+        ),
+        (
+            "pass/terminal_psi/inspection_scalar_library",
+            "extent",
+            None,
+        ),
+        (
+            "fail/terminal_psi/inspection_scalar_library",
+            "extent",
+            Some("cause: Trap"),
+        ),
+    ] {
+        let (requests, custody) = discover(
+            session,
+            completed,
+            &root.join("tests/omega").join(fixture).join("main.omg"),
+            &targets,
+            CompilationProduct::Inspection(machine.to_owned()),
+        );
+        let before = work_counts();
+        let outputs = omega_build::compile_packages(session.compiler(), requests, completed);
+        let counts = work_since(before);
+        assert_eq!(outputs.len(), 2);
+        let mut inspected_programs = Vec::new();
+        for output in outputs {
+            match expected_failure {
+                Some(reason) => {
+                    let error = match output {
+                        Err(error) => error,
+                        Ok(_) => panic!("invalid inspection must reject"),
+                    };
+                    let diagnostics = error.failure.into_diagnostics();
+                    assert!(
+                        diagnostics
+                            .iter()
+                            .any(|diagnostic| diagnostic.message.contains(reason)),
+                        "{diagnostics:?}"
+                    );
+                }
+                None => {
+                    let inspected = output
+                        .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()))
+                        .into_inspection()
+                        .expect("inspection output");
+                    assert!(!inspected.artifact().semantic_bytes().is_empty());
+                    assert!(
+                        inspected.applications().is_empty(),
+                        "inspection grants no ProgramEntry receipt"
+                    );
+                    inspected_programs.push(inspected);
+                }
+            }
+        }
+        if expected_failure.is_none() {
+            assert!(
+                std::sync::Arc::ptr_eq(&inspected_programs[0], &inspected_programs[1]),
+                "same-name inspection shares code and companions"
+            );
+        }
+        println!(
+            "inspection_fixture={fixture} builds={} checks={} source_completions={} terminal_productions={} outcomes=2 rejected={}",
+            counts.0,
+            counts.1,
+            counts.2,
+            counts.3,
+            if expected_failure.is_some() { 2 } else { 0 }
+        );
+        observed.push(counts);
+        drop(custody);
+    }
+    for counts in observed {
+        assert_eq!(counts.0, 0, "inspection must not replay Build");
+        assert_eq!(
+            counts.3, 1,
+            "inspection and scalar checks share one Terminal production"
+        );
+    }
+}
+
+fn measure_inspection_roots(
+    session: &mut BuildSession,
+    completed: &mut Vec<CompletedBuild>,
+    root: &Path,
+) {
+    let targets = [
+        TargetProfile::WindowsX64,
+        TargetProfile::MacosArm64,
+        TargetProfile::LinuxX64,
+    ];
+    let (mut requests, custody) = discover(
+        session,
+        completed,
+        &root.join("tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+        &targets,
+        CompilationProduct::Inspection("constant".to_owned()),
+    );
+    requests[1].product = CompilationProduct::Inspection("state_graph".to_owned());
+    let (mut missing_requests, missing_custody) = discover(
+        session,
+        completed,
+        &root.join("tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+        &[TargetProfile::LinuxArm64],
+        CompilationProduct::Inspection("missing_inspection_name".to_owned()),
+    );
+    requests.insert(1, missing_requests.remove(0));
+    let before = work_counts();
+    let mut outputs = omega_build::compile_packages(session.compiler(), requests, completed);
+    let counts = work_since(before);
+    assert_eq!(outputs.len(), 4);
+    let error = match outputs.remove(1) {
+        Err(error) => error,
+        Ok(_) => panic!("missing machine must reject at its original request position"),
+    };
+    assert!(
+        error
+            .failure
+            .into_diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("MachineNotFound")
+                && diagnostic.message.contains("missing_inspection_name"))
+    );
+    let inspected = outputs
+        .into_iter()
+        .map(|output| {
+            output
+                .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()))
+                .into_inspection()
+                .expect("inspection product")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(inspected.len(), 3);
+    assert!(std::sync::Arc::ptr_eq(&inspected[0], &inspected[2]));
+    assert!(!std::sync::Arc::ptr_eq(&inspected[0], &inspected[1]));
+    assert_ne!(
+        inspected[0].artifact().semantic_bytes(),
+        inspected[1].artifact().semantic_bytes(),
+        "different selected roots retain different semantics"
+    );
+    assert_eq!(counts.0, 0);
+    assert_eq!(
+        counts.3, 3,
+        "two selected roots and one refused name attempt"
+    );
+    println!(
+        "inspection_roots=3 missing_name=refused distinct_roots=2 terminal_productions=3 same_root_storage=true different_root_semantics=true"
+    );
+    drop((custody, missing_custody));
 }

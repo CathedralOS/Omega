@@ -39,6 +39,7 @@ use crate::const_evaluation::const_generic_expressions::{
     scalar_probe_destination, value::ScalarValue,
 };
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use typed_trees::constant_recipes::create_evaluation_entry;
 
 pub(crate) struct CheckedInitializers {
     typed: TypedTrees,
@@ -46,6 +47,7 @@ pub(crate) struct CheckedInitializers {
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
     crash_causes: Vec<(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)>,
     probe_symbols: Vec<symbols::SymbolHandle>,
+    operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
 }
 
 impl CheckedInitializers {
@@ -54,7 +56,20 @@ impl CheckedInitializers {
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[symbols::SymbolHandle],
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
+        operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, Vec<Diagnostic>> {
+        let references = typed_trees::references::collect_program_references(prepared.typed());
+        let operators = operators
+            .iter()
+            .filter(|row| {
+                references.expressions.contains(&row.expression)
+                    && row
+                        .origin
+                        .machine_symbol()
+                        .is_some_and(|owner| prepared.typed().machine(owner).is_some())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let mut bodies = prepared.typed().clone();
         let (probes, machines): (Vec<_>, Vec<_>) = bodies
             .machines()
@@ -89,14 +104,27 @@ impl CheckedInitializers {
         for probe in probes {
             typed.push_machine(probe);
         }
+        // Checking may normalize boundary tokens into requirement calls.
+        // Admission and interpretation consume the same validated selected
+        // meaning on a private graph, never mutate the completed judgment.
+        let typed = crate::machine_execution::selected_operators::prepare_selected_execution(
+            &typed,
+            &[],
+            &operators,
+        )
+        .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
+        .unwrap_or(typed);
         let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
-            .with_accounting(accounting.clone());
+            .with_accounting(accounting.clone())
+            .with_selected_operators(&typed, &operators)
+            .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?;
         Ok(Self {
             typed,
             admission,
             authority,
             crash_causes,
             probe_symbols: probe_symbols.to_vec(),
+            operators,
         })
     }
 
@@ -236,6 +264,41 @@ impl Invocation<'_> {
             destination,
             Some(self),
         )
+    }
+
+    /// Preparation can copy a recipe while preserving its untouched source
+    /// root. Execute the retained probe's actual value exit, not that recipe.
+    pub(super) fn evaluate_probe_scalar(
+        &self,
+        destination: PrimitiveType,
+    ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+        let typed = self.program.typed();
+        let body = super::super::initializer_probe::value_probe_body(typed, self.state)?;
+        crate::machine_execution::admission::require_const_expression_selection(
+            typed,
+            self.machine,
+            body.reference,
+            self.program.authority.as_deref(),
+        )?;
+        if body.roots.len() == 1 {
+            return self.evaluate_scalar(body.value, destination);
+        }
+        if scalar_probe_destination(typed, self.state.return_type) != Some(destination) {
+            return Err("constant probe lost its exact scalar carrier".into());
+        }
+        let mut warnings = Vec::new();
+        for call in crate::const_evaluation::const_generic_expressions::call_expressions(
+            typed,
+            &body.roots,
+        )? {
+            for warning in self.check_call(call)? {
+                if !warnings.contains(&warning) {
+                    warnings.push(warning);
+                }
+            }
+        }
+        let value = scalar_result(self.interpret(body.reference)?, destination)?;
+        Ok((value, warnings))
     }
 
     /// Resolve the exact closed callee for a call and admit it against the
@@ -476,7 +539,8 @@ impl ConstantCalls for Invocation<'_> {
                 );
                 let admission =
                     crate::BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
-                        .with_accounting(self.program.admission.accounting.clone());
+                        .with_accounting(self.program.admission.accounting.clone())
+                        .with_selected_operators(&probe, &self.program.operators)?;
                 admission.evaluate_const_evaluable_machine_symbol_for_invocation(
                     &probe,
                     owner,
@@ -487,66 +551,60 @@ impl ConstantCalls for Invocation<'_> {
         };
         let destination = scalar_probe_destination(typed, target.return_type())
             .ok_or("constant result lost its exact carrier")?;
-        let value = match result {
-            BuildTimeValue::UndeterminedNaN(format)
-                if matches!(
-                    (format, destination),
-                    (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
-                        | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
-                ) =>
-            {
-                ScalarValue::UndeterminedNaN(format)
-            }
-            BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
-                ScalarValue::Index(CanonicalConstValue::boolean(value))
-            }
-            BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
-                let value = if destination.is_signed_integer() {
-                    i128::from(value)
-                } else {
-                    i128::from(value as u64)
-                };
-                let identity = CanonicalConstIdentity::integer(destination.name(), value);
-                ScalarValue::Index(CanonicalConstValue::new(
-                    identity.type_name,
-                    identity.encoding,
-                    value.to_string(),
-                ))
-            }
-            BuildTimeValue::Float(value)
-                if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
-            {
-                // The interpreter carries floats in f64 storage, but that is
-                // not permission to round an incorrectly landed f32 result.
-                // As in literal materialization, NaN needs exact realization
-                // custody before an evaluator choice can enter image bytes.
-                if value.is_nan() {
-                    return Err(
-                        "constant result is NaN without an exact raw-NaN realization".into(),
-                    );
-                }
-                match destination {
-                    PrimitiveType::F32 if f64::from(value as f32).to_bits() == value.to_bits() => {
-                        ScalarValue::Float {
-                            format: numerics::literals::FloatFormat::F32,
-                            bits: u64::from((value as f32).to_bits()),
-                        }
-                    }
-                    PrimitiveType::F64 => ScalarValue::Float {
-                        format: numerics::literals::FloatFormat::F64,
-                        bits: value.to_bits(),
-                    },
-                    _ => {
-                        return Err(
-                            "constant result does not retain one exact binary32 value".into()
-                        );
-                    }
-                }
-            }
-            _ => return Err("constant result does not match its declared scalar carrier".into()),
-        };
+        let value = scalar_result(result, destination)?;
         Ok((value, warnings))
     }
+}
+
+/// Convert an admitted result without losing its exact scalar representation.
+fn scalar_result(
+    result: BuildTimeValue,
+    destination: PrimitiveType,
+) -> Result<ScalarValue, String> {
+    let value = match result {
+        BuildTimeValue::UndeterminedNaN(format)
+            if matches!(
+                (format, destination),
+                (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
+                    | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+            ) =>
+        {
+            ScalarValue::UndeterminedNaN(format)
+        }
+        BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
+            ScalarValue::Index(CanonicalConstValue::boolean(value))
+        }
+        BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
+            let value = if destination.is_signed_integer() {
+                i128::from(value)
+            } else {
+                i128::from(value as u64)
+            };
+            let identity = CanonicalConstIdentity::integer(destination.name(), value);
+            ScalarValue::Index(CanonicalConstValue::new(
+                identity.type_name,
+                identity.encoding,
+                value.to_string(),
+            ))
+        }
+        BuildTimeValue::Float(value)
+            if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            // Semantic arithmetic publishes UndeterminedNaN above. This
+            // branch carries presented bits, including exact raw NaNs.
+            let format = if destination == PrimitiveType::F32 {
+                numerics::literals::FloatFormat::F32
+            } else {
+                numerics::literals::FloatFormat::F64
+            };
+            let bits = format
+                .capture_wide_representation(value)
+                .ok_or("constant result does not retain its exact floating carrier")?;
+            ScalarValue::Float { format, bits }
+        }
+        _ => return Err("constant result does not match its declared scalar carrier".into()),
+    };
+    Ok(value)
 }
 
 /// One admitted authored call: exact selected target, evaluated snapshot
@@ -665,12 +723,11 @@ impl Invocation<'_> {
             }
             arguments.push(match value {
                 ScalarValue::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(format),
-                ScalarValue::Float { format, bits } => BuildTimeValue::Float(match format {
-                    numerics::literals::FloatFormat::F32 => f64::from(f32::from_bits(
-                        u32::try_from(bits).map_err(|_| "invalid binary32 snapshot")?,
-                    )),
-                    numerics::literals::FloatFormat::F64 => f64::from_bits(bits),
-                }),
+                ScalarValue::Float { format, bits } => BuildTimeValue::Float(
+                    format
+                        .widen_representation(bits)
+                        .ok_or("invalid floating snapshot")?,
+                ),
                 ScalarValue::Index(value) => match value.decode_encoding() {
                     Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
                         let bits = if destination.is_signed_integer() {
@@ -1170,15 +1227,16 @@ pub(super) fn scalar_snapshot(
         }
         ScalarValue::Index(value) => value,
         ScalarValue::Float { format, bits } => {
-            let value = match (format, carrier) {
-                (numerics::literals::FloatFormat::F32, PrimitiveType::F32) => f64::from(
-                    f32::from_bits(u32::try_from(*bits).map_err(|_| "invalid binary32 snapshot")?),
-                ),
-                (numerics::literals::FloatFormat::F64, PrimitiveType::F64) => f64::from_bits(*bits),
-                _ => return Err("constant argument lost its exact floating carrier".into()),
-            };
+            if !matches!(
+                (format, carrier),
+                (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
+                    | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+            ) {
+                return Err("constant argument lost its exact floating carrier".into());
+            }
             return Ok(ExpressionNode::Float(
-                numerics::literals::FloatLiteral::from_f64(value).with_landing(*format),
+                numerics::literals::FloatLiteral::from_bits(*format, *bits)
+                    .ok_or("invalid floating snapshot")?,
             ));
         }
     };
@@ -1212,54 +1270,8 @@ pub(super) fn append_probe(
     expression: ExpressionHandle,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
-    let machine = create_probe(program, owner, name, expression, destination);
+    let machine = create_evaluation_entry(program, owner, name, expression, destination);
     let symbol = machine.symbol;
     program.push_machine(machine);
     symbol
-}
-
-/// Construct an evaluation entry without granting runtime-body status. The
-/// caller owns whether it belongs to a private evaluation forest or remains
-/// detached with a source declaration awaiting exact scalar checking.
-pub(super) fn create_probe(
-    program: &mut TypedTrees,
-    owner: symbols::SymbolHandle,
-    name: String,
-    expression: ExpressionHandle,
-    destination: typed_trees::types::TypeReferenceHandle,
-) -> Machine {
-    let symbol =
-        program
-            .symbols
-            .insert_generated_root_from(owner, symbols::SymbolKind::Machine, &name);
-    let children = program
-        .symbols
-        .insert_generated_children(symbol, [(symbols::SymbolKind::State, name.as_str())]);
-    let target = program.statement_table.insert_transition_target(
-        typed_trees::statement::TransitionTargetNode::Value(expression),
-    );
-    let mut state = State {
-        symbol: children.start(),
-        name: typed_trees::name::Identifier::generated(name.clone()),
-        return_type: destination,
-        ..Default::default()
-    };
-    let source_span = program.expression_table.source_span(expression);
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        typed_trees::statement::StatementNode::Transition(
-            typed_trees::statement::TableTransition {
-                target,
-                source_span,
-                ..Default::default()
-            },
-        ),
-    );
-    let mut machine = Machine {
-        symbol,
-        name: typed_trees::name::Identifier::generated(name),
-        ..Default::default()
-    };
-    program.push_machine_state(&mut machine, state);
-    machine
 }

@@ -1,5 +1,6 @@
 //! The selected normalized-foreign-call record both instruction sets' template
-//! tests admit.
+//! tests admit, the case those tests derive from it, and the callback roster
+//! they wire into it.
 //!
 //! The record carries physical call inputs only; source ownership and
 //! declarations stay the template tests' independent responsibility. Only a
@@ -7,9 +8,28 @@
 //! parameters its integer registers take before the first floating one, the
 //! aggregate its fourth result shape names, and the locator family its import is
 //! spelled in — so those are arguments and the construction is stated once.
+//!
+//! The encoded effects a roster row charges, the callback destination
+//! vocabulary naming where a materialized address lands, and the byte counts
+//! that vocabulary's materialization groups charge stay with the instruction
+//! set; [`case`] and [`callback_fixture`] take them as arguments so the
+//! scaffolding around them is stated once.
 
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
-use selected_instructions::{SelectedInstructionId, SelectedNormalizedForeignCall};
+use calling_conventions::{
+    CallSignature, CallbackBinderRequirement, CallbackMaterialization,
+    CallbackMaterializationContext, CallbackRequirementId, CallingPolicy, LayoutPlanId,
+    LayoutSlotId, MachineRegister, NativeCallbackDemand, NativeParameterApplication,
+    NativeParameterId, NativePlace, ValueLocation, ValueShape,
+};
+use function_identity::MachineFunctionIdentity;
+use register_model::{
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
+    ValidatedPhysicalRegisterModel,
+};
+use selected_instructions::{
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionId,
+    SelectedInstructionKind, SelectedNormalizedForeignCall,
+};
 use semantic_vocabulary::{
     BoundaryMachineId, IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
     StructuralTypeId, ValueId,
@@ -20,9 +40,9 @@ use target::{
 };
 use target_operations::{
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, TargetBoundaryResult, TargetStructuralHomeLayout,
-    TargetStructuralHomeOrigin, TargetStructuralHomeRequirement, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    ProviderPlanReportIdentity, TargetBoundaryResult, TargetNativeCallbackArgument,
+    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
 
 /// The PE import the Windows fixture names.
@@ -210,5 +230,214 @@ pub fn record(
             output: 2,
         },
         ownership: Vec::new(),
+    }
+}
+
+/// Everything a template test hands its encoder, in the order both instruction
+/// sets' test modules already destructure: the validated physical model, the
+/// selected kind and alternative, the roster row's operand columns, the effects
+/// that row's call declaration charges, and the record they were derived from.
+pub type Case = (
+    ValidatedPhysicalRegisterModel,
+    SelectedInstructionKind,
+    MachineAlternativeKey,
+    Vec<RegisterViewId>,
+    Vec<RegisterOperandAccess>,
+    MachineEncodedEffects,
+    SelectedNormalizedForeignCall,
+);
+
+/// Derive one encoder-test case from `record`.
+///
+/// The kind, the alternative, the roster row the record evaluates to, that
+/// row's operand columns, and the record itself are target-independent; only
+/// the row lookup (`constraint`) and the encoded effects of the row under
+/// `physical` (`effects`) belong to the instruction set.
+pub fn case(
+    physical: ValidatedPhysicalRegisterModel,
+    record: SelectedNormalizedForeignCall,
+    constraint: impl Fn(&SelectedNormalizedForeignCall) -> Option<RegisterInstructionConstraint>,
+    effects: impl Fn(
+        &RegisterInstructionConstraint,
+        &ValidatedPhysicalRegisterModel,
+    ) -> MachineEncodedEffects,
+) -> Case {
+    let kind = SelectedInstructionKind::NormalizedForeignCall {
+        boundary: BoundaryMachineId::new(3).unwrap(),
+        ordinal: 2,
+    };
+    let alternative = MachineAlternativeKey {
+        family: MachineAlternativeFamily::NormalizedForeignCall,
+        variant: 0,
+    };
+    let row = constraint(&record).expect("fixture record must evaluate its roster row");
+    let (operands, accesses) = operand_columns(&row);
+    let effects = effects(&row, &physical);
+    (
+        physical,
+        kind,
+        alternative,
+        operands,
+        accesses,
+        effects,
+        record,
+    )
+}
+
+/// The roster row's operand view and access columns, in roster order.
+pub fn operand_columns(
+    row: &RegisterInstructionConstraint,
+) -> (Vec<RegisterViewId>, Vec<RegisterOperandAccess>) {
+    let views = row
+        .operands
+        .iter()
+        .map(|operand| {
+            operand
+                .fixed_view
+                .expect("fixture row pins every operand view")
+        })
+        .collect();
+    let accesses = row.operands.iter().map(|operand| operand.access).collect();
+    (views, accesses)
+}
+
+/// The materialization byte counts one instruction set charges for its two
+/// callback destination forms: a register and a record field.
+#[derive(Debug, Clone, Copy)]
+pub struct CallbackByteCounts {
+    pub register: u16,
+    pub field: u16,
+}
+
+/// One wired private callback destination, named the way every instruction set
+/// can read it: the register its address materializes in and, for a record
+/// field, the byte offset of the private slot inside that record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CallbackPlacement {
+    pub register: MachineRegister,
+    pub field_byte_offset: Option<usize>,
+}
+
+/// The wired callback fixture: the record that carries the callbacks, each
+/// destination in the caller's own vocabulary, and the materialization byte
+/// count the caller's table charges for it — all in roster order.
+pub struct CallbackFixture<Destination> {
+    pub record: SelectedNormalizedForeignCall,
+    pub destinations: Vec<Destination>,
+    pub byte_counts: Vec<u16>,
+}
+
+/// Wire the four-callback fixture into `record`: a private parameter slot, a
+/// record field, another parameter slot, and another field of the same root
+/// record, in that roster order, over the record's own evaluated
+/// boundary-entry plan.
+///
+/// `into_destination` names each placement in the caller's vocabulary — the
+/// fixture never lands an address in a memory destination, because its callback
+/// roots are register resident — and `counts` is the caller's own per-form
+/// materialization extent table. The two private parameter slots are
+/// materialized inside the call, so the record keeps only the field root as an
+/// explicit input; source custody for that root is checked upstream.
+pub fn callback_fixture<Destination>(
+    mut record: SelectedNormalizedForeignCall,
+    into_destination: impl Fn(CallbackPlacement) -> Destination,
+    counts: CallbackByteCounts,
+) -> CallbackFixture<Destination> {
+    let root = NativeParameterId::new(81).unwrap();
+    let places = [
+        NativePlace::Parameter(NativeParameterId::new(82).unwrap()),
+        NativePlace::Field {
+            parameter: root,
+            layout: LayoutPlanId::new(83).unwrap(),
+            field_path: vec![LayoutSlotId::new(1).unwrap()],
+        },
+        NativePlace::Parameter(NativeParameterId::new(84).unwrap()),
+        NativePlace::Field {
+            parameter: root,
+            layout: LayoutPlanId::new(83).unwrap(),
+            field_path: vec![LayoutSlotId::new(2).unwrap()],
+        },
+    ];
+    let requirement = CallbackRequirementId::new(85).unwrap();
+    let context = CallbackMaterializationContext {
+        binders: (1..=4)
+            .map(|identity| CallbackBinderRequirement {
+                binder: calling_conventions::StaticMachineBinderId::new(identity).unwrap(),
+                requirement,
+            })
+            .collect(),
+        demands: places
+            .iter()
+            .cloned()
+            .map(|destination| NativeCallbackDemand {
+                destination,
+                requirement,
+            })
+            .collect(),
+    };
+    let plan = &mut record.call.binding.boundary_entry_plan;
+    plan.call.callback_materializations = places
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(position, destination)| CallbackMaterialization {
+            binder: context.binders[position].binder,
+            destination,
+        })
+        .collect();
+    let continuation = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+    };
+    let mut destinations = Vec::with_capacity(places.len());
+    let mut byte_counts = Vec::with_capacity(places.len());
+    for (placement_index, place) in places.into_iter().enumerate() {
+        let (parameter, native_ordinal, field_byte_offset) = match place {
+            NativePlace::Parameter(parameter) => (parameter, placement_index / 2 + 1, None),
+            NativePlace::Field { parameter, .. } => (parameter, 0, Some((placement_index / 2) * 8)),
+        };
+        let placement = plan.call.parameters[native_ordinal].clone();
+        let [ValueLocation::Register { register, .. }] = placement.locations.as_slice() else {
+            panic!("fixture callback root must be register resident")
+        };
+        destinations.push(into_destination(CallbackPlacement {
+            register: *register,
+            field_byte_offset,
+        }));
+        byte_counts.push(if field_byte_offset.is_some() {
+            counts.field
+        } else {
+            counts.register
+        });
+        record.call.callbacks.push(TargetNativeCallbackArgument {
+            registrar_invokes_callback: true,
+            terminal_operation: record
+                .invocation_site
+                .operation()
+                .expect("callback is owned by a returning operation"),
+            placement_index,
+            callback_function: MachineFunctionIdentity::callback_thunk(
+                continuation,
+                placement_index,
+            )
+            .unwrap(),
+            destination: place,
+            field_byte_offset,
+            application: NativeParameterApplication {
+                parameter,
+                native_ordinal: native_ordinal as u32,
+                shape: placement.shape,
+                placement,
+            },
+            registrar_boundary_entry_plan: plan.clone(),
+            registrar_context: context.clone(),
+            registrar_application_commitment: [0x66; 32],
+        });
+    }
+    record.call.scalar_arguments.truncate(1);
+    CallbackFixture {
+        record,
+        destinations,
+        byte_counts,
     }
 }

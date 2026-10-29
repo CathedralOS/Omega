@@ -530,7 +530,10 @@ fn captured_place_subject(
                 // bound is the view's live length, proven by the loan's own
                 // captured obligations rather than replayed here.
                 let element = match &declaration.shape {
-                    StructuralTypeShape::FixedArray { element, length } => {
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => {
                         if index >= *length {
                             return unsupported("record loan's captured index is out of bounds");
                         }
@@ -998,7 +1001,10 @@ pub(crate) fn prepare(
                     // A literal element of a fixed array of records selects
                     // that element's record as the next carrier.
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                        let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+                        let StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } = declaration.shape
                         else {
                             return unsupported("record read element left its array namespace");
                         };

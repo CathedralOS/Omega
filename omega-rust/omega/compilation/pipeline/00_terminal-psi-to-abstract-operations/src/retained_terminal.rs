@@ -18,7 +18,8 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
-    PreparedNativeExecution, PreparedRetainedNativeProviders, RetainedNativeProviderInputs,
+    PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
+    RetainedNativeProviderInputs,
 };
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
@@ -39,6 +40,8 @@ pub struct TerminalNativeProviders {
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     /// Original selected-plan order; direct leaves join only at execution.
     pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
+    /// Exact selected external declarations in the same original plan/row order.
+    pub numeric_realizations: Vec<Vec<Option<String>>>,
     /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }
@@ -260,6 +263,10 @@ impl RetainedTerminalArtifact {
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
     }
 

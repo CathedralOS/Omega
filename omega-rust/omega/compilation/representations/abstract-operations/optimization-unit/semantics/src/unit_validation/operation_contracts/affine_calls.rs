@@ -93,9 +93,10 @@ fn finite_owned_shape(
         terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
             .iter()
             .all(|field| finite_owned_field(types, active, complete, field)),
-        terminal_psi::StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
-            finite_owned_shape(types, *element, active, complete)
-        }
+        terminal_psi::StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length > 0 => finite_owned_shape(types, *element, active, complete),
         terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
             .iter()
             .chain(cases.iter().flat_map(|case| case.fields.iter()))

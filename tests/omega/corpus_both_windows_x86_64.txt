@@ -1660,13 +1660,7 @@ pass/domains/match_domain_results checked 2714ms @5f668826adf3+wt
 pass/domains/match_join_alias_domain_transfer checked 1902ms @5f668826adf3+wt
 pass/domains/module_domain_narrow_import_spelling checked 1903ms @5f668826adf3+wt
 pass/domains/moved_payload_uses_current_membership_exit built 2717ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/named_const_subject_binding rejected 4591ms interpreter:unchecked regressed-from:built+exit:3+interpreter-exit:3+interpreter:agrees @5f668826adf3+wt
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: u64::Nested
-	cannot prove scalar result domain for return from @const-qualification-INHERITED-1 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-QUALIFIED-2 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-EXPLICIT-3 at statement 0: u64::Small::Explicit
-	cannot prove default-domain field requirement for return from @const-qualification-ARRAY-5, state @const-qualification-ARRAY-5, at statement 0: [99, 3] requires SmallAt
-	construction value is not proven in domain `SmallAt` in @const-qualification-ARRAY-5 state `@const-qualification-ARRAY-5` at statement 0; a construction value must establish the domain's predicates and any required provenance
+pass/domains/named_const_subject_binding built 11852ms exit:3 interpreter-exit:3 interpreter:agrees @9947836a76ba
 pass/domains/named_subject_capacity_identity_exit built 9017ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/policy_plan_shapes checked 2146ms @5f668826adf3+wt
 pass/domains/predicate_domain_param checked 2724ms @5f668826adf3+wt
@@ -8284,19 +8278,12 @@ pass/slices/runtime_machine_entry_view_requires_index_exit built 9858ms exit:70 
 pass/slices/runtime_matched_window_coordinate_capture_exit built 2770ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_matched_window_length built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 9571ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
-pass/slices/runtime_mutable_record_slice_result_reborrow_exit rejected 1917ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 2553ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 8843ms exit:21 interpreter-exit:21 interpreter:agrees @5f668826adf3+wt
-pass/slices/runtime_mutable_slice_result_nested_reborrow_exit rejected 1767ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_reborrow_exit rejected 2228ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_shared_observation_exit rejected 2167ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 2030ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 2036ms exit:0 interpreter-exit:0 interpreter:agrees @557e78cac57a+wt
+pass/slices/runtime_mutable_slice_result_reborrow_exit built 2494ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_shared_observation_exit built 2471ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_whole_forward_exit built 2573ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_subslice_state_forwarding_exit built 4006ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_namespace_range_contract_exit built 3444ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_nested_descriptor_scalar_store_exit built 4079ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

@@ -282,6 +282,7 @@ fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
         type_reference: TypeReferenceHandle::invalid(),
         path: vec![Identifier::generated("Family")].into_boxed_slice(),
         application: Some(Box::new(crate::expression::StaticSymbolApplication {
+            member: arena::Handle::invalid(),
             lifetime_arguments: Box::default(),
             arguments: vec![crate::expression::StaticMachineArgument {
                 type_reference: owner,

@@ -51,7 +51,7 @@ fn selected_constant_evaluation_belongs_to_psi() {
 #[test]
 fn deferred_constant_custody_and_value_publication_belong_to_psi() {
     let checking = include_str!("checked/checking/source_checking.rs");
-    let closure = include_str!("execution_settlement/constant_recipe_closure.rs");
+    let closure = include_str!("terminal/scalar_completion.rs");
     let product = include_str!("../../products/src/prepared_build.rs");
     for source in [checking, closure, product] {
         for forbidden in [
@@ -65,7 +65,7 @@ fn deferred_constant_custody_and_value_publication_belong_to_psi() {
             assert!(!source.contains(forbidden), "coordinator owns {forbidden}");
         }
     }
-    assert!(closure.contains("evaluation.close_constants("));
+    assert!(closure.contains("build_time_evaluation::complete_scalar_applications("));
     assert!(product.contains("RetainedConstantEvaluation"));
     let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
     assert!(
@@ -138,8 +138,8 @@ fn reused_product_selection_keeps_current_deferred_work() {
 
 #[test]
 fn constant_proof_closure_belongs_to_psi() {
-    let coordinator = include_str!("execution_settlement/constant_recipe_closure.rs");
-    assert!(coordinator.contains("psi_compiler::ConstantProofClosure::new("));
+    let coordinator = include_str!("terminal/scalar_completion.rs");
+    assert!(coordinator.contains("build_time_evaluation::complete_scalar_applications("));
     for forbidden in [
         "discharge_all(",
         "CheckedTrees::with_roots(",
@@ -161,9 +161,8 @@ fn constant_proof_closure_belongs_to_psi() {
     assert!(!facade.contains("settle_closed_constant_execution"));
     let proof =
         include_str!("../../../../psi/compilation/driver/src/source_checking/constant_closure.rs");
-    let applications = include_str!(
-        "../../../../psi/compilation/driver/src/source_checking/constant_closure/applications.rs"
-    );
+    let applications =
+        include_str!("../../../../psi/foundation/semantic-vocabulary/src/proof_applications.rs");
     for forbidden in [
         "provider_planning::",
         "selected_dispatch::",
@@ -389,9 +388,9 @@ fn package_batches_carry_owners_instead_of_parallel_result_tables() {
 }
 
 #[test]
-fn terminal_cohorts_retain_admitted_applications() {
+fn terminal_cohorts_retain_admitted_products() {
     let source = include_str!("terminal/terminal_artifact.rs");
-    assert!(source.contains("struct AdmittedTerminalApplication"));
+    assert!(source.contains("struct AdmittedTerminalProduct"));
     for forbidden in [
         "requests[",
         "entries[",
@@ -566,7 +565,8 @@ fn product_coordinator_has_no_native_stage_dependency() {
 #[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
-    assert!(source.contains("native_production::compile(terminal, request)"));
+    assert!(source.contains("native_production::prepare(&terminal, request)"));
+    assert!(source.contains("native_production::compile(prepared)"));
     let inputs = include_str!("product_execution/native_inputs.rs");
     assert!(inputs.contains("ComponentCompilation"));
     assert!(inputs.contains("receiving_identities: facts.identities()"));
@@ -682,13 +682,14 @@ fn selected_execution_does_not_copy_checked_programs() {
 fn terminal_consumers_call_psi_without_a_product_wrapper() {
     let manifest = include_str!("../Cargo.toml");
     assert!(!manifest.contains("terminal-production ="));
-    let inspection = include_str!("inspection.rs");
+    let inspection = include_str!("product_execution/inspection.rs");
     let product = include_str!("terminal/terminal_artifact.rs");
-    for source in [inspection, product] {
-        assert!(source.contains("TerminalProductionRequest"));
-        assert!(source.contains(".produce("));
-        assert!(!source.contains("produce_terminal_artifact("));
-    }
+    assert!(product.contains("TerminalProductionRequest"));
+    assert!(product.contains(".produce("));
+    assert!(!product.contains("produce_terminal_artifact("));
+    assert!(inspection.contains("TerminalProductUse::Inspection"));
+    assert!(!inspection.contains("TerminalProductionRequest"));
+    assert!(!inspection.contains(".produce("));
     let observations = include_str!("observations.rs");
     assert!(observations.contains("PsiCompilationStage::Lowering"));
     assert_eq!(

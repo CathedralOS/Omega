@@ -11,8 +11,12 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 use validation::{ScopedArithmeticValue, ValidatedRuntimeNaturalComponent};
 
+mod ranges;
+
 struct Coordinate {
     parameter: SymbolHandle,
+    path: Vec<facts::PlaceSegment>,
+    entry_value: ScopedArithmeticValue,
     position: usize,
     primitive: PrimitiveType,
     observation: validation::RankPremiseObservation,
@@ -22,14 +26,16 @@ struct Edge<'program> {
     source: usize,
     destination: usize,
     statement: usize,
-    arguments: Vec<ExpressionHandle>,
+    arguments: &'program [ExpressionHandle],
     values: CurrentScalarValues<'program>,
 }
 
 /// Select a natural observation, then judge its exact actual at every call.
 /// An integer and a descriptor extent use the same component/edge owner; only
-/// reading the carrier differs. Ranged and declared views keep their complete
-/// measure/endpoint admission. Private inference supplies no ambient entry facts.
+/// reading the carrier differs. Authored ranges additionally owe independent
+/// entry formation. Ordinary call checking supplies their exact premises at
+/// every invocation; interval endpoints do not parameterize this Nat₀ relation.
+/// Private inference supplies no ambient entry facts.
 pub(super) fn select(
     program: &dyn validation::CheckingInput,
     component: &[usize],
@@ -39,6 +45,28 @@ pub(super) fn select(
         .iter()
         .map(|position| &program.machines()[*position])
         .collect::<Vec<_>>();
+    // This owner infers private coordinates missing from the declarations.
+    // A complete authored component goes directly to the full view owner,
+    // which retains its richer result-equation and arithmetic evidence.
+    // This is selection by proof obligation, never fallback after a failed proof.
+    if machines
+        .iter()
+        .all(|machine| machine.termination_plan.implementation_witness.is_some())
+    {
+        return None;
+    }
+    let mut field_paths = Vec::new();
+    for machine in &machines {
+        for state in program.machine_states(machine) {
+            for path in
+                crate::checks::current_scalar_values::parameter_field_paths(program, machine, state)
+            {
+                if !field_paths.contains(&path) {
+                    field_paths.push(path);
+                }
+            }
+        }
+    }
     let mut candidates = Vec::new();
     let mut selected_observation = None;
     for machine in &machines {
@@ -51,9 +79,6 @@ pub(super) fn select(
             candidates.push(Vec::new());
             continue;
         };
-        if witness.rank_range.is_some() {
-            return None;
-        }
         let subjects = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)?;
         let arguments =
             typed_trees::ranking::resolve_machine_witness_view_arguments(program, machine)?;
@@ -76,53 +101,37 @@ pub(super) fn select(
             0,
             *subject,
         )?;
-        if !place.segments.is_empty() {
-            return None;
-        }
         let parameter = place.root.as_symbol()?;
-        let (position, declaration) = program
-            .state_parameters(entry)
-            .iter()
-            .enumerate()
-            .find(|(_, declaration)| declaration.symbol == parameter)?;
-        let carrier = observation_carrier(program, entry, declaration.symbol, observation)?;
+        let selected = coordinates(program, machine, entry, observation, frames, &field_paths)?
+            .into_iter()
+            .find(|coordinate| {
+                coordinate.parameter == parameter && coordinate.path == place.segments
+            })?;
+        let carrier = selected.primitive;
         if selected_observation.is_some_and(|previous| previous != (observation, carrier)) {
             return None;
         }
         selected_observation = Some((observation, carrier));
-        candidates.push(vec![Coordinate {
-            parameter,
-            position,
-            primitive: carrier,
-            observation,
-        }]);
+        if let Err(reason) = ranges::entry(program, machine, *subject, observation) {
+            return Some(Err(reason));
+        }
+        candidates.push(vec![selected]);
     }
     let (observation, primitive) = selected_observation?;
     for (machine, candidates) in machines.iter().zip(&mut candidates) {
         if !candidates.is_empty() {
             continue;
         }
-        // Private coordinate inference changes neither a public schema nor a
-        // source signature. An explicit private termination promise still owes
-        // this same complete proof; it does not require a redundant rank clause.
+        // Private correspondence changes neither public schemas nor source
+        // signatures. Only exact runtime leaves in this invocation participate.
         if machine.is_public {
             return None;
         }
         let entry = &program.machine_states(machine)[0];
-        for (position, parameter) in program.state_parameters(entry).iter().enumerate() {
-            if !parameter.relevance.is_erased()
-                && !parameter.is_const
-                && observation_carrier(program, entry, parameter.symbol, observation)
-                    == Some(primitive)
-            {
-                candidates.push(Coordinate {
-                    parameter: parameter.symbol,
-                    position,
-                    primitive,
-                    observation,
-                });
-            }
-        }
+        *candidates = coordinates(program, machine, entry, observation, frames, &field_paths)?
+            .into_iter()
+            .filter(|coordinate| coordinate.primitive == primitive)
+            .collect();
         if candidates.is_empty() {
             return Some(Err(
                 "a private member has no compatible natural rank coordinate",
@@ -172,9 +181,15 @@ pub(super) fn select(
                         "natural rank operands have an unpreserved evaluation prefix",
                     ));
                 }
-                let Some(values) =
-                    CurrentScalarValues::at(program, machine, entry, statement, arrival, frames)
-                else {
+                let Some(values) = CurrentScalarValues::at_observing_fields(
+                    program,
+                    machine,
+                    entry,
+                    statement,
+                    arrival,
+                    frames,
+                    &field_paths,
+                ) else {
                     return Some(Err(
                         "a natural call has no complete current-value observation",
                     ));
@@ -183,7 +198,7 @@ pub(super) fn select(
                     source,
                     destination,
                     statement,
-                    arguments: arguments.to_vec(),
+                    arguments,
                     values,
                 });
             }
@@ -202,6 +217,137 @@ pub(super) fn select(
     Some(
         result.ok_or("no exact private-coordinate assignment proves every edge and complete cycle"),
     )
+}
+
+impl Coordinate {
+    fn current(
+        &self,
+        values: &CurrentScalarValues<'_>,
+        actual: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        match self.observation {
+            validation::RankPremiseObservation::Value => {
+                values.projected_scalar_value(actual, &self.path)
+            }
+            validation::RankPremiseObservation::Length => {
+                values.projected_collection_length(actual, &self.path)
+            }
+        }
+    }
+}
+
+/// Capture eligible coordinates once before the first admitted executable
+/// statement. An invalid target applies no branch guard or operand effects.
+/// Each candidate owns only its selected value, not a second field roster.
+fn coordinates(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    observation: validation::RankPremiseObservation,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    field_paths: &[Vec<SymbolHandle>],
+) -> Option<Vec<Coordinate>> {
+    let order = program
+        .statement_table
+        .admitted_execution_order(state.statement_nodes);
+    let first = *order.indices().first()?;
+    let values = CurrentScalarValues::at_observing_fields(
+        program,
+        machine,
+        state,
+        first,
+        Default::default(),
+        frames,
+        field_paths,
+    )?;
+    let mut coordinates = Vec::new();
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        if parameter.relevance.is_erased() || parameter.is_const {
+            continue;
+        }
+        if let Some(primitive) = observation_carrier(program, state, parameter.symbol, observation)
+        {
+            let entry_value = match observation {
+                validation::RankPremiseObservation::Value => {
+                    values.initial_symbol(parameter.symbol)
+                }
+                validation::RankPremiseObservation::Length => {
+                    values.initial_collection_length(parameter.symbol)
+                }
+            };
+            if let Some(entry_value) = entry_value {
+                coordinates.push(Coordinate {
+                    parameter: parameter.symbol,
+                    path: Vec::new(),
+                    entry_value,
+                    position,
+                    primitive,
+                    observation,
+                });
+            }
+        }
+        // Entry seeds retain ordinary fields under their admitted root access.
+        // The runtime projection owner independently authenticates each selected
+        // scalar path, including erasure and exact declaration identities.
+        if observation == validation::RankPremiseObservation::Value {
+            for (path, primitive, value) in values.scalar_field_observations(parameter.symbol) {
+                let path = path
+                    .iter()
+                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                    .collect::<Vec<_>>();
+                let Some(field) = validation::structural_scalar_field_at_coordinate(
+                    program,
+                    program.state_parameters(state),
+                    parameter.symbol,
+                    &path,
+                ) else {
+                    continue;
+                };
+                if field.primitive_type != primitive {
+                    continue;
+                }
+                coordinates.push(Coordinate {
+                    parameter: parameter.symbol,
+                    path,
+                    entry_value: value.clone(),
+                    position,
+                    primitive,
+                    observation,
+                });
+            }
+        } else {
+            for (path, value) in values.length_field_observations(parameter.symbol) {
+                let path = path
+                    .iter()
+                    .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                    .collect::<Vec<_>>();
+                // Extents also include fixed arrays. The ordinary coordinate
+                // owner authenticates that this selected leaf is a descriptor
+                // observation before it can enter a Slice::Length component.
+                if validation::ranking_slice_length_observation(
+                    program,
+                    state,
+                    &validation::RankSubjectCoordinate {
+                        parameter: parameter.symbol,
+                        path: path.clone(),
+                    },
+                )
+                .is_none()
+                {
+                    continue;
+                }
+                coordinates.push(Coordinate {
+                    parameter: parameter.symbol,
+                    path,
+                    entry_value: value.clone(),
+                    position,
+                    primitive: PrimitiveType::U64,
+                    observation,
+                });
+            }
+        }
+    }
+    Some(coordinates)
 }
 
 fn observation_carrier(
@@ -238,27 +384,17 @@ fn compare(
     destination: &Coordinate,
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.position)?;
-    let (initial, next) = match source.observation {
-        validation::RankPremiseObservation::Value => (
-            edge.values.initial_symbol(source.parameter)?,
-            edge.values
-                .current(actual)
-                .map(ScopedArithmeticValue::Term)?,
-        ),
-        validation::RankPremiseObservation::Length => (
-            edge.values.initial_collection_length(source.parameter)?,
-            edge.values.current_collection_length(actual)?,
-        ),
-    };
+    let initial = &source.entry_value;
+    let next = destination.current(&edge.values, actual)?;
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left, right| {
         edge.values
             .proves_values_relation(program, machine, operator, left, right)
     };
-    (proves(BinaryOperator::GreaterOrEqual, &initial, &zero)
+    (proves(BinaryOperator::GreaterOrEqual, initial, &zero)
         && proves(BinaryOperator::GreaterOrEqual, &next, &zero)
-        && proves(BinaryOperator::LessOrEqual, &next, &initial))
-    .then(|| proves(BinaryOperator::Less, &next, &initial))
+        && proves(BinaryOperator::LessOrEqual, &next, initial))
+    .then(|| proves(BinaryOperator::Less, &next, initial))
 }
 
 fn search(
@@ -335,7 +471,7 @@ fn search(
                 parameter: coordinate.parameter,
                 coordinate: validation::RankSubjectCoordinate {
                     parameter: coordinate.parameter,
-                    path: Vec::new(),
+                    path: coordinate.path.clone(),
                 },
                 parameter_position: u32::try_from(coordinate.position).ok()?,
                 primitive_type: coordinate.primitive,

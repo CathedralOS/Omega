@@ -24,4 +24,8 @@ pub struct ConstDeclaration {
     /// exact scalar formation and invocation checks before it supplies a value.
     /// Target closure installs this entry rather than inventing another owner.
     pub evaluation_entry: arena::Handle<crate::machine::Machine>,
+    /// Entry-owned occurrence, distinct from the source root that names the
+    /// application. Reading a query in this body must not read the application
+    /// whose value this very activation is computing.
+    pub evaluation_expression: crate::expression::ExpressionHandle,
 }

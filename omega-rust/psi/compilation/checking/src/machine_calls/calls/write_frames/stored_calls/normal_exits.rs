@@ -38,7 +38,8 @@ struct SlotEquation<'program> {
 
 /// Least fixed point over normal exits. An unvisited return is not an identity
 /// route: only a real normal exit can seed incoming contents. Root substitution
-/// finiteness bounds the source set before iteration; there is no depth cutoff.
+/// finiteness bounds root growth; window composition keeps same-dimension
+/// narrowing finite at the normal-exit boundary. There is no depth cutoff.
 fn solve_state_effects<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
@@ -410,7 +411,8 @@ fn collect_exit(
             }
             None => return None,
         };
-        for supplied in sources {
+        for mut supplied in sources {
+            super::summary_windows::coarsen(program, &mut supplied);
             let source = &supplied.origin;
             if !source.source.builtin_coordinates {
                 return None;

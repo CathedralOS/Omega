@@ -5,14 +5,42 @@
 //! checked facts. A selected application borrows this closure exclusively: its
 //! row positions cannot be applied to another program or an unrelated accumulator.
 
-use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeModel};
+/// Source checking owns complete initializer entries alongside authored bodies.
+/// Rooting one requests ordinary preparation/checking, not execution or successful
+/// closure. The declaration retains its original entry identity while the rooted
+/// copy participates in the same specialization as every other callable.
+pub(super) fn retain_evaluation_entries(
+    program: &mut typed_trees::TypedTrees,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut entries = Vec::new();
+    for declaration in program.const_declarations() {
+        if declaration.evaluated_value.is_some() || !declaration.evaluation_entry.is_valid() {
+            continue;
+        }
+        if !program
+            .tables
+            .machines
+            .is_valid(declaration.evaluation_entry)
+        {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "retained constant lost its complete evaluation entry",
+            )]);
+        }
+        let entry = program.tables.machines.get(declaration.evaluation_entry);
+        if program.machine_by_symbol(entry.symbol).is_none() {
+            entries.push(entry.clone());
+        }
+    }
+    for entry in entries {
+        program.push_machine(entry);
+    }
+    Ok(())
+}
+use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeModel, ProofApplications};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-
-mod applications;
-use applications::ProofApplications;
 
 /// Invocation-local proof closure over a private, evaluated copy of a checked program.
 /// Provider selection stays with the caller; only complete coverage can publish.
@@ -46,7 +74,10 @@ impl<'source> ConstantProofClosure<'source> {
         facts.constant_recipe_obligations.clear();
         Self {
             source,
-            applications: ProofApplications::new(source),
+            applications: ProofApplications::new(
+                &source.facts.proof_applications,
+                &source.facts.operational,
+            ),
             program,
             facts,
             value_scope: value_scope.to_owned(),
@@ -171,7 +202,7 @@ impl<'source> ConstantProofClosure<'source> {
         if !receipts.is_empty() {
             self.program.constant_recipe_closure.target_scope = self.value_scope;
         }
-        let closed = CheckedTrees::with_roots(self.program, self.facts);
+        let mut closed = CheckedTrees::with_roots(self.program, self.facts);
         let pending_boundary_clauses = closed
             .facts
             .flow
@@ -184,6 +215,10 @@ impl<'source> ConstantProofClosure<'source> {
         let closed = if pending_boundary_clauses {
             typed_trees_to_checked_trees::settle_closed_constant_execution(closed)?
         } else {
+            // This legacy private value view changes signature identities.
+            // Settlement above refreshes its descriptions; the value-only
+            // path does so here, never by re-reading bodies in stage05.
+            typed_trees_to_checked_trees::retain_declaration_descriptions(&mut closed);
             closed
         };
         Ok(Arc::new(closed))

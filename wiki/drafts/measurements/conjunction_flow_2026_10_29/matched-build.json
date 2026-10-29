@@ -1,0 +1,20 @@
+{
+  "base": "894c94a2eaef8c2e8c362b7282d017f5d53e5516",
+  "baseline_source_sha256": "e58744dd56efecde09baafb52091ce4eed3ad15cdb72a25e326c83080d897f7c",
+  "candidate_source_sha256": "850772bab067cdb4b01cd0283bb3fbaa1f982410323ba12881ff42e2c79cdb2e",
+  "environment": {
+    "MBX_CACHE_DIR": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\conjunction-flow\\recovery-cache",
+    "MBX_LEARNED_INCREMENTAL": "0"
+  },
+  "build_command": [
+    "mbx",
+    "build",
+    "-p",
+    "omega",
+    "--locked",
+    "--target-dir",
+    "build/pass-producer"
+  ],
+  "baseline_producer_sha256": "6dea2214eb78f83d8e2d1a62219dae0b34370038eea7bcee148c45ac785ba566",
+  "candidate_producer_sha256": "12ca439bfc0fd52daa45cd186195030b29af4a3bf1f3c5032909fda272f6cd22"
+}

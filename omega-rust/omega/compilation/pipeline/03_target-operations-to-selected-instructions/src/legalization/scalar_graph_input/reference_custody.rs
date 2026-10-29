@@ -735,7 +735,7 @@ pub(in crate::legalization) fn shared_copy_type(
                 .chain(cases.iter().flat_map(|case| &case.fields))
                 .collect(),
             StructuralTypeShape::FixedArray { element, length } => {
-                if *length != 0 {
+                if length.literal() != Some(0) {
                     pending.push(*element);
                 }
                 continue;
@@ -821,7 +821,7 @@ fn leaf_paths(
             StructuralTypeShape::FixedArray { element, length }
                 if contains_reference(types, *element) =>
             {
-                let length = usize::try_from(*length).ok()?;
+                let length = usize::try_from(length.literal()?).ok()?;
                 if pending
                     .len()
                     .checked_add(output.len())?
@@ -2730,7 +2730,11 @@ pub(in crate::legalization) fn apply(
                 return Err(invalid());
             }
             let Some(StructuralTypeDeclaration {
-                shape: StructuralTypeShape::FixedArray { element, length },
+                shape:
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    },
                 ..
             }) = find_structural_type(types, result.structural_type)
             else {
@@ -3226,6 +3230,12 @@ pub(in crate::legalization) fn apply_terminator(
                 &mut exit,
                 actions.iter().cloned(),
                 function,
+                types,
+                retirements::DisposalEvent::Edge(edge),
+            )?;
+            borrowed_arrivals::complete_cleanup(
+                function,
+                &mut exit,
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;

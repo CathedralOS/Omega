@@ -145,8 +145,8 @@ pub(crate) use proof_integer::{
 };
 
 pub(crate) use ranking_range::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_ranking_range_call,
 };
 
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;

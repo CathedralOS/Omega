@@ -96,7 +96,7 @@ fn require_runtime_value(
                 require_fields(module, &case.fields, active)?;
             }
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray { element, length } if length.literal() != Some(0) => {
             require_runtime_value(module, *element, active)?
         }
         _ => {}

@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use compiler_storage::Record;
 pub(super) enum ArenaPage<T> {
     Owned(Arena<T>),
     Shared {

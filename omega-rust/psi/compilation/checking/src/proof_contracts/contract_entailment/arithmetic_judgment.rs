@@ -3,6 +3,8 @@ use super::{
     SymbolHandle, proof_nat_cast,
 };
 use crate::proof_integer_expression;
+#[cfg(test)]
+mod difference_constraint_tests;
 mod difference_matrix;
 mod integer_operations;
 mod integer_policy;
@@ -1071,6 +1073,15 @@ impl<'program> Engine<'program> {
                 .any(|difference| self.substituted(difference).excludes_integer_zero())
         {
             return true;
+        }
+        // Installation already closed every difference constraint and checked cycles.
+        // Opaque interval refresh can strengthen facts outside that closed matrix.
+        if self.opaque_terms.is_empty()
+            && self.bounds.iter().all(|(polynomial, _)| {
+                polynomial.as_atom_difference().is_some() || polynomial.as_single_atom().is_some()
+            })
+        {
+            return false;
         }
         self.bounds_are_inconsistent()
     }

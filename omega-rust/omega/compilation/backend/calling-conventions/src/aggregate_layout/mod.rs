@@ -43,92 +43,75 @@ pub fn evaluate_conventional_sum_layout(
     common_field_shapes: &[ValueShape],
     case_field_shapes: &[Vec<ValueShape>],
 ) -> Result<ConventionalSumLayout, AggregateLayoutError> {
-    if case_field_shapes.is_empty() {
-        return Err(AggregateLayoutError::EmptyCaseSet);
-    }
-
-    let tag_shape = ValueShape::integer(4, 4);
-    let (common_fields, common_end, common_alignment) =
-        pack_fields_at(common_field_shapes, tag_shape.byte_size)?;
-    let common_end = common_end.max(tag_shape.byte_size);
-
-    let payload_alignment = case_field_shapes
-        .iter()
-        .flatten()
-        .try_fold(1_u16, |alignment, shape| {
-            valid_alignment(shape.alignment).map(|_| alignment.max(shape.alignment))
-        })?;
-    let payload_byte_offset = align_up(common_end, u32::from(payload_alignment))?;
-
-    let mut end = common_end;
+    let tag = layout_plans::StorageGeometry {
+        byte_size: runtime_abi::CASE_TAG_BYTE_SIZE,
+        byte_alignment: runtime_abi::CASE_TAG_BYTE_ALIGNMENT,
+    };
+    let geometry = layout_plans::conventional_sum_geometry(
+        tag,
+        common_field_shapes.iter().map(storage_geometry),
+        case_field_shapes
+            .iter()
+            .map(|fields| fields.iter().map(storage_geometry)),
+    )
+    .map_err(|error| match error {
+        layout_plans::AggregateGeometryError::EmptyCaseSet => AggregateLayoutError::EmptyCaseSet,
+        layout_plans::AggregateGeometryError::ZeroAlignment => AggregateLayoutError::ZeroAlignment,
+        layout_plans::AggregateGeometryError::SizeOverflow => AggregateLayoutError::SizeOverflow,
+    })?;
+    let common_fields = native_fields(common_field_shapes, geometry.common_field_offsets)?;
     let cases = case_field_shapes
         .iter()
-        .map(|fields| {
-            let (fields, case_end, _) = pack_fields_at(fields, payload_byte_offset)?;
-            end = end.max(case_end);
-            Ok(ConventionalSumCaseLayout { fields })
+        .zip(geometry.case_field_offsets)
+        .map(|(shapes, offsets)| {
+            Ok(ConventionalSumCaseLayout {
+                fields: native_fields(shapes, offsets)?,
+            })
         })
         .collect::<Result<Vec<_>, AggregateLayoutError>>()?;
-
-    let alignment = tag_shape
-        .alignment
-        .max(common_alignment)
-        .max(payload_alignment);
-    let byte_size = align_up(end, u32::from(alignment))?;
-
     Ok(ConventionalSumLayout {
-        shape: ValueShape::integer(byte_size, alignment),
+        shape: native_geometry(geometry.storage)?,
         tag_byte_offset: 0,
-        tag_shape,
+        tag_shape: native_geometry(tag)?,
         common_fields,
-        payload_byte_offset,
+        payload_byte_offset: u32::try_from(geometry.payload_byte_offset)
+            .map_err(|_| AggregateLayoutError::SizeOverflow)?,
         cases,
     })
 }
 
-fn pack_fields_at(
+fn storage_geometry(shape: &ValueShape) -> layout_plans::StorageGeometry {
+    layout_plans::StorageGeometry {
+        byte_size: u64::from(shape.byte_size),
+        byte_alignment: u64::from(shape.alignment),
+    }
+}
+
+fn native_geometry(
+    geometry: layout_plans::StorageGeometry,
+) -> Result<ValueShape, AggregateLayoutError> {
+    Ok(ValueShape::integer(
+        u32::try_from(geometry.byte_size).map_err(|_| AggregateLayoutError::SizeOverflow)?,
+        u16::try_from(geometry.byte_alignment).map_err(|_| AggregateLayoutError::SizeOverflow)?,
+    ))
+}
+
+fn native_fields(
     shapes: &[ValueShape],
-    base_offset: u32,
-) -> Result<(Vec<PackedFieldLayout>, u32, u16), AggregateLayoutError> {
-    let mut offset = base_offset;
-    let mut alignment = 1_u16;
-    let fields = shapes
+    offsets: Vec<u64>,
+) -> Result<Vec<PackedFieldLayout>, AggregateLayoutError> {
+    shapes
         .iter()
-        .map(|shape| {
-            valid_alignment(shape.alignment)?;
-            offset = align_up(offset, u32::from(shape.alignment))?;
-            let byte_offset = offset;
-            offset = offset
-                .checked_add(shape.byte_size)
-                .ok_or(AggregateLayoutError::SizeOverflow)?;
-            alignment = alignment.max(shape.alignment);
+        .zip(offsets)
+        .map(|(shape, offset)| {
             Ok(PackedFieldLayout {
+                // Preserve float/integer ABI classification; geometry owns only offsets.
                 shape: *shape,
-                byte_offset,
+                byte_offset: u32::try_from(offset)
+                    .map_err(|_| AggregateLayoutError::SizeOverflow)?,
             })
         })
-        .collect::<Result<Vec<_>, AggregateLayoutError>>()?;
-    Ok((fields, align_up(offset, u32::from(alignment))?, alignment))
-}
-
-fn valid_alignment(alignment: u16) -> Result<(), AggregateLayoutError> {
-    (alignment != 0)
-        .then_some(())
-        .ok_or(AggregateLayoutError::ZeroAlignment)
-}
-
-fn align_up(value: u32, alignment: u32) -> Result<u32, AggregateLayoutError> {
-    if alignment == 0 {
-        return Err(AggregateLayoutError::ZeroAlignment);
-    }
-    let remainder = value % alignment;
-    if remainder == 0 {
-        Ok(value)
-    } else {
-        value
-            .checked_add(alignment - remainder)
-            .ok_or(AggregateLayoutError::SizeOverflow)
-    }
+        .collect()
 }
 
 #[cfg(test)]

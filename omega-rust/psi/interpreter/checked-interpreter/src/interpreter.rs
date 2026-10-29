@@ -6,13 +6,12 @@
 
 mod evaluator;
 use crate::{
-    BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess,
-    FilesystemMetadataLayout, InterpretOutcome, MeasuredEvaluation,
-    SelectedBuildTimeBinaryOperator,
+    BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
+    InterpretOutcome, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
 };
 use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
-use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
+use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 

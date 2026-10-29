@@ -255,7 +255,10 @@ impl TerminalExecution<'_> {
                     structural_type = child;
                 }
                 StructuralPathSegment::FixedIndex(index) => {
-                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+                    let StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } = declaration.shape
                     else {
                         return Err(malformed());
                     };
@@ -381,7 +384,10 @@ impl TerminalExecution<'_> {
                     leaf.structural_type = child;
                 }
                 CanonicalStructuralPathSegment::FixedIndex(index) => {
-                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+                    let StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } = declaration.shape
                     else {
                         return Err(malformed());
                     };

@@ -1,0 +1,46 @@
+{
+  "A": {
+    "wall_ms": {
+      "median": 5682.153699992341,
+      "minimum": 5088.27759999258,
+      "maximum": 6266.3724000012735
+    },
+    "checking_ms": {
+      "median": 2554.268,
+      "minimum": 2265.785,
+      "maximum": 2611.234
+    },
+    "statement_ms": {
+      "median": 1623.797,
+      "minimum": 1519.861,
+      "maximum": 1722.235
+    },
+    "call_check_ms": {
+      "median": 543.895,
+      "minimum": 515.847,
+      "maximum": 600.8
+    }
+  },
+  "B": {
+    "wall_ms": {
+      "median": 5630.409500008682,
+      "minimum": 5219.608100000187,
+      "maximum": 7327.579100005096
+    },
+    "checking_ms": {
+      "median": 2116.275,
+      "minimum": 1946.237,
+      "maximum": 3443.297
+    },
+    "statement_ms": {
+      "median": 690.501,
+      "minimum": 669.924,
+      "maximum": 974.261
+    },
+    "call_check_ms": {
+      "median": 569.502,
+      "minimum": 533.917,
+      "maximum": 768.862
+    }
+  }
+}

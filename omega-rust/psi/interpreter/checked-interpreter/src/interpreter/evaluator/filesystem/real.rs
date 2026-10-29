@@ -362,11 +362,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         PreparedFilesystemCall::Open { path, flags } => {
                         self.real_open_prepared(path.into_native()?, flags, 0, false)?
                     }
-        PreparedFilesystemCall::CreateDir { path, mode: _ }
-                    | PreparedFilesystemCall::CreateDirName {
-                        name: path,
-                        mode: _,
-                    } => {
+        PreparedFilesystemCall::CreateDir { path }
+                    | PreparedFilesystemCall::CreateDirName { name: path } => {
                         match self.authorized_namespace_leaf(&path, true, 0) {
                         Some(path) => {
                             if let Some(sponsor) = self.real_fs_mut().sponsor.clone() {

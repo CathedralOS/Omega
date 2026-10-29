@@ -159,7 +159,10 @@ pub(crate) fn projected_paths_are_fully_consumed(
     if parameter.multiplicity != StructuralMultiplicity::Linear {
         return false;
     }
-    let Some(StructuralTypeShape::FixedArray { length, .. }) = structural_types
+    let Some(StructuralTypeShape::FixedArray {
+        length: terminal_psi::ArrayExtent::Literal(length),
+        ..
+    }) = structural_types
         .get(&parameter.structural_type)
         .map(|declaration| &declaration.shape)
     else {

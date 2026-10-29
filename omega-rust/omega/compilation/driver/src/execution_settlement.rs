@@ -16,9 +16,6 @@ use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
-pub(crate) mod constant_recipe_closure;
-pub(crate) use constant_recipe_closure::same_checked_program;
-
 /// One target's complete provider selection beside the shared source custody.
 /// Terminal production borrows this record to mint the target-neutral artifact.
 /// All source-dependent selected execution is already complete; no later
@@ -162,22 +159,14 @@ impl SelectedProductTarget {
         Ok(())
     }
 
-    pub(crate) fn finish_check(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let demands = psi_compiler::lower_task_activation_demands(
-            &self.custody.execution.program,
-            &mut identities,
-        )?;
-        task_plans::realize_task_activations(
-            &demands,
-            &identities.build(),
-            &self.custody.execution.selected_provider_plan_facts,
-            self.custody
-                .execution
-                .selected_target_profile
-                .unwrap_or_else(target::TargetProfile::host),
-        )?;
+    pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        crate::terminal::check_terminal_conditions(&mut self.custody)?;
+        self.check_task_activations()?;
         Ok(self.into_checked_compilation())
+    }
+
+    pub(crate) fn check_task_activations(&self) -> Result<(), Vec<Diagnostic>> {
+        check_task_activations(&self.custody.execution)
     }
 
     /// Assemble the already-prepared result. Executable products discharge task
@@ -189,6 +178,22 @@ impl SelectedProductTarget {
             self.independent_component_products,
         )
     }
+}
+
+/// Nonexecuting publication still owes every selected task activation contract.
+/// Source selection and component completion consume the same retained input.
+pub(crate) fn check_task_activations(execution: &SelectedExecution) -> Result<(), Vec<Diagnostic>> {
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let demands = psi_compiler::lower_task_activation_demands(&execution.program, &mut identities)?;
+    task_plans::realize_task_activations(
+        &demands,
+        &identities.build(),
+        &execution.selected_provider_plan_facts,
+        execution
+            .selected_target_profile
+            .unwrap_or_else(target::TargetProfile::host),
+    )?;
+    Ok(())
 }
 
 /// Discovery survives selection failure so package review can acquire the
@@ -245,41 +250,14 @@ fn select_checked_providers(
             .map(|entry| entry.machine_symbol()),
         &selected_provider_provenance,
     )?;
-    // Target-scoped proof applications close under their authored capsule,
-    // including bodies outside the requested output target. They reuse the
-    // same provider preparation but need no executable entry or deployment.
-    let closed_program = constant_recipe_closure::close_constant_recipes(
-        source,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        &build_config.opaque_representation_selections,
-        &selected_provider_plan_facts,
-        &selected_provider_provenance,
-        |target| {
-            let selected = prepare_target_provider_selection(source, Some(target), package_inputs)?;
-            Ok(constant_recipe_closure::ConstantProviders {
-                facts: selected.selected_provider_plan_facts,
-                provenance: selected.selected_provider_provenance,
-            })
-        },
-    )?;
     let root_grants = build_config.root_grant_selectors();
-    let providers = providers.prepare_row_declarations(
-        &closed_program.typed,
-        source.sources.exact_toolchain_sources(),
-    )?;
-    // Constant closure may produce a private checked owner. Only the original
-    // immutable owner can use the source-wide lazy declaration product.
-    let closed_declarations = std::sync::OnceLock::new();
-    let external_declarations = if Arc::ptr_eq(&closed_program, &source.program) {
-        source.external_declarations.as_ref()
-    } else {
-        &closed_declarations
-    };
+    let providers =
+        providers.prepare_row_declarations(typed, source.sources.exact_toolchain_sources())?;
     let execution = prepare_selected_execution(
-        closed_program,
+        Arc::clone(&source.program),
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
-            external_declarations,
+            external_declarations: source.external_declarations.as_ref(),
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,

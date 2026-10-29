@@ -116,9 +116,10 @@ retained entry through source-signature custody; native and interpreted
 execution do not rewrite the artifact's default entry. Nominal callback bodies
 join that same portable closure and retain exact selected entries beside their
 native ABI adapters. Main and callbacks borrow one provider context; callback
-realization never starts another Psi production. Product constants
-requiring selected-provider evaluation reject until portable recipes cross this
-boundary; selected providers cannot inject completion roles into checked source.
+realization never starts another Psi production. Product constant applications
+and their checked conditions cross this boundary in canonical Terminal Psi.
+Selected realization completes them without copying or rewriting checked source;
+selected providers cannot inject completion roles into checked source.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
@@ -378,10 +379,11 @@ source through that same producer. Direct-call completion joins target and accep
 public-plan custody without reopening checked trees; deferred shape failures are
 consumed only after the original ownership/target gate. Numeric execution still
 comes from Psi's external declarations. The accepted public plan, original row
-and projected callable plan remain distinct. Planning candidates cannot enter
-completion before constant closure: a typed preparation transition consumes
-their original ownership and derives these facts from the finalized checked
-snapshot. Layout-dependent identities are not assumed invariant across closure.
+and projected callable plan remain distinct. Planning candidates enter completion
+only after source-owned row declaration preparation consumes their original
+ownership and derives these facts from the shared checked program. Product scalar
+completion follows canonical publication; it does not rewrite those declarations
+or substitute a target-specific checked snapshot.
 Earlier typed constant/comparison evaluation, general review call coordinates
 and source-dependent direct-call preparation remain migration work; this does not claim
 that selected dispatch as a whole is source-free. Retaining current declarations
@@ -405,29 +407,38 @@ the same preparation without emitting an image. This does not yet remove source
 provider selection from product coordination or stage vocabulary from shared
 product representations.
 
-Retained constant proof closure belongs to Psi source checking. The product
-coordinator supplies selected value views, provider edges and address
-model inputs; Psi selects the recorded obligations, discharges them in their
-existing order, requires complete coverage and publishes the closed checked
-facts. Psi also discovers authored proof scopes, conservatively determines which
-need providers, and follows recorded calls, static machine bindings, cleanup and
-dynamic selections to determine exact proof applications and declaration owners.
-The coordinator validates target identities and supplies selected provider edges;
-it does not reconstruct source membership. Supplemental values are evaluated only
-when the selected application has obligations. Psi settles pending boundary
-clauses before returning that program.
-The coordinator no longer rebuilds proof facts or chooses that final checking
-step. Psi also owns selected constant evaluation: available query closure,
-continuation evaluation and layout-plan installation, final query closure, then
-initializer completion. The target supplies read-only geometry through one
-prepared layout view per pass; it never rewrites expressions or selects source
-formation rules. Build admission and Product completion use this same operation.
-Psi captures deferred constant work together with its authored source before
-checking changes occurrences. Reusing a checked judgment retains the current
-invocation's deferred work, not the cached consumer's. Selected Product closure
-evaluates a private copy, rejoins recorded recipe identities and closes queries
-in the actual checked forest; the coordinator no longer copies constant values
-or layout tables between those forests.
+Product scalar completion consumes canonical Terminal applications, declaration
+conditions and exact lexical identities, not a private checked-tree rewrite.
+Psi retains the computations and obligations; its compile-time evaluator executes
+dependency-ready canonical jobs and closes each authored proof scope. The
+application supplies exact provider selections, target families, address semantics
+and carrier geometry, and retains evaluation accounting even on refusal.
+Native preparation first determines the work and scalar demand for the root and
+its components. The application completes that demand; native compilation consumes
+the same preparation and completed inputs. Native production has no interpreter
+dependency or evaluator callback, and cannot silently recompute a missing value.
+Declaration-only Check publishes a rootless Terminal product when conditions need
+completion; a Check with no retained scalar obligations stops before publication.
+Demanded components complete all declaration conditions against their shared
+Application artifact before publishing descriptions or entering the component
+cache. They do not first produce a disposable declaration artifact per target.
+Lazy review retains its earlier checking boundary because review evidence may
+be consumed without ever requesting a component.
+Named inspection joins the same batch with its selected machine as part of
+production identity. Equal selections share portable code and source-issued
+Build companions; different inspected roots remain distinct. Inspection completes
+declaration scalar and task obligations against that product without a
+ProgramEntry or native installation. External artifact inspection retains only
+the admitted artifact and cannot recreate the source-issued companions.
+
+Build-helper production publishes the checked source unchanged. The waiting
+Build activation admits each explicitly named provider slot, discovers its
+scalar and inline-storage demands, then completes canonical applications under
+the admitted Build execution profile and that slot's exact provider selection.
+It never selects the dependency's Product defaults. Installed components own
+their completed scalar admission after temporary helper preparation is released.
+Evaluation charges the waiting invocation directly; retained observations are
+not charged again. Already-installed backing skips completion before resumption.
 Numeric intrinsic classification has one source-owned decision: the exact
 requirement's token or named catalog row supplies both signature obligations
 and its closed execution identity. Provider planning and selected dispatch use
@@ -446,9 +457,10 @@ decoding validates declaration coordinates and the complete numeric signature.
 This meaning does not select or authorize a provider. Review-only
 products still use checked source custody: moving their complete conformance
 evidence to Terminal remains part of provider-settlement migration.
-Provider selection and target geometry still originate outside Psi. This is not
-yet target-independent constant production or a completed Terminal-only provider
-pipeline; portable deferred recipes remain part of the migration.
+Provider selection and target geometry still originate outside Psi. Product
+scalar publication is target-neutral; source-dependent provider preparation,
+review projection remain migration work. This is
+not yet a completed Terminal-only provider pipeline.
 
 Independent component emission belongs to the same source-free native compiler
 entrance as root emission. Product preparation supplies each verified component,
@@ -790,12 +802,12 @@ never grants zero-sized storage or authority. Native entry storage currently
 supports Fused establishment and rejects other modes.
 
 Physical data-layout queries remain symbolic during shared Product checking.
-Selected constant evaluation currently closes retained `size_of`/`align_of`
-queries under explicit target custody before Terminal production; Build admission
-uses its separately selected execution context. The remaining migration is to
-carry portable queries across the Terminal boundary and consume exact selected
-layout there, not to restore an early Product-target fold. Ordinary authored
-machines with those names remain ordinary calls.
+Canonical scalar applications retain `size_of`/`align_of` observations across
+Terminal publication. Completion uses explicit selected-target carrier geometry,
+not interpreter storage or host pointer widths. Reference/view carriers and sum
+packing preserve their physical layout distinctions. Build-helper completion
+uses its separately admitted execution profile at provider installation. Ordinary
+authored machines with those names remain ordinary calls.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
 output. Native entry and registrar settlement consume that application, not the

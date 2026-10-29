@@ -8,6 +8,8 @@ mod cleanup_resume;
 mod extent_view;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
+#[path = "terminal_mutable_boundary_provision.rs"]
+mod mutable_boundary_provision;
 #[path = "terminal_project_requests.rs"]
 mod project_requests;
 #[path = "terminal_resident_storage.rs"]
@@ -38,7 +40,7 @@ pub(super) fn observe_portable(
         }
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
         ["carried-boundary-ingress"] => carried_requirements::observe(artifact),
-        ["mutable-boundary"] => mutable_boundary::observe(artifact),
+        ["mutable-boundary"] => mutable_boundary_provision::observe(artifact),
         ["build-bindings", slots, entry, identifier] => {
             build_bindings::observe(artifact, bindings, requests, slots, entry, identifier)
         }

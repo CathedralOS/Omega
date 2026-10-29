@@ -69,6 +69,7 @@ pub(crate) mod completion_cleanup;
 mod entry_requirements;
 mod folded_constants;
 mod providers;
+pub(crate) mod scalar_applications;
 pub(crate) mod signatures;
 pub(crate) mod target_families;
 mod target_layouts;
@@ -224,6 +225,18 @@ pub(crate) fn lower_unit_closure(
         return unsupported("ordinary Unit closure must begin with its exact entry");
     }
 
+    let scalar_applications = std::sync::Arc::new(
+        scalar_applications::SourceScalarApplications::prepare(checked)?,
+    );
+    let mut retained_roots = program_roots.machines.to_vec();
+    retained_roots.extend(scalar_applications.evaluation_roots());
+    retained_roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
+    retained_roots.dedup();
+    let program_roots = crate::TerminalProgramRoots {
+        machines: &retained_roots,
+        boundaries: program_roots.boundaries,
+    };
+
     // Discovery: every machine the closure emits, grouped by the route that
     // emits it.
     let call_catalog = phase_profile::scope("05.01.a_discover_call_catalog", || {
@@ -267,7 +280,15 @@ pub(crate) fn lower_unit_closure(
     // services against these one catalogs.
     let (mut structural_types, type_ids, structural_referents) =
         phase_profile::scope("05.01.c_lower_structural_types", || {
-            catalog::lower_unit_structural_types(identities, checked, plans, &closure, &boundaries)
+            catalog::lower_unit_structural_types(
+                identities,
+                checked,
+                &scalar_applications,
+                plans,
+                &closure,
+                &boundaries,
+                &scalar_applications.type_roots().collect::<Vec<_>>(),
+            )
         })?;
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
@@ -350,6 +371,7 @@ pub(crate) fn lower_unit_closure(
         crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
             identities,
             checked,
+            &scalar_applications,
             &[],
             &call_catalog.source_machines,
             &boundary_signatures,
@@ -364,6 +386,7 @@ pub(crate) fn lower_unit_closure(
             boundaries::lower_declarations(
                 identities,
                 checked,
+                &scalar_applications,
                 exact_toolchain_sources,
                 &boundaries,
                 &qualifications,
@@ -379,6 +402,7 @@ pub(crate) fn lower_unit_closure(
         signatures::lower(
             identities,
             checked,
+            &scalar_applications,
             &admitted_bodies,
             &qualifications,
             &type_ids,
@@ -439,6 +463,7 @@ pub(crate) fn lower_unit_closure(
         crate::unit::dynamic_dispatch::DynamicDispatchIndex::new(checked),
     );
     let catalog = ordinary_machine::ClosureCatalog {
+        scalar_applications: &scalar_applications,
         type_ids: &type_ids,
         domain_ids: &domain_ids,
         domain_declarations: &structural_domains,
@@ -485,6 +510,7 @@ pub(crate) fn lower_unit_closure(
                         parameters.clone(),
                         scalar_parameters,
                         composed_control::callable::SharedCatalog {
+                            scalar_applications: &scalar_applications,
                             structural_types: &structural_types,
                             type_ids: &type_ids,
                             domain_ids: &domain_ids,
@@ -661,6 +687,18 @@ pub(crate) fn lower_unit_closure(
     let lowered = LoweredPsi {
         build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
+            scalar_applications: scalar_applications.publish(
+                &type_ids,
+                &machine_ids,
+                &lowered_boundary_parameters,
+                scalar_applications::EmittedScalars {
+                    checked,
+                    identities,
+                    sources: exact_toolchain_sources,
+                    calls: &occurrences.source_calls,
+                    machines: &machines,
+                },
+            )?,
             folded_constants,
             indexed_theorems,
             mathematical_carriers,
@@ -674,7 +712,12 @@ pub(crate) fn lower_unit_closure(
             identities: identities.snapshot(),
             // The root may be a bodyless portable contract. Every family body
             // stays in the catalog; no target member stands in for its head.
-            entry: target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)?,
+            entry: entry
+                .is_valid()
+                .then(|| {
+                    target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)
+                })
+                .transpose()?,
             structural_types,
             structural_referents,
             structural_domains,

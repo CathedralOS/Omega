@@ -44,6 +44,7 @@ mod integers;
 mod normal_return;
 mod quotient_calls;
 mod rank_observations;
+mod reference_captures;
 mod slice_view;
 mod structural_fields;
 mod structural_values;

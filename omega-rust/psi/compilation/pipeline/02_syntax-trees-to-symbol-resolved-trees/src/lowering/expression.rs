@@ -9,11 +9,10 @@ use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, FloatLiteral,
-    TableAtomicExpression, TableBinaryExpression, TableCallExpression, TableCastExpression,
-    TableIndexedExpression, TableMemberExpression, TableMembershipExpression, TableNamePath,
-    TableRangeExpression, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
-    UnaryOperator,
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableAtomicExpression,
+    TableBinaryExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
+    TableMemberExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
+    TableStructLiteral, TableStructLiteralField, TableUnaryExpression, UnaryOperator,
 };
 use symbols::SymbolHandle;
 use syntax_trees as syntax;
@@ -338,7 +337,7 @@ fn lower_nonbinary_expression_node_into_table(
             Ok(expression_table(lowerer).insert(ExpressionNode::UndeterminedNaN(*format)))
         }
         syntax::expression::ExpressionNode::Float(value) => {
-            let Some(value) = FloatLiteral::parse(value.as_str(syntax_trees)) else {
+            let Some(value) = value.literal(syntax_trees) else {
                 return Err(Diagnostic::error(format!(
                     "invalid float literal `{}`",
                     value.as_str(syntax_trees)

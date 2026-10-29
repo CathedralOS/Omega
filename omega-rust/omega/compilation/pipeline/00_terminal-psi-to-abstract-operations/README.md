@@ -52,6 +52,15 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   admission. Every admitted result retains the exact placed-view input roster.
   Extraction into a consumer without roster custody rejects nonempty inputs;
   this check follows verification and lowering, not canonical decode.
+  [Native preparation](src/artifact_admission/native.rs) receives target,
+  provider, callback and ProgramEntry choices together. It selects the executable
+  closure from canonical Terminal through
+  [native_execution_scope.rs](src/native_execution_scope.rs), applies selected
+  geometry, and only then lowers those bodies. There is no partially lowered
+  native input followed by a public pruning step. Ordinary/no-normal calls,
+  cleanup, callbacks, native metadata and dynamic-table address roots retain
+  their existing demand and per-block diagnostic order. Explicit artifact
+  inspection and independent ownership validation still cover the full catalog.
 - `optimization`: verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
 - [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced

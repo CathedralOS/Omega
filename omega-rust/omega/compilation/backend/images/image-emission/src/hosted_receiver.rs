@@ -499,7 +499,7 @@ fn validate_entry_arguments(
         {
             return Err(invalid());
         }
-    } else if terminal.entry != terminal_psi::TargetMachineCallable::Machine(selected) {
+    } else if terminal.entry != Some(terminal_psi::TargetMachineCallable::Machine(selected)) {
         return Err(invalid());
     }
     for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {

@@ -169,3 +169,8 @@ work from necessary spill decisions before changing a heuristic. These are
 profile leads, not another measured optimization or an instruction to start an
 unbounded campaign. This iteration stops after its focused acceptance and local
 result commit; publication is not authorized.
+
+Follow-up: the owner subsequently authorized publication as PR #740, which
+merged as `2d87f18a195ec8523aeb4cdccc4ca0f793ba0e1b` after source and queue CI.
+The [next bounded iteration](../spill_loop_2026_10_28/README.md) profiled spill
+slot assignment and rejected disabling reuse because of its stack cost.

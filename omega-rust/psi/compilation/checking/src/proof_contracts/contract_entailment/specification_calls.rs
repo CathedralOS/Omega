@@ -6,7 +6,7 @@
 //! application. Reflexive equality and body unfolding do not waive this gate.
 
 mod applied_bindings;
-pub(super) use applied_bindings::AppliedProofBindings;
+pub(super) use applied_bindings::{AppliedProofBindings, canonical_result_reference};
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
@@ -436,18 +436,40 @@ impl SpecificationPremises<'_> {
                 caller.term(program, expression)
             })
         };
-        let asserted = self
+        // One formed condition can carry both a structural case fact and an
+        // arithmetic fact this judge cannot substitute. Preserve each truth-
+        // implied component before filtering, rather than losing the case
+        // along with its unrelated numeric conjunct. False disjunctions have
+        // the same independent components; the other polarities do not.
+        let mut asserted = Vec::new();
+        let mut denied = Vec::new();
+        let mut pending = self
             .asserted
             .iter()
-            .copied()
-            .filter(eligible)
+            .map(|expression| (*expression, true))
+            .chain(self.denied.iter().map(|expression| (*expression, false)))
             .collect::<Vec<_>>();
-        let denied = self
-            .denied
-            .iter()
-            .copied()
-            .filter(eligible)
-            .collect::<Vec<_>>();
+        let mut visited = Vec::new();
+        while let Some((expression, holds)) = pending.pop() {
+            if visited.contains(&(expression, holds)) {
+                continue;
+            }
+            visited.push((expression, holds));
+            if let Some(binary) = program.expression_table.binary_node(expression)
+                && ((holds && binary.operator == BinaryOperator::And)
+                    || (!holds && binary.operator == BinaryOperator::Or))
+            {
+                pending.push((binary.right, holds));
+                pending.push((binary.left, holds));
+            }
+            if eligible(&expression) {
+                if holds {
+                    asserted.push(expression);
+                } else {
+                    denied.push(expression);
+                }
+            }
+        }
         let parameters = caller
             .parameters(program)
             .into_iter()
@@ -992,25 +1014,6 @@ fn validate_specification_expression_in_scope(
             ))
         })
         .collect::<Option<Vec<_>>>();
-    // The existing structural prover has name-backed private variables. Do
-    // not let two different resolved caller binders acquire one such variable.
-    // The arithmetic route below uses exact symbols directly.
-    let structural_facts = prior_facts
-        .asserted
-        .iter()
-        .copied()
-        .filter(|fact| {
-            structurally_substitutable_fact(program, *fact, &|expression| {
-                caller.term(program, expression)
-            }) && names_are_unambiguous(program, &[*fact], &arguments)
-        })
-        .collect::<Vec<_>>();
-    let structural_all = structural_facts
-        .iter()
-        .chain(prior_facts.denied)
-        .copied()
-        .collect::<Vec<_>>();
-    let structural_names_unique = names_are_unambiguous(program, &structural_all, &arguments);
     let substitution = substitution.and_then(|mut substitution| {
         let bindings = application_bindings.as_ref()?;
         for binding in &bindings.constants {
@@ -1023,11 +1026,9 @@ fn validate_specification_expression_in_scope(
         }
         Some(substitution)
     });
-    let judge = SpecificationPremises {
-        asserted: &structural_facts,
-        denied: prior_facts.denied,
-    }
-    .structural_judge(program, caller, &arguments);
+    // The shared projection owns eligibility, polarity and exact-name fences;
+    // filtering a compound here first would discard its usable case facts.
+    let judge = prior_facts.structural_judge(program, caller, &arguments);
     // Named proposition requirements are an erased evidence lane, not Boolean
     // facts for the structural/arithmetic prover. The checked-tree contract
     // evidence binder validates each supplied term's exact owner, proposition
@@ -1080,7 +1081,6 @@ fn validate_specification_expression_in_scope(
                         None,
                     )
                 }) && parameters.len() == arguments.len()
-                    && structural_names_unique
                     && substitution.as_ref().is_some_and(|substitution| {
                         substitution
                             .iter()
@@ -1097,6 +1097,10 @@ fn validate_specification_expression_in_scope(
                                         .as_ref()
                                         .expect("complete application")
                                         .machines,
+                                    &application_bindings
+                                        .as_ref()
+                                        .expect("complete application")
+                                        .types,
                                     caller.state_scope(),
                                 ),
                                 StructuralJudgment::Proven
@@ -1737,6 +1741,9 @@ fn structurally_substitutable_fact(
     expression: ExpressionHandle,
     term: &impl Fn(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> bool {
+    if program.static_type_predicate_operands(expression).is_some() {
+        return term(expression).is_some_and(|term| term_has_complete_substitution(program, &term));
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return matches!(program.expression_table.expression(expression), ExpressionNode::Call(_))
             && term(expression).is_some_and(|term| {
@@ -1751,7 +1758,7 @@ fn structurally_substitutable_fact(
         return term(binary.left)
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
-    if binary.operator == BinaryOperator::And {
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         return structurally_substitutable_fact(program, binary.left, term)
             && structurally_substitutable_fact(program, binary.right, term);
     }
@@ -1862,7 +1869,8 @@ fn term_has_complete_substitution(
             collection: subject,
             ..
         }
-        | StructuralTerm::Projection { subject, .. } => {
+        | StructuralTerm::Projection { subject, .. }
+        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
             // Term formation retains a selected field or collection measure;
             // its complete subject, not the display path alone, owns identity.
             term_has_complete_substitution(program, subject)

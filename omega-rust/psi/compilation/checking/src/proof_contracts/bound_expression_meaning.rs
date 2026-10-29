@@ -446,7 +446,7 @@ fn sealed_float_comparison_for_operands(
     .is_some()
 }
 
-pub(super) fn sealed_float_comparison_declaration_for_operands(
+pub(crate) fn sealed_float_comparison_declaration_for_operands(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,

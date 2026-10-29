@@ -1,0 +1,110 @@
+{
+  "stack32": {
+    "A": {
+      "wall_ms": {
+        "median": 9191.93990000349,
+        "minimum": 5145.683700000518,
+        "maximum": 10946.25759999326
+      },
+      "checking_ms": {
+        "median": 3508.6885,
+        "minimum": 2212.847,
+        "maximum": 4077.667
+      },
+      "peak_job_memory_bytes": {
+        "median": 1326673920.0,
+        "minimum": 1278615552,
+        "maximum": 1370750976
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 8909.403800003929,
+        "minimum": 7022.605000005569,
+        "maximum": 9416.9147000066
+      },
+      "checking_ms": {
+        "median": 3159.835,
+        "minimum": 2391.3,
+        "maximum": 3377.385
+      },
+      "peak_job_memory_bytes": {
+        "median": 1363232768.0,
+        "minimum": 1331564544,
+        "maximum": 1382146048
+      }
+    }
+  },
+  "length": {
+    "A": {
+      "wall_ms": {
+        "median": 3590.5779500026256,
+        "minimum": 2920.0350000028266,
+        "maximum": 3945.411199994851
+      },
+      "checking_ms": {
+        "median": 1709.754,
+        "minimum": 1348.307,
+        "maximum": 1891.45
+      },
+      "peak_job_memory_bytes": {
+        "median": 1246298112.0,
+        "minimum": 1230462976,
+        "maximum": 1275252736
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 4552.010150000569,
+        "minimum": 3599.305900002946,
+        "maximum": 4710.941599987564
+      },
+      "checking_ms": {
+        "median": 2150.9865,
+        "minimum": 1842.134,
+        "maximum": 2374.393
+      },
+      "peak_job_memory_bytes": {
+        "median": 1264214016.0,
+        "minimum": 1262137344,
+        "maximum": 1284861952
+      }
+    }
+  },
+  "dispatch": {
+    "A": {
+      "wall_ms": {
+        "median": 3620.7175999952597,
+        "minimum": 3171.497300005285,
+        "maximum": 4032.934300004854
+      },
+      "checking_ms": {
+        "median": 1641.0305,
+        "minimum": 1526.011,
+        "maximum": 2003.517
+      },
+      "peak_job_memory_bytes": {
+        "median": 1245892608.0,
+        "minimum": 1198563328,
+        "maximum": 1280962560
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 4080.8138499996858,
+        "minimum": 3796.0700999974506,
+        "maximum": 4282.333199997083
+      },
+      "checking_ms": {
+        "median": 1879.681,
+        "minimum": 1671.064,
+        "maximum": 2115.314
+      },
+      "peak_job_memory_bytes": {
+        "median": 1243944960.0,
+        "minimum": 1235070976,
+        "maximum": 1276882944
+      }
+    }
+  }
+}

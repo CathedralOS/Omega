@@ -281,6 +281,7 @@ pub(super) fn instantiated_fact_judgment(
         fact,
         map,
         &[],
+        &[],
         caller_scope,
     )
 }
@@ -298,8 +299,18 @@ pub(super) fn instantiated_selected_fact_judgment(
         typed_trees::types::TypeReferenceHandle,
         typed_trees::expression::StaticMachineArgument,
     )],
+    type_map: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
+    if program.static_type_predicate_operands(fact).is_some() {
+        return super::structural_terms::static_type_predicate_term(program, fact, type_map)
+            .map_or(StructuralJudgment::Unknown, |predicate| {
+                judge.judge_observed_predicate(predicate, 0)
+            });
+    }
     if program
         .expression_table
         .call_node(fact)
@@ -387,6 +398,7 @@ pub(super) fn instantiated_selected_fact_judgment(
                     binary.left,
                     map,
                     machine_map,
+                    type_map,
                     caller_scope,
                 ),
                 instantiated_selected_fact_judgment(
@@ -397,6 +409,7 @@ pub(super) fn instantiated_selected_fact_judgment(
                     binary.right,
                     map,
                     machine_map,
+                    type_map,
                     caller_scope,
                 ),
             );

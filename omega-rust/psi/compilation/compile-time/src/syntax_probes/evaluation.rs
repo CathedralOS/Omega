@@ -77,13 +77,8 @@ impl PreparedEvaluationInputs {
     ) -> EvaluationDomain {
         let mut execution = roots.to_vec();
         admission.append_execution_dependencies(program, &mut execution);
-        let (work, selection) = declaration_dependencies(
-            program,
-            &admission.operators,
-            &execution,
-            expressions,
-            &[],
-        );
+        let (work, selection) =
+            declaration_dependencies(program, &admission.operators, &execution, expressions, &[]);
         EvaluationDomain::selected(work, selection)
     }
 }
@@ -262,6 +257,13 @@ fn prepare_evaluation_inputs_with_owners(
     let mut execution = execution;
     validate_declaration_roots(typing.typed(), declaration_roots)?;
     let (work, selection) = loop {
+        // Ordinary typed operands choose the callable while the complete
+        // available declaration roster still exists. Projection must not erase
+        // the candidates before that selection or promote them all to execution.
+        // Nested calls can settle another operand in the next selection round.
+        while !validation::resolve_named_result_overloads(typing.typed_mut())?.is_empty() {}
+        typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(typing.typed_mut())
+            .map_err(|diagnostic| vec![diagnostic])?;
         // Typing selects operator overloads which have no ordinary call edge in
         // raw syntax. Use the existing operational graph, not token spellings or
         // a second expression walker, to demand those same selected bodies.
@@ -359,22 +361,21 @@ fn declaration_dependencies(
     // Actual calls from those endpoints have already entered `execution` through
     // resolved body demand. Their typed type/proof dependencies enter here, but
     // an enclosing machine does not become executable merely by owning a type.
-    let endpoint_declarations = if has_endpoint_owners
-        && endpoint_owners != DeclarationSelection::from_symbols([])
-    {
-        let endpoint_refs = collect_selected_program_references(program, &endpoint_owners);
-        for mut symbol in endpoint_refs.symbols {
-            while symbol.is_valid() {
-                if roster.contains(symbol) && !endpoint_owners.contains(symbol) {
-                    selection.include(symbol);
+    let endpoint_declarations =
+        if has_endpoint_owners && endpoint_owners != DeclarationSelection::from_symbols([]) {
+            let endpoint_refs = collect_selected_program_references(program, &endpoint_owners);
+            for mut symbol in endpoint_refs.symbols {
+                while symbol.is_valid() {
+                    if roster.contains(symbol) && !endpoint_owners.contains(symbol) {
+                        selection.include(symbol);
+                    }
+                    symbol = program.symbols.get(symbol).parent;
                 }
-                symbol = program.symbols.get(symbol).parent;
             }
-        }
-        endpoint_refs.declarations
-    } else {
-        Vec::new()
-    };
+            endpoint_refs.declarations
+        } else {
+            Vec::new()
+        };
     let mut closure = typed_trees::references::ReferenceClosure::new();
     loop {
         let mut changed = false;

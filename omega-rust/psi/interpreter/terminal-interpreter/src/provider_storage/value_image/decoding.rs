@@ -142,7 +142,10 @@ impl ValueImageDecoder<'_, '_> {
                     scalar(*carrier, bytes)?,
                 )?;
             }
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let (stride, _) =
                     terminal_semantics::reference_storage_layout(types.values(), *element)
                         .ok_or_else(malformed)?;

@@ -51,6 +51,27 @@ impl CheckedCompilation {
             .native_provider_sources
             .as_ref()
             .map_err(Clone::clone)?;
+        if native_sources.declarations.len() != execution.selected_provider_provenance.len() {
+            return Err(vec![Diagnostic::error(
+                "native provider declarations lost selected-plan alignment",
+            )]);
+        }
+        let selected_provider_provenance = execution.selected_provider_provenance.iter()
+            .zip(&native_sources.declarations)
+            .map(|(retained, declarations)| {
+                if retained.plan != declarations.plan {
+                    return Err(vec![Diagnostic::error(
+                        "native provider declarations substituted a selected plan",
+                    )]);
+                }
+                Ok(terminal_psi_to_abstract_operations::provider_admission::CompilerIntrinsicPlanProvenance {
+                    plan: &retained.plan,
+                    row_executions: &retained.row_compiler_intrinsic_executions,
+                    semantic_schema: &retained.plan.schema,
+                    row_numeric_realizations: &declarations.row_numeric_realizations,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let (
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
@@ -63,24 +84,22 @@ impl CheckedCompilation {
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
                 selected_provider_plans: &execution.selected_provider_plan_facts,
-                selected_provider_provenance: execution.selected_provider_provenance.iter().map(|retained| {
-                    terminal_psi_to_abstract_operations::provider_admission::CompilerIntrinsicPlanProvenance {
-                        plan: &retained.plan, row_executions: &retained.row_compiler_intrinsic_executions,
-                        semantic_schema: &retained.plan.schema,
-                    }
-                }).collect(),
-                calling_applications: providers.calling_applications(exported_calling_applications)
+                selected_provider_provenance,
+                calling_applications: providers
+                    .calling_applications(exported_calling_applications)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             },
             native_target: execution.selected_native_target(),
             program_entry: execution.selected_program_entry.as_ref().map(|entry| {
                 terminal_psi_to_abstract_operations::NativeProgramEntrySettlement::new(
                     entry.source_signature(),
-                    entry.calling_plans().map(|plans| (
-                        &plans.semantic_calling_application,
-                        &plans.physical_calling_application,
-                        &plans.storage_entry,
-                    )),
+                    entry.calling_plans().map(|plans| {
+                        (
+                            &plans.semantic_calling_application,
+                            &plans.physical_calling_application,
+                            &plans.storage_entry,
+                        )
+                    }),
                 )
             }),
             application: self.build_admission().native_application_metadata(
@@ -92,7 +111,11 @@ impl CheckedCompilation {
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
-            callback_placements: execution.callback_placements.iter().map(|placement| placement.native.clone()).collect(),
+            callback_placements: execution
+                .callback_placements
+                .iter()
+                .map(|placement| placement.native.clone())
+                .collect(),
             x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
         })
     }
