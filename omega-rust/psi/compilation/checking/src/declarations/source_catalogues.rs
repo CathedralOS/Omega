@@ -22,8 +22,9 @@ pub struct SourceCatalogueBinding<'request> {
 
 #[derive(Default)]
 pub struct SourceCatalogueAdmission<'request> {
-    /// Confined source-role review of this exact library package only.
-    pub discover_package: Option<PackageKeyIdentity>,
+    /// Explicit library suppliers in the invocation's confined Product review.
+    /// Application roots and Build-only dependencies are never nominees.
+    pub discover_packages: &'request [PackageKeyIdentity],
     pub bindings: &'request [SourceCatalogueBinding<'request>],
 }
 
@@ -35,7 +36,7 @@ pub fn prepare_source_catalogues(
     if trace {
         eprintln!(
             "SOURCE_CATALOGUES discover={:?} accepted={}",
-            admission.discover_package,
+            admission.discover_packages,
             admission.bindings.len()
         );
     }
@@ -119,7 +120,7 @@ pub fn prepare_source_catalogues(
                 typed.symbols.display_path(owner, "::")
             );
         }
-        let (issuer, accepted_schema) = if admission.discover_package == Some(package) {
+        let (issuer, accepted_schema) = if admission.discover_packages.contains(&package) {
             (BoundaryCatalogueIssuer::Proposed, [0; 32])
         } else {
             let mut bindings = admission.bindings.iter().filter(|binding| {

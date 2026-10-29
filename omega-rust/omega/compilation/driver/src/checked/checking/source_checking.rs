@@ -72,6 +72,9 @@ pub(crate) fn check_product_source(
             })
         })
         .collect::<Vec<_>>();
+    let catalogue_nominees = package_inputs
+        .map(PackageCompilationInputs::semantic_role_discovery_packages)
+        .unwrap_or_default();
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
@@ -92,12 +95,7 @@ pub(crate) fn check_product_source(
             None => validation::source_completion::SourceCompletionAdmission::None,
         },
         catalogues: validation::source_catalogues::SourceCatalogueAdmission {
-            discover_package: package_inputs
-                .filter(|inputs| {
-                    inputs.semantic_role_discovery()
-                        && inputs.root_role() == package_compilation::BuildDeclarationKind::Package
-                })
-                .map(PackageCompilationInputs::root),
+            discover_packages: &catalogue_nominees,
             bindings: &catalogue_bindings,
         },
         opaque_properties: &opaque_properties,

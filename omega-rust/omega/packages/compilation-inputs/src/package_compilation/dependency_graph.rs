@@ -109,6 +109,25 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
+    /// Exact library suppliers whose immutable source roles may be nominated
+    /// during this consumer's preliminary review. Discovery checks the whole
+    /// Product closure, including dependency services referenced by an app.
+    /// The app's own declarations and Build-only dependencies are not library
+    /// nominees. This roster grants neither accepted roles nor execution.
+    pub fn semantic_role_discovery_packages(&self) -> Vec<PackageKeyIdentity> {
+        if !self.semantic_role_discovery() {
+            return Vec::new();
+        }
+        self.dependency_closure()
+            .packages()
+            .iter()
+            .copied()
+            .filter(|package| {
+                *package != self.root() || self.root_role() == BuildDeclarationKind::Package
+            })
+            .collect()
+    }
+
     /// Direct aliases in one root execution scope. Build aliases never fall
     /// back to Product aliases, including during the final request join.
     pub fn direct_dependencies(
