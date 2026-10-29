@@ -39,25 +39,6 @@ impl<'program> StructuralJudge<'program> {
         Some(resolving)
     }
 
-    /// Completed-query reuse must not omit mutable dependency collection.
-    pub(super) fn has_resolution_dependency_collector(&self) -> bool {
-        if self.returned_field_trace.is_some() {
-            return true;
-        }
-        let mut previous = self.active_application.as_deref();
-        while let Some(active) = previous {
-            if active.context.returned_field_trace.is_some()
-                // resolving_application clears this edge in every saved context.
-                // Refuse an unfamiliar nested context rather than omit its effects.
-                || active.context.active_application.is_some()
-            {
-                return true;
-            }
-            previous = active.previous.as_deref();
-        }
-        false
-    }
-
     fn same_resolution_context(&self, other: &Self) -> bool {
         // Each active frame keeps these immutable owners alive. Pointer
         // equality therefore identifies the same premises/storage epoch, not

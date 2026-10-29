@@ -18,8 +18,6 @@ use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
-mod completed_queries;
-
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
 /// A noninteger predicate has not entered numeric projection. A selected
@@ -96,26 +94,17 @@ pub(super) struct PreparedIntegerPremises<'program> {
     goal_work: std::sync::Mutex<Option<IntegerObservations<'program>>>,
 }
 
-/// One completed goal-first formation; consumers share these premises read-only.
-/// A denial remains a separate Engine clone owned by that individual consumer.
-struct FormedIntegerPredicate<'program> {
-    observations: IntegerObservations<'program>,
-    comparison: Comparison,
-    admitted: Vec<Comparison>,
-}
-
 type PreparedIntegerPremisesCacheKey = (usize, usize, usize, usize, bool, bool);
 
 #[derive(Default)]
-pub(super) struct IntegerQueryCache<'program> {
-    completed_goal: Option<completed_queries::CompletedIntegerQuery<'program>>,
+pub(super) struct PreparedIntegerPremisesCache<'program> {
     entries: Vec<(
         PreparedIntegerPremisesCacheKey,
         Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
     )>,
 }
 
-impl<'program> IntegerQueryCache<'program> {
+impl<'program> PreparedIntegerPremisesCache<'program> {
     fn get(
         &mut self,
         state: PreparedIntegerPremisesCacheKey,
@@ -583,12 +572,9 @@ impl<'program> StructuralJudge<'program> {
                         judgment
                     };
                 }
-                if let Some(formed) = self.integer_predicate_observations(&predicate) {
-                    let FormedIntegerPredicate {
-                        observations,
-                        comparison,
-                        admitted,
-                    } = formed.as_ref();
+                if let Some((observations, comparison, admitted)) =
+                    self.integer_predicate_observations(&predicate)
+                {
                     let queries = observations.engine.lower_bound_queries();
                     let direct =
                         IntegerObservations::judge_comparison(&queries, comparison.clone());
@@ -596,8 +582,8 @@ impl<'program> StructuralJudge<'program> {
                         return direct;
                     }
                     if let Some(complement) = comparison.0.complement() {
-                        let mut comparisons = admitted.clone();
-                        comparisons.push((complement, comparison.1.clone(), comparison.2.clone()));
+                        let mut comparisons = admitted;
+                        comparisons.push((complement, comparison.1, comparison.2));
                         let mut engine = observations.engine.clone();
                         if engine.integer_comparisons_unsatisfiable(comparisons) {
                             return StructuralJudgment::Proven;
@@ -834,7 +820,9 @@ impl<'program> StructuralJudge<'program> {
         } else {
             (None, StructuralJudgment::Unknown)
         };
-        let Some(formed) = self.integer_predicate_observations(&greater) else {
+        let Some((observations, (_, left_poly, right_poly), admitted_premises)) =
+            self.integer_predicate_observations(&greater)
+        else {
             if matches!(greater_eq_judgment, StructuralJudgment::Unknown) {
                 let resolved =
                     resolved_greater.unwrap_or_else(|| self.resolve_at(greater.clone(), 1));
@@ -853,9 +841,6 @@ impl<'program> StructuralJudge<'program> {
             }
             return None;
         };
-        let observations = &formed.observations;
-        let (_, left_poly, right_poly) = &formed.comparison;
-        let admitted_premises = &formed.admitted;
         let denial_holds = |complement: BinaryOperator| {
             if admitted_premises.is_empty() && !observations.engine.has_opaque_terms() {
                 return false;
@@ -872,14 +857,14 @@ impl<'program> StructuralJudge<'program> {
         if IntegerObservations::comparison_holds(
             &queries,
             BinaryOperator::Greater,
-            left_poly,
-            right_poly,
+            &left_poly,
+            &right_poly,
         ) || (matches!(greater_eq_judgment, StructuralJudgment::Unknown)
             && !IntegerObservations::comparison_holds(
                 &queries,
                 BinaryOperator::LessOrEqual,
-                left_poly,
-                right_poly,
+                &left_poly,
+                &right_poly,
             )
             && denial_holds(BinaryOperator::LessOrEqual))
         {
@@ -888,15 +873,15 @@ impl<'program> StructuralJudge<'program> {
             || IntegerObservations::comparison_holds(
                 &queries,
                 BinaryOperator::GreaterOrEqual,
-                left_poly,
-                right_poly,
+                &left_poly,
+                &right_poly,
             )
             || (matches!(ge_eq_judgment, StructuralJudgment::Unknown)
                 && !IntegerObservations::comparison_holds(
                     &queries,
                     BinaryOperator::Less,
-                    left_poly,
-                    right_poly,
+                    &left_poly,
+                    &right_poly,
                 )
                 && denial_holds(BinaryOperator::Less))
         {
@@ -1374,7 +1359,7 @@ impl<'program> StructuralJudge<'program> {
                 self.case_facts_only,
             )
         };
-        if let Ok(mut cache) = self.integer_query_cache.lock()
+        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
             && let Some(cached) = cache.get(state)
         {
             phase_profile::count("05.num.prove.2a_prep.hit", 1);
@@ -1382,7 +1367,7 @@ impl<'program> StructuralJudge<'program> {
         }
         phase_profile::count("05.num.prove.2a_prep.miss", 1);
         let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
-        if let Ok(mut cache) = self.integer_query_cache.lock() {
+        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());
         }
         prepared
@@ -1431,12 +1416,13 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn proves_observed_integer_predicate(&self, predicate: &StructuralTerm) -> bool {
-        let Some(formed) = self.integer_predicate_observations(predicate) else {
+        let Some((observations, (operator, left, right), _)) =
+            self.integer_predicate_observations(predicate)
+        else {
             return false;
         };
-        let queries = formed.observations.engine.lower_bound_queries();
-        let (operator, left, right) = &formed.comparison;
-        IntegerObservations::comparison_holds(&queries, *operator, left, right)
+        let queries = observations.engine.lower_bound_queries();
+        IntegerObservations::comparison_holds(&queries, operator, &left, &right)
     }
 
     /// Keep one goal-first projection and admission route for positive evidence
@@ -1444,43 +1430,10 @@ impl<'program> StructuralJudge<'program> {
     fn integer_predicate_observations(
         &self,
         predicate: &StructuralTerm,
-    ) -> Option<std::sync::Arc<FormedIntegerPredicate<'program>>> {
+    ) -> Option<(IntegerObservations<'_>, Comparison, Vec<Comparison>)> {
         if !self.runtime_body_values || self.case_facts_only {
             return None;
         }
-        let context = completed_queries::IntegerQueryContext::capture(self);
-        if let Some(context) = &context {
-            if let Ok(cache) = self.integer_query_cache.lock()
-                && let Some(answer) = cache
-                    .completed_goal
-                    .as_ref()
-                    .and_then(|entry| entry.lookup(context, predicate))
-            {
-                phase_profile::count("05.num.goal_first.hit", 1);
-                return answer;
-            }
-            phase_profile::count("05.num.goal_first.miss", 1);
-        }
-        // No cache lock or in-progress answer survives recursive formation.
-        let answer = self
-            .form_integer_predicate_observations(predicate)
-            .map(std::sync::Arc::new);
-        if let Some(context) = context
-            && let Ok(mut cache) = self.integer_query_cache.lock()
-        {
-            cache.completed_goal = Some(completed_queries::CompletedIntegerQuery::new(
-                context,
-                predicate.clone(),
-                answer.clone(),
-            ));
-        }
-        answer
-    }
-
-    fn form_integer_predicate_observations(
-        &self,
-        predicate: &StructuralTerm,
-    ) -> Option<FormedIntegerPredicate<'program>> {
         let mut observations = IntegerObservations {
             engine: Engine::for_explicit_bindings(self.program),
             atoms: Vec::new(),
@@ -1508,11 +1461,7 @@ impl<'program> StructuralJudge<'program> {
             })
             .map(|(comparison, _)| comparison)
             .collect();
-        Some(FormedIntegerPredicate {
-            observations,
-            comparison,
-            admitted,
-        })
+        Some((observations, comparison, admitted))
     }
 
     fn observed_integer_premises(

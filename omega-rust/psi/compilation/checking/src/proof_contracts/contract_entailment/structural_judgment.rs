@@ -541,7 +541,8 @@ pub(super) struct StructuralJudge<'program> {
     /// site (per-leaf clones all share the same cell).
     frame_resolver:
         Arc<std::sync::OnceLock<Option<crate::machine_calls::calls::CallFrameResolver<'program>>>>,
-    integer_query_cache: Arc<std::sync::Mutex<integer_predicates::IntegerQueryCache<'program>>>,
+    prepared_integer_premises_cache:
+        Arc<std::sync::Mutex<integer_predicates::PreparedIntegerPremisesCache<'program>>>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -583,7 +584,7 @@ impl Clone for StructuralJudge<'_> {
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
             frame_resolver: Arc::clone(&self.frame_resolver),
-            integer_query_cache: Arc::clone(&self.integer_query_cache),
+            prepared_integer_premises_cache: Arc::clone(&self.prepared_integer_premises_cache),
         }
     }
 }
@@ -1026,8 +1027,8 @@ impl<'program> StructuralJudge<'program> {
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
             disequalities: Arc::new(Vec::new()),
             frame_resolver: Arc::new(std::sync::OnceLock::new()),
-            integer_query_cache: Arc::new(std::sync::Mutex::new(
-                integer_predicates::IntegerQueryCache::default(),
+            prepared_integer_premises_cache: Arc::new(std::sync::Mutex::new(
+                integer_predicates::PreparedIntegerPremisesCache::default(),
             )),
             case_facts: Arc::new(Vec::new()),
             case_substitutions: Arc::new(Vec::new()),
