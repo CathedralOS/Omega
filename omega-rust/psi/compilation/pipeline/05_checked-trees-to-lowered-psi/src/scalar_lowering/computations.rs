@@ -863,11 +863,12 @@ impl<'a> Expansion<'a> {
                             },
                         )?
                     } else {
-                        let application = self.scalar_applications.expression(expression).ok_or(
-                            LoweringError::Unsupported(
+                        let application = self
+                            .scalar_applications
+                            .expression_in(expression, self.machine)
+                            .ok_or(LoweringError::Unsupported(
                                 "retained scalar constant has no portable application",
-                            ),
-                        )?;
+                            ))?;
                         let scalar_type = self.scalar_applications.scalar_type(application).ok_or(
                             LoweringError::Unsupported(
                                 "retained scalar application lost its result carrier",

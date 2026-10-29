@@ -25,6 +25,9 @@ use arena::Handle;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
+mod evaluation_entries;
+pub use evaluation_entries::{ConstantEvaluationEntry, create_evaluation_entry};
+
 /// Which authored node a recipe keeps symbolic.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum RetainedConstantPosition {
@@ -66,6 +69,25 @@ pub struct RetainedConstantRecipe {
 pub struct ConstantExpressionContext {
     pub owner: SymbolHandle,
     pub result_type: TypeReferenceHandle,
+    /// Produced by executable preparation, never inherited by a specialization.
+    pub evaluation_entry: SymbolHandle,
+    pub evaluation_expression: ExpressionHandle,
+}
+
+impl ConstantExpressionContext {
+    pub const fn new(owner: SymbolHandle, result_type: TypeReferenceHandle) -> Self {
+        Self {
+            owner,
+            result_type,
+            evaluation_entry: SymbolHandle::invalid(),
+            evaluation_expression: ExpressionHandle::invalid(),
+        }
+    }
+
+    /// Entry materialization does not create another lexical use of a root.
+    pub fn same_scope(&self, other: &Self) -> bool {
+        self.owner == other.owner && self.result_type == other.result_type
+    }
 }
 
 pub type ConstantRecipeHandle = Handle<RetainedConstantRecipe>;
@@ -442,7 +464,7 @@ pub fn retain_constant_recipes(
                 .constant_expression_contexts
                 .span_or_empty(recipe.contexts)
             {
-                if !contexts.contains(context) {
+                if !contexts.iter().any(|retained| retained.same_scope(context)) {
                     contexts.push(*context);
                 }
             }
@@ -467,10 +489,12 @@ mod tests {
         let first = ConstantExpressionContext {
             owner: SymbolHandle::from_parts(23, 1),
             result_type: TypeReferenceHandle::from_parts(31, 1),
+            ..Default::default()
         };
         let second = ConstantExpressionContext {
             owner: SymbolHandle::from_parts(29, 1),
             result_type: TypeReferenceHandle::from_parts(37, 1),
+            ..Default::default()
         };
         let rebound = ConstantExpressionContext {
             result_type: TypeReferenceHandle::from_parts(41, 1),

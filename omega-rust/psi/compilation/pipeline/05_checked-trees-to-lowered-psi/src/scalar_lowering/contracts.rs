@@ -723,11 +723,12 @@ impl ScalarContractTerms<'_> {
     ) -> Result<ScalarTerm, LoweringError> {
         if let CheckedScalarExpression::ConstantApplication {
             recipe,
+            owner,
             primitive_type,
         } = expression
         {
             let scalar_type = crate::emission::scalar_types::integer_scalar_type(*primitive_type)?;
-            if let Some(application) = self.views.scalar_applications.recipe(*recipe) {
+            if let Some(application) = self.views.scalar_applications.recipe_in(*recipe, *owner) {
                 if self.views.scalar_applications.scalar_type(application) != Some(scalar_type) {
                     return Err(LoweringError::Unsupported(
                         "contract constant application carrier disagrees with its declaration",

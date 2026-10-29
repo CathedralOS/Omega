@@ -4,6 +4,7 @@
 //! an open typed program. Retained tables are preparation evidence, not a
 //! second program representation or permission to skip checking.
 
+mod constant_entries;
 mod data_applications;
 mod default_domain_zero;
 mod deferred_constants;
@@ -261,6 +262,7 @@ pub fn prepare_typed_trees(
         for owner in result_owners {
             changed_roots.include(owner);
         }
+        materialized += constant_entries::materialize(&mut program)?;
         // Bind only complete producer outputs: newly cloned bodies and callers
         // whose calls or inferred results changed. The ordinary fixed point
         // settles targets and dependent temporaries before binding reads them;

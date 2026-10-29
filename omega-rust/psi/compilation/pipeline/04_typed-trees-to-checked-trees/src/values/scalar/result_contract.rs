@@ -458,6 +458,7 @@ impl ContractPredicates<'_, '_> {
                 return Some((
                     CheckedScalarExpression::ConstantApplication {
                         recipe,
+                        owner: self.owner,
                         primitive_type: primitive,
                     },
                     reference,

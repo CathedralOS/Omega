@@ -165,8 +165,13 @@ pub(super) fn prepare(
         } else {
             Subject::Module
         };
-        let left =
-            recipe_observation(checked, applications, obligation.recipe()).map_err(&failure)?;
+        let left = recipe_observation(
+            checked,
+            applications,
+            obligation.recipe(),
+            obligation.recipe_owner(),
+        )
+        .map_err(&failure)?;
         use checked_trees::ConstantRecipeRequirement;
         let (operator, right) = match obligation.requirement() {
             ConstantRecipeRequirement::ExceedsBound(bound) => (
@@ -183,7 +188,8 @@ pub(super) fn prepare(
             ),
             ConstantRecipeRequirement::EqualRecipe(other) => (
                 PredicateOperator::Equal,
-                recipe_observation(checked, applications, *other).map_err(failure)?,
+                recipe_observation(checked, applications, *other, obligation.recipe_owner())
+                    .map_err(failure)?,
             ),
         };
         ranges.push(Condition {
@@ -212,12 +218,13 @@ fn recipe_observation(
     checked: &CheckedTrees,
     applications: &mut SourceScalarApplications,
     recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+    owner: SymbolHandle,
 ) -> Result<Observation, String> {
     if let Some(value) = checked.typed.closed_constant_recipe_value(recipe) {
         return Ok(Observation::Literal(value.clone()));
     }
     applications
-        .retain_recipe(checked, recipe)
+        .retain_recipe_in(checked, recipe, owner)
         .map(Observation::Application)
         .map_err(|error| error.to_string())
 }
@@ -228,6 +235,15 @@ fn subject(
     owner: SymbolHandle,
 ) -> Result<Subject, String> {
     let program = &checked.typed;
+    if let Some(entry) = program
+        .machine_by_own_or_state_symbol(owner)
+        .and_then(|machine| program.constant_evaluation_entry(machine.symbol))
+    {
+        return applications
+            .retain_entry(checked, entry)
+            .map(Subject::Application)
+            .map_err(|error| error.to_string());
+    }
     if let Some((_, machine)) =
         checked
             .facts
@@ -271,34 +287,32 @@ fn observation(
     if let Some(value) = program.closed_integer_expression_value_in(expression, owner) {
         return Ok(Observation::Literal(value));
     }
-    if let Some(application) = applications.expression(expression) {
-        return Ok(Observation::Application(application));
-    }
     if matches!(program.expression_table.expression(expression),
         ExpressionNode::Call(call) if call.layout_query.is_some())
     {
         return applications
-            .retain_expression(checked, expression)
+            .retain_expression_in(checked, expression, owner)
             .map(Observation::Application)
             .map_err(|error| error.to_string());
     }
-    let entry = program
+    if let Some(entry) = program
         .machine_by_own_or_state_symbol(owner)
-        .ok_or_else(|| "scalar observation has no exact evaluation owner".to_owned())?;
-    let declaration = program
-        .const_declaration_for_evaluation_entry(entry.symbol)
-        .ok_or_else(|| {
-            "scalar observation does not belong to a complete constant entry".to_owned()
-        })?;
-    let application = applications
-        .retain_expression(checked, declaration.materialized_initializer)
-        .map_err(|error| error.to_string())?;
-    Ok(Observation::EntryCall {
-        application,
-        entry: entry.symbol,
-        owner,
-        expression,
-    })
+        .and_then(|machine| program.constant_evaluation_entry(machine.symbol))
+    {
+        let application = applications
+            .retain_entry(checked, entry)
+            .map_err(|error| error.to_string())?;
+        return Ok(Observation::EntryCall {
+            application,
+            entry: entry.entry,
+            owner,
+            expression,
+        });
+    }
+    applications
+        .retain_expression_in(checked, expression, owner)
+        .map(Observation::Application)
+        .map_err(|error| error.to_string())
 }
 
 /// Borrow the emitter's associations before source coordinates are discarded.
@@ -494,9 +508,10 @@ mod tests {
         }
         let checked = CheckedTrees::with_roots(typed, facts);
         let mut applications = SourceScalarApplications::default();
-        applications
-            .recipes
-            .extend([(first, first_application), (second, second_application)]);
+        applications.recipes.extend([
+            (first, SymbolHandle::invalid(), first_application),
+            (second, SymbolHandle::invalid(), second_application),
+        ]);
         let prepared = prepare(&checked, &mut applications).unwrap();
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let conditions = publish(

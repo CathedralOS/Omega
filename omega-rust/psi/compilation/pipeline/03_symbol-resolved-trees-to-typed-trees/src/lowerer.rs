@@ -564,6 +564,7 @@ impl Lowerer<'_> {
                 authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
                 materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),
                 evaluation_entry: Default::default(),
+                evaluation_expression: Default::default(),
             });
         Ok(())
     }

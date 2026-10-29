@@ -39,6 +39,7 @@ use crate::const_evaluation::const_generic_expressions::{
     scalar_probe_destination, value::ScalarValue,
 };
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+use typed_trees::constant_recipes::create_evaluation_entry;
 
 pub(crate) struct CheckedInitializers {
     typed: TypedTrees,
@@ -1212,54 +1213,8 @@ pub(super) fn append_probe(
     expression: ExpressionHandle,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
-    let machine = create_probe(program, owner, name, expression, destination);
+    let machine = create_evaluation_entry(program, owner, name, expression, destination);
     let symbol = machine.symbol;
     program.push_machine(machine);
     symbol
-}
-
-/// Construct an evaluation entry without granting runtime-body status. The
-/// caller owns whether it belongs to a private evaluation forest or remains
-/// detached with a source declaration awaiting exact scalar checking.
-pub(super) fn create_probe(
-    program: &mut TypedTrees,
-    owner: symbols::SymbolHandle,
-    name: String,
-    expression: ExpressionHandle,
-    destination: typed_trees::types::TypeReferenceHandle,
-) -> Machine {
-    let symbol =
-        program
-            .symbols
-            .insert_generated_root_from(owner, symbols::SymbolKind::Machine, &name);
-    let children = program
-        .symbols
-        .insert_generated_children(symbol, [(symbols::SymbolKind::State, name.as_str())]);
-    let target = program.statement_table.insert_transition_target(
-        typed_trees::statement::TransitionTargetNode::Value(expression),
-    );
-    let mut state = State {
-        symbol: children.start(),
-        name: typed_trees::name::Identifier::generated(name.clone()),
-        return_type: destination,
-        ..Default::default()
-    };
-    let source_span = program.expression_table.source_span(expression);
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        typed_trees::statement::StatementNode::Transition(
-            typed_trees::statement::TableTransition {
-                target,
-                source_span,
-                ..Default::default()
-            },
-        ),
-    );
-    let mut machine = Machine {
-        symbol,
-        name: typed_trees::name::Identifier::generated(name),
-        ..Default::default()
-    };
-    program.push_machine_state(&mut machine, state);
-    machine
 }

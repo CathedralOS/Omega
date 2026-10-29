@@ -59,7 +59,8 @@ pub(crate) fn retain_deferred_constant_recipes(
                 && typed
                     .constant_expression_contexts
                     .span_or_empty(recipe.contexts)
-                    .contains(&context)
+                    .iter()
+                    .any(|retained| retained.same_scope(&context))
         }) {
             continue;
         }

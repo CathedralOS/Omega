@@ -56,7 +56,7 @@ pub(super) fn analyze(
     // Authored helper bodies keep their ordinary universal range checking.
     let constant_entry = walk.machine.is_some_and(|machine| {
         walk.program
-            .const_declaration_for_evaluation_entry(machine.symbol)
+            .constant_evaluation_entry(machine.symbol)
             .is_some()
     });
     if call.layout_query.is_some()

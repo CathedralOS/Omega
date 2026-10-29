@@ -29,6 +29,9 @@ pub enum ConstantRecipeRequirement {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantRecipeObligation {
     owner: symbols::SymbolHandle,
+    /// Lexical scope of the operands, separate from the caller that owes the
+    /// relation. Invalid for genuinely unscoped type-position recipes.
+    recipe_owner: symbols::SymbolHandle,
     recipe: ConstantRecipeHandle,
     requirement: ConstantRecipeRequirement,
     source_span: source::SourceSpan,
@@ -49,6 +52,7 @@ impl ConstantRecipeObligation {
     ) -> Self {
         Self {
             owner,
+            recipe_owner: symbols::SymbolHandle::invalid(),
             recipe,
             requirement,
             source_span,
@@ -59,6 +63,15 @@ impl ConstantRecipeObligation {
 
     pub fn owner(&self) -> symbols::SymbolHandle {
         self.owner
+    }
+
+    pub fn with_recipe_owner(mut self, owner: symbols::SymbolHandle) -> Self {
+        self.recipe_owner = owner;
+        self
+    }
+
+    pub fn recipe_owner(&self) -> symbols::SymbolHandle {
+        self.recipe_owner
     }
     pub fn description(&self) -> &str {
         &self.description

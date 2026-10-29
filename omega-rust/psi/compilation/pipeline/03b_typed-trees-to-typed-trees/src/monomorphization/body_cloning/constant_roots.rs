@@ -65,6 +65,7 @@ fn copy_contexts(
                 Some(ConstantExpressionContext {
                     owner: *owner,
                     result_type: context.result_type,
+                    ..Default::default()
                 })
             })
             .collect::<Vec<_>>();
@@ -124,6 +125,7 @@ fn copy_contexts(
                     context.result_type,
                     symbols,
                 ),
+                ..Default::default()
             })
             .collect::<Vec<_>>();
         let recipe = RetainedConstantRecipe {
@@ -189,6 +191,7 @@ mod tests {
             .insert_many([owner, foreign].map(|owner| ConstantExpressionContext {
                 owner,
                 result_type: carrier,
+                ..Default::default()
             }));
         let invocations = program.expression_table.insert_expression_handles([leaf]);
         retain_constant_recipes(

@@ -267,6 +267,7 @@ mod root_plan_tests {
                     position: IntegerRootPosition::Contract(ConstantExpressionContext {
                         owner: symbols::SymbolHandle::from_parts(owner, 1),
                         result_type: TypeReferenceHandle::from_parts(31, 1),
+                        ..Default::default()
                     }),
                 })
                 .into(),

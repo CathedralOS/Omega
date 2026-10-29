@@ -97,6 +97,7 @@ pub enum CheckedScalarExpression {
     /// value owner supplies a closed atom; publication cannot erase this leaf.
     ConstantApplication {
         recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+        owner: symbols::SymbolHandle,
         primitive_type: typed_trees::types::PrimitiveType,
     },
     /// Exact u64 live count at one storage projection, never its capacity.

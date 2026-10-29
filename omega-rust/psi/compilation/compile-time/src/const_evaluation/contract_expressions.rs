@@ -92,7 +92,7 @@ pub(super) fn roots(
         }
         candidates.push((
             expression,
-            ConstantExpressionContext { owner, result_type },
+            ConstantExpressionContext::new(owner, result_type),
             has_recipe || has_observation,
             invocations,
         ));
@@ -214,6 +214,197 @@ mod tests {
         )
         .expect("resolve");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    #[test]
+    fn constant_entries_do_not_revive_excluded_contract_owners() {
+        let mut program = typed(
+            "data Cell { code: u64; tag: u64; }
+             machine extent() -> u64 { size_of<Cell>() }
+             machine unrelated() requires size_of<Cell>() + align_of<Cell>() == 24 {}",
+        );
+        let extent = program
+            .realized_machine_named("extent")
+            .expect("extent")
+            .symbol;
+        super::super::constant_recipes::retain_deferred_constant_recipes(
+            &mut program,
+            &crate::build_time_evaluation::EvaluationDomain::all(),
+        )
+        .expect("retain contract jobs");
+        assert!(!program.constant_recipes.is_empty());
+        let projected = crate::build_time_evaluation::EvaluationDomain::all()
+            .demanded_roots(&program, &[extent])
+            .execution_program(&program);
+        assert!(projected.realized_machine_named("unrelated").is_none());
+        assert!(
+            !projected.constant_recipes.is_empty(),
+            "projection preserves backing arenas"
+        );
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            projected,
+            &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
+        )
+        .expect("prepare the exact execution projection");
+        for (_, recipe) in prepared.constant_recipes.iter() {
+            for context in prepared
+                .constant_expression_contexts
+                .span_or_empty(recipe.contexts)
+            {
+                assert!(
+                    !context.evaluation_entry.is_valid(),
+                    "excluded scope must not gain an executable entry"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn constant_entries_keep_callee_recipe_scope_separate_from_caller() {
+        let mut program = typed(
+            "data Cell { code: u64; tag: u64; }
+             machine require_size(value: u64)
+             requires value >= size_of<Cell>() + align_of<Cell>() {}
+             machine program() { require_size(24); }",
+        );
+        let callee = program
+            .realized_machine_named("require_size")
+            .expect("callee")
+            .symbol;
+        let caller = program
+            .realized_machine_named("program")
+            .expect("caller")
+            .symbol;
+        super::super::constant_recipes::retain_deferred_constant_recipes(
+            &mut program,
+            &crate::build_time_evaluation::EvaluationDomain::all(),
+        )
+        .expect("retain requirement root");
+        let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+            program,
+            &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
+        )
+        .expect("prepare entries");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            prepared,
+            preparation,
+            &typed_trees_to_checked_trees::CheckingRequest::new(),
+        )
+        .expect("retain conditional call requirement");
+        let obligations = checked
+            .facts
+            .constant_recipe_obligations
+            .iter()
+            .filter(|obligation| obligation.owner() == caller)
+            .collect::<Vec<_>>();
+        assert!(
+            !obligations.is_empty(),
+            "caller must retain the deferred requirement"
+        );
+        for obligation in obligations {
+            assert_eq!(obligation.recipe_owner(), callee);
+        }
+    }
+
+    #[test]
+    fn constant_entries_leave_open_requirement_signatures_descriptive() {
+        let mut program =
+            typed("trait Geometry { machine check<T>() requires size_of<T>() >= 8; }");
+        super::super::constant_recipes::retain_deferred_constant_recipes(
+            &mut program,
+            &crate::build_time_evaluation::EvaluationDomain::all(),
+        )
+        .expect("retain generic requirement root");
+        assert!(!program.constant_recipes.is_empty());
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            program,
+            &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
+        )
+        .expect("prepare descriptions without executing open signatures");
+        for (_, recipe) in prepared.constant_recipes.iter() {
+            for context in prepared
+                .constant_expression_contexts
+                .span_or_empty(recipe.contexts)
+            {
+                assert!(!context.evaluation_entry.is_valid());
+            }
+        }
+    }
+
+    #[test]
+    fn constant_entries_are_checked_per_specialized_scope() {
+        let mut program = typed(
+            "data Cell { code: u64; tag: u64; }
+             machine require_geometry<T>()
+             requires size_of<Cell>() + align_of<Cell>() == 24 {}
+             machine program() {
+                 require_geometry<u8>();
+                 require_geometry<u64>();
+             }",
+        );
+        let template = program
+            .realized_machine_named("require_geometry")
+            .expect("template")
+            .symbol;
+        super::super::constant_recipes::retain_deferred_constant_recipes(
+            &mut program,
+            &crate::build_time_evaluation::EvaluationDomain::all(),
+        )
+        .expect("retain complete roots");
+        let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+            program,
+            &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
+        )
+        .expect("prepare complete entries");
+        let contexts = prepared
+            .constant_recipes
+            .iter()
+            .flat_map(|(_, recipe)| {
+                prepared
+                    .constant_expression_contexts
+                    .span_or_empty(recipe.contexts)
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        assert!(
+            contexts
+                .iter()
+                .filter(|context| context.owner == template)
+                .all(|context| !context.evaluation_entry.is_valid())
+        );
+        let entries = contexts
+            .iter()
+            .filter(|context| context.evaluation_entry.is_valid())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            entries.len(),
+            2,
+            "both concrete applications own complete entries"
+        );
+        assert_ne!(entries[0].evaluation_entry, entries[1].evaluation_entry);
+        assert_ne!(
+            entries[0].evaluation_expression,
+            entries[1].evaluation_expression
+        );
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            prepared,
+            preparation,
+            &typed_trees_to_checked_trees::CheckingRequest::new(),
+        )
+        .expect("ordinary checking must accept the conditional entries");
+        for context in entries {
+            let entry = checked
+                .typed
+                .constant_evaluation_entry(context.evaluation_entry)
+                .expect("checked entry retains exact source ownership");
+            assert_eq!(entry.owner, context.owner);
+            assert_eq!(entry.evaluation_expression, context.evaluation_expression);
+            assert_ne!(entry.source_expression, entry.evaluation_expression);
+        }
+        assert!(
+            !checked.facts.integer_range_obligations.is_empty(),
+            "checking must retain addition formation, not assume it succeeded"
+        );
     }
 
     #[test]

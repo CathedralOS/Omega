@@ -9,19 +9,27 @@ use crate::lowering_error::LoweringError;
 use checked_trees::{CheckedScalarComputationKind, CheckedTrees};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
 use terminal_psi::{LayoutMeasurement, ScalarApplication, ScalarApplications};
-use typed_trees::constant_recipes::{ConstantRecipeHandle, RetainedConstantPosition};
+use typed_trees::constant_recipes::{
+    ConstantEvaluationEntry, ConstantRecipeHandle, RetainedConstantPosition,
+};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityId;
 
 mod conditions;
 mod proof_scope;
+#[cfg(test)]
+mod tests;
 
 /// Invocation-local construction storage, shared by all bodies in one closure.
 #[derive(Default)]
 pub(crate) struct SourceScalarApplications {
     rows: Vec<Application>,
-    expressions: Vec<(ExpressionHandle, ScalarApplicationId)>,
-    recipes: Vec<(ConstantRecipeHandle, ScalarApplicationId)>,
+    expressions: Vec<(ExpressionHandle, symbols::SymbolHandle, ScalarApplicationId)>,
+    recipes: Vec<(
+        ConstantRecipeHandle,
+        symbols::SymbolHandle,
+        ScalarApplicationId,
+    )>,
     conditions: Vec<conditions::Condition>,
 }
 
@@ -72,12 +80,35 @@ impl SourceScalarApplications {
             if !retained {
                 continue;
             }
-            applications.retain_recipe(checked, recipe)?;
+            if matches!(
+                declaration.position,
+                RetainedConstantPosition::ContractExpression(_)
+            ) {
+                for context in checked
+                    .typed
+                    .constant_expression_contexts
+                    .span_or_empty(declaration.contexts)
+                {
+                    if checked
+                        .typed
+                        .machine_by_symbol(context.evaluation_entry)
+                        .is_some()
+                    {
+                        applications.retain_recipe_in(checked, recipe, context.owner)?;
+                    }
+                }
+            } else {
+                applications.retain_recipe_in(checked, recipe, symbols::SymbolHandle::invalid())?;
+            }
         }
         for (_, computation) in checked.facts.values.scalar_computations.nodes.iter() {
             if let CheckedScalarComputationKind::RetainedConstant { expression } = computation.kind
                 && references.expressions.contains(&expression)
                 && checked.landed_integer_constant(expression).is_none()
+                && !applications
+                    .expressions
+                    .iter()
+                    .any(|(source, _, _)| *source == expression)
             {
                 applications.retain_expression(checked, expression)?;
             }
@@ -86,12 +117,18 @@ impl SourceScalarApplications {
         Ok(applications)
     }
 
-    fn retain_recipe(
+    fn retain_recipe_in(
         &mut self,
         checked: &CheckedTrees,
         recipe: ConstantRecipeHandle,
+        owner: symbols::SymbolHandle,
     ) -> Result<ScalarApplicationId, LoweringError> {
-        if let Some(application) = self.recipe(recipe) {
+        if let Some(application) = self
+            .recipes
+            .iter()
+            .find(|(source, scope, _)| *source == recipe && *scope == owner)
+            .map(|(_, _, application)| *application)
+        {
             return Ok(application);
         }
         if !checked.typed.constant_recipes.is_valid(recipe) {
@@ -108,14 +145,14 @@ impl SourceScalarApplications {
             | RetainedConstantPosition::ContractExpression(expression)
             | RetainedConstantPosition::ConstApplication {
                 root: expression, ..
-            } => self.retain_expression(checked, expression)?,
+            } => self.retain_expression_in(checked, expression, owner)?,
             RetainedConstantPosition::None => {
                 return Err(LoweringError::Unsupported(
                     "pending constant catalog contains an absent source position",
                 ));
             }
         };
-        self.recipes.push((recipe, application));
+        self.recipes.push((recipe, owner, application));
         Ok(application)
     }
 
@@ -172,7 +209,25 @@ impl SourceScalarApplications {
         checked: &CheckedTrees,
         expression: ExpressionHandle,
     ) -> Result<ScalarApplicationId, LoweringError> {
-        if let Some(application) = self.expression(expression) {
+        self.retain_expression_in(checked, expression, symbols::SymbolHandle::invalid())
+    }
+
+    fn retain_expression_in(
+        &mut self,
+        checked: &CheckedTrees,
+        expression: ExpressionHandle,
+        owner: symbols::SymbolHandle,
+    ) -> Result<ScalarApplicationId, LoweringError> {
+        if let Some(application) = self.expression_in(expression, owner) {
+            return Ok(application);
+        }
+        if let Some(entry) = checked
+            .typed
+            .constant_evaluation_for_expression(expression, owner)
+            .map_err(LoweringError::Unsupported)?
+        {
+            let application = self.retain_entry(checked, entry)?;
+            self.expressions.push((expression, owner, application));
             return Ok(application);
         }
         let (definition, scalar_type) = if let ExpressionNode::Call(call) =
@@ -185,7 +240,10 @@ impl SourceScalarApplications {
                 .terminal_unit_effects
                 .layout_observations
                 .iter()
-                .filter(|observation| observation.expression == expression);
+                .filter(|observation| {
+                    observation.expression == expression
+                        && (!owner.is_valid() || observation.owner == owner)
+                });
             let observation = observations.next().ok_or(LoweringError::Unsupported(
                 "pending layout query has no checked structural subject",
             ))?;
@@ -216,44 +274,30 @@ impl SourceScalarApplications {
                 )?,
             )
         } else {
-            let declarations = checked.typed.const_declarations();
-            let declaration = declarations
-                .iter()
-                .find(|declaration| declaration.materialized_initializer == expression)
-                .ok_or(LoweringError::Unsupported(
-                    "pending constant expression has no retained complete evaluation entry",
-                ))?;
-            if !checked
-                .typed
-                .tables
-                .machines
-                .is_valid(declaration.evaluation_entry)
-            {
-                return Err(LoweringError::Unsupported(
-                    "pending constant declaration lost its complete evaluation entry",
-                ));
-            }
-            let primitive = checked
-                .typed
-                .primitive_type_reference(declaration.declared_type)
-                .ok_or(LoweringError::Unsupported(
-                    "pending constant entry has no concrete scalar result carrier",
-                ))?;
-            (
-                Definition::Evaluation {
-                    entry: checked
-                        .typed
-                        .tables
-                        .machines
-                        .get(declaration.evaluation_entry)
-                        .symbol,
-                },
-                crate::emission::scalar_types::terminal_scalar_type(primitive)?,
-            )
+            return Err(LoweringError::Unsupported(
+                "pending constant expression has no retained complete evaluation entry",
+            ));
         };
         let application = self.insert(definition, scalar_type)?;
-        self.expressions.push((expression, application));
+        self.expressions.push((expression, owner, application));
         Ok(application)
+    }
+
+    fn retain_entry(
+        &mut self,
+        checked: &CheckedTrees,
+        entry: ConstantEvaluationEntry,
+    ) -> Result<ScalarApplicationId, LoweringError> {
+        let primitive = checked
+            .typed
+            .primitive_type_reference(entry.result_type)
+            .ok_or(LoweringError::Unsupported(
+                "constant entry has no exact scalar result carrier",
+            ))?;
+        self.insert(
+            Definition::Evaluation { entry: entry.entry },
+            crate::emission::scalar_types::terminal_scalar_type(primitive)?,
+        )
     }
 
     fn insert(
@@ -292,17 +336,63 @@ impl SourceScalarApplications {
     }
 
     pub(crate) fn expression(&self, expression: ExpressionHandle) -> Option<ScalarApplicationId> {
+        let mut matching = self
+            .expressions
+            .iter()
+            .filter(|(source, _, _)| *source == expression)
+            .map(|(_, _, application)| *application);
+        let first = matching.next()?;
+        matching.all(|other| other == first).then_some(first)
+    }
+
+    pub(crate) fn expression_in(
+        &self,
+        expression: ExpressionHandle,
+        owner: symbols::SymbolHandle,
+    ) -> Option<ScalarApplicationId> {
         self.expressions
             .iter()
-            .find(|(source, _)| *source == expression)
-            .map(|(_, application)| *application)
+            .find(|(source, scope, _)| *source == expression && *scope == owner)
+            .map(|(_, _, application)| *application)
+            .or_else(|| {
+                self.expressions
+                    .iter()
+                    .find(|(source, scope, _)| *source == expression && !scope.is_valid())
+                    .map(|(_, _, application)| *application)
+            })
+            .or_else(|| {
+                (!owner.is_valid())
+                    .then(|| self.expression(expression))
+                    .flatten()
+            })
     }
 
     pub(crate) fn recipe(&self, recipe: ConstantRecipeHandle) -> Option<ScalarApplicationId> {
+        let mut matching = self
+            .recipes
+            .iter()
+            .filter(|(source, _, _)| *source == recipe)
+            .map(|(_, _, application)| *application);
+        let first = matching.next()?;
+        matching.all(|other| other == first).then_some(first)
+    }
+
+    pub(crate) fn recipe_in(
+        &self,
+        recipe: ConstantRecipeHandle,
+        owner: symbols::SymbolHandle,
+    ) -> Option<ScalarApplicationId> {
         self.recipes
             .iter()
-            .find(|(source, _)| *source == recipe)
-            .map(|(_, application)| *application)
+            .find(|(source, scope, _)| *source == recipe && *scope == owner)
+            .map(|(_, _, application)| *application)
+            .or_else(|| {
+                self.recipes
+                    .iter()
+                    .find(|(source, scope, _)| *source == recipe && !scope.is_valid())
+                    .map(|(_, _, application)| *application)
+            })
+            .or_else(|| (!owner.is_valid()).then(|| self.recipe(recipe)).flatten())
     }
 
     pub(crate) fn scalar_type(&self, application: ScalarApplicationId) -> Option<ScalarType> {
