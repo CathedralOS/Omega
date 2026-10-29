@@ -1,0 +1,1938 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "6aa5c6541ab60e18874aab82d72602b272c199b5",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19747
+  },
+  "subset": true,
+  "filter": "fail/borrow/qualified_return_does_not_restore_other_writer,fail/borrows/captured_reference_membership_ignores_later_selector,fail/borrows/conditional_reference_replacement_false_first_stale_index,fail/borrows/copied_descriptor_operand_retains_consumed_backing,fail/borrows/named_jump_receiver_under_argument_loan,fail/borrows/nested_array_call_unrestored_field,fail/borrows/nested_parent_forwarding_overlapping_child,fail/borrows/owned_capture_replaced_reference_qualification,fail/borrows/projected_descriptor_retains_backing_loan,fail/borrows/qualified_match_loan_missing_arm,fail/borrows/returned_shared_reference_case_write,fail/borrows/routed_membership_reference_contract_replacement,fail/borrows/temporary_backing_loan_survives_reference_last_use,fail/borrows/whole_mut_receiver_read_under_live_local_loan,fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source,fail/calls/indexed_case_successor_unproved_bound,fail/calls/projected_call_domain_unproved,fail/calls/qualified_literal_return_invalid,fail/domains/capacity_specializations_disagree_in_one_owner,fail/domains/qualified_fixed_byte_array_captured_invalid_write,fail/domains/reference_return_literal_outside_domain,fail/domains/returned_fixed_array_utf8_split_invalidates,fail/domains/scalar_field_mutable_erasure_cannot_restore_membership,fail/domains/target_issuer_same_name_other_owner,fail/drops/temporary_cleanup_nested_owner_contract,fail/drops/temporary_cleanup_selected_operand,fail/drops/temporary_cleanup_unmet_prerequisite,fail/facts/borrowed_result_field_domains_call_result,fail/facts/borrowed_result_field_domains_const_name,fail/facts/borrowed_result_field_domains_field,fail/facts/borrowed_result_field_domains_local,fail/facts/borrowed_result_field_domains_match_join,fail/facts/borrowed_result_field_domains_other_machine,fail/facts/borrowed_result_field_domains_other_state,fail/facts/borrowed_result_field_domains_parameter,fail/facts/borrowed_result_field_domains_target_body,fail/facts/nested_machine_borrowed_result_call_result_rejected,fail/facts/nested_machine_borrowed_result_const_name_rejected,fail/facts/nested_machine_borrowed_result_field_rejected,fail/facts/nested_machine_borrowed_result_issuer_required_rejected,fail/facts/nested_machine_borrowed_result_local_backing_rejected,fail/facts/nested_machine_borrowed_result_local_rejected,fail/facts/nested_machine_borrowed_result_match_join_rejected,fail/facts/nested_machine_borrowed_result_other_machine_rejected,fail/facts/nested_machine_borrowed_result_other_state_rejected,fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected,fail/facts/nested_machine_borrowed_result_parameter_rejected,fail/facts/nested_machine_borrowed_result_replaced_descriptor_rejected,fail/facts/nested_machine_borrowed_result_target_body_rejected,fail/facts/nested_machine_borrowed_result_wrong_extent_rejected,fail/facts/nested_machine_borrowed_result_wrong_origin_rejected,fail/memory/indexed_resident_other_writer,fail/slices/call_endpoint_view_backing_write,fail/text/borrowed_byte_snapshot_missing_predicate,fail/text/borrowed_byte_snapshot_reseated_descriptor,fail/text/borrowed_byte_snapshot_unbounded,fail/text/bounded_carrier_growth_overflow_rejected,pass/borrow/runtime_write_only_utf8_field_exit,pass/borrows/nested_array_call_restores_memberships_exit,pass/borrows/nested_parent_forwarding_independent_object_exit,pass/borrows/owned_byte_value_call_exit,pass/borrows/qualified_byte_owner_shared_call_exit,pass/borrows/runtime_case_descriptor_retirement_exit,pass/borrows/runtime_released_loan_with_forwarded_view_exit,pass/borrows/runtime_retained_operand_descriptor_cleanup_exit,pass/borrows/runtime_returned_literal_window_exit,pass/build/uefi_suspended_context_service_exclusion,pass/domains/unit_membership_postcondition_exit,pass/facts/borrowed_result_field_domains_call_result,pass/facts/borrowed_result_field_domains_const_name,pass/facts/borrowed_result_field_domains_field,pass/facts/borrowed_result_field_domains_local,pass/facts/borrowed_result_field_domains_match_join,pass/facts/borrowed_result_field_domains_other_machine,pass/facts/borrowed_result_field_domains_other_state,pass/facts/borrowed_result_field_domains_parameter,pass/facts/borrowed_result_field_domains_target_body,pass/facts/nested_machine_borrowed_result_call_result_exit,pass/facts/nested_machine_borrowed_result_const_name_exit,pass/facts/nested_machine_borrowed_result_field_exit,pass/facts/nested_machine_borrowed_result_invalid_utf8,pass/facts/nested_machine_borrowed_result_local_exit,pass/facts/nested_machine_borrowed_result_match_join_exit,pass/facts/nested_machine_borrowed_result_other_machine_exit,pass/facts/nested_machine_borrowed_result_other_state_exit,pass/facts/nested_machine_borrowed_result_parameter_exit,pass/facts/nested_machine_borrowed_result_target_body_exit,pass/machines/private_completion_console_loop_exit,pass/machines/private_completion_console_loop_no_normal_exit,pass/machines/private_completion_console_value_exit,pass/machines/private_completion_nested_wildcard_no_normal_exit,pass/machines/private_completion_wildcard_no_normal_exit,pass/slices/byte_sequence_literal_tail_return_compile,pass/slices/runtime_literal_view_return_exit,pass/slices/runtime_nested_view_descriptor_reseat_exit,pass/text/byte_content_store_continuation_exit,pass/text/owned_record_byte_field_read_exit,pass/text/runtime_borrowed_byte_snapshot_exit,pass/text/runtime_bounded_carrier_alias_concat_exit,pass/text/runtime_bounded_carrier_concat_exit,pass/text/runtime_bounded_carrier_copy_exit,pass/text/runtime_bounded_carrier_length_exit,pass/text/runtime_bounded_carrier_normal_status_exit,pass/text/runtime_chained_string_append_exit,pass/text/runtime_mutable_string_parameter_concat_write_line,pass/text/runtime_string_concat_two_fields_exit,pass/text/runtime_text_builder,pass/text/state_parameter_byte_replacement_exit,pass/text/text_concat_assign,run/calls/call_result_ascii_prefix_literal_exit,run/calls/call_result_ascii_prefix_literal_mismatch,run/calls/indexed_case_successor_exit,run/calls/nested_case_terminal_process_exit,run/calls/projected_call_domain_exit,run/calls/projected_call_domain_plain_exit,run/calls/qualified_ancestor_reference_forwarding_exit,run/calls/qualified_literal_return_exit,run/calls/returned_reference_case_write_then_view_exit,run/contained_health_loop_command_branch,run/domains/qualified_explicit_byte_buffer_append_exit,run/domains/qualified_explicit_byte_buffer_field_source_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 121,
+    "by_status": {
+      "checked": 63,
+      "rejected": 58
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 1,
+    "lost_success_fixtures": [
+      "pass/slices/runtime_nested_view_descriptor_reseat_exit"
+    ],
+    "pinned_off_target": 1,
+    "pinned_off_target_fixtures": [
+      "pass/slices/runtime_nested_view_descriptor_reseat_exit"
+    ],
+    "by_verdict": {
+      "improved": 2,
+      "moved": 4,
+      "regressed": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 121,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "a92f16431042",
+      "commits_behind": 668
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.21,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 3.64,
+      "load1_end": 5.94
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrow/runtime_write_only_utf8_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1095,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/nested_array_call_restores_memberships_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1082,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/nested_parent_forwarding_independent_object_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 961,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/owned_byte_value_call_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5816,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/qualified_byte_owner_shared_call_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5796,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_case_descriptor_retirement_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1092,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_released_loan_with_forwarded_view_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4359,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_retained_operand_descriptor_cleanup_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1006,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_returned_literal_window_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1871,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-runtime.window": "unrequested",
+        "terminal-inspections": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/build/uefi_suspended_context_service_exclusion",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6422,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "uefi_x86_64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/domains/unit_membership_postcondition_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4352,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_call_result",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 953,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_const_name",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 993,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_field",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 983,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_local",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 954,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_match_join",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 957,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_other_machine",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 959,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_other_state",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 995,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_parameter",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 967,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/borrowed_result_field_domains_target_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 988,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1004,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 989,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1223,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_invalid_utf8",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1195,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 961,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1008,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 998,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1005,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 991,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_borrowed_result_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1017,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/machines/private_completion_console_loop_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4308,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/machines/private_completion_console_loop_no_normal_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4303,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/machines/private_completion_console_value_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4461,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/machines/private_completion_nested_wildcard_no_normal_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4470,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/machines/private_completion_wildcard_no_normal_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4291,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/byte_sequence_literal_tail_return_compile",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 935,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/runtime_literal_view_return_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4296,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/slices/runtime_nested_view_descriptor_reseat_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 714,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "checked direct-reborrow suspension requires exactly one parent entry constraint"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/byte_content_store_continuation_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4314,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/owned_record_byte_field_read_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4406,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_borrowed_byte_snapshot_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4392,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_bounded_carrier_alias_concat_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4373,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_bounded_carrier_concat_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4381,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_bounded_carrier_copy_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4394,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_bounded_carrier_length_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4386,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_bounded_carrier_normal_status_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4408,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_chained_string_append_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4347,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_mutable_string_parameter_concat_write_line",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4371,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_string_concat_two_fields_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4366,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/runtime_text_builder",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4356,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/state_parameter_byte_replacement_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4471,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/text/text_concat_assign",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 935,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrow/qualified_return_does_not_restore_other_writer",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 512,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from corrupt at statement 1: entries[1] requires [u8; N]::Utf8",
+        "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/captured_reference_membership_ignores_later_selector",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 514,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from stale: held.value in u64::Positive in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/conditional_reference_replacement_false_first_stale_index",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 527,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `holder.value` is within length 2 in exercise::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/copied_descriptor_operand_retains_consumed_backing",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 720,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "a completed copied argument retains backing storage consumed by a later operand"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/named_jump_receiver_under_argument_loan",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 507,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `observe` receives `main.count` as both mutable and read-only",
+        "state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`",
+        "state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/nested_array_call_unrestored_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 736,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from Builder::clear at statement 5: cell.parts[0].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/nested_parent_forwarding_overlapping_child",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 723,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `observe` receives `counter.count` as mutable while its mutable receiver reads `counter.count`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/owned_capture_replaced_reference_qualification",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 563,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call observe from main: held.view[0] in Cell::Issued in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/projected_descriptor_retains_backing_loan",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 560,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 2 mutates `cells[1].value` while local borrow `envelope` is still active (borrowed at statement 1; its last use is at statement 4)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/qualified_match_loan_missing_arm",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 196,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "match arms produce incompatible values"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/returned_shared_reference_case_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 356,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `fill` state `entry` assignment requires mutable source access through every reference crossed by its destination"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/routed_membership_reference_contract_replacement",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 570,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from replace at statement 1: ticket in Ticket::Issued"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/temporary_backing_loan_survives_reference_last_use",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 566,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 3 reads `counter[0]` while local borrow `__hoist_1` is still active (borrowed at statement 1)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/borrows/whole_mut_receiver_read_under_live_local_loan",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 558,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `peek_through` receives `main` while local borrow `other_view` is still active (borrowed at statement 0; its last use is at statement 2)",
+        "state `peek_count` receives `main` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 512,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/indexed_case_successor_unproved_bound",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 712,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove index `index` is within unknown slice length of `cells` in read::entry"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/projected_call_domain_unproved",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 739,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from update at statement 1: cell.storage in [u8; N]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/calls/qualified_literal_return_invalid",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 724,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from label, state entry, at statement 1: \"\\xc3\\xa9\" requires [u8]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/capacity_specializations_disagree_in_one_owner",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 226,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "domain `[u8; N]::Utf8` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/qualified_fixed_byte_array_captured_invalid_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 996,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"write_selected\", reason: \"primitive write lost its exact logical byte preservation judgment\", gap: None })"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/reference_return_literal_outside_domain",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 532,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from Main::pick, state pick, at statement 2: \"\\xff\" requires [u8]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/returned_fixed_array_utf8_split_invalidates",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 573,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call length from corrupt: owner in [u8; N]::Utf8 (invalidated by prior mutation of owner[0]; owner is part of [u8; N]::Utf8) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/scalar_field_mutable_erasure_cannot_restore_membership",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 344,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/domains/target_issuer_same_name_other_owner",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 576,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove scalar result domain for return from Other::issue at statement 0: i64::Classified"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/temporary_cleanup_nested_owner_contract",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 556,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Outer.token does not establish Token::drop clause `token.value == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/temporary_cleanup_selected_operand",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 582,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Token does not establish Token::drop clause `token.value == 7`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/drops/temporary_cleanup_unmet_prerequisite",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 574,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: missing Token.ready == true required by Token::drop clause `token.ready`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_call_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 788,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_const_name",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 788,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_field",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 769,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_local",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 727,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_match_join",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 751,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_other_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 752,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_other_state",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 858,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_parameter",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 816,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/borrowed_result_field_domains_target_body",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 788,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from choose, state entry, at statement 3: cells[index].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[0].storage requires [u8; N]::Ascii",
+        "cannot prove default-domain field requirement for return from choose at statement 3: table.cells[1].storage requires [u8; N]::Ascii"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 788,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 793,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 848,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_issuer_required_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 783,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from forged: bytes in [u8]::Issued in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_local_backing_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 727,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `escaped` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 786,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 738,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 786,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 738,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_overwritten_contents_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 775,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from stale: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 751,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_replaced_descriptor_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 817,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from stale: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 793,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call finish from qualify: bytes in [u8]::Utf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_wrong_extent_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 752,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from wrong, state entry, at statement 2: buffer.storage requires [u8]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_borrowed_result_wrong_origin_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 712,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove default-domain field requirement for return from wrong, state entry, at statement 2: second.storage[..second.used] requires [u8]::Utf8"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/memory/indexed_resident_other_writer",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 591,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call read from exercise: third.resident in package:5241f800ab85a4899bba5e5acfc452107c9b86c4df2d883b69a9cacb7b5e39d4:product::Resident<type:named(name(nominal\\(package-owner\\(32:5241f800ab85a4899bba5e5acfc452107c9b86c4df2d883b69a9cacb7b5e39d4\\)\\,path\\(First\\)\\)))> (invalidated by prior mutation of third.resident.value; third.resident is part of Resident) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/slices/call_endpoint_view_backing_write",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 571,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "statement 3 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/text/borrowed_byte_snapshot_missing_predicate",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 599,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call snapshot from copy: text in [u8]::SnapshotUtf8 in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/text/borrowed_byte_snapshot_reseated_descriptor",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 579,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call snapshot from copy: other.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `observed.len <= 16`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/text/borrowed_byte_snapshot_unbounded",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 528,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/text/bounded_carrier_growth_overflow_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5078,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call append from main: [111, 109, 101, 103, 97].len <= 16 - buffer.used (needs fact `bytes.len <= 16 - buffer.used` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/call_result_ascii_prefix_literal_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 1024,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/call_result_ascii_prefix_literal_mismatch",
+      "tier": "run",
+      "status": "checked",
+      "millis": 993,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/indexed_case_successor_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 935,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/nested_case_terminal_process_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 4441,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/projected_call_domain_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 937,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/projected_call_domain_plain_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 996,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/qualified_ancestor_reference_forwarding_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 1137,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/qualified_literal_return_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 1133,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/calls/returned_reference_case_write_then_view_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 1014,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/contained_health_loop_command_branch",
+      "tier": "run",
+      "status": "checked",
+      "millis": 4348,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/domains/qualified_explicit_byte_buffer_append_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 964,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "run/domains/qualified_explicit_byte_buffer_field_source_exit",
+      "tier": "run",
+      "status": "checked",
+      "millis": 954,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/borrows/runtime_case_descriptor_retirement_exit",
+      "verdict": "improved",
+      "reasons": [
+        "status incomplete -> checked",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/borrows/runtime_case_descriptor_retirement_exit",
+        "tier": "pass",
+        "status": "incomplete",
+        "millis": 2309,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "`inspect_window` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `inspect_window::entry`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/borrows/runtime_case_descriptor_retirement_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1092,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/borrows/runtime_returned_literal_window_exit",
+      "verdict": "moved",
+      "reasons": [
+        "facts moved"
+      ],
+      "before": {
+        "fixture": "pass/borrows/runtime_returned_literal_window_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 885,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "77f91fb3da34"
+      },
+      "after": {
+        "fixture": "pass/borrows/runtime_returned_literal_window_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1871,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64",
+          "terminal-runtime.window": "unrequested",
+          "terminal-inspections": "match"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/slices/runtime_nested_view_descriptor_reseat_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> rejected",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/slices/runtime_nested_view_descriptor_reseat_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 1990,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "pass/slices/runtime_nested_view_descriptor_reseat_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 714,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "checked direct-reborrow suspension requires exactly one parent entry constraint"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/borrow/qualified_return_does_not_restore_other_writer",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/borrow/qualified_return_does_not_restore_other_writer",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1591,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove default-domain field requirement for return from corrupt at statement 1: entries[0] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from corrupt at statement 1: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from restore_inline at statement 2: bundle.raw requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[0] requires [u8; N]::Ascii",
+          "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[0] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Ascii",
+          "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Utf8"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/borrow/qualified_return_does_not_restore_other_writer",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 512,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove default-domain field requirement for return from corrupt at statement 1: entries[1] requires [u8; N]::Utf8",
+          "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Ascii",
+          "cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Utf8"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/borrows/temporary_backing_loan_survives_reference_last_use",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/borrows/temporary_backing_loan_survives_reference_last_use",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1339,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 3 reads `counter[0]` while local borrow `__hoist_15` is still active (borrowed at statement 1)"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/borrows/temporary_backing_loan_survives_reference_last_use",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 566,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "statement 3 reads `counter[0]` while local borrow `__hoist_1` is still active (borrowed at statement 1)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/domains/qualified_fixed_byte_array_captured_invalid_write",
+      "verdict": "improved",
+      "reasons": [
+        "expected fragment now satisfied",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/domains/qualified_fixed_byte_array_captured_invalid_write",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1519,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 7"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/domains/qualified_fixed_byte_array_captured_invalid_write",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 996,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"write_selected\", reason: \"primitive write lost its exact logical byte preservation judgment\", gap: None })"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/memory/indexed_resident_other_writer",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/memory/indexed_resident_other_writer",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2074,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call read from exercise: third.resident in package:6b4e094de06049335bbd0eddc3c1a41bd3ae2ed636471c76a0ead25bcb57efd3:product::Resident<type:named(name(nominal\\(package-owner\\(32:6b4e094de06049335bbd0eddc3c1a41bd3ae2ed636471c76a0ead25bcb57efd3\\)\\,path\\(First\\)\\)))> (invalidated by prior mutation of third.resident.value; third.resident is part of Resident) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "a92f16431042"
+      },
+      "after": {
+        "fixture": "fail/memory/indexed_resident_other_writer",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 591,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call read from exercise: third.resident in package:5241f800ab85a4899bba5e5acfc452107c9b86c4df2d883b69a9cacb7b5e39d4:product::Resident<type:named(name(nominal\\(package-owner\\(32:5241f800ab85a4899bba5e5acfc452107c9b86c4df2d883b69a9cacb7b5e39d4\\)\\,path\\(First\\)\\)))> (invalidated by prior mutation of third.resident.value; third.resident is part of Resident) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

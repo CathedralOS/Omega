@@ -1,0 +1,108 @@
+{
+  "schema": "omega-qualification-summary-v1",
+  "state": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-qualification.json",
+  "revision": 23,
+  "base": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+  "qualification_revision": "0a3bfe1081a57b1d363c6e18769dc58a03a6126e",
+  "running": null,
+  "source_ref": "refs/qualification/17c4b3c0373c457766ce698d/0a3bfe1081a57b1d363c6e18769dc58a03a6126e",
+  "latest_run": {
+    "id": "2e00c8f68b4d474980b0b4293ee3ba29",
+    "check": "rust",
+    "revision": "6aa5c6541ab60e18874aab82d72602b272c199b5",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 30.01916341599997,
+    "receipt": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-qualification.records/2e00c8f68b4d474980b0b4293ee3ba29.json",
+      "sha256": "d4422c042305a46fe33dcbba54453952fab4ee3d7923d150329c1a0ec1079318"
+    }
+  },
+  "latest_assessment": {
+    "candidate": "6aa5c6541ab60e18874aab82d72602b272c199b5",
+    "base": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+    "checks": [
+      {
+        "check": "source",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "a1e45b3995af40399e64d76d101d1991",
+        "observed_revision": "6aa5c6541ab60e18874aab82d72602b272c199b5"
+      },
+      {
+        "check": "both",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "469f062727254325b30613711303d3cf",
+        "observed_revision": "6aa5c6541ab60e18874aab82d72602b272c199b5"
+      },
+      {
+        "check": "applications",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "73cc467e76d24caabdb1a462d8a62d20",
+        "observed_revision": "6aa5c6541ab60e18874aab82d72602b272c199b5"
+      },
+      {
+        "check": "rust",
+        "action": "reuse",
+        "reasons": [
+          "reviewed_inputs_unchanged"
+        ],
+        "evidence": "2e00c8f68b4d474980b0b4293ee3ba29",
+        "observed_revision": "6aa5c6541ab60e18874aab82d72602b272c199b5"
+      }
+    ],
+    "canonical_context": [
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/language/machines.md",
+        "implementation": [
+          "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/replay/summary_interface.rs"
+        ],
+        "passages": [
+          "Named machines may nest to arbitrary depth. There is one machine declaration\nkind: the source `state` declaration is retired, not an alias or a second kind\nof machine. Nesting restricts name visibility; it does not allocate data,\ncapture runtime bindings, retain an enclosing activation, or impose a stack\nlayout. Every nested declaration has its own signature, contract and identity."
+        ],
+        "reason": "Existing nested-machine declaration model; all runtime arguments remain explicit and lexical names are not storage.",
+        "revision": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+        "blob": "015ab6af7833d8e17151c6193cc9a532c84bf05b"
+      },
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/language/domains.md",
+        "implementation": [
+          "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/replay/summary_interface.rs"
+        ],
+        "passages": [
+          "Domains classify values within the carrier's ordinary validity. A domain cannot\nlicense observing a value outside its default domain. Establishing membership\nrequires all carrier, predicate, and provenance obligations; the target\nqualification cannot be assumed to prove itself."
+        ],
+        "reason": "Preserve all existing carrier/predicate/provenance obligations and runtime reference rosters. The repair changes descriptor effect reconstruction, not domain establishment.",
+        "revision": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+        "blob": "cb67c562cab4ff0c6a509d8c255ea8d219092951"
+      },
+      {
+        "classification": "missing_implementation",
+        "contract": "wiki/spec/terminal-psi/fact_validity.md",
+        "implementation": [
+          "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/replay/summary_interface.rs"
+        ],
+        "passages": [
+          "A premise must dominate its use and remain valid on every path to it. Acyclic\nlogical ordering alone does not establish availability.\n\n- An acyclic join may introduce a merge token only from matching valid tokens on\n  every predecessor. A fact from one arm does not survive the join."
+        ],
+        "reason": "A type/effect proof of an empty exported descriptor interface may close recursive summaries. Unknown-content writes, unresolved actual coordinates and boundary invalidation still retire pointer-content observations; ordinary payload stores alone do not create that effect.",
+        "revision": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+        "blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+      }
+    ],
+    "incoming_paths": [],
+    "duration_seconds": 2.845124208,
+    "reused": 4,
+    "invalidated": 0
+  }
+}

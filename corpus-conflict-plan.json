@@ -1,0 +1,22 @@
+{
+  "main": "8727e9f2bcbc6ff2e194290d7689e1823b14a75f",
+  "candidate": "63207f733b70df6141c133c723a874e6809be9f9",
+  "head": "6aa5c6541ab60e18874aab82d72602b272c199b5",
+  "exit": 0,
+  "stdout": "ac51ff797cb4732ab711622da49984b4dcf2322d\n",
+  "stderr": "",
+  "decisions": [
+    {
+      "file": "tests/omega/corpus_outcomes.txt",
+      "new_rows": 33,
+      "upstream_priority_overlaps": 30,
+      "base": "d9aa8b3333d1dd64e9a1acb8d57be39c6d7a3f1a"
+    },
+    {
+      "file": "tests/omega/corpus_both_macos_arm64.txt",
+      "new_rows": 35,
+      "upstream_priority_overlaps": 5,
+      "base": "d9aa8b3333d1dd64e9a1acb8d57be39c6d7a3f1a"
+    }
+  ]
+}

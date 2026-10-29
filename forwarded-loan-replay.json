@@ -1,0 +1,59 @@
+{
+  "command": [
+    "python3",
+    "tools/corpus_gate.py",
+    "--runner",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/product-front/build/product-front/producer-integrated-789c/corpus_runner",
+    "--both",
+    "--filter",
+    "pass/borrows/runtime_released_loan_with_forwarded_view_exit",
+    "--json",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/product-front/build/product-front/neighbor-replay-e12c/corpus.json"
+  ],
+  "exit": 3,
+  "elapsed_seconds": 8.140198042,
+  "producer_revision": "e12c034a9fc810e7f371bf6513d35a6923eedd59",
+  "executables": {
+    "omega": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/product-front/build/product-front/producer-integrated-789c/omega",
+      "sha256": "3c8ceb14773e48665bb278fc97662da7d3480eadc2636830ff79c2e493c69c6e",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "corpus_runner": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/product-front/build/product-front/producer-integrated-789c/corpus_runner",
+      "sha256": "3827c813c28b462929199055467ac64b0c8a2851feadf1cf20af182870a7f491",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "library_tree": "4f8404b32de4854145d455f4804584d3b38e78aa",
+  "fixture_sha256": "33cfa494c27d98ee85a1d497427dee90ab3f96f61e6bc51128917af06cdf9c4c",
+  "oracle_native_exit": "70",
+  "current_checkout": "443a4cccb3ef0922fd15b9a2cbbefd25b8b7c4ec",
+  "published_main_comparison": {
+    "revision": "d9aa8b3333d1dd64e9a1acb8d57be39c6d7a3f1a",
+    "same_consumer_trees": {
+      "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees": "5c477c17c9c5bca052788f096c6ee2eb64675ada",
+      "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi": "db8ea3a47dc32b7570a7c9575ee09171abbabfe7",
+      "omega-rust/psi/compilation/representations/terminal-psi": "cb233d57e2ad34efc4454911171b525970b4a4c7",
+      "source/library": "4f8404b32de4854145d455f4804584d3b38e78aa"
+    },
+    "whole_compiler_tree_equal": false,
+    "limitation": "Actual execution is retained e12c, not an exact d9aa build. e12c-to-d9aa has 31 compiler-file differences outside the listed identical checking/lowering/Terminal owners except validation activation-storage changes. Do not relabel this observation as exact-d9aa execution."
+  },
+  "observation": {
+    "status": "rejected",
+    "facts": {
+      "interpreter": "unchecked"
+    },
+    "diagnostics": [
+      "target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(30)), operation: Some(OperationId(216)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }"
+    ],
+    "actual_engine_exits": null
+  }
+}

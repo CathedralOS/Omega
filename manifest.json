@@ -1,0 +1,24 @@
+{
+  "source_head": "63207f733b70df6141c133c723a874e6809be9f9",
+  "producer_revision": "90c334a2c0953d2886f7c047597982674b4d6f11",
+  "target": "macos_arm64",
+  "files": {
+    "source-90c334a2c095.bundle": "664b2aefba1fe07511123478c352f4879347287646f46227679a038eafe0df0d",
+    "cli-producer.json": "009027312ae302a352b94a47fe24c6a3c8c72e539cca5a09a812c8c174085bea",
+    "corpus-producer.json": "d23de6783c222fc256fae31cc16793e3e95c96dffd5666f366efbd3818b54fbf",
+    "source-observations.json": "348e6fa033c79a341cf9a1de0be1802757f4553a641cb13ccf5f36044913f096",
+    "runtime-observations.json": "970c03012c05fb5061a6865ca6dafc0bed967b02bb49c99aedf7edfd643b63ff",
+    "application-observations.json": "3c2ddb90549e41bad8bbec136e3b64994cc791126be5e89d3bdde4683ab54260",
+    "semantic-review.json": "dda4969fa552c4454fd7d50659f17e1ca0564fd9b67fbbb1b20181ca33fdebf3",
+    "qualification-summary.json": "f7ec641c29385881fa09486e32a33ae9e15f4d7f91809b8b1754cba6991113c8",
+    "reseat-baseline.json": "f71f6cfb66f42f0e5977c4ec9cb759afa5751351ec303be984ee138ffdaba642",
+    "forwarded-loan-original-baseline.json": "1139573f95f9124f71b6c645a7535d637306e5906995ba565b2b9eb5083e8d38",
+    "forwarded-loan-replay.json": "067371608660f172de1c7c87e18c236608f1fe4735b7aa2f646c8d81bc44a6d1",
+    "forwarded-loan-observations.json": "929c2a2c340e8524605f7a76fcca57d62f4c12ae01361561104e97db80827c7c",
+    "corpus-conflict-check.txt": "a09c0b97bf157e80e9f517b4a811a7e4e4be20d8a130f32ae65943b42b9eef3b",
+    "corpus-conflict-plan.json": "57521954572a13ed17ca2c5cd380ec52bbafe6356802a00cf7ec96ccff95f379",
+    "rust-check.json": "6ff6d4629916dadb86e3293d4f2e59b6dec8a1a62426bacb4d51827f48b702fd",
+    "runtime-validator.py": "6104da9439f3780d52aefc938cd6d1df3eac86a0e39ab4eb15573688c3d0cf1f"
+  },
+  "note": "Engine observations retain their real producer; two baseline-unimplemented neighbors are not passes. Other-host execution is unverified. Full qualification receipts remain retained in the original worktree."
+}

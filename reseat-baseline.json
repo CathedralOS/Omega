@@ -1,0 +1,6 @@
+{
+  "producer": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+  "source_sha256": "b8260c3b44264e23bc5b38050c6bd4f80e1c9c74f835e48567064b48604a3128",
+  "review_reason": "review-failed",
+  "review_output": "package candidate checking failed: checked compilation failed for package `runtime_nested_view_descriptor_reseat_exit` with 1 diagnostic(s)\n  error: checked direct-reborrow suspension requires exactly one parent entry constraint\n"
+}

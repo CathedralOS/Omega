@@ -1,0 +1,6 @@
+{
+  "producer": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+  "source_sha256": "33cfa494c27d98ee85a1d497427dee90ab3f96f61e6bc51128917af06cdf9c4c",
+  "review_reason": "review-failed",
+  "review_output": "package candidate checking failed: checked compilation failed for package `runtime_released_loan_with_forwarded_view_exit` with 1 diagnostic(s)\n  error: state `snapshot` receives `counter` as both mutable and read-only\n"
+}

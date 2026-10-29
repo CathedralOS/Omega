@@ -1,0 +1,28 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--locked",
+    "--lib",
+    "-p",
+    "abstract-operations-to-target-operations",
+    "-p",
+    "target-operations-to-selected-instructions",
+    "-p",
+    "validation",
+    "-p",
+    "symbol-resolved-trees-to-typed-trees",
+    "-p",
+    "typed-trees-to-checked-trees",
+    "-p",
+    "checked-trees-to-lowered-psi",
+    "-p",
+    "checked-trees",
+    "-p",
+    "terminal-semantics",
+    "-p",
+    "terminal-interpreter"
+  ],
+  "exit": 0,
+  "elapsed_seconds": 0.661051375
+}

@@ -1,0 +1,110 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "443a4cccb3ef0922fd15b9a2cbbefd25b8b7c4ec",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 5231
+  },
+  "subset": true,
+  "filter": "pass/borrows/runtime_released_loan_with_forwarded_view_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 1,
+    "by_status": {
+      "rejected": 1
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 1,
+    "pinned_off_target_fixtures": [
+      "pass/borrows/runtime_released_loan_with_forwarded_view_exit"
+    ],
+    "by_verdict": {
+      "new": 1
+    }
+  },
+  "oracle_failures": [
+    "pass/borrows/runtime_released_loan_with_forwarded_view_exit: expected native 70, observed rejected {'interpreter': 'unchecked'}",
+    "pass/borrows/runtime_released_loan_with_forwarded_view_exit: expected interpreted 70, observed rejected {'interpreter': 'unchecked'}"
+  ],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 0,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": null
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 4.65,
+      "load1_end": 4.63
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrows/runtime_released_loan_with_forwarded_view_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5889,
+      "expected_satisfied": null,
+      "facts": {
+        "interpreter": "unchecked"
+      },
+      "diagnostics": [
+        "target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(30)), operation: Some(OperationId(216)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/borrows/runtime_released_loan_with_forwarded_view_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/borrows/runtime_released_loan_with_forwarded_view_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 5889,
+        "expected_satisfied": null,
+        "facts": {
+          "interpreter": "unchecked"
+        },
+        "diagnostics": [
+          "target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(30)), operation: Some(OperationId(216)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

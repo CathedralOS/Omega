@@ -1,0 +1,257 @@
+[
+  {
+    "source": "samples/cli/text/string_catalog/main.omg",
+    "sha256": "a1a2c2cc1648bd7b0ff24c8f778c5d8490e90ec9c372302dd6ffdc7d8ba9cdc7",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/text/string_catalog/main.omg"
+    ],
+    "expected_exit": 70,
+    "expected_payload": null,
+    "input": "",
+    "exit": 70,
+    "stdout": "string_catalog: bounded UTF-8 fields, concatenation, and equality guards\nPASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)\n[press Enter to close]\n",
+    "stderr": "native exit 70\ninterp exit: 70\n",
+    "elapsed_seconds": 7.248649166
+  },
+  {
+    "source": "samples/cli/basics/text_greeting/main.omg",
+    "sha256": "14b99a5d691c40e689c041ac08e87e11fd6307429dda2b00748d110e68c25efe",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/basics/text_greeting/main.omg"
+    ],
+    "expected_exit": 70,
+    "expected_payload": "Hello, Ada!",
+    "input": "",
+    "exit": 70,
+    "stdout": "text_greeting: builds Hello, Ada! in an explicit text buffer\nHello, Ada!\nPASS: the greeting matched Hello, Ada! exactly (exit 70)\n[press Enter to close]\n",
+    "stderr": "native exit 70\ninterp exit: 70\n",
+    "elapsed_seconds": 7.0392065
+  },
+  {
+    "source": "samples/cli/probes/bounded_concat/main.omg",
+    "sha256": "f3c18a0645500e259ff3538c207b89d3bc0ee1c416869092b7703b53a86fa669",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/probes/bounded_concat/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.738937917000001
+  },
+  {
+    "source": "samples/cli/systems/status_report/main.omg",
+    "sha256": "104d406ef716e9adb325c9f52bbf4c1dd82974705b065d1b9dd044b85c96a402",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/systems/status_report/main.omg"
+    ],
+    "expected_exit": 70,
+    "expected_payload": "ALERT",
+    "input": "",
+    "exit": 70,
+    "stdout": "status_report: builds an ALERT/ok status string in conditional arms\nALERT temp\nPASS: reading 95 built and verified the ALERT message (exit 70)\n[press Enter to close]\n",
+    "stderr": "native exit 70\ninterp exit: 70\n",
+    "elapsed_seconds": 6.982680708
+  },
+  {
+    "source": "samples/cli/games/dungeon_crawler_cli/main.omg",
+    "sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/games/dungeon_crawler_cli/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": "A bottomless dark room near the dungeon heart.",
+    "input": "",
+    "exit": 0,
+    "stdout": "dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore\n###########################\n#     Dungeon Crawler     #\n###########################\n\nA tiny generated crawl for compiler stress.\nType help if you need a command reminder.\n\n== Gate ==\nA bottomless dark room near the dungeon heart.\nThe room is quiet.\n[Paths] north\n[Commands] look | help | inv | char | use | fight | exit\n> the crawl has ended -- goodbye (exit 0)\n[press Enter to close]\n",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 5.891514792000002
+  },
+  {
+    "source": "samples/cli/games/dungeon_crawler_cli/main.omg",
+    "sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/games/dungeon_crawler_cli/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": "goodbye",
+    "input": "help\nexit\n\n",
+    "exit": 0,
+    "stdout": "dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore\n###########################\n#     Dungeon Crawler     #\n###########################\n\nA tiny generated crawl for compiler stress.\nType help if you need a command reminder.\n\n== Gate ==\nA bottomless dark room near the dungeon heart.\nThe room is quiet.\n[Paths] north\n[Commands] look | help | inv | char | use | fight | exit\n> [Paths] north\n[Commands] look | help | inv | char | use | fight | exit\n> the crawl has ended -- goodbye (exit 0)\n[press Enter to close]\n",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 5.898141875000004
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/local/main.omg",
+    "sha256": "89bec3d19d019426555debb689ca7ed7242881b47a4ccb38c7806da4c1bb9432",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/local/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.6771363750000035
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/field/main.omg",
+    "sha256": "0d124906248331b903925a5a1d523636fc5fc6ff67755505b04599df747a86c3",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/field/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.6013465420000017
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/parameter/main.omg",
+    "sha256": "d6c0d36aec38d2c4158dc442a2413d760c2472147958858991d73319e72ea092",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/parameter/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.6199361660000022
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/call_result/main.omg",
+    "sha256": "a8beb7298b6671a7f48730d5e284116cdcf659bca04ee9dd81da989bd507fcde",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/call_result/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.6209497920000047
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/match_join/main.omg",
+    "sha256": "44909c908f7f45b69d500ad3ad7365a28f59c0ab74002d866783854cff61e552",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/match_join/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.5589705419999973
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/const_name/main.omg",
+    "sha256": "3031f95133b92711eb16140c6ee779f52d9847120999ecb496da2e38f88bdfc0",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/const_name/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.656320457999996
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/other_state/main.omg",
+    "sha256": "0dd33cccc2be96d6dedccb617b8c878d28e8b00b1041bde0493fbf4cacac435a",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/other_state/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.580530834000001
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/other_machine/main.omg",
+    "sha256": "bea30aed3d9026292ea6feff99fab4b3f6b3e159feda14181715aed1323389e6",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/other_machine/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.736790291999995
+  },
+  {
+    "source": "samples/cli/facts/borrowed_result_field_domains/target_body/main.omg",
+    "sha256": "6521cc17decb2a032b5a25147dc54d56016c6a273b714b19c85842f3a7ae32b6",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/omega",
+      "run",
+      "--both",
+      "samples/cli/facts/borrowed_result_field_domains/target_body/main.omg"
+    ],
+    "expected_exit": 0,
+    "expected_payload": null,
+    "input": "",
+    "exit": 0,
+    "stdout": "",
+    "stderr": "native exit 0\ninterp exit: 0\n",
+    "elapsed_seconds": 3.665465042000008
+  }
+]

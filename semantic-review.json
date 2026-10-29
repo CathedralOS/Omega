@@ -1,0 +1,43 @@
+{
+  "schema": "independent-semantic-review-1",
+  "reviewer": "/root/terminal_policy_audit_resume",
+  "decision": "accept",
+  "candidate": "90c334a2c0953d2886f7c047597982674b4d6f11",
+  "review_base": "f0f55d29577c3964a5f2dae38bebc7de90fe8aac",
+  "original_base": "25647e44e4b9e86232598a6b829e90e794f3b2f8",
+  "integration_base": "d9aa8b3333d1dd64e9a1acb8d57be39c6d7a3f1a",
+  "scope": "Exact incremental summary_interface.rs repair, new nested-array positive and invalid fixture, and three Build application-name corrections; not a fresh review of all earlier PR580 changes.",
+  "canonical_context_fingerprint": "457b8a586697aaf1a7b2f490237be9a52d620ee85f4bce5becd9f62dbb0ee6d7",
+  "contracts_read": [
+    "wiki/spec/language/domains.md",
+    "wiki/spec/terminal-psi/fact_validity.md",
+    "wiki/spec/terminal-psi/loans.md"
+  ],
+  "findings": [],
+  "semantic_assessment": [
+    "The empty-interface fast path remains restricted to no structural return, no exported writable descriptor slots, and no indirect tracked-content writes. Unknown or recursive writable storage declines that path.",
+    "Ordinary position-sensitive replay treats may_escape as case-information loss, while global contents invalidation comes from unresolved_contents_writes and invocation summary flags. The change aligns the empty-interface summary with that established distinction.",
+    "Explicit unresolved-content fences, unknown call argument coordinates, provider/public invalidation flags, and transitive call traversal remain unchanged. Caller payload invalidations independently retire changed values and case facts.",
+    "The positive observes both completed writes and an unaffected sibling. Omitting the stores or selecting the wrong element would violate its authored runtime check. The reject twin adds an unqualified 255 byte store and retains its intended default-domain refusal.",
+    "The three Build edits change application labels only; their entry bindings and source/runtime oracles are unchanged. No exploratory SC04/SC05 restoration or metadata changes remain in this delta."
+  ],
+  "retained_runtime_evidence": {
+    "record": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/nonreturning-successor-runtime-35.json",
+    "producer_record": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/retired-state-consumers/closure-producer/cli-producer.json",
+    "compiler_sha256": "c2b76f464926e5f844414dca2cf74e66029a6896dd426351dc1f57edc4f90b83",
+    "rust_tree": "76abb73d0a76fb608ecbafc9abc774e6ac86eaa4",
+    "library_tree": "4f8404b32de4854145d455f4804584d3b38e78aa",
+    "positive_source_sha256": "d8b8639097a253b0aa53dcbd3b7716715fd1c58f25322daaf040f92de51fa02b",
+    "observations": "Reduced positive and unchanged Dungeon both record native exit 0 and interpreter exit 0 on macOS ARM64.",
+    "applicability": "Producer35 f0 plus the sole Rust repair has the identical executable digest as the exact committed closure CLI. The frozen reduced positive is byte-identical to the newly committed positive fixture. Library inputs match the committed closure receipt. These are retained implementation observations inspected by this reviewer, not independent executions."
+  },
+  "required_before_landing": [
+    "Complete the prepared 121-fixture source scope, including the new reject and existing authority/capture controls; attribute only the separately reproduced inherited refusal.",
+    "Complete the prepared 62-fixture BOTH scope, including the committed positive fixture.",
+    "Complete the prepared 15-application acceptance scope with authored runtime oracles.",
+    "Complete the prepared nine-crate Clippy check and changed-source formatting check."
+  ],
+  "qualification_status_at_review": "The final immutable CLI and runner receipts identify the exact candidate. The scoped qualification gates above were pending; this acceptance is the exact-delta semantic review and does not claim their completion.",
+  "reviewer_actions": "Read-only inspection of the root worktree and retained evidence; no compiler execution or builds. Only this ignored review record was written in the reviewer's own worktree.",
+  "skill_read": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/.agents/skills/rust-systems-programmer/SKILL.md"
+}
