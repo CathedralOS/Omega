@@ -260,42 +260,27 @@ impl ValidatedPreAllocationTransformation {
     /// The durable transformation identity the iteration receipt and the
     /// post-allocation manifest ledger record.
     pub fn identity(&self) -> PreAllocationTransformationIdentity {
-        match self {
-            Self::CopyRemoval(removal) => {
-                PreAllocationTransformationIdentity::CopyRemoval(removal.receipt().identity())
-            }
-            Self::RedundantExtension(removal) => {
-                PreAllocationTransformationIdentity::RedundantExtension(
-                    removal.receipt().identity(),
-                )
-            }
-            Self::AddressFold(fold) => {
-                PreAllocationTransformationIdentity::AddressFold(fold.receipt().identity())
-            }
-            Self::ConstantBoolean(fold) => {
-                PreAllocationTransformationIdentity::ConstantBoolean(fold.receipt().identity())
-            }
-            Self::ConstantBranch(fold) => {
-                PreAllocationTransformationIdentity::ConstantBranch(fold.receipt().identity())
-            }
-            Self::DeadCompare(removal) => {
-                PreAllocationTransformationIdentity::DeadCompare(removal.receipt().identity())
-            }
-            Self::RedundantCompare(removal) => {
-                PreAllocationTransformationIdentity::RedundantCompare(removal.receipt().identity())
-            }
-            Self::EquivalentCompare(removal) => {
-                PreAllocationTransformationIdentity::EquivalentCompare(removal.receipt().identity())
-            }
-            Self::CopiedCallOperand(reroute) => {
-                PreAllocationTransformationIdentity::CopiedCallOperand(reroute.receipt().identity())
-            }
-            Self::StoredLoadForwarding(forwarding) => {
-                PreAllocationTransformationIdentity::StoredLoadForwarding(
-                    forwarding.receipt().identity(),
-                )
-            }
+        macro_rules! project {
+            ($($variant:ident($binding:ident)),* $(,)?) => {
+                match self {
+                    $(Self::$variant($binding) => {
+                        PreAllocationTransformationIdentity::$variant($binding.receipt().identity())
+                    })*
+                }
+            };
         }
+        project!(
+            CopyRemoval(removal),
+            RedundantExtension(removal),
+            AddressFold(fold),
+            ConstantBoolean(fold),
+            ConstantBranch(fold),
+            DeadCompare(removal),
+            RedundantCompare(removal),
+            EquivalentCompare(removal),
+            CopiedCallOperand(reroute),
+            StoredLoadForwarding(forwarding),
+        )
     }
 }
 
