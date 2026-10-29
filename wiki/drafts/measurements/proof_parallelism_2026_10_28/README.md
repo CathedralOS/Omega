@@ -184,3 +184,5 @@ Follow-up: [unchanged fact sharing](unchanged_sharing/README.md) avoids 98.05% o
 Follow-up: [borrowed fact handles](borrowed_handles/README.md) defers ownership until append and avoids 1,683,529 handle clones versus eager sharing. Six balanced three-producer rounds leave user-visible speed inconclusive; no compiler change is retained.
 
 Follow-up: [remaining scans and joins](scans_joins/README.md) attributes retirement, intersections, publication and repeated shared-fact searches with exact visit counts and explicit profiler limits. No compiler change is retained.
+
+Follow-up: [shared predicate membership hoist](shared_membership/README.md) removes 93.4% of shared comparisons and preserves exact payload maps, but six paired whole-compile observations remain mixed. The compiler change is parked.
