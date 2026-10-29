@@ -1,5 +1,14 @@
 # Operand-order checker stack overflow
 
+## Validation correction
+
+The original harness combined `run --both` with explicit `--target`, which is
+compile-only. Its claimed Terminal comparisons were not runtime observations;
+separate native executions and static refusals remain valid. The historical
+producer has not been relabeled or retrospectively revalidated. Fresh actual
+host comparisons on the later convergence producer are recorded separately in
+[the convergence correction](../preparation_convergence_2026_10_29/host-replay/README.md).
+
 ## Publication scope
 
 The compiler repair already reached main through
@@ -15,7 +24,8 @@ claims about the current-main producer.
 Fresh publication validation uses optimized dev producer
 `5f0e2fc5dde252263b64b47a6dd593fb3a41c19585f78f45ccd15998b897501e`,
 built in 4m28s from unchanged main compiler source. The added positive compiles,
-executes natively with exit 0, and agrees with Terminal Psi; its reject twin
+executes natively with exit 0; its target-only comparison call does not establish
+Terminal agreement. Its reject twin
 reports the expected unproved `abs_i32` requirement. Image hashes, exact inputs,
 commands and logs are in [publication/results.json](publication/results.json).
 
@@ -116,17 +126,18 @@ producer SHA-256:
 `74a64fce6a09733bfd767d33da9d9811eba29be46427f7ebd87b053c6dc47ebf`.
 The original operand-order package review now finishes its initial checking
 step in 58.16 seconds, then resumes normally in 3.53 seconds. Its timed compile
-finishes in 10.56 seconds, native execution exits 0, and `run --both` agrees.
+finishes in 10.56 seconds and native execution exits 0. The target-only
+`run --both` invocation compiles but supplies no Terminal observation.
 The original single-evaluation control likewise finishes package review,
-compiles in 8.71 seconds and passes native/Terminal agreement. Source and Build
+compiles in 8.71 seconds and executes natively with exit 0. Source and Build
 files are unchanged. These are fixed-source crash-to-success observations,
 not a percentage compile-speed comparison against a successful baseline.
 
 All five positive fixtures compile and execute with their authored exit 0:
 both originals, the smaller regression, a returned-reference scalar snapshot,
-and a copied-call snapshot through a match join. All five also pass `run --both`
-without `DECLINED`; their retained native image and Terminal artifact hashes
-are recorded. Six negative controls reject with the authored diagnostics:
+and a copied-call snapshot through a match join. All five target-only `run --both` calls compile without `DECLINED`,
+which does not establish interpretation; the retained native image and Terminal
+artifact hashes prove artifact identity only. Six negative controls reject with the authored diagnostics:
 the new unmet requirement, another authored numeric requirement, signed-minimum
 absolute value, a restricted nested call, a mutated reference bound, and a
 callee-mutated source fact. Package-review `update --resume` returns the
@@ -147,7 +158,7 @@ is retained. This small shared-host sample establishes no general latency
 improvement or reliable regression. Retention is justified by restoring valid
 program compilation and execution while preserving refusals, not by these
 medians. There are 41 successful timed compile/native pairs (36 comparison,
-five focused), plus five separate Terminal/native comparisons and six static
+five focused), plus five target-only compilation requests and six static
 rejects. Review-internal compilation is excluded from these counts.
 
 The source patch stayed identical from optimized build through validation.

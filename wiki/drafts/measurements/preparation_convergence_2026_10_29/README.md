@@ -61,6 +61,14 @@ pinned here. Existing invocation positive/reject fixtures cover preservation.
 
 ## Validation and result
 
+**Evidence correction:** the original `run --both --target ...` calls were
+compile-only, not Terminal observations. Their raw commands/logs are preserved.
+[Corrected host replays](host-replay/README.md) now establish all nine actual
+native/Terminal comparisons without `--target`, explicitly requiring both exit
+reports. Terminal claims below refer to those new observations; the original
+separate native executions and timing measurements remain valid.
+
+
 Candidate optimized dev build: 5m21s. Executable SHA-256:
 `5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308`.
 The source patch stayed identical from build through validation.
