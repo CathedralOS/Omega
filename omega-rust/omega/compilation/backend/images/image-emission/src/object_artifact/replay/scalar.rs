@@ -14,3 +14,16 @@ pub(crate) mod stack;
 pub(crate) mod stack_mutation;
 pub(crate) mod stack_regions;
 pub(crate) mod structural_scalar_field_store;
+
+#[cfg(test)]
+fn stack_mutation(
+    offset: usize,
+    byte_count: usize,
+    kind: machine_code::ScalarStackMutationKind,
+) -> machine_code::ScalarStackMutation {
+    machine_code::ScalarStackMutation {
+        offset,
+        byte_count,
+        kind,
+    }
+}
