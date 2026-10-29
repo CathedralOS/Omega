@@ -137,6 +137,35 @@ fn report_bodyless_boundary_symbol_call(
         && !callee_machine.body_is_present
         && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)
     {
+        if std::env::var_os("OMEGA_SOURCE_CATALOGUE_TRACE").is_some() {
+            eprintln!(
+                "SOURCE_CATALOGUES refused machine={:?} name={} state={:?} entry={:?} supply={:?} body={} attached={:?} roles={:?} hosted_shape={} hosted_admitted={} uefi_shape={} uefi_admitted={} source={:?}",
+                callee_machine.symbol,
+                callee_machine.name.as_str(),
+                callee_state.symbol,
+                program
+                    .machine_states(callee_machine)
+                    .first()
+                    .map(|state| state.symbol),
+                callee_machine.supply_mode,
+                callee_machine.body_is_present,
+                callee_machine.attached_data,
+                program.boundary_catalogue_declarations,
+                program
+                    .hosted_intrinsic_source_declaration(callee_machine.symbol)
+                    .is_some(),
+                program
+                    .hosted_intrinsic_declaration(callee_machine.symbol)
+                    .is_some(),
+                program
+                    .uefi_handoff_source_requirement(callee_state.symbol)
+                    .is_some(),
+                program
+                    .uefi_handoff_requirement(callee_state.symbol)
+                    .is_some(),
+                program.symbols.symbol_source_span(callee_machine.symbol),
+            );
+        }
         diagnostics.push(Diagnostic::error(format!(
             "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"
         )));
