@@ -702,6 +702,11 @@ pub(crate) fn emit_direct_expression(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> ValueId {
+    macro_rules! emit_leaf {
+        ($kind:expr, $value_type:expr $(,)?) => {
+            emit_scalar_leaf($kind, $value_type, next_value_identity, operations)
+        };
+    }
     match expression {
         LoweredDirectExpression::AtomicLoad {
             source,
@@ -709,7 +714,7 @@ pub(crate) fn emit_direct_expression(
             field,
             ordering,
             scalar_type,
-        } => emit_scalar_leaf(
+        } => emit_leaf!(
             OperationKind::AtomicAccess {
                 place: *source,
                 path: path.clone(),
@@ -719,9 +724,7 @@ pub(crate) fn emit_direct_expression(
                 },
                 resident_obligation: None,
             },
-            *scalar_type,
-            next_value_identity,
-            operations,
+            *scalar_type
         ),
         LoweredDirectExpression::PrimitiveRead {
             source,
@@ -730,7 +733,7 @@ pub(crate) fn emit_direct_expression(
             qualifications,
         } => {
             let source = emit_read_source(source, operations);
-            emit_scalar_leaf(
+            emit_leaf!(
                 OperationKind::PrimitiveScalarRead {
                     source,
                     path: path.clone(),
@@ -738,9 +741,7 @@ pub(crate) fn emit_direct_expression(
                 QualifiedScalarType {
                     scalar_type: *scalar_type,
                     qualifications: *qualifications,
-                },
-                next_value_identity,
-                operations,
+                }
             )
         }
         LoweredDirectExpression::StructuralField {
@@ -751,7 +752,7 @@ pub(crate) fn emit_direct_expression(
             qualifications,
         } => {
             let source = emit_read_source(source, operations);
-            emit_scalar_leaf(
+            emit_leaf!(
                 OperationKind::ScalarStructuralField {
                     source,
                     path: path.clone(),
@@ -760,9 +761,7 @@ pub(crate) fn emit_direct_expression(
                 QualifiedScalarType {
                     scalar_type: *scalar_type,
                     qualifications: *qualifications,
-                },
-                next_value_identity,
-                operations,
+                }
             )
         }
         LoweredDirectExpression::ErasedParameter { .. } => {
@@ -770,11 +769,9 @@ pub(crate) fn emit_direct_expression(
         }
         LoweredDirectExpression::Parameter { position, .. }
         | LoweredDirectExpression::Local { position, .. } => parameters[*position].id,
-        LoweredDirectExpression::IntegerLiteral { value, scalar_type } => emit_scalar_leaf(
+        LoweredDirectExpression::IntegerLiteral { value, scalar_type } => emit_leaf!(
             OperationKind::IntegerConstant { value: *value },
-            *scalar_type,
-            next_value_identity,
-            operations,
+            *scalar_type
         ),
         LoweredDirectExpression::ImplementationSelection {
             implementation,
@@ -788,12 +785,7 @@ pub(crate) fn emit_direct_expression(
                 .dynamic_dispatch
                 .table(interface_identity, *implementation)
                 .expect("checking records every admitted implementation selection");
-            emit_scalar_leaf(
-                OperationKind::SelectImplementation { table },
-                *scalar_type,
-                next_value_identity,
-                operations,
-            )
+            emit_leaf!(OperationKind::SelectImplementation { table }, *scalar_type)
         }
         LoweredDirectExpression::ByteSequenceLength {
             source,
@@ -825,15 +817,13 @@ pub(crate) fn emit_direct_expression(
             // Emit at this occurrence; replacement and calls can change it.
             // Record the observation so an indexed read on the same field
             // binds its bound against this exact dominating value identity.
-            let value = emit_scalar_leaf(
+            let value = emit_leaf!(
                 OperationKind::StructuralByteSequenceFieldLength {
                     source: *source,
                     path: path.clone(),
                     field: *field,
                 },
-                *scalar_type,
-                next_value_identity,
-                operations,
+                *scalar_type
             );
             operations.storage_observations.field_bytes.push((
                 *source,
@@ -873,7 +863,7 @@ pub(crate) fn emit_direct_expression(
                         .then_some(*value)
                 })
                 .unwrap_or_else(|| {
-                    emit_scalar_leaf(
+                    emit_leaf!(
                         OperationKind::StructuralByteSequenceFieldLength {
                             source: *source,
                             path: path_with_current_bounds(&path, operations.next_identity),
@@ -881,13 +871,11 @@ pub(crate) fn emit_direct_expression(
                         },
                         ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
-                        ),
-                        next_value_identity,
-                        operations,
+                        )
                     )
                 });
             let obligation = operations.push_read_obligation(*bound_decided);
-            emit_scalar_leaf(
+            emit_leaf!(
                 OperationKind::StructuralByteSequenceFieldRead {
                     source: *source,
                     path: path_with_current_bounds(&path, operations.next_identity),
@@ -896,9 +884,7 @@ pub(crate) fn emit_direct_expression(
                     length,
                     obligation,
                 },
-                *scalar_type,
-                next_value_identity,
-                operations,
+                *scalar_type
             )
         }
         LoweredDirectExpression::IndexedPrimitiveRead {
@@ -940,7 +926,7 @@ pub(crate) fn emit_direct_expression(
                 next_value_identity,
                 operations,
             );
-            emit_scalar_leaf(
+            emit_leaf!(
                 OperationKind::PrimitiveScalarRead {
                     source: *source,
                     path,
@@ -948,9 +934,7 @@ pub(crate) fn emit_direct_expression(
                 QualifiedScalarType {
                     scalar_type: *scalar_type,
                     qualifications: *qualifications,
-                },
-                next_value_identity,
-                operations,
+                }
             )
         }
         LoweredDirectExpression::ElementViewLength {
@@ -1002,7 +986,7 @@ pub(crate) fn emit_direct_expression(
             // shape. Its canonical bounds certificate must then be produced;
             // constructing a fresh length does not prove the read is in bounds.
             let obligation = operations.push_read_obligation(*bound_decided);
-            emit_scalar_leaf(
+            emit_leaf!(
                 OperationKind::ElementViewRead {
                     source: *source,
                     index,
@@ -1010,16 +994,12 @@ pub(crate) fn emit_direct_expression(
                     obligation,
                     path,
                 },
-                *scalar_type,
-                next_value_identity,
-                operations,
+                *scalar_type
             )
         }
-        LoweredDirectExpression::IeeeFloatLiteral { value } => emit_scalar_leaf(
+        LoweredDirectExpression::IeeeFloatLiteral { value } => emit_leaf!(
             OperationKind::IeeeFloatConstant { value: *value },
-            ScalarType::IeeeFloat(value.format()),
-            next_value_identity,
-            operations,
+            ScalarType::IeeeFloat(value.format())
         ),
         LoweredDirectExpression::SaturatingShiftLeft {
             scalar_type,
