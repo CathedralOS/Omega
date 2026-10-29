@@ -1983,6 +1983,8 @@ fail/build/component_assumption_swapped rejected 741ms expected @a92f16431042
 	argument `digest` for state `accept_component_assumption` expects `&[u8]`, got `named value`
 fail/build/component_assumption_wrong_arity rejected 144ms expected @a92f16431042
 	state `accept_component_assumption` expects 2 argument(s), got 1
+fail/build/component_declaration_scalar_conditions rejected 1017ms expected @6fb770d6366b
+	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(10)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
 fail/build/context_entry_returns_value rejected 2892ms expected @a92f16431042
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/crash_exclusion_trapping_provider rejected 3172ms expected @a92f16431042
@@ -24507,6 +24509,7 @@ pass/build/component_assumption_policy_changed checked 2013ms @a92f16431042
 pass/build/component_assumption_policy_missing checked 2363ms @a92f16431042
 pass/build/component_assumption_reborrow checked 2248ms @a92f16431042
 pass/build/component_assumption_user_declaration checked 3018ms @a92f16431042
+pass/build/component_declaration_scalar_conditions_exit checked 1116ms check-target:macos_arm64 @6fb770d6366b
 pass/build/conditional_root_binding checked 3030ms check-target:windows_x86_64 @a92f16431042
 pass/build/const_index_dependency_order_exit rejected 219ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	cleanup effect dependency in `outer` has no exact structural residual disposition in state `entry` at statement 2
