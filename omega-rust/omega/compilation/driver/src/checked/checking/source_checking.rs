@@ -68,7 +68,7 @@ pub(crate) fn check_product_source(
                 package: binding.package(),
                 role,
                 declaration_path: binding.declaration_path(),
-                accepted_schema: binding.normalized_schema_digest().as_bytes(),
+                accepted_schema: *binding.normalized_schema_digest().as_bytes(),
             })
         })
         .collect::<Vec<_>>();
