@@ -11824,6 +11824,19 @@ fail/facts/nested_machine_borrowed_result_wrong_extent_rejected rejected 686ms e
 	cannot prove default-domain field requirement for return from wrong, state entry, at statement 2: buffer.storage requires [u8]::Utf8
 fail/facts/nested_machine_borrowed_result_wrong_origin_rejected rejected 608ms expected @77ba59fc2830
 	cannot prove default-domain field requirement for return from wrong, state entry, at statement 2: second.storage[..second.used] requires [u8]::Utf8
+fail/facts/nested_machine_case_disjunctive_result_rejected rejected 718ms expected @836691c69aa1
+	cannot prove requires contract for call count from perform: received == constructor:83:package:8c1a4767444b9856d5557f7ae0c84aa593425ba1b8669c241b9cf899547bc245::Remaining12:name:Pending (needs fact `remaining == Remaining::Pending` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from perform: received.count <= 7 (needs fact `remaining.count <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_case_late_case_rejected rejected 381ms expected @836691c69aa1
+	cannot form specification payload projection `count` in machine `count` requires contract: establish its exact active case before projecting the payload
+fail/facts/nested_machine_case_missing_case_rejected rejected 346ms expected @836691c69aa1
+	cannot form specification payload projection `count` in machine `count` requires contract: establish its exact active case before projecting the payload
+fail/facts/nested_machine_case_missing_nested_case_rejected rejected 377ms expected @836691c69aa1
+	cannot form specification payload projection `count` in machine `count` requires contract: establish its exact active case before projecting the payload
+fail/facts/nested_machine_case_unproved_result_bound_rejected rejected 742ms expected @836691c69aa1
+	cannot prove requires contract for call count from perform: received.count <= 7 (needs fact `remaining.count <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_case_wrong_case_rejected rejected 363ms expected @836691c69aa1
+	cannot form specification payload projection `count` in machine `count` requires contract: establish its exact active case before projecting the payload
 fail/facts/nested_machine_completion_result_array_unit_arm_rejected rejected 331ms expected @5b8ead0dbfc5
 	machine `missing` state `entry` a terminal arm supplies Unit, but the invocation returns `[u8; 2]`; every normal completion must supply its declared result
 fail/facts/nested_machine_completion_result_call_result_rejected rejected 344ms expected @5b8ead0dbfc5
@@ -12142,6 +12155,24 @@ fail/facts/nested_machine_joint_rank_carried_restoration_parameter_rejected reje
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_carried_restoration_target_body_rejected rejected 3573ms expected @775cddb40e5a
 	machine call cycle: `relay`, `step` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_call_result_rejected rejected 752ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_const_name_rejected rejected 755ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_field_rejected rejected 754ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_local_rejected rejected 773ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_match_join_rejected rejected 781ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_other_machine_rejected rejected 731ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_other_state_rejected rejected 780ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_parameter_rejected rejected 780ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_case_value_target_body_rejected rejected 718ms expected @836691c69aa1
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_const_name_rejected rejected 2034ms expected @de3c5539bbb6
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_descriptor_field_call_result_rejected rejected 724ms expected @b4799756ea9c
@@ -21697,7 +21728,7 @@ fail/proofs/citation_requires_bearing_rejected rejected 777ms expected @a92f1643
 	machine `conditional_cite` ensures contract proof fact `y == x` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/collection_predicate_deferred_disjunction_false_rejected rejected 2053ms expected @a92f16431042
 	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
-fail/proofs/completed_case_guarantee_keeps_common_fields_unknown rejected 1776ms expected @a92f16431042
+fail/proofs/completed_case_guarantee_keeps_common_fields_unknown rejected 524ms expected @836691c69aa1
 	cannot prove requires contract for call needs_unmarked_empty from completed_call: value.marked == false (needs fact `value.marked == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/completed_entry_domain_after_write rejected 1352ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from invalid, state entry, at statement 1: Captured requires Captured::One
@@ -28858,6 +28889,9 @@ pass/facts/nested_machine_borrowed_result_other_machine_exit checked 1677ms chec
 pass/facts/nested_machine_borrowed_result_other_state_exit checked 1634ms check-target:macos_arm64 @77ba59fc2830
 pass/facts/nested_machine_borrowed_result_parameter_exit checked 1677ms check-target:macos_arm64 @77ba59fc2830
 pass/facts/nested_machine_borrowed_result_target_body_exit checked 1719ms check-target:macos_arm64 @77ba59fc2830
+pass/facts/nested_machine_case_computed_constructor_exit checked 1149ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_case_explicit_borrow_case_exit checked 1124ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_case_nested_field_exit checked 1065ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_completion_result_call_result_exit checked 1964ms check-target:macos_arm64 @5b8ead0dbfc5
 pass/facts/nested_machine_completion_result_const_name_exit checked 1964ms check-target:macos_arm64 @5b8ead0dbfc5
 pass/facts/nested_machine_completion_result_crash_only_exit checked 1776ms check-target:macos_arm64 @5b8ead0dbfc5
@@ -28978,6 +29012,15 @@ pass/facts/nested_machine_joint_rank_carried_restoration_other_machine_exit chec
 pass/facts/nested_machine_joint_rank_carried_restoration_other_state_exit checked 4938ms check-target:macos_arm64 @775cddb40e5a
 pass/facts/nested_machine_joint_rank_carried_restoration_parameter_exit checked 4433ms check-target:macos_arm64 @775cddb40e5a
 pass/facts/nested_machine_joint_rank_carried_restoration_target_body_exit checked 4340ms check-target:macos_arm64 @775cddb40e5a
+pass/facts/nested_machine_joint_rank_case_value_call_result_exit checked 1040ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_const_name_exit checked 1037ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_field_exit checked 1001ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_local_exit checked 1027ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_match_join_exit checked 991ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_other_machine_exit checked 1020ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_other_state_exit checked 1020ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_parameter_exit checked 1042ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_case_value_target_body_exit checked 998ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_const_name_exit checked 7936ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_descriptor_field_call_result_exit checked 1251ms check-target:macos_arm64 @b4799756ea9c
 pass/facts/nested_machine_joint_rank_descriptor_field_const_name_exit checked 974ms check-target:macos_arm64 @b4799756ea9c
@@ -33245,9 +33288,7 @@ pass/proofs/borrowed_descriptor_bound_local_result_exit rejected 1910ms check-ta
 pass/proofs/builtin_unsigned_integer_ordering checked 2629ms @598688c61fee
 pass/proofs/captured_entry_comparison_after_mutation checked 2745ms @598688c61fee
 pass/proofs/captured_scalar_field_observations checked 2382ms check-target:macos_arm64 @a92f16431042
-pass/proofs/case_call_premises rejected 409ms regressed-from:checked @a92f16431042
-	cannot prove requires contract for specification call `empty_only` in machine `alias_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `empty_only` in machine `alias_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
+pass/proofs/case_call_premises checked 701ms @836691c69aa1
 pass/proofs/cauchy_predicates_compile checked 2463ms @a92f16431042
 pass/proofs/citation_requires_discharged checked 3043ms @a92f16431042
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 2428ms @a92f16431042
