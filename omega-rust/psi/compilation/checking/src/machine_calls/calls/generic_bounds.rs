@@ -38,14 +38,14 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     current_state: Option<&State>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // A claim-free bodyless boundary declaration is a SYMBOL for contracts,
-    // not an executable provider.  It has neither checked code nor a `via`
-    // realization, so allowing an ordinary body call would turn "introduces
-    // no fact" into a hidden runtime implementation hole.  Contract
-    // expressions are not body call sites and remain free to name the symbol.
+    // Claim-free bodyless declarations need an exact catalogued requirement
+    // demand or a separately authenticated compiler realization. A Boundary
+    // marker or matching callable shape supplies neither. Contracts remain
+    // free to name declarations without requesting executable supply.
     report_bodyless_boundary_symbol_call(
         program,
         callee_machine,
+        callee_state,
         current_machine,
         target_name,
         diagnostics,
@@ -80,6 +80,7 @@ fn is_directly_callable_top_level_requirement(
 fn report_bodyless_boundary_symbol_call(
     program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
+    callee_state: &State,
     current_machine: &Machine,
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -119,6 +120,11 @@ fn report_bodyless_boundary_symbol_call(
                     || program.typed_program().callable_body_has_open_parameters(current_machine)
             },
         );
+    // The existing exact catalogue join classifies a boundary demand only.
+    // Omega still owes the selected provider plan and the independently
+    // accepted ordinary package binding before it can execute this leaf.
+    let catalogued_requirement =
+        crate::exact_external_leaf_boundary_requirement(program, callee_state.symbol).is_some();
     if matches!(
         callee_machine.supply_mode,
         language_semantics::MachineSupplyMode::Boundary
@@ -127,6 +133,7 @@ fn report_bodyless_boundary_symbol_call(
         && !compiler_placed_factory
         && !compiler_placement_execution
         && !activation_realization
+        && !catalogued_requirement
         && !callee_machine.body_is_present
         && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)
     {
