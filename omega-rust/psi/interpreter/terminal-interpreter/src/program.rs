@@ -665,6 +665,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             structural_inputs,
             installation,
             account: None,
+            entry_results: None,
         })
         .map(|(execution, _)| execution)
     }
@@ -699,6 +700,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             structural_inputs,
             installation,
             account,
+            entry_results,
         } = request;
         if let Some(account) = account
             && !matches!(
@@ -764,6 +766,11 @@ impl<'artifact> TerminalProgram<'artifact> {
             }
             other => other,
         })?;
+        if let Some(request) = entry_results {
+            execution
+                .request_entry_results(request)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
+        }
         execution
             .bind_structural_cases(structural_inputs.cases)
             .map_err(TerminalArtifactInterpretError::Execution)?;
@@ -791,6 +798,7 @@ pub struct TerminalInstantiation<'input> {
     pub structural_inputs: TerminalStructuralInputs<'input>,
     pub installation: Option<&'input crate::effects::TerminalRuntimeSupplies>,
     pub account: Option<&'input EvaluationInvocationAccount>,
+    pub entry_results: Option<crate::TerminalEntryResultRequest<'input>>,
 }
 
 /// Execution ownership comes from the authenticated callable, not from an

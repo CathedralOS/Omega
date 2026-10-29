@@ -176,6 +176,7 @@ pub enum TerminalInterpretError {
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     FoldedConstantClosure(&'static str),
+    EntryResultObservation(&'static str),
     UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
     UnclosedArrayExtent(semantic_vocabulary::StructuralTypeId),
     TargetMachineSelectionIdentityMismatch,

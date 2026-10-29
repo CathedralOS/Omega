@@ -571,6 +571,20 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .and_then(|execution| execution.result())
     }
 
+    /// Read a requested operation's actual result after successful normal entry
+    /// completion. This is an execution observation, not an admitted proof fact.
+    pub fn observed_entry_result(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        result: semantic_vocabulary::ValueId,
+    ) -> Result<crate::TerminalScalarValue, TerminalInstanceError> {
+        self.execution
+            .as_ref()
+            .ok_or(TerminalInstanceError::Closed)?
+            .observed_entry_result(machine, result)
+            .map_err(TerminalInstanceError::Execution)
+    }
+
     /// Whether the entry invocation has reached a terminal outcome.
     pub fn is_finished(&self) -> bool {
         self.execution

@@ -67,6 +67,80 @@ fn produce(
 }
 
 #[test]
+fn entry_results_observe_source_calls_separately_from_the_final_result() {
+    let (produced, _, _) = produce("observed_call_results");
+    let artifact = produced.artifact().expect("portable source fixture");
+    let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let module = reloaded.semantic_module();
+    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+        panic!("direct entry")
+    };
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry)
+        .unwrap();
+    let calls = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.kind.direct_callee().is_some())
+        .map(|operation| operation.result.scalar().expect("scalar call"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.len(),
+        2,
+        "source call occurrences must remain distinct: {:#?}",
+        machine.blocks
+    );
+    let requested = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| operation.result.scalar())
+        .map(|result| (result.id, result.scalar_type))
+        .collect::<Vec<_>>();
+    let program = TerminalProgram::borrow(reloaded.view());
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            entry_results: Some(terminal_interpreter::TerminalEntryResultRequest {
+                machine: entry,
+                results: &requested,
+            }),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(instance.observed_entry_result(entry, calls[0].id).is_err());
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let completed = loop {
+        match instance.invoke(&mut meter).unwrap() {
+            TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
+            completed => break completed,
+        }
+    };
+    let integer = |bits, value| TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            bits,
+        )
+        .unwrap(),
+        value: IntegerValue::Unsigned(value),
+    };
+    assert_eq!(
+        completed,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(integer(64, 48)))
+    );
+    assert_eq!(
+        instance.observed_entry_result(entry, calls[0].id).unwrap(),
+        integer(32, 11)
+    );
+    assert_eq!(
+        instance.observed_entry_result(entry, calls[1].id).unwrap(),
+        integer(32, 37)
+    );
+}
+
+#[test]
 fn invocation_code_cannot_publish_or_rejoin_another_owner() {
     let (produced, _, _) = produce("empty_array_result");
     let artifact = produced.artifact().expect("portable source fixture");

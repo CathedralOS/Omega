@@ -212,6 +212,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
                 },
                 installation: Some(&self.supplies),
                 account,
+                entry_results: None,
             })
             .map_err(|error| format!("component instance admission: {error:?}"))?;
         if instance.required_imports != self.required_imports {
