@@ -3599,6 +3599,9 @@ impl<'program> StructuralJudge<'program> {
         if !matches!(
             subject,
             StructuralTerm::Variable(_)
+                | StructuralTerm::Projection { .. }
+                | StructuralTerm::BoundProjection { .. }
+                | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::BoundValue(_)
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::Application { .. }
@@ -3715,15 +3718,28 @@ impl<'program> StructuralJudge<'program> {
             application @ StructuralTerm::Application { .. } => {
                 self.selected_application_case_subject(&application, depth)
             }
+            StructuralTerm::Projection { subject, path } => {
+                let subject = self.resolve_case_subject(*subject, depth + 1)?;
+                super::observed_projections::project_field(subject, &path)
+            }
+            StructuralTerm::BoundProjection { .. } => Some(term),
+            StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection,
+                index,
+            } => Some(StructuralTerm::IndexedValue {
+                element_type,
+                element_identity,
+                collection: Box::new(self.resolve_case_subject(*collection, depth + 1)?),
+                index: Box::new(self.resolve_case_subject(*index, depth + 1)?),
+            }),
             StructuralTerm::CallProjection { .. }
-            | StructuralTerm::BoundProjection { .. }
             | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
             | StructuralTerm::MathematicalBinary { .. }
             | StructuralTerm::IntegerEmbedding { .. }
-            | StructuralTerm::CollectionMeasure { .. }
-            | StructuralTerm::Projection { .. }
-            | StructuralTerm::IndexedValue { .. } => None,
+            | StructuralTerm::CollectionMeasure { .. } => None,
         }
     }
 
