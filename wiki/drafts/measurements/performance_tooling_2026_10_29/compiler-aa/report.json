@@ -1,0 +1,48 @@
+{
+  "schema": "omega-performance-report/1",
+  "name": "retained compiler A/A instrument smoke",
+  "metric": "compiler_process_wall_ns",
+  "comparison": {
+    "pairs": 2,
+    "baseline": {
+      "median": 752847050.0,
+      "minimum": 746012500.0,
+      "maximum": 759681600.0,
+      "median_absolute_deviation": 6834550.0
+    },
+    "candidate": {
+      "median": 785818850.0,
+      "minimum": 752083500.0,
+      "maximum": 819554200.0,
+      "median_absolute_deviation": 33735350.0
+    },
+    "paired_candidate_minus_baseline": {
+      "median": 32971800.0,
+      "minimum": -7598100.0,
+      "maximum": 73541700.0,
+      "median_absolute_deviation": 40569900.0
+    },
+    "paired_percent_change": {
+      "median": 4.428901265277985,
+      "minimum": -1.000169018178143,
+      "maximum": 9.857971548734113,
+      "median_absolute_deviation": 5.429070283456128
+    },
+    "median_difference_bootstrap_95": [
+      -7598100.0,
+      73541700.0
+    ],
+    "bootstrap_resamples": 4000,
+    "bootstrap_seed": 8029185205361337710,
+    "interpretation": "insufficient_pairs"
+  },
+  "warnings": [
+    "Within-run bootstrap uncertainty does not cover host drift, contention, or workload selection.",
+    "Only declared input paths are hashed. Declare dependency/library/lock inputs used by the workload.",
+    "Compiler stage times are inclusive and may overlap; do not sum nested rows."
+  ],
+  "memory": {
+    "reason": "The bounded child runner does not expose per-process memory observations.",
+    "status": "unavailable"
+  }
+}

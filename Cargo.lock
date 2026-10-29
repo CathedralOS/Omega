@@ -1426,6 +1426,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-bench"
+version = "0.1.0"
+dependencies = [
+ "bounded-process",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "omega-build"
 version = "0.1.0"
 dependencies = [
