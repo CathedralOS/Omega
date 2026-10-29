@@ -19,7 +19,7 @@ data WindowsRemovalFrame [copy] {
     case Directory(handle: i64 in WindowsPrivateNonalertFileOrAbsent);
 }
 
-windows_x86_64 machine windows_removal_walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+machine windows_removal_walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
 requires root != 0
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration + FilesystemNamespaceMutation {
     let mut frames: [WindowsRemovalFrame; 4096];
@@ -146,7 +146,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
     }
 }
 
-windows_x86_64 machine windows_removal_unwind(frames: &mut [WindowsRemovalFrame; 4096], count: u64,
+machine windows_removal_unwind(frames: &mut [WindowsRemovalFrame; 4096], count: u64,
     original: u32) -> u32
 requires count <= 4096
 reaches FilesystemNamespaceMutation {

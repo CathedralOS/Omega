@@ -5,23 +5,23 @@ use filesystem;
 use windows_filesystem_host;
 use targets::windows_x86_64::filesystem::errors;
 
-windows_x86_64 machine windows_filesystem_lock(file: File) -> UnitResult
+machine windows_filesystem_lock(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 { windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, true, false)) }
 
-windows_x86_64 machine windows_filesystem_lock_shared(file: File) -> UnitResult
+machine windows_filesystem_lock_shared(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 { windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, false, false)) }
 
-windows_x86_64 machine windows_filesystem_try_lock(file: File) -> TryLockResult
+machine windows_filesystem_try_lock(file: File) -> TryLockResult
 invokes WindowsFilesystemHost;
 { windows_filesystem_try_lock_result(block WindowsFilesystemHost::lock_file(file.handle, true, true)) }
 
-windows_x86_64 machine windows_filesystem_try_lock_shared(file: File) -> TryLockResult
+machine windows_filesystem_try_lock_shared(file: File) -> TryLockResult
 invokes WindowsFilesystemHost;
 { windows_filesystem_try_lock_result(block WindowsFilesystemHost::lock_file(file.handle, false, true)) }
 
-windows_x86_64 machine windows_filesystem_unlock(file: File) -> UnitResult
+machine windows_filesystem_unlock(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 { windows_filesystem_unit(block WindowsFilesystemHost::unlock_file(file.handle)) }
 

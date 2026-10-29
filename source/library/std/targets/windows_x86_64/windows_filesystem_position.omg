@@ -11,7 +11,7 @@ use targets::windows_x86_64::windows_filesystem_position_native;
 use targets::windows_x86_64::windows_filesystem_position_pins;
 use targets::windows_x86_64::windows_filesystem_transfer;
 
-windows_x86_64 machine WindowsFilesystemNativeProvider::read_at(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64
+machine windows_filesystem_native_read_at(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64
 satisfies WindowsFilesystemHost::read_at
 reaches FilesystemContentRead {
     transition offset >= 0 && count <= buffer.len && count <= 4294967295 {
@@ -32,7 +32,7 @@ reaches FilesystemContentRead {
         }
     }
     machine denied(handle: u64) -> i64 {
-        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+        let released: i32 = block windows_filesystem_native_close_handle(handle);
         -5
     }
     machine reopen(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
@@ -44,20 +44,20 @@ reaches FilesystemContentRead {
         }
     }
     machine position(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
-        let positioned: i64 = block WindowsFilesystemNativeProvider::set_file_pointer(handle, offset, 0);
+        let positioned: i64 = block windows_filesystem_native_set_file_pointer(handle, offset, 0);
         transition positioned == offset {
             true -> block transfer(handle, buffer, count)
             false -> (block windows_positioned_seek_failed(handle, positioned))
         }
     }
     machine transfer(handle: u64, buffer: &mut [u8], count: u64) -> i64 {
-        let result: i64 = block WindowsFilesystemNativeProvider::read_file(handle, buffer, count);
-        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+        let result: i64 = block windows_filesystem_native_read_file(handle, buffer, count);
+        let released: i32 = block windows_filesystem_native_close_handle(handle);
         windows_transfer_completion(result, released)
     }
 }
 
-windows_x86_64 machine WindowsFilesystemNativeProvider::write_at(handle: u64, bytes: &[u8], offset: i64) -> i64
+machine windows_filesystem_native_write_at(handle: u64, bytes: &[u8], offset: i64) -> i64
 satisfies WindowsFilesystemHost::write_at
 reaches FilesystemContentWrite {
     transition offset >= 0 && bytes.len <= 4294967295 {
@@ -78,7 +78,7 @@ reaches FilesystemContentWrite {
         }
     }
     machine denied(handle: u64) -> i64 {
-        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+        let released: i32 = block windows_filesystem_native_close_handle(handle);
         -5
     }
     machine reopen(handle: u64, bytes: &[u8], offset: i64) -> i64 {
@@ -90,15 +90,15 @@ reaches FilesystemContentWrite {
         }
     }
     machine position(handle: u64, bytes: &[u8], offset: i64) -> i64 {
-        let positioned: i64 = block WindowsFilesystemNativeProvider::set_file_pointer(handle, offset, 0);
+        let positioned: i64 = block windows_filesystem_native_set_file_pointer(handle, offset, 0);
         transition positioned == offset {
             true -> block transfer(handle, bytes)
             false -> (block windows_positioned_seek_failed(handle, positioned))
         }
     }
     machine transfer(handle: u64, bytes: &[u8]) -> i64 {
-        let result: i64 = block WindowsFilesystemNativeProvider::write_file(handle, bytes);
-        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
+        let result: i64 = block windows_filesystem_native_write_file(handle, bytes);
+        let released: i32 = block windows_filesystem_native_close_handle(handle);
         windows_transfer_completion(result, released)
     }
 }

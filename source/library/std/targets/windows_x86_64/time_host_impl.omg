@@ -58,67 +58,74 @@ data WindowsTimeImports { }
 // A failed read reports zero rather than a fabricated tick count: `Time::now`
 // treats zero as a degraded clock and never faults on it. A zero frequency
 // takes the same route through that wrapper's calibration clamp.
-windows_x86_64 machine TimeHostNativeProvider::monotonic_ticks() -> u64
-    satisfies TimeHost::monotonic_ticks
-reaches TimeHost
-{
-    let mut counter: i64 = 0;
-    let status: i32 = WindowsTimeRead::query_performance_counter(&mut counter);
-    transition status == 0 {
-        true -> degraded()
-        _ -> measured(counter)
-    }
 
-    machine measured(counter: i64) -> u64 { narrow_i64_to_u64_saturating(counter) }
-
-    machine degraded() -> u64 { 0 }
-}
-
-windows_x86_64 machine TimeHostNativeProvider::monotonic_ticks_per_second() -> u64
-    satisfies TimeHost::monotonic_ticks_per_second
-reaches TimeHost
-{
-    let mut frequency: i64 = 0;
-    let status: i32 = WindowsTimeRead::query_performance_frequency(&mut frequency);
-    transition status == 0 {
-        true -> degraded()
-        _ -> measured(frequency)
-    }
-
-    machine measured(frequency: i64) -> u64 { narrow_i64_to_u64_saturating(frequency) }
-
-    machine degraded() -> u64 { 0 }
-}
-
-windows_x86_64 machine TimeHostNativeProvider::wall_clock_raw() -> u64
-    satisfies TimeHost::wall_clock_raw
-reaches TimeHost
-{
-    let mut file_time: u64 = 0;
-    WindowsTimeRead::system_time_as_file_time(&mut file_time);
-    transition { _ -> measured(file_time) }
-
-    machine measured(file_time: u64) -> u64 { file_time }
-}
 
 // FILETIME ticks are 100-nanosecond intervals.
-windows_x86_64 machine TimeHostNativeProvider::wall_clock_units_per_second() -> u64
-    satisfies TimeHost::wall_clock_units_per_second
-{
-    10000000
-}
+
 
 // 1601-01-01 to 1970-01-01 is 134_774 days, so 11_644_473_600 seconds.
-windows_x86_64 machine TimeHostNativeProvider::wall_clock_epoch_offset_seconds() -> u64
-    satisfies TimeHost::wall_clock_epoch_offset_seconds
-{
-    11644473600
-}
+
 
 // `Sleep` takes the millisecond count as its single argument, so the leaf
 // signature IS the requirement signature and no adapter body is needed.
 
 
-windows_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
-    TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
+boundary trait WindowsTimeSleep {
+    machine sleep(milliseconds: u32) reaches TimeHost blocks;
+}
+
+WindowsTimeHost satisfies TimeHost {
+    machine monotonic_ticks() -> u64
+    reaches TimeHost
+    {
+        let mut counter: i64 = 0;
+        let status: i32 = WindowsTimeRead::query_performance_counter(&mut counter);
+        transition status == 0 {
+            true -> degraded()
+            _ -> measured(counter)
+        }
+
+        machine measured(counter: i64) -> u64 { narrow_i64_to_u64_saturating(counter) }
+
+        machine degraded() -> u64 { 0 }
+    }
+
+    machine monotonic_ticks_per_second() -> u64
+    reaches TimeHost
+    {
+        let mut frequency: i64 = 0;
+        let status: i32 = WindowsTimeRead::query_performance_frequency(&mut frequency);
+        transition status == 0 {
+            true -> degraded()
+            _ -> measured(frequency)
+        }
+
+        machine measured(frequency: i64) -> u64 { narrow_i64_to_u64_saturating(frequency) }
+
+        machine degraded() -> u64 { 0 }
+    }
+
+    machine wall_clock_raw() -> u64
+    reaches TimeHost
+    {
+        let mut file_time: u64 = 0;
+        WindowsTimeRead::system_time_as_file_time(&mut file_time);
+        transition { _ -> measured(file_time) }
+
+        machine measured(file_time: u64) -> u64 { file_time }
+    }
+
+    machine wall_clock_units_per_second() -> u64
+    {
+        10000000
+    }
+
+    machine wall_clock_epoch_offset_seconds() -> u64
+    {
+        11644473600
+    }
+
+    machine sleep(milliseconds: u32) reaches TimeHost blocks; {
+        block WindowsTimeSleep::sleep(milliseconds);
+    }
 }

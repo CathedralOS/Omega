@@ -7,7 +7,7 @@ use omega::language::core::filesystem_authority;
 use omega::language::core::numeric_conversion;
 use targets::windows_x86_64::filesystem::errors;
 
-windows_x86_64 machine windows_filesystem_read_dir_count(path: &[u8] in Path) -> IoResult
+machine windows_filesystem_read_dir_count(path: &[u8] in Path) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes WindowsFilesystemHost;
 {
@@ -15,7 +15,7 @@ invokes WindowsFilesystemHost;
     windows_filesystem_transferred(result, 9223372036854775807)
 }
 
-windows_x86_64 machine windows_filesystem_read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
+machine windows_filesystem_read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 invokes WindowsFilesystemHost;
 {
@@ -32,7 +32,7 @@ invokes WindowsFilesystemHost;
 // Retain the enumeration record's no-follow classification. Reparse points
 // are neither ordinary files nor directories here, including directory links;
 // querying a child path afterward could classify a replacement object instead.
-windows_x86_64 machine windows_filesystem_read_dir_nth(path: &[u8] in Path, ordinal: u64) -> DirEntryResult
+machine windows_filesystem_read_dir_nth(path: &[u8] in Path, ordinal: u64) -> DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {

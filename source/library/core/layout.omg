@@ -1,9 +1,8 @@
 // LAYOUT POLICIES (wiki/spec/layouts/plans.md):
-// layout is a library, not a language axiom. A policy is ordinary data
-// satisfying `Layout`; its `plan(schema)` machine runs at BUILD TIME (no
-// keyword -- the position makes the evaluation build-time, the effect system
-// makes it legal, and this trait's effect-free signature is the stability
-// contract). The compiler materializes `Schema` from a data definition,
+// Layout is a library, not a language axiom. A policy is an ordinary named
+// implementation of `FixedLayout<T>`. Its exact `plan(schema, target)` call
+// runs through semantic-evaluation admission with no effects and a termination
+// guarantee. The compiler supplies the exact `Schema` and immutable target,
 // validates the returned `Plan` (a bad plan is a compile error, never
 // unsafety), and derives codecs / projections / value types from it.
 //
@@ -761,8 +760,19 @@ satisfies Writable<PlacedField<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
-public trait Layout {
-    machine plan(schema: Schema) -> Plan;
+// Compiler-issued immutable representation facts for this exact target.
+// Authored code cannot construct this opaque compile-time input or gain
+// host services, private source access, storage backing or execution authority.
+public boundary data LayoutTarget;
+
+// The compiler retains and validates the exact semantic type, policy,
+// target and returned geometry; this adds no wrapper or independent T header.
+public boundary data LayoutStorage<T, Policy satisfies FixedLayout<T>>;
+
+public trait FixedLayout<T> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates;
 }
 
 public trait Access {

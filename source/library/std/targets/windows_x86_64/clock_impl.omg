@@ -6,6 +6,12 @@ use omega::language::core::external_binding;
 use clock;
 
 
-windows_x86_64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
-    ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
+boundary trait WindowsClockSleep {
+    machine sleep(milliseconds: u32) reaches Clock;
+}
+
+WindowsClock satisfies Clock {
+    machine sleep(milliseconds: u32) reaches Clock {
+        WindowsClockSleep::sleep(milliseconds);
+    }
 }

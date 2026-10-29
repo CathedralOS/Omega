@@ -261,8 +261,6 @@ public data Filesystem {}
 
 // Default selection belongs to the portable slot. Each target contributes its
 // complete implementation without importing another OS family's adapter.
-data FilesystemProviderDefaults {}
-
 // Native filesystem operations may occupy the caller's worker. This ceiling
 // stays identical on every target; a nonblocking implementation may fit it but
 // cannot remove the caller's acknowledgement of the portable requirement.

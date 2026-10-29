@@ -1,0 +1,19 @@
+use filesystem;
+use posix_filesystem_adapter;
+
+// Exact target facts used by the shared portable filesystem algorithms.
+boundary trait PosixFilesystemPlatform {
+    machine decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult;
+    machine permission_bits(filesystem: &PosixFilesystem) -> u32;
+    machine encode_open_options(filesystem: &mut PosixFilesystem);
+    machine decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind;
+    machine metadata_no_follow_flag() -> i32;
+    machine directory_type_offset() -> u64
+        ensures result >= 18 && result <= 20;
+    machine directory_name_offset() -> u64
+        ensures result >= 19 && result <= 21;
+    machine remove_directory_flag() -> i32;
+    machine directory_descent_flags() -> i32;
+    machine would_block_error() -> i32;
+    machine kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind;
+}

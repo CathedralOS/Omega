@@ -109,11 +109,9 @@ public boundary trait UefiOsHandoffTermination {
 
 // The generated edges the authored cycle's terminal stages resolve to. The
 // protocol above them is authored code, and the edges stay compiler-owned.
-public data UefiOsHandoffNativeProvider { }
-
-uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::transfer_to_entry()
+boundary machine uefi_transfer_to_entry()
     satisfies UefiOsHandoffTermination::transfer;
-uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status: u64)
+boundary machine uefi_firmware_return(status: u64)
     satisfies UefiOsHandoffTermination::firmware_return;
 
 // The cycle's Boot Services custody storage; its legs call `UefiBootServices`
@@ -495,5 +493,15 @@ public machine UefiOsHandoffCycle::run(uefi_os_handoff_cycle: &mut UefiOsHandoff
     machine returned(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle, status: u64) {
         UefiOsHandoffCycle::firmware_return(uefi_os_handoff_cycle, status);
         transition { _ -> returned(uefi_os_handoff_cycle, status) }
+    }
+}
+
+UefiOsHandoffRuntime satisfies UefiOsHandoffTermination {
+    machine transfer() reaches UefiOsHandoffTermination {
+        uefi_transfer_to_entry();
+    }
+
+    machine firmware_return(status: u64) reaches UefiOsHandoffTermination {
+        uefi_firmware_return(status);
     }
 }

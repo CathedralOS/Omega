@@ -17,7 +17,9 @@ boundary trait MacosX64PhysicalEntry {
 
 data MacosX64 {}
 MacosX64CallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = MacosX64::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        MacosX64::plan(signature)
+    }
 }
 
 machine MacosX64::plan(signature: BoundarySignature) -> BoundaryPlanResult

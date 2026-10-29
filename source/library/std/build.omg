@@ -2,6 +2,40 @@ use omega::language::core::external_binding;
 
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
+    // Ordinary target-keyed provider defaults, evaluated once for this package.
+    Build::select_provider<windows_gui_host::WindowsGuiHost, targets::windows_x86_64::windows_gui_impl::NativeWindowsGui>(builder, windows_x86_64);
+    Build::select_provider<time_host::TimeHost, targets::linux_arm64::time_host_impl::LinuxArm64TimeHost>(builder, linux_arm64);
+    Build::select_provider<time_host::TimeHost, targets::linux_x86_64::time_host_impl::LinuxX86TimeHost>(builder, linux_x86_64);
+    Build::select_provider<time_host::TimeHost, targets::macos_arm64::time_host_impl::DarwinArm64TimeHost>(builder, macos_arm64);
+    Build::select_provider<time_host::TimeHost, targets::macos_x86_64::time_host_impl::DarwinX86TimeHost>(builder, macos_x86_64);
+    Build::select_provider<time_host::TimeHost, targets::windows_x86_64::time_host_impl::WindowsTimeHost>(builder, windows_x86_64);
+    Build::select_provider<clock::Clock, targets::linux_arm64::clock_impl::LinuxArm64Clock>(builder, linux_arm64);
+    Build::select_provider<clock::Clock, targets::linux_x86_64::clock_impl::LinuxX86Clock>(builder, linux_x86_64);
+    Build::select_provider<clock::Clock, targets::macos_arm64::clock_impl::DarwinArm64Clock>(builder, macos_arm64);
+    Build::select_provider<clock::Clock, targets::windows_x86_64::clock_impl::WindowsClock>(builder, windows_x86_64);
+    Build::select_provider<console::Console, native::hosted::HostedConsole>(builder, linux_arm64);
+    Build::select_provider<omega::language::core::process_exit::ProcessExit, native::hosted::HostedProcessExit>(builder, linux_arm64);
+    Build::select_provider<console::Console, native::hosted::HostedConsole>(builder, linux_x86_64);
+    Build::select_provider<omega::language::core::process_exit::ProcessExit, native::hosted::HostedProcessExit>(builder, linux_x86_64);
+    Build::select_provider<console::Console, native::hosted::HostedConsole>(builder, macos_arm64);
+    Build::select_provider<omega::language::core::process_exit::ProcessExit, native::hosted::HostedProcessExit>(builder, macos_arm64);
+    Build::select_provider<console::Console, native::hosted::HostedConsole>(builder, macos_x86_64);
+    Build::select_provider<omega::language::core::process_exit::ProcessExit, native::hosted::HostedProcessExit>(builder, macos_x86_64);
+    Build::select_provider<console::Console, targets::windows_x86_64::console_impl::WindowsConsole>(builder, windows_x86_64);
+    Build::select_provider<omega::language::core::process_exit::ProcessExit, targets::windows_x86_64::process_exit_impl::WindowsProcessExit>(builder, windows_x86_64);
+    Build::select_provider<posix_filesystem_host::PosixFilesystemHost, targets::linux_arm64::posix_filesystem_impl::LinuxArm64PosixFilesystem>(builder, linux_arm64);
+    Build::select_provider<posix_filesystem_host::PosixFilesystemHost, targets::linux_x86_64::posix_filesystem_impl::LinuxX86PosixFilesystem>(builder, linux_x86_64);
+    Build::select_provider<posix_filesystem_host::PosixFilesystemHost, targets::macos_arm64::posix_filesystem_impl::DarwinArm64PosixFilesystem>(builder, macos_arm64);
+    Build::select_provider<posix_filesystem_platform::PosixFilesystemPlatform, targets::linux_arm64::filesystem_impl::LinuxArm64FilesystemPlatform>(builder, linux_arm64);
+    Build::select_provider<filesystem::FilesystemService, posix_filesystem_adapter::FilesystemPosixProvider>(builder, linux_arm64);
+    Build::select_provider<posix_filesystem_platform::PosixFilesystemPlatform, targets::linux_x86_64::filesystem_impl::LinuxX86FilesystemPlatform>(builder, linux_x86_64);
+    Build::select_provider<filesystem::FilesystemService, posix_filesystem_adapter::FilesystemPosixProvider>(builder, linux_x86_64);
+    Build::select_provider<posix_filesystem_platform::PosixFilesystemPlatform, targets::macos_arm64::filesystem_impl::DarwinArm64FilesystemPlatform>(builder, macos_arm64);
+    Build::select_provider<filesystem::FilesystemService, posix_filesystem_adapter::FilesystemPosixProvider>(builder, macos_arm64);
+    Build::select_provider<filesystem::FilesystemService, targets::windows_x86_64::filesystem::provider::FilesystemWindowsProvider>(builder, windows_x86_64);
+    Build::select_provider<windows_filesystem_host::WindowsFilesystemHost, targets::windows_x86_64::windows_filesystem_impl::NativeWindowsFilesystem>(builder, windows_x86_64);
+    Build::select_provider<targets::uefi_x86_64::handoff::UefiOsHandoffTermination, targets::uefi_x86_64::handoff::UefiOsHandoffRuntime>(builder, uefi_x86_64);
+
 
  Build::bind<targets::linux_arm64::clock_impl::LinuxArmClockWait::nanosleep>(builder, linux_arm64, ForeignBinding::Syscall { number: 101 });
  Build::bind<posix_filesystem_adapter::PosixCanonicalLibc::resolve>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
@@ -79,7 +113,7 @@ machine build(builder: &mut Build) {
  Build::bind<targets::linux_x86_64::posix_filesystem_impl::PosixFilesystemLinux::fchown>(builder, linux_x86_64, ForeignBinding::Syscall { number: 93 });
  Build::bind<targets::linux_x86_64::time_host_impl::LinuxX64TimeRead::clock_gettime>(builder, linux_x86_64, ForeignBinding::Syscall { number: 228 });
  Build::bind<targets::linux_x86_64::time_host_impl::LinuxX64TimeRead::poll>(builder, linux_x86_64, ForeignBinding::Syscall { number: 7 });
- Build::bind<targets::macos_arm64::clock_impl::ClockNativeProvider::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<targets::macos_arm64::clock_impl::DarwinClockWait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_poll",
@@ -454,13 +488,13 @@ machine build(builder: &mut Build) {
             symbol: "_memcpy",
         },
     });
- Build::bind<targets::macos_arm64::time_host_impl::TimeHostNativeProvider::clock_nanoseconds>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<targets::macos_arm64::time_host_impl::DarwinArm64TimeRead::clock_nanoseconds>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_clock_gettime_nsec_np",
         },
     });
- Build::bind<targets::macos_arm64::time_host_impl::TimeHostNativeProvider::poll>(builder, macos_arm64, ForeignBinding::DllImport {
+ Build::bind<targets::macos_arm64::time_host_impl::DarwinArm64TimeRead::poll>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_poll",
@@ -478,7 +512,7 @@ machine build(builder: &mut Build) {
             symbol: "_poll",
         },
     });
- Build::bind<clock::Clock::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
+ Build::bind<targets::windows_x86_64::clock_impl::WindowsClockSleep::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "Sleep",
@@ -538,7 +572,7 @@ machine build(builder: &mut Build) {
             export: "GetSystemTimePreciseAsFileTime",
         },
     });
- Build::bind<time_host::TimeHost::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
+ Build::bind<targets::windows_x86_64::time_host_impl::WindowsTimeSleep::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "Sleep",
@@ -655,10 +689,10 @@ machine build(builder: &mut Build) {
  Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiIo::peek_message>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "PeekMessageA" } });
  Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiIo::translate_message>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "TranslateMessage" } });
  Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiIo::dispatch_message>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } });
- Build::bind<windows_gui_host::WindowsGuiHost::get_dc>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetDC" } });
- Build::bind<windows_gui_host::WindowsGuiHost::release_dc>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "ReleaseDC" } });
- Build::bind<windows_gui_host::WindowsGuiHost::client_rectangle>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetClientRect" } });
- Build::bind<windows_gui_host::WindowsGuiHost::stretch_dibits>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "gdi32.dll", export: "StretchDIBits" } });
+ Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiDrawing::get_dc>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetDC" } });
+ Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiDrawing::release_dc>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "ReleaseDC" } });
+ Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiDrawing::client_rectangle>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetClientRect" } });
+ Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiDrawing::stretch_dibits>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "gdi32.dll", export: "StretchDIBits" } });
  Build::bind<targets::windows_x86_64::windows_gui_impl::WindowsGuiIo::adjust_rectangle>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "AdjustWindowRectEx" } });
 
  Build::bind_table_function<targets::uefi_x86_64::handoff::UefiBootServices::allocate_pages, targets::uefi_x86_64::handoff::EfiBootServicesTable::allocate_pages>(builder, uefi_x86_64);
@@ -666,10 +700,11 @@ machine build(builder: &mut Build) {
  Build::bind_table_function<targets::uefi_x86_64::handoff::UefiBootServices::get_memory_map, targets::uefi_x86_64::handoff::EfiBootServicesTable::get_memory_map>(builder, uefi_x86_64);
  Build::bind_table_function<targets::uefi_x86_64::handoff::UefiBootServices::exit_boot_services, targets::uefi_x86_64::handoff::EfiBootServicesTable::exit_boot_services>(builder, uefi_x86_64);
 
- Build::bind<omega::language::core::process_exit::ProcessExit::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport {
+ Build::bind<targets::windows_x86_64::process_exit_impl::WindowsProcessExitIo::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",
         },
     });
+ Build::bind<targets::windows_x86_64::console_impl::WindowsConsoleIo::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" } });
 }

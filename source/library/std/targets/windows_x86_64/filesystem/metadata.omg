@@ -55,7 +55,7 @@ machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> Me
     }
 }
 
-windows_x86_64 machine windows_filesystem_metadata(file: File) -> MetadataResult
+machine windows_filesystem_metadata(file: File) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {
@@ -69,7 +69,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-windows_x86_64 machine windows_filesystem_metadata_path(path: &[u8] in Path, no_follow: bool) -> MetadataResult
+machine windows_filesystem_metadata_path(path: &[u8] in Path, no_follow: bool) -> MetadataResult
 reaches FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {
@@ -77,7 +77,7 @@ invokes WindowsFilesystemHost;
     windows_filesystem_metadata_result(outcome)
 }
 
-windows_x86_64 machine windows_filesystem_exists(path: &[u8] in Path) -> bool
+machine windows_filesystem_exists(path: &[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {
@@ -85,7 +85,7 @@ invokes WindowsFilesystemHost;
     transition outcome { MetadataResult::Ok { meta } -> true _ -> false }
 }
 
-windows_x86_64 machine windows_filesystem_try_exists(path: &[u8] in Path) -> ExistsResult
+machine windows_filesystem_try_exists(path: &[u8] in Path) -> ExistsResult
 reaches FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {
@@ -130,7 +130,7 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
     }
 }
 
-windows_x86_64 machine windows_filesystem_set_times(file: File, accessed: i64, modified: i64) -> UnitResult
+machine windows_filesystem_set_times(file: File, accessed: i64, modified: i64) -> UnitResult
 reaches FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {
@@ -160,7 +160,7 @@ invokes WindowsFilesystemHost;
 
 // A numeric POSIX mode does not encode a Windows ACL. Only the portable
 // read-only request is translated; Default restores the ordinary writable bit.
-windows_x86_64 machine windows_filesystem_set_permissions(path: &[u8] in Path, permissions: Permissions) -> UnitResult
+machine windows_filesystem_set_permissions(path: &[u8] in Path, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {
@@ -175,7 +175,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-windows_x86_64 machine windows_filesystem_set_file_permissions(file: File, permissions: Permissions) -> UnitResult
+machine windows_filesystem_set_file_permissions(file: File, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {

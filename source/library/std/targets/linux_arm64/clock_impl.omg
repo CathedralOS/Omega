@@ -22,18 +22,17 @@ data LinuxArmClockNanosleep { }
 // fractional field below one billion. A null remainder asks the kernel not
 // to write back interrupted time; signals may interrupt this wait, as on
 // the other POSIX Clock providers.
-linux_arm64 machine ClockNativeProvider::sleep(milliseconds: u32)
-    satisfies Clock::sleep
-reaches
-    Clock
-{
-    let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
-        seconds: widen_u32_to_i64(milliseconds / 1000),
-        nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
-    };
-    LinuxArmClockWait::nanosleep(&request, 0);
-}
 
-linux_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
-    ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
+
+LinuxArm64Clock satisfies Clock {
+    machine sleep(milliseconds: u32)
+    reaches
+        Clock
+    {
+        let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
+            seconds: widen_u32_to_i64(milliseconds / 1000),
+            nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
+        };
+        LinuxArmClockWait::nanosleep(&request, 0);
+    }
 }

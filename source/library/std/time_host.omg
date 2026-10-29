@@ -24,7 +24,7 @@
 //            units 10_000_000, epoch offset 11_644_473_600 (1601 -> 1970)
 //   darwin:  clock_gettime_nsec_np(CLOCK_UPTIME_RAW / CLOCK_REALTIME),
 //            units 1_000_000_000, epoch offset 0; arm64 and x86_64 each own a
-//            copy, because a machine carries one target scope
+//            ordinary implementation with its exact private native closure
 //   linux:   clock_gettime(CLOCK_MONOTONIC / CLOCK_REALTIME) through a
 //            borrowed timespec, units 1_000_000_000, epoch offset 0. The
 //            syscall number is per-architecture, NOT per-OS: 228 on x86-64's
@@ -42,38 +42,6 @@ use targets::linux_x86_64::time_host_impl;
 use targets::linux_arm64::time_host_impl;
 use targets::windows_x86_64::time_host_impl;
 
-// The selected target owns an ordinary reviewed provider, not a table of
-// compiler-folded answers. Unsupported targets retain their settlement gap.
-public data TimeHostNativeProvider { }
-
-// The target namespace is not a whole-trait implementation. Select this
-// complete map; each inline member makes an ordinary call to its exact target
-// body, retaining that body's raw-provider closure and operational contract.
-public NativeTimeHost satisfies TimeHost {
-    machine monotonic_ticks() -> u64 reaches TimeHost {
-        TimeHostNativeProvider::monotonic_ticks()
-    }
-
-    machine monotonic_ticks_per_second() -> u64 {
-        TimeHostNativeProvider::monotonic_ticks_per_second()
-    }
-
-    machine wall_clock_raw() -> u64 reaches TimeHost {
-        TimeHostNativeProvider::wall_clock_raw()
-    }
-
-    machine wall_clock_units_per_second() -> u64 {
-        TimeHostNativeProvider::wall_clock_units_per_second()
-    }
-
-    machine wall_clock_epoch_offset_seconds() -> u64 {
-        TimeHostNativeProvider::wall_clock_epoch_offset_seconds()
-    }
-
-    machine sleep(milliseconds: u32) reaches TimeHost blocks; {
-        block TimeHostNativeProvider::sleep(milliseconds);
-    }
-}
 
 public boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.

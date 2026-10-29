@@ -12,7 +12,7 @@ use targets::windows_x86_64::windows_filesystem_metadata_native;
 use targets::windows_x86_64::windows_filesystem_paths;
 use targets::windows_x86_64::windows_filesystem_path_query_native;
 
-windows_x86_64 machine WindowsFilesystemNativeProvider::canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i32
+machine windows_filesystem_native_canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i32
 satisfies WindowsFilesystemHost::canonicalize
 reaches FilesystemMetadataQuery {
     let mut wide: [u16; 4096];
@@ -23,24 +23,24 @@ reaches FilesystemMetadataQuery {
         let handle: i64 = block WindowsFilesystemMetadataIo::open_attributes(&path, 128, 7, 0, 3, 34603008, 0);
         transition handle != 0 && handle != -1 {
             true -> block query(handle, output)
-            false -> (WindowsFilesystemNativeProvider::failure_i32())
+            false -> (windows_filesystem_native_failure_i32())
         }
     }
     machine query(handle: i64, output: &mut [u8]) -> i32 requires handle != 0 && handle != -1 {
         let result: i32 = block windows_canonical_query(handle, output);
-        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle));
+        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle));
         transition result != 0 { true -> (result) false -> (released) }
     }
 }
 
-windows_x86_64 machine windows_canonical_query(handle: i64, output: &mut [u8]) -> i32
+machine windows_canonical_query(handle: i64, output: &mut [u8]) -> i32
 requires handle != 0 && handle != -1
 reaches FilesystemMetadataQuery {
     let mut resolved: [u16; 4096];
     let characters: u32 = block WindowsFilesystemPathIo::final_path(handle, &mut resolved, 4096, 0);
     transition characters > 0 {
         true -> extent(resolved, characters, output)
-        false -> (WindowsFilesystemNativeProvider::failure_i32())
+        false -> (windows_filesystem_native_failure_i32())
     }
     machine extent(resolved: [u16; 4096], characters: u32, output: &mut [u8]) -> i32 {
         // A too-small native buffer reports required size INCLUDING the NUL;
@@ -59,7 +59,7 @@ reaches FilesystemMetadataQuery {
             native_count, &mut encoded, 12288, 0, 0);
         transition written > 0 {
             true -> copy(encoded, written, output)
-            false -> (WindowsFilesystemNativeProvider::failure_i32())
+            false -> (windows_filesystem_native_failure_i32())
         }
     }
     machine copy(encoded: [u8; 12288], written: i32, output: &mut [u8]) -> i32 requires written > 0 {

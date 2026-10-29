@@ -67,92 +67,21 @@ public machine linux_x86_64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u
 
 // A failed read reports zero rather than a fabricated tick count: `Time::now`
 // treats zero as a degraded clock and never faults on it.
-linux_x86_64 machine TimeHostNativeProvider::monotonic_ticks() -> u64
-    satisfies TimeHost::monotonic_ticks
-reaches TimeHost
-{
-    let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-    let status: i64 = LinuxX64TimeRead::clock_gettime(1, &mut instant);
-    transition status == 0 {
-        true -> measured(instant.seconds, instant.nanoseconds)
-        _ -> degraded()
-    }
 
-    machine measured(seconds: i64, nanoseconds: i64) -> u64 {
-        linux_x86_64_time_host_ticks(seconds, nanoseconds)
-    }
-
-    machine degraded() -> u64 { 0 }
-}
-
-linux_x86_64 machine TimeHostNativeProvider::monotonic_ticks_per_second() -> u64
-    satisfies TimeHost::monotonic_ticks_per_second
-{
-    1000000000
-}
-
-linux_x86_64 machine TimeHostNativeProvider::wall_clock_raw() -> u64
-    satisfies TimeHost::wall_clock_raw
-reaches TimeHost
-{
-    let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-    let status: i64 = LinuxX64TimeRead::clock_gettime(0, &mut instant);
-    transition status == 0 {
-        true -> measured(instant.seconds, instant.nanoseconds)
-        _ -> degraded()
-    }
-
-    machine measured(seconds: i64, nanoseconds: i64) -> u64 {
-        linux_x86_64_time_host_ticks(seconds, nanoseconds)
-    }
-
-    machine degraded() -> u64 { 0 }
-}
 
 // CLOCK_REALTIME is already Unix-epoch nanoseconds, so the units are 10^9 and
 // the epoch shift is zero — unlike Windows, whose FILETIME needs both.
-linux_x86_64 machine TimeHostNativeProvider::wall_clock_units_per_second() -> u64
-    satisfies TimeHost::wall_clock_units_per_second
-{
-    1000000000
-}
 
-linux_x86_64 machine TimeHostNativeProvider::wall_clock_epoch_offset_seconds() -> u64
-    satisfies TimeHost::wall_clock_epoch_offset_seconds
-{
-    0
-}
 
 // poll's timeout is signed. Preserve the full u32 millisecond request by
 // splitting large waits into signed-representable pieces, as the Clock
 // provider for this target does.
-linux_x86_64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
-    satisfies TimeHost::sleep
-reaches TimeHost
-blocks;
-{
-    transition milliseconds > 2147483647 {
-        true -> block in_parts(milliseconds)
-        _ -> block at_once(milliseconds)
-    }
 
-    machine at_once(milliseconds: u32) {
-        block TimeHostNativeProvider::wait_part_linux_x86_64(narrow_u32_to_i32_wrapping(milliseconds));
-    }
-
-    machine in_parts(milliseconds: u32) {
-        let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
-        block TimeHostNativeProvider::wait_part_linux_x86_64(third);
-        block TimeHostNativeProvider::wait_part_linux_x86_64(third);
-        block TimeHostNativeProvider::wait_part_linux_x86_64(third);
-        block TimeHostNativeProvider::wait_part_linux_x86_64(narrow_u32_to_i32_wrapping(milliseconds % 3));
-    }
-}
 
 // No descriptors means zero reports a completed timeout. Retry failed waits
 // instead of reporting sleep complete early. Repeating the full piece can
 // oversleep; this boundary promises neither an upper duration nor termination.
-linux_x86_64 machine TimeHostNativeProvider::wait_part_linux_x86_64(timeout_milliseconds: i32)
+machine linux_x86_64_time_host_wait_part(timeout_milliseconds: i32)
 reaches TimeHost
 blocks;
 {
@@ -169,6 +98,76 @@ blocks;
     machine done() { }
 }
 
-linux_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
-    TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
+
+LinuxX86TimeHost satisfies TimeHost {
+    machine monotonic_ticks() -> u64
+    reaches TimeHost
+    {
+        let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
+        let status: i64 = LinuxX64TimeRead::clock_gettime(1, &mut instant);
+        transition status == 0 {
+            true -> measured(instant.seconds, instant.nanoseconds)
+            _ -> degraded()
+        }
+
+        machine measured(seconds: i64, nanoseconds: i64) -> u64 {
+            linux_x86_64_time_host_ticks(seconds, nanoseconds)
+        }
+
+        machine degraded() -> u64 { 0 }
+    }
+
+    machine monotonic_ticks_per_second() -> u64
+    {
+        1000000000
+    }
+
+    machine wall_clock_raw() -> u64
+    reaches TimeHost
+    {
+        let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
+        let status: i64 = LinuxX64TimeRead::clock_gettime(0, &mut instant);
+        transition status == 0 {
+            true -> measured(instant.seconds, instant.nanoseconds)
+            _ -> degraded()
+        }
+
+        machine measured(seconds: i64, nanoseconds: i64) -> u64 {
+            linux_x86_64_time_host_ticks(seconds, nanoseconds)
+        }
+
+        machine degraded() -> u64 { 0 }
+    }
+
+    machine wall_clock_units_per_second() -> u64
+    {
+        1000000000
+    }
+
+    machine wall_clock_epoch_offset_seconds() -> u64
+    {
+        0
+    }
+
+    machine sleep(milliseconds: u32)
+    reaches TimeHost
+    blocks;
+    {
+        transition milliseconds > 2147483647 {
+            true -> block in_parts(milliseconds)
+            _ -> block at_once(milliseconds)
+        }
+
+        machine at_once(milliseconds: u32) {
+            block linux_x86_64_time_host_wait_part(narrow_u32_to_i32_wrapping(milliseconds));
+        }
+
+        machine in_parts(milliseconds: u32) {
+            let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
+            block linux_x86_64_time_host_wait_part(third);
+            block linux_x86_64_time_host_wait_part(third);
+            block linux_x86_64_time_host_wait_part(third);
+            block linux_x86_64_time_host_wait_part(narrow_u32_to_i32_wrapping(milliseconds % 3));
+        }
+    }
 }

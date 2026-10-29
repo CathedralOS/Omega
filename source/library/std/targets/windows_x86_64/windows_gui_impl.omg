@@ -10,7 +10,7 @@ use omega::language::core::external_binding;
 
 data WindowsGuiIo { }
 data WindowsGuiImports { }
-data WindowsGuiNativeProvider { }
+
 
 boundary requirement WindowsGuiIo::create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
 reaches
@@ -64,111 +64,143 @@ reaches
     ProcessOutput + ProcessExit;
 
 
-windows_x86_64 machine WindowsGuiNativeProvider::window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
-satisfies WindowsGuiHost::window_create
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit {
-    transition class_name.len > 0 && title.len > 0 {
-        true -> terminated(class_name, title, style, x, y, width, height)
-        _ -> (0)
-    }
-    machine terminated(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
-    requires class_name.len > 0 && title.len > 0 {
-        transition class_name[class_name.len - 1] == 0 && title[title.len - 1] == 0 {
-            true -> (WindowsGuiIo::create_window(0, &class_name[0], &title[0], style, x, y, width, height, 0, 0, 0, 0))
-            _ -> (0)
-        }
-    }
-}
-windows_x86_64 machine WindowsGuiNativeProvider::foreground_window() -> u64
-satisfies WindowsGuiHost::foreground_window
-reaches WindowManagement {
-    WindowsGuiIo::foreground_window()
-}
-windows_x86_64 machine WindowsGuiNativeProvider::is_window(window: u64) -> bool
-satisfies WindowsGuiHost::is_window
-reaches WindowManagement {
-    let answer: i32 = WindowsGuiIo::is_window(window);
-    answer != 0
-}
-windows_x86_64 machine WindowsGuiNativeProvider::window_destroy(window: u64) -> bool
-satisfies WindowsGuiHost::window_destroy
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit {
-    let answer: i32 = WindowsGuiIo::destroy_window(window);
-    answer != 0
-}
-windows_x86_64 machine WindowsGuiNativeProvider::pump_message(message: &mut WindowsMessage) -> bool
-satisfies WindowsGuiHost::pump_message
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit {
-    let answer: i32 = WindowsGuiIo::peek_message(message, 0, 0, 0, 1);
-    transition answer != 0 { true -> dispatch(message) _ -> (false) }
-    machine dispatch(message: &WindowsMessage) -> bool {
-        let translated: i32 = WindowsGuiIo::translate_message(message);
-        let result: i64 = WindowsGuiIo::dispatch_message(message);
-        true
-    }
-}
-windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mut WindowsGuiNativeProvider) {
-    WindowsGuiNativeProvider::select_provider<WindowsGuiHost, NativeWindowsGui>(defaults);
-}
-
-
 boundary requirement WindowsGuiIo::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
 reaches WindowManagement;
 
 
-windows_x86_64 machine WindowsGuiNativeProvider::window_create_client(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
-satisfies WindowsGuiHost::window_create_client
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit {
-    let mut rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
-    let adjusted: i32 = WindowsGuiIo::adjust_rectangle(&mut rectangle, style, 0, 0);
-    let outer_width: i64 = (rectangle.right as i64) - (rectangle.left as i64);
-    let outer_height: i64 = (rectangle.bottom as i64) - (rectangle.top as i64);
-    transition adjusted != 0 && width > 0 && height > 0
-        && outer_width > 0 && outer_width <= 2147483647
-        && outer_height > 0 && outer_height <= 2147483647 {
-        true -> create(class_name, title, style, x, y, outer_width, outer_height)
-        _ -> (0)
-    }
-    machine create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i64, height: i64) -> u64
-    requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
-        WindowsGuiNativeProvider::window_create(class_name, title, style, x, y, width as i32, height as i32)
-    }
+// Complete explicit provider map; concrete bodies retain their own namespace.
+
+
+boundary trait WindowsGuiDrawing {
+    machine get_dc(window: u64) -> u64 reaches
+            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+            FilesystemNamespaceMutation;
+    machine release_dc(window: u64, device: u64) -> i32 reaches
+            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+            FilesystemNamespaceMutation;
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement;
+    machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
+            destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
+            source_width: i32, source_height: i32, pixels: &i32, info: &i32,
+            usage: u32, raster_operation: u32) -> i32 reaches
+                SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+                FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+                FilesystemNamespaceMutation;
 }
 
-// Complete explicit provider map; concrete bodies retain their own namespace.
 NativeWindowsGui satisfies WindowsGuiHost {
-    WindowsGuiHost::window_create = WindowsGuiNativeProvider::window_create;
-    WindowsGuiHost::foreground_window = WindowsGuiNativeProvider::foreground_window;
-    WindowsGuiHost::is_window = WindowsGuiNativeProvider::is_window;
-    WindowsGuiHost::window_destroy = WindowsGuiNativeProvider::window_destroy;
-    WindowsGuiHost::pump_message = WindowsGuiNativeProvider::pump_message;
-    WindowsGuiHost::get_dc = WindowsGuiNativeProvider::get_dc;
-    WindowsGuiHost::release_dc = WindowsGuiNativeProvider::release_dc;
-    WindowsGuiHost::client_rectangle = WindowsGuiNativeProvider::client_rectangle;
-    WindowsGuiHost::stretch_dibits = WindowsGuiNativeProvider::stretch_dibits;
-    WindowsGuiHost::window_create_client = WindowsGuiNativeProvider::window_create_client;
+    machine window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit {
+        transition class_name.len > 0 && title.len > 0 {
+            true -> terminated(class_name, title, style, x, y, width, height)
+            _ -> (0)
+        }
+        machine terminated(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+        requires class_name.len > 0 && title.len > 0 {
+            transition class_name[class_name.len - 1] == 0 && title[title.len - 1] == 0 {
+                true -> (WindowsGuiIo::create_window(0, &class_name[0], &title[0], style, x, y, width, height, 0, 0, 0, 0))
+                _ -> (0)
+            }
+        }
+    }
+
+    machine foreground_window() -> u64
+    reaches WindowManagement {
+        WindowsGuiIo::foreground_window()
+    }
+
+    machine is_window(window: u64) -> bool
+    reaches WindowManagement {
+        let answer: i32 = WindowsGuiIo::is_window(window);
+        answer != 0
+    }
+
+    machine window_destroy(window: u64) -> bool
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit {
+        let answer: i32 = WindowsGuiIo::destroy_window(window);
+        answer != 0
+    }
+
+    machine pump_message(message: &mut WindowsMessage) -> bool
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit {
+        let answer: i32 = WindowsGuiIo::peek_message(message, 0, 0, 0, 1);
+        transition answer != 0 { true -> dispatch(message) _ -> (false) }
+        machine dispatch(message: &WindowsMessage) -> bool {
+            let translated: i32 = WindowsGuiIo::translate_message(message);
+            let result: i64 = WindowsGuiIo::dispatch_message(message);
+            true
+        }
+    }
+
+    machine window_create_client(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit {
+        let mut rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
+        let adjusted: i32 = WindowsGuiIo::adjust_rectangle(&mut rectangle, style, 0, 0);
+        let outer_width: i64 = (rectangle.right as i64) - (rectangle.left as i64);
+        let outer_height: i64 = (rectangle.bottom as i64) - (rectangle.top as i64);
+        transition adjusted != 0 && width > 0 && height > 0
+            && outer_width > 0 && outer_width <= 2147483647
+            && outer_height > 0 && outer_height <= 2147483647 {
+            true -> create(class_name, title, style, x, y, outer_width, outer_height)
+            _ -> (0)
+        }
+        machine create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i64, height: i64) -> u64
+        requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
+            NativeWindowsGui::window_create(class_name, title, style, x, y, width as i32, height as i32)
+        }
+    }
+
+    machine get_dc(window: u64) -> u64 reaches
+            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+            FilesystemNamespaceMutation {
+        WindowsGuiDrawing::get_dc(window)
+    }
+
+    machine release_dc(window: u64, device: u64) -> i32 reaches
+            SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+            FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+            FilesystemNamespaceMutation {
+        WindowsGuiDrawing::release_dc(window, device)
+    }
+
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement {
+        WindowsGuiDrawing::client_rectangle(window, rectangle)
+    }
+
+    machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
+            destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
+            source_width: i32, source_height: i32, pixels: &i32, info: &i32,
+            usage: u32, raster_operation: u32) -> i32 reaches
+                SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+                FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+                FilesystemNamespaceMutation {
+        WindowsGuiDrawing::stretch_dibits(device, destination_x, destination_y, destination_width, destination_height, source_x, source_y, source_width, source_height, pixels, info, usage, raster_operation)
+    }
 }
