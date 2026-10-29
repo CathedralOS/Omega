@@ -39,10 +39,7 @@ pub(super) fn emit(
                 normalization,
                 constraints.keys.copy_i64,
                 &[raw, output],
-                SelectedInstructionProvenance {
-                    values: vec![result.value],
-                    ..Default::default()
-                },
+                super::value_provenance(result.value),
             )?;
             Ok(output)
         }
@@ -387,10 +384,7 @@ pub(super) fn emit(
                     crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
                     constraints.keys.copy_i64,
                     &[raw, output],
-                    SelectedInstructionProvenance {
-                        values: vec![result.value],
-                        ..Default::default()
-                    },
+                    super::value_provenance(result.value),
                 )?;
                 output
             }
@@ -489,20 +483,14 @@ pub(super) fn emit(
                 builder.emit_materialize_i64(
                     IntegerValue::Unsigned(u128::from(value_integer.bits() - 1)),
                     mask,
-                    SelectedInstructionProvenance {
-                        values: vec![*count],
-                        ..Default::default()
-                    },
+                    super::value_provenance(*count),
                 )?;
                 let masked = builder.register(*count, count_site, count_type)?;
                 builder.emit_integer(
                     SelectedInstructionKind::BitwiseAndI64,
                     constraints.keys.subtract_i64,
                     &[count_register, mask, masked],
-                    SelectedInstructionProvenance {
-                        values: vec![*count],
-                        ..Default::default()
-                    },
+                    super::value_provenance(*count),
                 )?;
                 count_register = masked;
             }
