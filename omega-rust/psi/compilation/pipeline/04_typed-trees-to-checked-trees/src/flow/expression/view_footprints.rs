@@ -1,8 +1,8 @@
-//! A representation view keeps the storage it actually borrowed before the
-//! new interpretation. The whole source is a safe enclosure for owned fields;
-//! its logical field symbols must never be appended to the source layout.
-//! This relation is independent of lifetime roots and exact value referents.
-//! Resident views borrow content, so their Extent descriptor is excluded.
+//! Completed storage geometry stays separate from lifetime and exact identity.
+//! Checked bodies retain complete possible coordinates for interference and
+//! typed field projection. A representation view instead keeps its original
+//! backing enclosure: its new field symbols cannot name the source layout.
+//! Resident views borrow content, excluding their Extent descriptor.
 use super::Execution;
 use arena::Handle;
 use checked_trees::{FlowOperandFact, FlowOperandRetention};
@@ -152,22 +152,7 @@ impl Execution<'_, '_, '_> {
             return None;
         }
         let source = self.program.expression_table.call_node(value.expression)?;
-        let checked_dispatch =
-            source
-                .static_requirement_dispatch
-                .as_ref()
-                .is_some_and(|dispatch| {
-                    self.program
-                        .machine_by_symbol(dispatch.realization_machine)
-                        .is_some_and(|machine| {
-                            machine.body_is_present
-                                && machine.supply_mode
-                                    == language_semantics::MachineSupplyMode::CheckedBody
-                        })
-                });
-        if !source.carries_only_positional_arguments()
-            || (!source.selects_only_nominal_route() && !checked_dispatch)
-        {
+        if !source.carries_only_positional_arguments() || !source.selects_only_nominal_route() {
             return None;
         }
         let output = validation::reference_shell(self.program, value.type_reference)?;
