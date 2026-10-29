@@ -87,9 +87,6 @@ impl ObjectArtifact {
     pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
         self.hosted_receiver.as_ref()
     }
-    #[cfg(any(test, feature = "test-support"))]
-    #[cfg(any(test, feature = "test-support"))]
-    #[cfg(any(test, feature = "test-support"))]
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }

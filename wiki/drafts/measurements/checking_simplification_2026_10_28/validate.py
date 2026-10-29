@@ -51,6 +51,9 @@ def main():
                       control.startswith("fail/"), control in RUNTIME_CONTROLS))
     records = json.loads((output / "results.json").read_text(encoding="utf-8")) if resume else []
     for name, source, invalid, runtime in cases:
+        # Runtime witnesses can deliberately use a nonzero exit as their oracle.
+        exit_oracle = source.with_name("expected_native_exit.txt")
+        expected_exit = int(exit_oracle.read_text().strip()) if runtime and exit_oracle.is_file() else 0
         case_rows = []
         for variant, producer in producers.items():
             previous = next((row for row in records if row["case"] == name and row["variant"] == variant), None)
@@ -73,12 +76,12 @@ def main():
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
             transcript = result.stdout.decode("utf-8", "replace")
             errors = [line.strip() for line in transcript.splitlines() if "error:" in line]
-            passed = (result.returncode != 0 and bool(errors)) if invalid else result.returncode == 0
+            passed = (result.returncode != 0 and bool(errors)) if invalid else result.returncode == expected_exit
             if runtime:
-                passed = passed and "native exit 0" in transcript and "interp exit: 0" in transcript
+                passed = passed and f"native exit {expected_exit}\n" in transcript and f"interp exit: {expected_exit}\n" in transcript
             if invalid and name.endswith("-invalid"):
                 passed = passed and all(fragment in transcript for fragment in INVALID_FRAGMENTS)
-            records.append(dict(case=name, variant=variant, command=arguments, exit=result.returncode,
+            records.append(dict(case=name, variant=variant, command=arguments, exit=result.returncode, expected_exit=expected_exit,
                                 passed=passed, errors=errors, output=transcript,
                                 source_sha256=benchmark.sha256_file(source),
                                 build_sha256=(benchmark.sha256_file(source.with_name("build.omg"))

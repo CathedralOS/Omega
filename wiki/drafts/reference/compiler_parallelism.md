@@ -368,5 +368,14 @@ attributed the large warm restore and tested bounded buffer preallocation.
 It preserves native bytes, invalid twins, malformed-record refusal and fresh
 admission while lowering warm peak private commit by about 97–119 MiB
 (15–19%). Timing differences did not establish another latency improvement.
-That memory change is retained locally; the landing receipt and descendant-main
-smoke evidence for PR #755 are recorded with the experiment.
+That memory change landed through [PR #757](https://github.com/CathedralOS/Omega/pull/757).
+The landing receipt and descendant-main smoke evidence for PR #755 are recorded
+with the experiment.
+
+The [root-scoped whole-graph experiment](../measurements/root_graph_2026_10_29/README.md)
+then avoided loading unrelated projects while retaining the complete coupled
+graph and fresh admission. The real candidate reduced three-root warm median
+latency by 19–30% and six-root warm median latency by 34–56%. All native images
+matched the baseline bytes; focused native/Terminal, reject, corruption, source
+change, foreign-root and pruning controls passed. This next substantial latency
+win is committed locally, with raw evidence and limitations in its record.

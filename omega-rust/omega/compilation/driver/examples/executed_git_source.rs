@@ -1,8 +1,8 @@
 //! Executed Git acquisition through the real application facade and two engines.
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
-#[path = "../tests/support/joined_product_execution.rs"]
-mod joined_product_execution;
+#[path = "../tests/support/joined_product_native.rs"]
+mod joined_product_native;
 
 use std::path::PathBuf;
 
@@ -169,7 +169,7 @@ fn execute_workspace_fixture() {
     let mut outcomes = omega_build::build(request.clone()).unwrap();
     let outcome = outcomes.pop().unwrap();
     let report = outcome.result.unwrap().into_report().unwrap().report;
-    joined_product_execution::execute_report(report, &directory.join("native"));
+    joined_product_native::execute_report(report, &directory.join("native"));
     assert_eq!(
         artifacts::compile_timings::counters::build_execution_count(),
         before + 6,
@@ -251,7 +251,7 @@ fn execute_workspace_fixture() {
         .into_report()
         .unwrap()
         .report;
-    joined_product_execution::execute_report(report, &directory.join("locked-native"));
+    joined_product_native::execute_report(report, &directory.join("locked-native"));
     assert_eq!(
         artifacts::compile_timings::counters::build_execution_count(),
         before + 6
@@ -465,7 +465,7 @@ fn execute_fixture() {
             .with_complete_dependency_build_handoffs(vec![child.build_handoff().clone()])
             .unwrap();
         let root = root.complete(session.compiler(), profile, inputs).unwrap();
-        let result = joined_product_execution::execute_joined_product(
+        let result = joined_product_native::execute_joined_product(
             session.compiler(),
             root,
             &directory.join(if private_call {
@@ -548,7 +548,7 @@ fn foreign_policy_control(
         )
         .unwrap();
     let mut invocation = session.compiler().begin_package_build(request).unwrap();
-    let mut host = invocation.execution().unwrap().host().unwrap();
+    let host = invocation.execution().unwrap().host().unwrap();
     let mut activation = host.start().unwrap();
     while !activation.advance(1024).unwrap().returned {}
     let returned = activation.complete().unwrap();
