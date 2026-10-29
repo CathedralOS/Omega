@@ -53,7 +53,7 @@ pub struct TerminalExecutionRequirements {
     /// Closed terminal invocations demand host-delegated domain authority,
     /// independently of normal import adapters and provider selection.
     pub external_completions: Vec<TerminalExternalCompletionDemand>,
-    /// Scalar jobs read by the selected executable closure. Merely retaining a
+    /// Scalar values and inline storage extents needed by the selected closure. Merely retaining a
     /// catalog row or a disconnected block does not demand its evaluation.
     pub scalar_applications: Vec<semantic_vocabulary::ScalarApplicationId>,
     /// Conditions owned by evaluation entries actually invoked by this closure.
@@ -105,6 +105,14 @@ pub(crate) fn check_with_private_entry_ram(
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
     let mut scalar_applications = BTreeSet::new();
+    // One borrowed index serves the reached operand joins, never an owned copy
+    // of the catalog or a request to evaluate every retained type.
+    let declarations = program
+        .structural_types()
+        .values()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut storage_roots = BTreeSet::new();
     let mut pending = vec![entry];
     let mut visited = BTreeSet::new();
     while let Some(machine_id) = pending.pop() {
@@ -112,6 +120,12 @@ pub(crate) fn check_with_private_entry_ram(
             continue;
         }
         let machine = program.verified_machine(machine_id)?;
+        storage_roots.extend(
+            machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.structural_type),
+        );
         let requirement = machine.assembly_target_requirement;
         if requirement != terminal_psi::RegisterTargetApplicability::Any {
             let selected = installation
@@ -139,7 +153,28 @@ pub(crate) fn check_with_private_entry_ram(
             let block = machine
                 .block(&block_id)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+            storage_roots.extend(
+                block
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.structural_type),
+            );
             for (operation_index, operation) in block.operations.iter().enumerate() {
+                storage_roots.extend(
+                    operation
+                        .result
+                        .structural()
+                        .map(|result| result.structural_type),
+                );
+                for storage in operation.kind.storage_uses() {
+                    terminal_semantics::storage_operand_dependencies(
+                        machine,
+                        &declarations,
+                        storage,
+                        &mut storage_roots,
+                    )
+                    .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+                }
                 if let OperationKind::ReadScalarApplication { application } = operation.kind {
                     scalar_applications.insert(application);
                 }
@@ -291,6 +326,15 @@ pub(crate) fn check_with_private_entry_ram(
                     pending.push(callee);
                 }
             }
+            for storage in block.terminator.storage_uses() {
+                terminal_semantics::storage_operand_dependencies(
+                    machine,
+                    &declarations,
+                    storage.into(),
+                    &mut storage_roots,
+                )
+                .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+            }
             match &block.terminator {
                 Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                 Terminator::ExternalCompletion { boundary, kind, .. } => {
@@ -378,6 +422,10 @@ pub(crate) fn check_with_private_entry_ram(
             TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary, kind },
         ));
     }
+    scalar_applications.extend(
+        terminal_semantics::inline_storage_extent_dependencies(storage_roots, &declarations)
+            .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?,
+    );
     let catalog = &program.catalogs.scalar_applications;
     let mut scalar_entry_conditions = Vec::new();
     for (position, declaration) in catalog.declarations().iter().enumerate() {

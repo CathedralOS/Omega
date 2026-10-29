@@ -1,0 +1,1 @@
+Build helper scalar completion: scalar predicate is false: index `16` of `table.slots`

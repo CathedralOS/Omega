@@ -161,6 +161,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             artifact,
             completion.target(),
             completion.demand(),
+            None,
             &mut accounting,
             |scope| {
                 let proposal = completion

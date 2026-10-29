@@ -17,6 +17,7 @@ pub(crate) fn complete(
         artifact,
         primary,
         demand,
+        None,
         accounting,
         |scope| {
             let proposal = proposals

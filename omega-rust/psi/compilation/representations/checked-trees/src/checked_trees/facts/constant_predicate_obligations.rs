@@ -1,10 +1,10 @@
 //! Constant proof predicates awaiting their selected-target observations.
 //!
 //! A portable check cannot prove a target's layout by observing the host. It
-//! can retain a ground predicate whose only unknown leaves are explicit layout
-//! requests. This is conditional evidence, not a successful proof: target
-//! closure must discharge every predicate before producing Terminal Psi.
-//! Runtime places and calls cannot enter this route. The captured decision graph
+//! retains ground predicates over layout requests and complete constant entries.
+//! This is conditional evidence, not a successful proof: target completion
+//! must discharge every predicate before ordinary execution.
+//! Runtime places and arbitrary calls cannot enter this route. The captured decision graph
 //! keeps the checked operator meaning; closure supplies values, not new syntax
 //! or a second source-checking pass. The ordinary scalar predicate evaluator
 //! is shared with the source prover so Boolean semantics cannot drift.
@@ -21,7 +21,6 @@ pub struct ConstantPredicateObligation {
     root: Handle<CapturedPredicateNode>,
     source_span: source::SourceSpan,
     description: String,
-    owner: symbols::SymbolHandle,
     caller: symbols::SymbolHandle,
     discharged_target: Option<typed_trees::name::Identifier>,
 }
@@ -29,7 +28,27 @@ pub struct ConstantPredicateObligation {
 /// Arena-owned Boolean structure. Leaves name the exact admitted scalar
 /// observation; source expressions cannot replace this captured decision graph.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-struct CapturedPredicateNode(PredicateNode<Handle<CapturedPredicateNode>, ExpressionHandle>);
+struct CapturedPredicateNode(PredicateNode<Handle<CapturedPredicateNode>, ScalarObservation>);
+
+/// Crossing a named constant changes lexical ownership, not caller applicability.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+struct ScalarObservation {
+    expression: ExpressionHandle,
+    owner: symbols::SymbolHandle,
+}
+
+impl ScalarObservation {
+    fn complete_integer_entry(self, program: &TypedTrees) -> Option<bool> {
+        let entry = program
+            .constant_evaluation_for_expression(self.expression, self.owner)
+            .ok()?;
+        Some(entry.is_some_and(|entry| {
+            program
+                .primitive_type_reference(entry.result_type)
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
+        }))
+    }
+}
 
 impl ConstantPredicateObligation {
     /// Retain a wholly constant predicate that needs target closure. A runtime
@@ -45,17 +64,24 @@ impl ConstantPredicateObligation {
         // Admit every authored child before capturing the selectively evaluated
         // graph. A statically chosen branch cannot hide a runtime name or an
         // unauthorized operator in the other branch.
-        let mut pending = vec![expression];
+        let mut pending = vec![ScalarObservation { expression, owner }];
         let mut visited = Vec::new();
         let mut needs_closure = false;
-        while let Some(current) = pending.pop() {
-            if visited.contains(&current) {
+        while let Some(observation) = pending.pop() {
+            if visited.contains(&observation) {
                 continue;
             }
+            let current = observation.expression;
             if !program.expression_table.expression_is_valid(current) {
                 return None;
             }
-            visited.push(current);
+            visited.push(observation);
+            // The ordinary checked entry owns formation, purity, termination
+            // and arithmetic. Do not reinterpret its source body as a predicate.
+            if observation.complete_integer_entry(program)? {
+                needs_closure = true;
+                continue;
+            }
             match program.expression_table.expression(current) {
                 ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
                 ExpressionNode::Call(call) if call.layout_query.is_some() => {
@@ -63,7 +89,10 @@ impl ConstantPredicateObligation {
                 }
                 ExpressionNode::Name(path) => {
                     let declaration = program.const_declaration_by_symbol(path.symbol)?;
-                    pending.push(declaration.materialized_initializer);
+                    pending.push(ScalarObservation {
+                        expression: declaration.materialized_initializer,
+                        owner: declaration.symbol,
+                    });
                 }
                 ExpressionNode::Binary(binary) => {
                     // Contract expressions may have no executable operator
@@ -72,13 +101,24 @@ impl ConstantPredicateObligation {
                     if !builtin(current) {
                         return None;
                     }
-                    pending.extend([binary.left, binary.right]);
+                    pending.extend([binary.left, binary.right].map(|expression| {
+                        ScalarObservation {
+                            expression,
+                            owner: observation.owner,
+                        }
+                    }));
                 }
                 ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                    pending.push(unary.operand);
+                    pending.push(ScalarObservation {
+                        expression: unary.operand,
+                        ..observation
+                    });
                 }
                 ExpressionNode::Cast(cast) if !cast.form.is_recast() => {
-                    pending.push(cast.value);
+                    pending.push(ScalarObservation {
+                        expression: cast.value,
+                        ..observation
+                    });
                 }
                 _ => return None,
             }
@@ -86,13 +126,12 @@ impl ConstantPredicateObligation {
         if !needs_closure {
             return None;
         }
-        let (nodes, root) = capture_predicate(program, expression)?;
+        let (nodes, root) = capture_predicate(program, ScalarObservation { expression, owner })?;
         Some(Self {
             nodes,
             root,
             source_span: program.expression_table.source_span(expression),
             description,
-            owner,
             caller,
             discharged_target: None,
         })
@@ -134,7 +173,7 @@ impl ConstantPredicateObligation {
                         .map(|(_, mapped)| *mapped)
                         .ok_or_else(|| "retained predicate lost a preceding child".to_owned())
                 },
-                &mut |leaf| observe(*leaf, self.owner),
+                &mut |leaf| observe(leaf.expression, leaf.owner),
             )?;
             coordinates.push((source, publish(node)?));
         }
@@ -162,7 +201,7 @@ impl ConstantPredicateObligation {
                         obligation.nodes.is_valid(reference)
                             .then(|| obligation.nodes.get(reference).0.clone())
                     },
-                    &mut |leaf| observe(leaf, obligation.owner),
+                    &mut |leaf: ScalarObservation| observe(leaf.expression, leaf.owner),
                     &|_, _| true,
                 );
                 if matches!(result, Some(ScalarValue::Boolean(true))) {
@@ -196,18 +235,18 @@ impl ConstantPredicateObligation {
 
 fn capture_predicate(
     program: &TypedTrees,
-    root: ExpressionHandle,
+    root: ScalarObservation,
 ) -> Option<(Arena<CapturedPredicateNode>, Handle<CapturedPredicateNode>)> {
     enum Step {
-        Enter(ExpressionHandle),
+        Enter(ScalarObservation),
         Capture(
-            ExpressionHandle,
-            PredicateNode<ExpressionHandle, ExpressionHandle>,
+            ScalarObservation,
+            PredicateNode<ScalarObservation, ScalarObservation>,
         ),
     }
     let mut pending = vec![Step::Enter(root)];
     let mut active = Vec::new();
-    let mut captured: Vec<(ExpressionHandle, Handle<CapturedPredicateNode>)> = Vec::new();
+    let mut captured: Vec<(ScalarObservation, Handle<CapturedPredicateNode>)> = Vec::new();
     let mut nodes = Arena::new();
     while let Some(step) = pending.pop() {
         match step {
@@ -219,23 +258,40 @@ fn capture_predicate(
                     return None;
                 }
                 active.push(expression);
-                let node = if let ExpressionNode::Name(path) =
-                    program.expression_table.expression(expression)
+                let node = if expression.complete_integer_entry(program)? {
+                    PredicateNode::Leaf(expression)
+                } else if let ExpressionNode::Name(path) =
+                    program.expression_table.expression(expression.expression)
                 {
-                    PredicateNode::Forward(
-                        program
-                            .const_declaration_by_symbol(path.symbol)?
-                            .materialized_initializer,
-                    )
+                    let declaration = program.const_declaration_by_symbol(path.symbol)?;
+                    PredicateNode::Forward(ScalarObservation {
+                        expression: declaration.materialized_initializer,
+                        owner: declaration.symbol,
+                    })
                 } else {
-                    scalar_predicates::source_node(program, expression, &mut |_| None)?
+                    scalar_predicates::source_node(program, expression.expression, &mut |_| None)?
+                        .try_map(
+                            &mut |child| {
+                                Ok::<_, ()>(ScalarObservation {
+                                    expression: child,
+                                    owner: expression.owner,
+                                })
+                            },
+                            &mut |leaf| {
+                                Ok::<_, ()>(ScalarObservation {
+                                    expression: *leaf,
+                                    owner: expression.owner,
+                                })
+                            },
+                        )
+                        .ok()?
                 };
                 let (children, count) = match &node {
                     PredicateNode::Not(child) | PredicateNode::Forward(child) => {
-                        ([*child, ExpressionHandle::invalid()], 1)
+                        ([*child, ScalarObservation::default()], 1)
                     }
                     PredicateNode::Binary { left, right, .. } => ([*left, *right], 2),
-                    _ => ([ExpressionHandle::invalid(); 2], 0),
+                    _ => ([ScalarObservation::default(); 2], 0),
                 };
                 pending.push(Step::Capture(expression, node));
                 pending.extend(children.into_iter().take(count).rev().map(Step::Enter));
@@ -276,19 +332,29 @@ mod tests {
         let mut nodes = Arena::new();
         let first = ExpressionHandle::from_parts(17, 1);
         let second = ExpressionHandle::from_parts(23, 1);
-        let left = nodes.insert(CapturedPredicateNode(PredicateNode::Leaf(first)));
-        let right = nodes.insert(CapturedPredicateNode(PredicateNode::Leaf(second)));
+        let owner = symbols::SymbolHandle::from_parts(31, 1);
+        let other_owner = symbols::SymbolHandle::from_parts(33, 1);
+        let left = nodes.insert(CapturedPredicateNode(PredicateNode::Leaf(
+            ScalarObservation {
+                expression: first,
+                owner,
+            },
+        )));
+        let right = nodes.insert(CapturedPredicateNode(PredicateNode::Leaf(
+            ScalarObservation {
+                expression: second,
+                owner: other_owner,
+            },
+        )));
         let root = nodes.insert(CapturedPredicateNode(PredicateNode::Binary {
             operator: PredicateOperator::Equal,
             left,
             right,
         }));
-        let owner = symbols::SymbolHandle::from_parts(31, 1);
         let caller = symbols::SymbolHandle::from_parts(37, 1);
         let obligation = ConstantPredicateObligation {
             nodes,
             root,
-            owner,
             caller,
             source_span: source::SourceSpan::default(),
             description: "captured equality".into(),
@@ -310,7 +376,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(obligation.caller(), caller);
-        assert_eq!(observations, vec![(first, owner), (second, owner)]);
+        assert_eq!(observations, vec![(first, owner), (second, other_owner)]);
         drop(obligation);
         assert_eq!(
             scalar_predicates::evaluate_nodes(

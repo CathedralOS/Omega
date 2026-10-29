@@ -24,6 +24,7 @@ terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }
 terminal-fuel = { path = "../representations/terminal-psi/fuel" }
+evaluation-accounting = { path = "../../foundation/evaluation-accounting" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
 flow-effects = { path = "../../foundation/flow-effects" }

@@ -18,6 +18,8 @@
 
 pub mod activation_storage;
 mod arrival_storage;
+mod storage_dependencies;
+pub use storage_dependencies::{inline_storage_extent_dependencies, storage_operand_dependencies};
 pub mod borrowed_storage;
 mod byte_carriers;
 mod byte_sequence_concatenation;

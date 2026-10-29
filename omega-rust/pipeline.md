@@ -420,13 +420,14 @@ dependency or evaluator callback, and cannot silently recompute a missing value.
 Declaration-only Check publishes a rootless Terminal product when conditions need
 completion; a Check with no retained scalar obligations stops before publication.
 
-Build-helper production is the remaining legacy constant-closure caller in
-`checked/package_compilation.rs`. It still resumes captured source on a private
-copy under the admitted Build execution profile before publishing the explicitly
-named helper. It does not select the dependency's Product provider defaults.
-Replacing that path requires canonical helper completion with exact installation
-inputs, receipt lifetime, geometry demand and Build accounting; the Product
-cutover does not establish those obligations.
+Build-helper production publishes the checked source unchanged. The waiting
+Build activation admits each explicitly named provider slot, discovers its
+scalar and inline-storage demands, then completes canonical applications under
+the admitted Build execution profile and that slot's exact provider selection.
+It never selects the dependency's Product defaults. Installed components own
+their completed scalar admission after temporary helper preparation is released.
+Evaluation charges the waiting invocation directly; retained observations are
+not charged again. Already-installed backing skips completion before resumption.
 Numeric intrinsic classification has one source-owned decision: the exact
 requirement's token or named catalog row supplies both signature obligations
 and its closed execution identity. Provider planning and selected dispatch use
@@ -447,7 +448,7 @@ products still use checked source custody: moving their complete conformance
 evidence to Terminal remains part of provider-settlement migration.
 Provider selection and target geometry still originate outside Psi. Product
 scalar publication is target-neutral; source-dependent provider preparation,
-review projection and the Build-helper closure remain migration work. This is
+review projection remain migration work. This is
 not yet a completed Terminal-only provider pipeline.
 
 Independent component emission belongs to the same source-free native compiler
@@ -793,8 +794,8 @@ Physical data-layout queries remain symbolic during shared Product checking.
 Canonical scalar applications retain `size_of`/`align_of` observations across
 Terminal publication. Completion uses explicit selected-target carrier geometry,
 not interpreter storage or host pointer widths. Reference/view carriers and sum
-packing preserve their physical layout distinctions. Build-helper constant closure
-still uses its separately admitted execution profile before publication. Ordinary
+packing preserve their physical layout distinctions. Build-helper completion
+uses its separately admitted execution profile at provider installation. Ordinary
 authored machines with those names remain ordinary calls.
 
 Calling-policy evaluation retains its validated ABI application as backend-owned
