@@ -9,53 +9,71 @@ machine verify_diff(value: i16) -> i16
     headroom + margin
 }
 
-linux_x86_64 machine target_probe(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
-{
-    let wl: i16 in Wrapping = lhs as i16 in Wrapping;
-    let wr: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wd: i16 in Wrapping = wl - wr;
-    let diff: i16 = wd as i16;
-    verify_diff(diff)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine target_probe(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
-{
-    let wl: i16 in Wrapping = lhs as i16 in Wrapping;
-    let wr: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wd: i16 in Wrapping = wl - wr;
-    let diff: i16 = wd as i16;
-    verify_diff(diff)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine target_probe(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
-{
-    let wl: i16 in Wrapping = lhs as i16 in Wrapping;
-    let wr: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wd: i16 in Wrapping = wl - wr;
-    let diff: i16 = wd as i16;
-    verify_diff(diff)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine target_probe(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
-{
-    let wl: i16 in Wrapping = lhs as i16 in Wrapping;
-    let wr: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wd: i16 in Wrapping = wl - wr;
-    let diff: i16 = wd as i16;
-    verify_diff(diff)
+boundary trait SelectedProbe {
+    machine target_probe(lhs: i16, rhs: i16) -> i16
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine target_probe(lhs: i16, rhs: i16) -> i16
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let wl: i16 in Wrapping = lhs as i16 in Wrapping;
+        let wr: i16 in Wrapping = rhs as i16 in Wrapping;
+        let wd: i16 in Wrapping = wl - wr;
+        let diff: i16 = wd as i16;
+        verify_diff(diff)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine target_probe(lhs: i16, rhs: i16) -> i16
+        reaches SelectedBodyCheck crashes Trap
+        requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let wl: i16 in Wrapping = lhs as i16 in Wrapping;
+        let wr: i16 in Wrapping = rhs as i16 in Wrapping;
+        let wd: i16 in Wrapping = wl - wr;
+        let diff: i16 = wd as i16;
+        verify_diff(diff)
+    }
 }
 
 machine probe(lhs: i16, rhs: i16) -> i16
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
     requires lhs >= 300i16 && lhs <= 500i16 && rhs >= 50i16 && rhs <= 100i16
 {
-    target_probe(lhs, rhs)
+    SelectedProbe::target_probe(lhs, rhs)
 }
 
-machine main() crashes Trap {
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
     let combined: i16 = probe(400i16, 80i16);
     transition combined == 250i16 {
         true -> done()
@@ -63,4 +81,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }
