@@ -33,24 +33,22 @@ use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use time_host;
 
-// Per-target requirement carrier. A `boundary requirement` is target-neutral,
-// so each target's seam owns its own carrier type rather than re-declaring a
-// shared path.
-data WindowsTimeRead { }
+// The private native requirement family is independent of data. Each exact
+// member keeps its original signature and package-local Build binding.
+boundary trait WindowsTimeRead {
+    // LARGE_INTEGER's QuadPart is a signed LONGLONG, so these out-parameters
+    // are i64 and conversion to the trait's unsigned ticks remains explicit.
+    machine query_performance_counter(counter: &mut i64) -> i32
+    reaches TimeHost;
 
-// LARGE_INTEGER's QuadPart is a signed LONGLONG, so the out-parameters below
-// are `i64` and the conversion to the trait's unsigned ticks is explicit.
-boundary requirement WindowsTimeRead::query_performance_counter(counter: &mut i64) -> i32
-reaches TimeHost;
+    machine query_performance_frequency(frequency: &mut i64) -> i32
+    reaches TimeHost;
 
-boundary requirement WindowsTimeRead::query_performance_frequency(frequency: &mut i64) -> i32
-reaches TimeHost;
-
-// FILETIME's two DWORDs form one little-endian 64-bit count — the
-// ULARGE_INTEGER reading — and x86-64 Windows is always little-endian, so one
-// `u64` cell receives it as the single non-tearing read D11 asks for.
-boundary requirement WindowsTimeRead::system_time_as_file_time(file_time: &mut u64)
-reaches TimeHost;
+    // FILETIME's two DWORDs form one little-endian 64-bit count. One u64
+    // cell receives that complete non-tearing observation.
+    machine system_time_as_file_time(file_time: &mut u64)
+    reaches TimeHost;
+}
 
 data WindowsTimeImports { }
 

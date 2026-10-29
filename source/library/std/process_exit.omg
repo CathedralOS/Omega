@@ -3,10 +3,9 @@
 //
 // The `ProcessExit` boundary trait itself is owned by core
 // (`omega::language::core::process_exit`); this module contributes only the
-// ordinary implementations. The package Build selects the shared hosted
-// catalog or the Windows native requirement for each deployment target.
+// ordinary hosted implementations. Package Build selects those checked maps
+// or binds the canonical requirement directly to the Windows native leaf.
 use omega::language::core::process_exit;
-use targets::windows_x86_64::process_exit_impl;
 
 
 use native::hosted;

@@ -75,5 +75,6 @@ public boundary trait TimeHost {
     invokes DarwinX64TimeRead;
     invokes LinuxArm64TimeRead;
     invokes LinuxX64TimeRead;
+    invokes WindowsTimeSleep;
     reaches TimeHost blocks;
 }

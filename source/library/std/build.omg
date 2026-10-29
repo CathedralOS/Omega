@@ -22,7 +22,6 @@ machine build(builder: &mut Build) {
     Build::select_provider<Console, native::hosted::HostedConsole>(builder, macos_x86_64);
     Build::select_provider<ProcessExit, native::hosted::HostedProcessExit>(builder, macos_x86_64);
     Build::select_provider<Console, WindowsConsole>(builder, windows_x86_64);
-    Build::select_provider<ProcessExit, WindowsProcessExit>(builder, windows_x86_64);
     Build::select_provider<PosixFilesystemHost, LinuxArm64PosixFilesystem>(builder, linux_arm64);
     Build::select_provider<PosixFilesystemHost, LinuxX86PosixFilesystem>(builder, linux_x86_64);
     Build::select_provider<PosixFilesystemHost, DarwinArm64PosixFilesystem>(builder, macos_arm64);
@@ -702,7 +701,7 @@ machine build(builder: &mut Build) {
  Build::bind_table_function<UefiBootServices::get_memory_map, EfiBootServicesTable::get_memory_map>(builder, uefi_x86_64);
  Build::bind_table_function<UefiBootServices::exit_boot_services, EfiBootServicesTable::exit_boot_services>(builder, uefi_x86_64);
 
- Build::bind<WindowsProcessExitIo::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport {
+ Build::bind<ProcessExit::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",

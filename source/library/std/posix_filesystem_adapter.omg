@@ -33,6 +33,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine create(path: &[u8] in Path) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_create(&mut context, path)
@@ -41,6 +42,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine create_new(path: &[u8] in Path) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_create_new(&mut context, path)
@@ -49,6 +51,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine open(path: &[u8] in Path) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_open(&mut context, path)
@@ -57,6 +60,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine append(path: &[u8] in Path) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_append(&mut context, path)
@@ -65,6 +69,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
     reaches FilesystemContentRead
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read(&mut context, file, buffer, count)
@@ -73,6 +78,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine write(file: File, bytes: &[u8]) -> IoResult
     reaches FilesystemContentWrite
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_write(&mut context, file, bytes)
@@ -81,6 +87,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine close(file: File) -> UnitResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         let result: i32 = posix_filesystem_close(&mut context, file);
@@ -96,6 +103,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_write_all(&mut context, path, bytes)
@@ -104,6 +112,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read_all(&mut context, path, buffer, count)
@@ -112,6 +121,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_copy(&mut context, from, to, buffer, cap)
@@ -128,6 +138,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine try_exists(path: &[u8] in Path) -> ExistsResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_try_exists(&mut context, path)
@@ -136,6 +147,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine metadata_path(path: &[u8] in Path) -> MetadataResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_metadata_path(&mut context, path)
@@ -144,6 +156,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_symlink_metadata(&mut context, path)
@@ -152,6 +165,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine remove(path: &[u8] in Path) -> UnitResult
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_remove(&mut context, path)
@@ -160,6 +174,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine create_dir(path: &[u8] in Path) -> UnitResult
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_create_dir(&mut context, path)
@@ -168,6 +183,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine remove_dir(path: &[u8] in Path) -> UnitResult
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_remove_dir(&mut context, path)
@@ -176,6 +192,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine create_dir_all(path: &[u8] in Path) -> UnitResult
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_create_dir_all(&mut context, path)
@@ -184,6 +201,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read_dir_is_empty(&mut context, path)
@@ -192,6 +210,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
     reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_permissions(&mut context, path, perms)
@@ -200,6 +219,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_symlink(&mut context, target, link)
@@ -208,6 +228,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read_link(&mut context, path, buffer, count)
@@ -216,6 +237,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
     reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_file_permissions(&mut context, file, perms)
@@ -224,6 +246,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_rename(&mut context, from, to)
@@ -232,6 +255,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_len(file: File, length: i64) -> UnitResult
     reaches FilesystemContentWrite + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_len(&mut context, file, length)
@@ -240,6 +264,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine sync(file: File) -> UnitResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_sync(&mut context, file)
@@ -248,6 +273,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine sync_data(file: File) -> UnitResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_sync_data(&mut context, file)
@@ -256,6 +282,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine try_clone(file: File) -> OpenResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_try_clone(&mut context, file)
@@ -264,6 +291,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_owner(&mut context, path, uid, gid)
@@ -272,6 +300,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_owner_no_follow(&mut context, path, uid, gid)
@@ -280,6 +309,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_file_owner(&mut context, file, uid, gid)
@@ -288,6 +318,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine metadata(file: File) -> MetadataResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_metadata(&mut context, file)
@@ -296,6 +327,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_open_with(&mut context, path, options)
@@ -304,6 +336,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read_dir_count(path: &[u8] in Path) -> IoResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read_dir_count(&mut context, path)
@@ -312,6 +345,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read_dir_nth(&mut context, path, n)
@@ -320,6 +354,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine remove_dir_all(path: &[u8] in Path) -> UnitResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_remove_dir_all(&mut context, path)
@@ -328,6 +363,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
     reaches FilesystemContentRead
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_read_at(&mut context, file, buffer, count, offset)
@@ -336,6 +372,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
     reaches FilesystemContentWrite
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_write_at(&mut context, file, bytes, offset)
@@ -344,6 +381,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_hard_link(&mut context, original, link)
@@ -352,6 +390,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_set_times(&mut context, file, accessed, modified)
@@ -360,6 +399,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes PosixCanonicalLibc;
     {
         let mut context: PosixFilesystem;
@@ -369,6 +409,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine lock(file: File) -> UnitResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_lock(&mut context, file)
@@ -377,6 +418,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine lock_shared(file: File) -> UnitResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_lock_shared(&mut context, file)
@@ -385,6 +427,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine try_lock(file: File) -> TryLockResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_try_lock(&mut context, file)
@@ -393,6 +436,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine try_lock_shared(file: File) -> TryLockResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_try_lock_shared(&mut context, file)
@@ -401,6 +445,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     machine unlock(file: File) -> UnitResult
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     {
         let mut context: PosixFilesystem;
         posix_filesystem_unlock(&mut context, file)
@@ -500,6 +545,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = posix_filesystem_creation_open_options();
     PosixFilesystemPlatform::encode_open_options(filesystem);
@@ -515,6 +561,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = OpenOptions {
         read: true,
@@ -536,6 +583,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = posix_filesystem_empty_open_options();
     PosixFilesystemPlatform::encode_open_options(filesystem);
@@ -551,6 +599,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = OpenOptions {
         read: false,
@@ -572,6 +621,7 @@ reaches FilesystemContentRead
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::read(filesystem.file_fd, buffer, count);
@@ -588,6 +638,7 @@ reaches FilesystemContentWrite
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::write(filesystem.file_fd, bytes);
@@ -614,6 +665,7 @@ invokes
 machine posix_filesystem_write_descriptor(filesystem: &mut PosixFilesystem, descriptor: i32, bytes: &[u8]) -> UnitResult
 reaches FilesystemContentWrite
 invokes PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     transition { _ -> remaining(filesystem, descriptor, bytes, 0) }
     machine remaining(filesystem: &mut PosixFilesystem, descriptor: i32, bytes: &[u8], position: u64) -> UnitResult
@@ -665,6 +717,7 @@ invokes PosixFilesystemHost;
 machine posix_filesystem_write_all(filesystem: &mut PosixFilesystem, path: &[u8] in Path, bytes: &[u8]) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = posix_filesystem_creation_open_options();
     PosixFilesystemPlatform::encode_open_options(filesystem);
@@ -692,6 +745,7 @@ invokes PosixFilesystemHost;
 machine posix_filesystem_read_all(filesystem: &mut PosixFilesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = posix_filesystem_empty_open_options();
     PosixFilesystemPlatform::encode_open_options(filesystem);
@@ -727,6 +781,7 @@ invokes PosixFilesystemHost;
 machine posix_filesystem_copy(filesystem: &mut PosixFilesystem, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = posix_filesystem_empty_open_options();
     PosixFilesystemPlatform::encode_open_options(filesystem);
@@ -827,6 +882,7 @@ reaches FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
 
     filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
@@ -846,6 +902,7 @@ reaches FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
@@ -858,6 +915,7 @@ reaches FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::read_symlink_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
@@ -870,6 +928,7 @@ reaches FilesystemNamespaceMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::remove(path);
     transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
@@ -905,6 +964,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.dir_mode = 493;
     let rc: i32 = PosixFilesystemHost::create_dir(path, filesystem.dir_mode);
@@ -918,6 +978,7 @@ reaches FilesystemNamespaceMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::remove_dir(path);
     transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
@@ -930,6 +991,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.dir_mode = 493;
     transition { _ -> posix_filesystem_mkall_walk(filesystem, path, 1) }
@@ -1063,6 +1125,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let first: DirEntryResult = posix_filesystem_read_dir_nth(filesystem, path, 0);
     transition first {
@@ -1080,6 +1143,7 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     transition perms {
         Permissions::Default -> apply(filesystem, path, 438)
@@ -1111,6 +1175,7 @@ reaches FilesystemNamespaceMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::symlink(target, link);
     transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
@@ -1123,6 +1188,7 @@ reaches FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let n: i64 = PosixFilesystemHost::read_link(path, buffer, count);
     transition n >= 0 { true -> ok(filesystem, n) _ -> err(filesystem, n) }
@@ -1138,6 +1204,7 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     transition perms {
@@ -1167,6 +1234,7 @@ reaches FilesystemNamespaceMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::rename(from, to);
     transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
@@ -1179,6 +1247,7 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::set_len(filesystem.file_fd, length);
@@ -1191,6 +1260,7 @@ machine posix_filesystem_sync(filesystem: &mut PosixFilesystem, file: File) -> U
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::sync(filesystem.file_fd);
@@ -1203,6 +1273,7 @@ machine posix_filesystem_sync_data(filesystem: &mut PosixFilesystem, file: File)
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::sync_data(filesystem.file_fd);
@@ -1215,6 +1286,7 @@ machine posix_filesystem_try_clone(filesystem: &mut PosixFilesystem, file: File)
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let fd: i32 = PosixFilesystemHost::duplicate(filesystem.file_fd);
@@ -1228,6 +1300,7 @@ reaches FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::change_owner(path, uid, gid);
     transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
@@ -1240,6 +1313,7 @@ reaches FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::change_owner_no_follow(path, uid, gid);
     transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
@@ -1252,6 +1326,7 @@ reaches FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::change_file_owner(filesystem.file_fd, uid, gid);
@@ -1265,6 +1340,7 @@ reaches FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf);
@@ -1297,6 +1373,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.open_options = options;
     PosixFilesystemPlatform::encode_open_options(filesystem);
@@ -1311,6 +1388,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.read_flags = 0;
     filesystem.rd_position = 0;
@@ -1383,6 +1461,7 @@ invokes
 machine posix_filesystem_read_dir_nth(filesystem: &mut PosixFilesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let descriptor: i32 = PosixFilesystemHost::open(path, 0);
     transition descriptor >= 0 { true -> read(filesystem, descriptor, n) _ -> failed(filesystem, descriptor) }
@@ -1570,6 +1649,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     // Never follow a final symlink, including a child replaced between its
     // directory record and openat. A rejected root must not drain its target.
@@ -1790,6 +1870,7 @@ reaches FilesystemContentRead
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::read_at(filesystem.file_fd, buffer, count, offset);
@@ -1806,6 +1887,7 @@ reaches FilesystemContentWrite
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::write_at(filesystem.file_fd, bytes, offset);
@@ -1822,6 +1904,7 @@ reaches FilesystemNamespaceMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i32 = PosixFilesystemHost::hard_link(original, link);
     transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
@@ -1834,6 +1917,7 @@ reaches FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.times_buf[0] = narrow_i64_to_u8_wrapping(accessed);
     filesystem.times_buf[1] = narrow_i64_to_u8_wrapping(accessed >> 8);
@@ -1864,6 +1948,7 @@ invokes PosixCanonicalLibc;
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     let rc: i64 = posix_canonicalize(path, buffer);
     transition rc > 0 { true -> ok() _ -> err(filesystem, rc) }
@@ -1875,6 +1960,7 @@ machine posix_filesystem_lock(filesystem: &mut PosixFilesystem, file: File) -> U
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 2);
@@ -1887,6 +1973,7 @@ machine posix_filesystem_lock_shared(filesystem: &mut PosixFilesystem, file: Fil
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 1);
@@ -1899,6 +1986,7 @@ machine posix_filesystem_try_lock(filesystem: &mut PosixFilesystem, file: File) 
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 6);
@@ -1914,6 +2002,7 @@ machine posix_filesystem_try_lock_shared(filesystem: &mut PosixFilesystem, file:
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 5);
@@ -1929,6 +2018,7 @@ machine posix_filesystem_unlock(filesystem: &mut PosixFilesystem, file: File) ->
 
 invokes
     PosixFilesystemHost;
+invokes PosixFilesystemPlatform;
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 8);

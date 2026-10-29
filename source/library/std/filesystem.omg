@@ -269,52 +269,62 @@ public boundary trait FilesystemService {
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine create_new(path: &[u8] in Path) -> OpenResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine open(path: &[u8] in Path) -> OpenResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine append(path: &[u8] in Path) -> OpenResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
     blocks;
     reaches FilesystemContentRead
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine write(file: File, bytes: &[u8]) -> IoResult
     blocks;
     reaches FilesystemContentWrite
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine close(file: File) -> UnitResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine exists(path: &[u8] in Path) -> bool
     blocks;
@@ -325,154 +335,184 @@ public boundary trait FilesystemService {
     blocks;
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine metadata_path(path: &[u8] in Path) -> MetadataResult
     blocks;
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
     blocks;
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine remove(path: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine create_dir(path: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine remove_dir(path: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine create_dir_all(path: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
     blocks;
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
     blocks;
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
     blocks;
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_len(file: File, length: i64) -> UnitResult
     blocks;
     reaches FilesystemContentWrite + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine sync(file: File) -> UnitResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine sync_data(file: File) -> UnitResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine try_clone(file: File) -> OpenResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
     blocks;
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
     blocks;
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
     blocks;
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine metadata(file: File) -> MetadataResult
     blocks;
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read_dir_count(path: &[u8] in Path) -> IoResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine remove_dir_all(path: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
     blocks;
     reaches FilesystemContentRead
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
     blocks;
     reaches FilesystemContentWrite
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
     blocks;
     reaches FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
     blocks;
     reaches FilesystemMetadataMutation
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
     blocks;
     reaches FilesystemMetadataQuery
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     invokes PosixCanonicalLibc;
     machine lock(file: File) -> UnitResult
@@ -480,30 +520,35 @@ public boundary trait FilesystemService {
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine lock_shared(file: File) -> UnitResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine try_lock(file: File) -> TryLockResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine try_lock_shared(file: File) -> TryLockResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
     machine unlock(file: File) -> UnitResult
     reaches
     blocks;
 
     invokes PosixFilesystemHost;
+    invokes PosixFilesystemPlatform;
     invokes WindowsFilesystemHost;
 }
 

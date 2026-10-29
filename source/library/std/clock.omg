@@ -43,5 +43,6 @@ public boundary trait Clock {
     machine sleep(milliseconds: u32) invokes DarwinClockWait;
     invokes LinuxArmClockWait;
     invokes LinuxClockWait;
+    invokes WindowsClockSleep;
     reaches Clock;
 }
