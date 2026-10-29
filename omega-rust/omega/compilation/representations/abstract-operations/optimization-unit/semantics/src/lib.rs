@@ -36,6 +36,13 @@ pub use error::{OperationSite, OptimizationUnitValidationError};
 /// neither acceptance nor the provenance accounting a rewrite still owes.
 pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_bindings;
 
+/// The empty-block threads' shared ownership predicate: the six frontier sites
+/// the thread touches must carry one snapshot at the unit's identity. Proposing
+/// rules and the replay checkers share it, so neither restates the site list;
+/// like the bindings predicate it decides only, granting neither acceptance nor
+/// the provenance accounting a rewrite still owes.
+pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_ownership_is_identity;
+
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};

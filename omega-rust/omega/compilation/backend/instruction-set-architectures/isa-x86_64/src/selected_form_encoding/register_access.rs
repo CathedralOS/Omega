@@ -183,9 +183,9 @@ pub(crate) fn declaration(
     if matches!(operation, Operation::MemoryFence(_)) {
         return super::memory_fence::declaration(constraint);
     }
-    super::alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         semantic(operation).expect("x86 register operation"),
+        constraint,
         if matches!(
             operation,
             Operation::SystemRead(SystemRegister::Rflags)

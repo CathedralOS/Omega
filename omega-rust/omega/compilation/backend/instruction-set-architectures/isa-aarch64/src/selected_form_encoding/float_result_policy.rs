@@ -16,16 +16,13 @@
 //! Word fields follow Arm's A64 UBFM and B.cond encodings:
 //! https://documentation-service.arm.com/static/67e40f3398aa3c3b6eea6a85
 //! https://documentation-service.arm.com/static/685eb35c3cb5b729562ba389
-use crate::machine_effects::form_alternative;
 
 use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
 use selected_instructions::{
-    FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat, MachineAlternative,
-    MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior,
+    FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat, MachineAlternativeFamily,
+    MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
@@ -59,28 +56,24 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let trapping = form.policy == FloatResultPolicyKind::Trapping;
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::FloatResultPolicy(form),
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::FloatResultPolicy(form),
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: if trapping {
+        MachineMemoryEffect::NoneV1,
+        if trapping {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if trapping {
+        if trapping {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
         },
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::FloatResultPolicy(form),
-            MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
-            effects(form)
-        ),
-    }
+        MachineAlternativeFamily::FloatResultPolicy(form),
+        MachineSizeKnowledge::ExactBytes((program(form, &[0; 4]).len() * 4) as u16),
+        effects(form),
+    )
 }
 
 pub(crate) fn footprint(
