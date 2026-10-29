@@ -51,7 +51,7 @@ pub(crate) trait DigestFeed {
     }
 }
 
-const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v5\0";
+pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v5\0";
 
 pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
 
