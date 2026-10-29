@@ -224,17 +224,15 @@ pub(crate) fn validate(
             leaf.original,
             leaf.destination,
         );
-        // Structured leaves interpret each root as a whole value: the scalar
-        // probe only reaches leaves whose declared carrier is scalar.
-        let materialized = leaf.structured.then(|| {
-            super::invocations::append_probe(
-                &mut probe,
-                leaf.owner,
-                format!("@const-replay-materialized-{ordinal}"),
-                leaf.materialized,
-                leaf.destination,
-            )
-        });
+        // Both source roots own a prepared value exit. Scalar recipes can
+        // contain generic calls too; their untouched handles are not executable.
+        let materialized = super::invocations::append_probe(
+            &mut probe,
+            leaf.owner,
+            format!("@const-replay-materialized-{ordinal}"),
+            leaf.materialized,
+            leaf.destination,
+        );
         owners.push((original, materialized));
     }
     let mut replay_owners = Vec::new();
@@ -248,12 +246,7 @@ pub(crate) fn validate(
     }
     let mut probe_symbols = owners
         .iter()
-        .flat_map(|(original, materialized)| {
-            materialized.map_or_else(
-                || vec![*original],
-                |materialized| vec![*original, materialized],
-            )
-        })
+        .flat_map(|(original, materialized)| [*original, *materialized])
         .collect::<Vec<_>>();
     for (ordinal, (declaration, _)) in floating_declarations.iter().enumerate() {
         let owner = super::invocations::append_probe(
@@ -392,15 +385,16 @@ pub(crate) fn validate(
     for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
         let result = (|| {
             let calls = checked.calls_for_symbol(original_owner)?;
+            let materialized_calls = checked.calls_for_symbol(materialized_owner)?;
             if let Some(destination) =
                 crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                     program,
                     leaf.destination,
                 )
             {
-                let original = decode_scalar(calls.evaluate_scalar(leaf.original, destination)?.0)?;
+                let original = decode_scalar(calls.evaluate_probe_scalar(destination)?.0)?;
                 let materialized =
-                    decode_scalar(calls.evaluate_scalar(leaf.materialized, destination)?.0)?;
+                    decode_scalar(materialized_calls.evaluate_probe_scalar(destination)?.0)?;
                 if original != leaf.expected || materialized != leaf.expected {
                     return Err(
                         "retained constant invocation, materialized value, or canonical result drifted"
@@ -412,10 +406,6 @@ pub(crate) fn validate(
             // Structured leaf: both roots interpret as whole values against
             // the declared carrier and re-encode independently.
             let (original, _) = calls.evaluate_value()?;
-            let materialized_calls = checked.calls_for_symbol(
-                materialized_owner
-                    .ok_or("structured initializer leaf lost its materialized probe")?,
-            )?;
             let (materialized, _) = materialized_calls.evaluate_value()?;
             let original =
                 super::materialize::canonical_value(program, leaf.destination, &original)?;

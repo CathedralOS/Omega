@@ -265,6 +265,23 @@ impl Invocation<'_> {
         )
     }
 
+    /// Preparation can copy a recipe while preserving its untouched source
+    /// root. Execute the retained probe's actual value exit, not that recipe.
+    pub(super) fn evaluate_probe_scalar(
+        &self,
+        destination: PrimitiveType,
+    ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+        let typed = self.program.typed();
+        let body = super::super::initializer_probe::value_probe_body(typed, self.state)?;
+        crate::machine_execution::admission::require_const_expression_selection(
+            typed,
+            self.machine,
+            body.reference,
+            self.program.authority.as_deref(),
+        )?;
+        self.evaluate_scalar(body.value, destination)
+    }
+
     /// Resolve the exact closed callee for a call and admit it against the
     /// common floor: either an ordinary machine entry state or a named
     /// boundary operator requirement kept as the call's own declaration. The
