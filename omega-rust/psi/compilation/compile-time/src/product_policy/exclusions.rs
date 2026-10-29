@@ -2,9 +2,11 @@
 //! Formation checks every service operand; only the normal-return execution
 //! ledger selects restrictions. No source walk substitutes for execution.
 
-use build_time_evaluation::is_exact_toolchain_build_prelude_data;
+use crate::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
-use effects::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
+use language_semantics::declaration_selection::{
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
+};
 use language_semantics::declaration_selection::{
     BuildOperation, ExclusionVocabulary, ExecutedEnumExclusion, ExecutedProductSelection,
     ProductDeclarationRequest,
@@ -12,7 +14,7 @@ use language_semantics::declaration_selection::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-pub(super) fn resolve(
+pub fn resolve(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     declared: &[std::sync::Arc<ProductDeclarationRequest>],
@@ -159,10 +161,10 @@ fn service(
 fn evaluated_crash_cause(
     typed: &TypedTrees,
     case_symbol: SymbolHandle,
-) -> Result<terminal_psi::CrashCause, Diagnostic> {
+) -> Result<semantic_vocabulary::CrashCause, Diagnostic> {
     match evaluated_exclusion_case(typed, case_symbol, "CrashCause")? {
-        "Trap" => Ok(terminal_psi::CrashCause::Trap),
-        "Abort" => Ok(terminal_psi::CrashCause::Abort),
+        "Trap" => Ok(semantic_vocabulary::CrashCause::Trap),
+        "Abort" => Ok(semantic_vocabulary::CrashCause::Abort),
         other => Err(Diagnostic::error(format!(
             "compiler-owned CrashCause contains unsupported case `{other}`"
         ))),
@@ -172,8 +174,8 @@ fn evaluated_crash_cause(
 fn evaluated_physical_authority_class(
     typed: &TypedTrees,
     case_symbol: SymbolHandle,
-) -> Result<effects::TerminalAuthorityClass, Diagnostic> {
-    use effects::TerminalAuthorityClass;
+) -> Result<semantic_vocabulary::TerminalAuthorityClass, Diagnostic> {
+    use semantic_vocabulary::TerminalAuthorityClass;
     // This translates exact compiler-owned declarations, not program effects.
     // Mechanism classification remains exclusively in native realization.
     match evaluated_exclusion_case(typed, case_symbol, "PhysicalAuthorityClass")? {

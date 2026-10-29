@@ -2,9 +2,60 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn product_policy_admission_has_one_source_owner() {
+    let coordinator = include_str!("checked/checking/product_selections.rs");
+    for forbidden in [
+        "source.typed(",
+        "mod exclusions",
+        "collect_product_root_grants(",
+        "collect_opaque_representation_selections(",
+        "native_bindings::collect",
+    ] {
+        assert!(
+            !coordinator.contains(forbidden),
+            "coordinator owns {forbidden}"
+        );
+    }
+    let authentication = coordinator
+        .find("rejoin_package_provider_selections(")
+        .unwrap();
+    let source_admission = coordinator.find("source.admit_product_policy(").unwrap();
+    let receipt_attachment = coordinator
+        .find("native_binding_evaluation.clone()")
+        .unwrap();
+    assert!(authentication < source_admission && source_admission < receipt_attachment);
+    let source =
+        include_str!("../../../../psi/compilation/driver/src/source_compilation/product_policy.rs");
+    let mut previous = 0;
+    for operation in [
+        "self.admit_product_provider_requests(",
+        "collect_opaque_representation_selections(",
+        "native_bindings::collect(",
+        "collect_product_root_grants(",
+        "product_declarations::admit(",
+        "collect_behavior_exclusions(",
+    ] {
+        let position = source.find(operation).expect(operation);
+        assert!(
+            position > previous,
+            "source operation out of order: {operation}"
+        );
+        previous = position;
+    }
+    for forbidden in [
+        "ComputedBuildConfig",
+        "package_compilation::",
+        "effects::",
+        "provider_planning::",
+    ] {
+        assert!(!source.contains(forbidden), "Psi owns {forbidden}");
+    }
+}
+
+#[test]
 fn product_declaration_admission_belongs_to_psi() {
     let coordinator = include_str!("checked/checking/product_selections.rs");
-    assert!(coordinator.contains("source.admit_product_declarations("));
+    assert!(coordinator.contains("source.admit_product_policy("));
     for forbidden in [
         "mod additional_declarations",
         "resolve_product_path(",
@@ -86,7 +137,7 @@ fn source_entry_admission_never_calls_omega_with_typed_trees() {
 #[test]
 fn product_provider_request_admission_belongs_to_psi() {
     let coordinator = include_str!("checked/checking/product_selections.rs");
-    assert!(coordinator.contains("source.admit_product_provider_requests("));
+    assert!(coordinator.contains("source.admit_product_policy("));
     for forbidden in [
         "prepare_provider_applications(",
         "prepare_product_operand_application(",
@@ -105,7 +156,7 @@ fn product_provider_request_admission_belongs_to_psi() {
     let admission = include_str!(
         "../../../../psi/compilation/driver/src/source_compilation/provider_requests.rs"
     );
-    assert!(admission.contains("pub fn admit_product_provider_requests("));
+    assert!(admission.contains("pub(super) fn admit_product_provider_requests("));
     assert!(admission.contains("collect_product_provider_selections("));
     for forbidden in [
         "ComputedBuildConfig",

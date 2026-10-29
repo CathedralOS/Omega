@@ -1832,6 +1832,7 @@ dependencies = [
  "phase-profile",
  "psi-terminal-production",
  "rayon",
+ "representation-planning",
  "representation-selections",
  "semantic-vocabulary",
  "source",

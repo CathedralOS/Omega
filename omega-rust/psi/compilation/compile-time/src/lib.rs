@@ -18,6 +18,8 @@
 //! `product_declarations.rs` admits executed audits, runtime assumed bindings
 //! and wire demands against their source-issued requests. Wire compatibility
 //! belongs to Psi's typed-to-checked stage, not Build execution.
+//! `product_policy.rs` owns authored root grants and restriction admission;
+//! neither admission operation judges the selected native composition.
 //! `provider_declarations.rs` decodes target defaults and executed Build choices
 //! into exact source selections. Omega consumes them to realize providers.
 
@@ -37,6 +39,7 @@ pub use evaluation_accounting::{
 mod layouts;
 mod machine_execution;
 pub mod product_declarations;
+pub mod product_policy;
 pub mod provider_declarations;
 mod reflection;
 mod scalar_applications;

@@ -327,6 +327,22 @@ review owns audit projection, Psi checking owns wire compatibility, and Omega
 owns runtime provider compatibility. Uncalled legacy checked-expression
 collectors are not alternative admission routes.
 
+The post-join source continuation now admits the complete root Product policy
+in one ordered operation: provider applications, representation choices, native
+intent, root grants, audit/assumption/wire declarations, then exclusions.
+The Product coordinator authenticates package providers first, invokes that
+operation, resolves captured dependency native intent through Psi, attaches
+evaluation receipts and publishes the returned choices. It never borrows typed
+trees to drive individual source judgments. Source formation now finishes before
+native receipt attachment and dependency-intent resolution; when both fail, the
+root source error reports first. Neither independent failure becomes admissible.
+
+Authored grant and exclusion records belong to language semantics. Shared crash
+causes and physical-class vocabulary retain their canonical encoding; naming a
+restriction establishes no behavioral absence. Omega still resolves service
+identities against Terminal catalogs, resolves grants against selected plans,
+classifies physical mechanisms and checks the selected executable closure.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.

@@ -15,7 +15,9 @@ use activation::SourceContext;
 
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
+mod product_policy;
 mod provider_requests;
+pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
 mod storage;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.
@@ -312,26 +314,6 @@ impl SourceContinuation {
     /// have elaborated declarations or consumed different evaluation obligations.
     pub fn same_completion_input(&self, other: &Self) -> bool {
         self.input.same_completion_input(&other.input)
-    }
-
-    /// Form authored audit/assumption/wire requests and admit executed choices
-    /// against this joined Product. Neither chosen declarations nor assumptions
-    /// become executable in the Build activation.
-    pub fn admit_product_declarations(
-        &self,
-        activation: Option<symbols::SymbolHandle>,
-        declared: &[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>],
-        executed: &[language_semantics::declaration_selection::ExecutedProductSelection],
-    ) -> Result<
-        build_time_evaluation::product_declarations::AdmittedProductDeclarations,
-        Vec<Diagnostic>,
-    > {
-        build_time_evaluation::product_declarations::admit(
-            self.typed(),
-            activation,
-            declared,
-            executed,
-        )
     }
 
     /// Borrow declaration descriptions for package custody; this is not executable input.
