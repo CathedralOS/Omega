@@ -171,8 +171,7 @@ pub(super) fn record(
         };
         let root = observation(&mut builder, rank, subject, &bindings, admitted);
         if let Some(root) = root {
-            let published =
-                builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
+            let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
 }

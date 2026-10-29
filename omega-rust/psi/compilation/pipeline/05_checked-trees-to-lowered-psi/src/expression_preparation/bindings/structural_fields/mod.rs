@@ -500,7 +500,7 @@ fn descriptor_observation(
     })
 }
 
-fn canonical_field_read(
+pub(super) fn canonical_field_read(
     source: crate::emission::operation_emission::expressions::PrimitiveReadSource,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     field: StructuralFieldId,

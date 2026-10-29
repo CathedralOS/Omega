@@ -178,6 +178,16 @@ impl<'a> PreparedExpressionContext<'a> {
                 ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
+                if let Some(bindings) = self.scalar_bindings
+                    && let Some(observation) = bindings.captured_field_observation(
+                        identities,
+                        *parameter_position,
+                        path,
+                        scalar_type,
+                    )?
+                {
+                    return Ok(observation);
+                }
                 // Carrier type does not choose the storage path. Case payloads,
                 // indexed elements and inline fields retain the same authority
                 // and geometry for every scalar format.
@@ -513,6 +523,17 @@ impl<'a> PreparedExpressionContext<'a> {
                 path,
                 ..
             } => {
+                if let Some(bindings) = self.scalar_bindings
+                    && let Some(observation) = bindings.captured_field_observation(
+                        identities,
+                        *parameter_position,
+                        path,
+                        semantic_vocabulary::ScalarType::Boolean,
+                    )?
+                {
+                    return Ok(crate::expression_preparation::bindings::structural_fields::boolean_observation(observation));
+                }
+
                 if !self.structural_fields.is_empty()
                     && matches!(
                         path.first(),
