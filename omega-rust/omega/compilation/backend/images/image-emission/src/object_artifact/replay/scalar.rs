@@ -15,6 +15,13 @@ pub(crate) mod stack_mutation;
 pub(crate) mod stack_regions;
 pub(crate) mod structural_scalar_field_store;
 
+pub(crate) fn invalid_conditional_evidence(
+    machine: semantic_vocabulary::MachineId,
+    offset: usize,
+) -> crate::ObjectError {
+    crate::ObjectError::InvalidScalarConditionalEvidence { machine, offset }
+}
+
 #[cfg(test)]
 fn stack_mutation(
     offset: usize,
