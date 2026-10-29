@@ -3,7 +3,7 @@
 // and spare are uncalled, but remain in the complete selected provider roster.
 boundary trait Parent<Value> {
     machine echo<const Count: u64>(value: Value) -> Value reaches
-        where Count == 4 || Count == 8 || Count == 12;
+        requires Count == 4 || Count == 8 || Count == 12;
     machine spare() -> i32 reaches;
 }
 boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
