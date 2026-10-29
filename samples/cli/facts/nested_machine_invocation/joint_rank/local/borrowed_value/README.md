@@ -26,3 +26,10 @@ expose staged copies, wrong offsets and lost mutation; wrong branch/count traps.
 Build binds all four hosted targets; only observed engine/host outcomes count.
 Baseline6465 refuses the frozen local private witness. Candidate run records are
 under `build/borrowed-cycle-ranks/`; other parent obligations remain on TASKS.md.
+
+Compositions: [moved carrier](alias_move/main.omg),
+[disjoint write](disjoint_write/main.omg), [inline path](nested_record/main.omg),
+and [slice descriptor](descriptor_field/main.omg), each with an `invalid/` twin.
+The slice case retains every possible supplier while composing repeated windows
+within one collection dimension. Its runtime checks observe the original
+caller's descriptor after completion; a shortened temporary cannot satisfy them.
