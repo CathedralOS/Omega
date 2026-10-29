@@ -161,6 +161,7 @@ pub struct CheckedRuntimeNaturalState {
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
     pub observation: CheckedRankObservation,
+    pub function: crate::CheckedNaturalRankFunction,
 }
 
 impl Default for CheckedRuntimeNaturalState {
@@ -173,6 +174,7 @@ impl Default for CheckedRuntimeNaturalState {
             parameter_position: 0,
             primitive_type: typed_trees::types::PrimitiveType::Bool,
             observation: CheckedRankObservation::Value,
+            function: crate::CheckedNaturalRankFunction::Identity,
         }
     }
 }

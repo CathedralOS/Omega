@@ -137,6 +137,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
             _ => return None,
         };
         observations.push(CheckedStateNaturalRank {
+            function: checked_trees::CheckedNaturalRankFunction::Identity,
             state: state.symbol,
             parameter: destination.parameter,
             parameter_position: u32::try_from(parameter_position).ok()?,

@@ -239,7 +239,7 @@ fn observation(
     bindings: &validation::RankStateBindings,
     admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
-    match rank.measure {
+    let observed = match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
             measure,
             primitive_type,
@@ -335,6 +335,20 @@ fn observation(
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
         }
+    }?;
+    match rank.function {
+        checked_trees::CheckedNaturalRankFunction::Identity => Some(observed),
+        checked_trees::CheckedNaturalRankFunction::Complement => {
+            let primitive = match rank.measure {
+                CheckedNaturalRankMeasure::SequenceLength { .. } => PrimitiveType::U64,
+                CheckedNaturalRankMeasure::DeclaredMeasure { primitive_type, .. }
+                | CheckedNaturalRankMeasure::IntegerValue { primitive_type, .. }
+                | CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
+                    primitive_type
+                }
+            };
+            distance(builder, observed, primitive)
+        }
     }
 }
 
@@ -347,13 +361,8 @@ fn distance(
     lower: CheckedScalarComputationHandle,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarComputationHandle> {
-    let maximum = match primitive_type {
-        PrimitiveType::U8 => u64::from(u8::MAX),
-        PrimitiveType::U16 => u64::from(u16::MAX),
-        PrimitiveType::U32 => u64::from(u32::MAX),
-        PrimitiveType::U64 => u64::MAX,
-        _ => return None,
-    };
+    let maximum =
+        checked_trees::CheckedNaturalRankFunction::Complement.complement_ceiling(primitive_type)?;
     let ceiling = builder.insert(
         primitive_type,
         CheckedScalarComputationKind::Value(facts::u64_integer_literal(maximum, primitive_type)?),
