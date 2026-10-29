@@ -23,13 +23,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(narrow: u32) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires narrow >= 70000u32 && narrow <= 90000u32;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(narrow: u32) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires narrow >= 70000u32 && narrow <= 90000u32
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -45,7 +45,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(narrow: u32) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires narrow >= 70000u32 && narrow <= 90000u32
     {
         SelectedBodyCheck::require_tag(29u64);

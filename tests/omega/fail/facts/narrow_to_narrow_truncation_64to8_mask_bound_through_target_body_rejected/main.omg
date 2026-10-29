@@ -32,13 +32,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(truncated: u64)
-        reaches SelectedBodyCheck
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires truncated <= 32u64 crashes Trap;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(truncated: u64)
-        reaches SelectedBodyCheck
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires truncated <= 32u64 crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -49,7 +49,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(truncated: u64)
-        reaches SelectedBodyCheck
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires truncated <= 32u64 crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);

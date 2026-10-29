@@ -32,14 +32,14 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(lhs: i16, rhs: i16) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires lhs >= 100i16 && lhs <= 200i16
     requires rhs >= 150i16 && rhs <= 250i16;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(lhs: i16, rhs: i16) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires lhs >= 100i16 && lhs <= 200i16
     requires rhs >= 150i16 && rhs <= 250i16
     {
@@ -52,7 +52,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(lhs: i16, rhs: i16) -> i32
-        reaches SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
         requires lhs >= 100i16 && lhs <= 200i16
     requires rhs >= 150i16 && rhs <= 250i16
     {
