@@ -431,6 +431,9 @@ pub(crate) fn projected_argument_path(
         }
         count
     };
+    let prefix_container = |position| {
+        prefix_container_type_reference(program, state_symbol, statement_index, place, position)
+    };
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         // Parameters already denote their borrowed storage. Below that root,
@@ -447,13 +450,7 @@ pub(crate) fn projected_argument_path(
                     | facts::PlaceSegment::Index { .. }
             )
         {
-            let mut reference = prefix_container_type_reference(
-                program,
-                state_symbol,
-                statement_index,
-                place,
-                position,
-            )?;
+            let mut reference = prefix_container(position)?;
             let mut crossings = 0usize;
             while let Some(shell) = validation::reference_shell(program, reference)
                 && validation::stores_reference_shape(program, reference, &[])
@@ -480,13 +477,7 @@ pub(crate) fn projected_argument_path(
                 path.push(CheckedUnitStructuralPathSegment::Field(identity));
             }
             facts::PlaceSegment::FixedIndex { index } => {
-                let container = prefix_container_type_reference(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    position,
-                )?;
+                let container = prefix_container(position)?;
                 fixed_index_within_extent(program, container, *index)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(*index).ok()?,
@@ -500,13 +491,7 @@ pub(crate) fn projected_argument_path(
                 // literal-bound check `FixedIndex` segments take rather than
                 // reaching for runtime-selector evidence.
                 if let Some(index) = constant_local_index(program, state_symbol, *expression) {
-                    let container = prefix_container_type_reference(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        place,
-                        position,
-                    )?;
+                    let container = prefix_container(position)?;
                     fixed_index_within_extent(program, container, index)?;
                     path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                         u64::try_from(index).ok()?,
@@ -552,13 +537,7 @@ pub(crate) fn projected_argument_path(
                 // literal extent bounds the window — the same shape the
                 // `FixedIndex` walk proves — since a stored view carries no
                 // runtime bound evidence of its own.
-                let container = prefix_container_type_reference(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    position,
-                )?;
+                let container = prefix_container(position)?;
                 fixed_byte_range_within_extent(program, container, *start, *end)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
                     start: u64::try_from(*start).ok()?,
@@ -569,13 +548,7 @@ pub(crate) fn projected_argument_path(
                 // Resolve the exact case and its following field together.
                 // The canonical type walker alone skips Case markers; it is
                 // not evidence that a payload belongs to the selected case.
-                let reference = prefix_container_type_reference(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    position,
-                )?;
+                let reference = prefix_container(position)?;
                 let reference = validation::unwrapped_type_reference(program, reference)?;
                 let owner = program.closed_data_definition(reference)?;
                 let mut cases =
