@@ -11,7 +11,6 @@
 use super::graph_components::strongly_connected_components;
 use crate::value_custody::places::exact_data_member_field;
 use diagnostics::Diagnostic;
-use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;

@@ -10,7 +10,6 @@ use checked_trees::{
     CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeNaturalState,
     CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
 };
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 /// Invocation-local call topology, prepared once before source admission. It

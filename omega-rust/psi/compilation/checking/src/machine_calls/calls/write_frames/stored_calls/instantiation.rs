@@ -1,7 +1,6 @@
 //! Instantiate normal-exit relations against exact completed caller observations.
 //! Completed operands retain their exact source cuts and carrier/backing association.
 
-use super::super as frames;
 use super::*;
 
 pub(super) struct InstantiatedSlots {
