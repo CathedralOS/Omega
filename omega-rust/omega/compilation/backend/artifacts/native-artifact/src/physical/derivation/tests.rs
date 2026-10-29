@@ -1767,6 +1767,20 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
             [29; 32],
         )
     };
+    let with_custody = |locator: [u8; 32], boundary: [u8; 32], symbol| {
+        foreign(
+            locator,
+            boundary,
+            symbol,
+            origin(7),
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            [29; 32],
+        )
+    };
     let with_geometry = |offset, width, addend, kind| {
         foreign(
             [9; 32],
@@ -1786,55 +1800,11 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
     for mutation in 0..15 {
         let changed = match mutation {
             // Substituted locator or boundary-plan custody.
-            0 => foreign(
-                [10; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            1 => foreign(
-                [9; 32],
-                [12; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
+            0 => with_custody([10; 32], [11; 32], ObjectSymbolHandle::from_arena_index(3)),
+            1 => with_custody([9; 32], [12; 32], ObjectSymbolHandle::from_arena_index(3)),
             // Substituted or regenerated object symbol.
-            2 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(4),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            3 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_parts(3, 2),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
+            2 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_arena_index(4)),
+            3 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_parts(3, 2)),
             // Origin drift: a different operation identity, a different
             // origin namespace carrying the same coordinate, or a
             // different owning symbol.
