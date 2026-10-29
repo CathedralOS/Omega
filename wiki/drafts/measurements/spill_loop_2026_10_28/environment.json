@@ -1,0 +1,14 @@
+{
+  "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "target": "windows_x86_64",
+  "producer_optimization": "dev opt-level 1",
+  "os": "win32",
+  "objdump": "GNU objdump (GNU Binutils) 2.45",
+  "contention": "Concurrent parallelism-sweep release build observed; no other user process interrupted.",
+  "baseline_build": "Cargo log completed successfully in 7m09s. Its lingering outer shell was interrupted after child processes exited; no clean build wrapper exit receipt. Baseline executable profile verified and timed compile/native executions exited 0.",
+  "diagnostic_builds": {
+    "slot_detail_exit": 0,
+    "ablation_exit": 0
+  }
+}
