@@ -39,6 +39,7 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .insert(FlowOperandRetention {
                 enclosing_storage,
+                possible_storage: arena::HandleSpan::empty(),
                 ..profile
             })
     }
@@ -98,20 +99,18 @@ impl Execution<'_, '_, '_> {
         &mut self,
         value: &FlowOperandFact,
     ) -> Option<Vec<validation::CanonicalPlace>> {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!(
-                "CHECKSITE projectable-backing machine={:?} statement={} expression={:?} exact_count={} retention={:?} completion={:?}",
-                self.machine.symbol,
-                self.statement_index,
-                value.expression,
-                value.referents.count(),
-                self.context
-                    .control
-                    .operand_retentions
-                    .is_valid(value.retention)
-                    .then(|| self.context.control.operand_retentions.get(value.retention)),
-                value.completion
-            );
+        let profile = self
+            .context
+            .control
+            .operand_retentions
+            .is_valid(value.retention)
+            .then(|| self.context.control.operand_retentions.get(value.retention));
+        // An enclosure names the source interpretation, not typed coordinates
+        // of this descriptor. Even a same-shaped type cannot project it.
+        if profile.is_some_and(|profile| {
+            profile.enclosing_storage.is_valid() || !profile.enclosing_regions.is_empty()
+        }) {
+            return None;
         }
         let places = if !value.referents.is_empty() {
             validation::completed_storage::direct_referent_places(

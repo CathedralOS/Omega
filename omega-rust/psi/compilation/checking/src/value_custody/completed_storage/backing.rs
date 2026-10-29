@@ -104,10 +104,15 @@ impl Resolver<'_, '_> {
         }
         if path.is_empty()
             && let Some(profile) = self.profile(&capture)
-            && !profile.possible_storage.is_empty()
-            && profile.alternatives.is_empty()
+            && (!profile.possible_storage.is_empty() || !profile.alternatives.is_empty())
         {
-            return super::direct_referent_places(self.control, profile.possible_storage);
+            // Exact-address capture can be unavailable for a joined pointer.
+            // Every retained profile must still supply its complete geometry;
+            // one missing or enclosure-only arm refuses projectable coverage.
+            return match self.profile_backing(capture.retention)? {
+                ProfileBacking::Known(places) => Some(places),
+                ProfileBacking::Unchanged => None,
+            };
         }
         match frozen_reference_leaf(self.program, self.control, operand, path) {
             FrozenReferenceSelection::Unavailable => return None,
@@ -276,6 +281,11 @@ impl Resolver<'_, '_> {
         // retained signature lifetime debts; alternatives were joined above.
         if row.immutable_image {
             return Some(ProfileBacking::Known(Vec::new()));
+        }
+        if self.projectable
+            && (row.enclosing_storage.is_valid() || !row.enclosing_regions.is_empty())
+        {
+            return None;
         }
         if !row.possible_storage.is_empty() {
             return Some(ProfileBacking::Known(super::direct_referent_places(
