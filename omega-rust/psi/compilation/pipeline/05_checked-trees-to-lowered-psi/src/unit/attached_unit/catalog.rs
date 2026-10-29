@@ -391,11 +391,22 @@ pub(super) fn lower_unit_structural_types_including(
     let mut roots = additional_roots.to_vec();
     let mut literal_view = false;
     for symbol in closure {
-        let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
-            checked, *symbol,
-        )?;
-        roots.extend(operands.identities);
-        literal_view |= operands.literal_view;
+        // Fused states retain their declaration's computation namespace. The
+        // callable head alone cannot supply the carriers for operand values
+        // authored in another state owner; those owners need no separate body.
+        let mut value_operations = Vec::new();
+        for source in plans.source_machines(checked, &[*symbol])? {
+            let operands = crate::scalar_lowering::computations::operand_types::type_requirements(
+                checked, source,
+            )?;
+            roots.extend(operands.identities);
+            literal_view |= operands.literal_view;
+            value_operations.extend(
+                crate::expression_preparation::computation_graph::value_call_operations(
+                    checked, source, None,
+                )?,
+            );
+        }
         let body = UnitBody::find(plans, *symbol)?;
         place_types::collect(checked, plans, body, &mut roots)?;
         if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
@@ -456,10 +467,6 @@ pub(super) fn lower_unit_structural_types_including(
         // Scalar computations can own structural producers and their operand
         // temporaries. Their operation dependencies need the same catalog walk
         // as statement-owned operations, not just their call signatures.
-        let value_operations =
-            crate::expression_preparation::computation_graph::value_call_operations(
-                checked, *symbol, None,
-            )?;
         for operation in body.operations().chain(value_operations) {
             collect_operation_type_roots(checked, plans, operation, &mut roots)?;
             match operation {

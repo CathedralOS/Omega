@@ -1,0 +1,8 @@
+// Expected exit: 0. Fused steps retain the carriers of their computed operands.
+use producer::main;
+machine main() reaches Reading crashes Trap {
+    let value: u64 = block Reading::read();
+    transition value == 16u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
