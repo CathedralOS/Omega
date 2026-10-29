@@ -236,23 +236,29 @@ pub(crate) fn stable_alias_initializer_origins(
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
+    macro_rules! alias_origins {
+        ($inference:expr, $expression:expr $(,)?) => {
+            stable_alias_initializer_origins(
+                program,
+                current_machine,
+                machine_symbols,
+                $inference,
+                $expression,
+                parameters,
+                isolated_local_roots,
+                aliases,
+                divergent_aliases,
+                symbols,
+                allow_isolated_local,
+                stored,
+            )
+        };
+    }
+
     if let Some(formation) = crate::reference_formation_source(program, expression)
         && formation.interpretation.is_placed()
     {
-        let mut origins = stable_alias_initializer_origins(
-            program,
-            current_machine,
-            machine_symbols,
-            inference,
-            formation.source,
-            parameters,
-            isolated_local_roots,
-            aliases,
-            divergent_aliases,
-            symbols,
-            allow_isolated_local,
-            stored,
-        )?;
+        let mut origins = alias_origins!(inference, formation.source)?;
         for origin in &mut origins {
             origin.source.recast(formation.view_type, expression);
         }
@@ -265,20 +271,7 @@ pub(crate) fn stable_alias_initializer_origins(
             source: super::place_paths::FrameSourcePlace::image_storage(),
         }],
         ExpressionNode::Borrow(inner) => {
-            let mut origins = stable_alias_initializer_origins(
-                program,
-                current_machine,
-                machine_symbols,
-                inference,
-                inner.target,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                divergent_aliases,
-                symbols,
-                allow_isolated_local,
-                stored,
-            )?;
+            let mut origins = alias_origins!(inference, inner.target)?;
             for origin in &mut origins {
                 if let Some(recast) = origin.source.recasts.last_mut()
                     && recast.formation.expression() == inner.target
@@ -296,22 +289,7 @@ pub(crate) fn stable_alias_initializer_origins(
                 call,
                 symbols,
                 inference,
-                |_, _, _, actual, inference| {
-                    stable_alias_initializer_origins(
-                        program,
-                        current_machine,
-                        machine_symbols,
-                        inference,
-                        actual,
-                        parameters,
-                        isolated_local_roots,
-                        aliases,
-                        divergent_aliases,
-                        symbols,
-                        allow_isolated_local,
-                        stored,
-                    )
-                },
+                |_, _, _, actual, inference| alias_origins!(inference, actual),
             )
             // A boundary call has no checked body, but its admitted candidate
             // routes still supply proven referent origins. A resolved
@@ -358,39 +336,13 @@ pub(crate) fn stable_alias_initializer_origins(
             }
             projected_indexed_origins(
                 program,
-                stable_alias_initializer_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    inference,
-                    indexed.collection,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                    stored,
-                )?,
+                alias_origins!(inference, indexed.collection)?,
                 expression,
                 indexed.collection,
             )
         }
         ExpressionNode::Member(member) => {
-            let receivers = stable_alias_initializer_origins(
-                program,
-                current_machine,
-                machine_symbols,
-                inference,
-                member.receiver,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                divergent_aliases,
-                symbols,
-                allow_isolated_local,
-                stored,
-            );
+            let receivers = alias_origins!(inference, member.receiver);
             if let Some(receivers) = receivers {
                 projected_member_origins(program, receivers, expression, member)
             } else {
@@ -412,20 +364,7 @@ pub(crate) fn stable_alias_initializer_origins(
             // arm. An arm that cannot resolve leaves the expression opaque.
             let mut selected = Vec::new();
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                for origin in stable_alias_initializer_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    inference,
-                    arm.value,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    divergent_aliases,
-                    symbols,
-                    allow_isolated_local,
-                    stored,
-                )? {
+                for origin in alias_origins!(inference, arm.value)? {
                     push_unique_origin(&mut selected, origin);
                 }
             }
@@ -435,20 +374,7 @@ pub(crate) fn stable_alias_initializer_origins(
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            let mut origins = stable_alias_initializer_origins(
-                program,
-                current_machine,
-                machine_symbols,
-                inference,
-                cast.value,
-                parameters,
-                isolated_local_roots,
-                aliases,
-                divergent_aliases,
-                symbols,
-                allow_isolated_local,
-                stored,
-            )?;
+            let mut origins = alias_origins!(inference, cast.value)?;
             for origin in &mut origins {
                 let formation = crate::reference_formation_source(program, expression)?;
                 origin.source.recast(formation.view_type, expression);
