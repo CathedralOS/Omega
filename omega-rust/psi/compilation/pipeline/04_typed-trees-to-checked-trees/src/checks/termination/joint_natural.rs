@@ -55,6 +55,18 @@ pub(super) fn select(
     {
         return None;
     }
+    let mut field_paths = Vec::new();
+    for machine in &machines {
+        for state in program.machine_states(machine) {
+            for path in
+                crate::checks::current_scalar_values::parameter_field_paths(program, machine, state)
+            {
+                if !field_paths.contains(&path) {
+                    field_paths.push(path);
+                }
+            }
+        }
+    }
     let mut candidates = Vec::new();
     let mut selected_observation = None;
     for machine in &machines {
@@ -90,7 +102,7 @@ pub(super) fn select(
             *subject,
         )?;
         let parameter = place.root.as_symbol()?;
-        let selected = coordinates(program, machine, entry, observation, frames)?
+        let selected = coordinates(program, machine, entry, observation, frames, &field_paths)?
             .into_iter()
             .find(|coordinate| {
                 coordinate.parameter == parameter && coordinate.path == place.segments
@@ -116,7 +128,7 @@ pub(super) fn select(
             return None;
         }
         let entry = &program.machine_states(machine)[0];
-        *candidates = coordinates(program, machine, entry, observation, frames)?
+        *candidates = coordinates(program, machine, entry, observation, frames, &field_paths)?
             .into_iter()
             .filter(|coordinate| coordinate.primitive == primitive)
             .collect();
@@ -169,9 +181,15 @@ pub(super) fn select(
                         "natural rank operands have an unpreserved evaluation prefix",
                     ));
                 }
-                let Some(values) =
-                    CurrentScalarValues::at(program, machine, entry, statement, arrival, frames)
-                else {
+                let Some(values) = CurrentScalarValues::at_observing_fields(
+                    program,
+                    machine,
+                    entry,
+                    statement,
+                    arrival,
+                    frames,
+                    &field_paths,
+                ) else {
                     return Some(Err(
                         "a natural call has no complete current-value observation",
                     ));
@@ -227,13 +245,21 @@ fn coordinates(
     state: &typed_trees::state::State,
     observation: validation::RankPremiseObservation,
     frames: Option<&validation::CallFrameResolver<'_>>,
+    field_paths: &[Vec<SymbolHandle>],
 ) -> Option<Vec<Coordinate>> {
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     let first = *order.indices().first()?;
-    let values =
-        CurrentScalarValues::at(program, machine, state, first, Default::default(), frames)?;
+    let values = CurrentScalarValues::at_observing_fields(
+        program,
+        machine,
+        state,
+        first,
+        Default::default(),
+        frames,
+        field_paths,
+    )?;
     let mut coordinates = Vec::new();
     for (position, parameter) in program.state_parameters(state).iter().enumerate() {
         if parameter.relevance.is_erased() || parameter.is_const {

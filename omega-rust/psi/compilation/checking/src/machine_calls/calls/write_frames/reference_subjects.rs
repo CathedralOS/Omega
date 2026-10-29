@@ -309,6 +309,76 @@ pub(super) fn expression_origins_before_statement(
         .collect()
 }
 
+/// A coordinate is supplied by the consumer, never manufactured as a source
+/// expression. Authenticate its declaration and each retained descriptor load
+/// against this prefix's inventory. Spatial resolution by itself is insufficient:
+/// it may return an unchanged path when no stored slot matched. Missing inner
+/// loads therefore stay unknown, even when the full path has scalar geometry.
+pub(super) fn coordinate_sources_before_statement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    index: usize,
+    source: &FrameSourcePlace,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+    let root = source.root;
+    let path = source.segments.as_slice();
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    validate_source_projection(program, machine, state, index, source, &prefix.stored)?;
+    carrier_storage_type(program, source_root_type(program, state, index, root)?)?;
+    if let Some(record) = prefix
+        .stored
+        .iter()
+        .find(|record| record.local_symbol == root)
+    {
+        for leaf in &record.references {
+            if !path.starts_with(&leaf.local_segments) {
+                continue;
+            }
+            let stored_origins::StoredOriginKind::Reference(access) = leaf.kind else {
+                return None;
+            };
+            if !access.is_readable() || leaf.origin.is_none() {
+                return None;
+            }
+            let sources =
+                stored_origins::selected_slot_sources(record, &leaf.local_segments, None)?;
+            for source in sources {
+                if source.lifetime_access.is_some()
+                    || source.origin.precision != FramePathPrecision::Exact
+                    || source.origin.source.output_identity().is_some()
+                {
+                    return None;
+                }
+            }
+        }
+    }
+    let origin = FramePlaceOrigin {
+        path: super::frame_coordinate_path(program, root, path)?,
+        precision: FramePathPrecision::Exact,
+        source: source.clone(),
+    };
+    stored_origins::canonical_reference_sources(
+        program,
+        &Some(origin),
+        &prefix.aliases,
+        &prefix.stored,
+    )
+    .into_iter()
+    .map(|source| {
+        let source = source?;
+        (source.lifetime_access.is_none()
+            && source.origin.precision == FramePathPrecision::Exact
+            && source.origin.source.output_identity().is_none())
+        .then(|| source.origin.into())
+    })
+    .collect()
+}
+
 /// Complete backing footprints for invalidation, independent of exact identity.
 /// A window may conservatively observe its whole collection. Reuse the backing
 /// origin judgment: it authenticates frozen descriptor boundaries and builtin

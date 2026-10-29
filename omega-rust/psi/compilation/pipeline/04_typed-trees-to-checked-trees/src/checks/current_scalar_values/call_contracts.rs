@@ -432,6 +432,7 @@ impl CurrentScalarValues<'_> {
                 }),
                 alternatives: Vec::new(),
                 immutable_coordinate: false,
+                read_dependencies: Some(Vec::new()),
             });
         }
         formals.extend(machine_values.iter().map(|(symbol, value)| Binding {
@@ -440,6 +441,7 @@ impl CurrentScalarValues<'_> {
             value: Some(value.clone()),
             alternatives: Vec::new(),
             immutable_coordinate: true,
+            read_dependencies: Some(Vec::new()),
         }));
         let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
         if !admitted(occurrence, expression, &formals, &fields, 0) {
