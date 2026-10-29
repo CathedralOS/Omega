@@ -18,6 +18,7 @@ pass/collections/runtime_double_indexed_rmw_exit built 9161ms exit:1 interpreter
 pass/collections/runtime_hoisted_index_write_exit built 9130ms exit:7 interpreter-exit:7 interpreter:agrees @4235516305e1
 pass/collections/runtime_indexed_struct_field_rmw_exit built 9164ms exit:1 interpreter-exit:1 interpreter:agrees @4235516305e1
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 9240ms exit:70 interpreter-exit:70 interpreter:agrees @4235516305e1
+pass/domains/named_const_subject_binding built 13526ms exit:3 interpreter-exit:3 interpreter:agrees @9947836a76ba
 pass/facts/as_slice_views_generic_offset_selector_exit built 4123ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_root_exit built 4009ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_shadowed_extent_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1

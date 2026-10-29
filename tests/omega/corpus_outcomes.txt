@@ -4121,7 +4121,7 @@ fail/domains/module_qualified_cast_domain_unknown rejected 1052ms expected @a92f
 	unknown cast domain `units::u64::Missing` for target `u64`
 fail/domains/moved_payload_cannot_revive_issued_membership rejected 1210ms expected @a92f16431042
 	cannot prove requires contract for call read_issued from main: moved.cell in Cell::Issued in state `entry`
-fail/domains/named_const_subject_binding rejected 43ms unexpected @a92f16431042
+fail/domains/named_const_subject_binding rejected 80ms unexpected @9947836a76ba
 	cannot prove scalar result domain for return from @const-qualification-INVALID-0 at statement 0: u64::Below::Inherited
 fail/domains/named_issuer_independent_predicate rejected 1688ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
@@ -25626,13 +25626,7 @@ pass/domains/match_domain_results checked 3009ms @a92f16431042
 pass/domains/match_join_alias_domain_transfer checked 2248ms @a92f16431042
 pass/domains/module_domain_narrow_import_spelling checked 2144ms @a92f16431042
 pass/domains/moved_payload_uses_current_membership_exit checked 3044ms check-target:macos_arm64 @a92f16431042
-pass/domains/named_const_subject_binding rejected 3755ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: u64::Nested
-	cannot prove scalar result domain for return from @const-qualification-INHERITED-1 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-QUALIFIED-2 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-EXPLICIT-3 at statement 0: u64::Small::Explicit
-	cannot prove default-domain field requirement for return from @const-qualification-ARRAY-5, state @const-qualification-ARRAY-5, at statement 0: [99, 3] requires SmallAt
-	construction value is not proven in domain `SmallAt` in @const-qualification-ARRAY-5 state `@const-qualification-ARRAY-5` at statement 0; a construction value must establish the domain's predicates and any required provenance
+pass/domains/named_const_subject_binding checked 16639ms check-target:macos_arm64 @9947836a76ba
 pass/domains/named_subject_capacity_identity_exit checked 7308ms check-target:macos_arm64 @a92f16431042
 pass/domains/policy_plan_shapes checked 2483ms @a92f16431042
 pass/domains/predicate_domain_param checked 2418ms @a92f16431042
