@@ -424,6 +424,10 @@ the typed program before checking. Product carriers retain neither a second
 authored forest nor source-evaluation continuations for later target closure.
 Early Build evaluation still consumes its pending source work before admitting
 the Build activation; that execution is separate from Product scalar completion.
+Source checking roots complete initializer entries before ordinary preparation.
+It exposes no target-proof closure that rebuilds checked trees or refreshes their
+execution catalog. Callable descriptions are published inside the checking stage,
+not through a second coordinator-callable source settlement operation.
 Psi retains the computations and obligations; its compile-time evaluator executes
 dependency-ready canonical jobs and closes each authored proof scope. The
 application supplies exact provider selections, target families, address semantics
