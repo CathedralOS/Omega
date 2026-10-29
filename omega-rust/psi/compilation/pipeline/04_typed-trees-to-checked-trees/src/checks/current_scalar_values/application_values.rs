@@ -11,14 +11,51 @@ use validation::{
 };
 
 impl CurrentScalarValues<'_> {
-    /// By-value records arrive with their own scalar and descriptor words.
-    /// Seed independent observations for inline fields; never walk through a
-    /// borrowed record into storage whose contents another owner may change.
+    /// Owned records and readable borrowed records expose typed entry fields.
+    /// A borrowed root requires its own stable reference binding; it does not
+    /// freeze the referent. These current rows still expire on overlapping
+    /// writes, while a selected entry value is saved independently by ranking.
+    /// Only the formal's authenticated boundary is crossed here: reference
+    /// leaves inside the record need separate load evidence and are not walked.
     pub(super) fn seed_parameter_fields(&mut self) {
         for parameter in self.program.state_parameters(self.state) {
-            let mut pending = vec![(parameter.type_reference, Vec::new(), 0usize)];
+            let reference = if let Some(shell) =
+                validation::reference_shell(self.program, parameter.type_reference)
+            {
+                if !shell.access.is_readable()
+                    || !validation::state_reference_parameter_binding_is_stable(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        parameter.symbol,
+                    )
+                {
+                    continue;
+                }
+                shell.referee
+            } else {
+                parameter.type_reference
+            };
+            let mut pending = vec![(reference, Vec::new(), 0usize)];
             while let Some((reference, path, depth)) = pending.pop() {
                 if depth >= 64 {
+                    continue;
+                }
+                let declared = self
+                    .program
+                    .type_reference_table
+                    .unconstrained_type_reference(reference);
+                // Atomic/placed carriers require their observation operation;
+                // equal scalar representation supplies no ordinary field read.
+                if self
+                    .program
+                    .placed_view_field_plan_for_type_reference(declared)
+                    .is_some()
+                    || matches!(self.program.type_reference_table.type_reference(declared),
+                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                            if self.program.symbols.builtin_type_atom(*symbol)
+                                .is_some_and(|atom| atom.is_atomic()))
+                {
                     continue;
                 }
                 let identity = format!(
