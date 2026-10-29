@@ -230,7 +230,8 @@ fn source_and_package_execution_have_one_application_owner() {
 fn application_completes_native_products_without_source_continuations() {
     let completion = include_str!("native_completion.rs");
     assert!(completion.contains("run_on_compile_thread(|| complete_native(*product))"));
-    let mut lifecycle = completion;
+    let compact = completion.split_whitespace().collect::<String>();
+    let mut lifecycle = compact.as_str();
     for operation in [
         "native_production::prepare(",
         "prepared.scalar_completions()",
