@@ -547,8 +547,9 @@ fn compare(
                 .bound
                 .as_ref()?
                 .arriving(program, machines[edge.destination], edge)?;
-        // MAX - cursor is equivalent to the authored bounded ordering only
-        // while every edge preserves its upper coordinate. A private member
+        // MAX - cursor agrees with Distance ordering under a conserved upper.
+        // For IncreasingTo it conservatively refines weak clamped edges; only
+        // a source below the limit can contribute strict descent. A private member
         // must supply that coordinate from its own invocation, not the root's
         // ambient scope. Distance formation is independently owed at both ends.
         if !proves(BinaryOperator::Equal, bound, &arriving) {
@@ -578,6 +579,17 @@ fn compare(
         if order == Order::Descending {
             Some(value.clone())
         } else {
+            let (minimum, maximum) = source.coordinate.primitive.integer_bounds()?;
+            // Both exact coordinates have this fixed-width carrier, and call
+            // admission separately checks the arriving actual. Captured atoms
+            // retain identity and signedness, but do not carry their physical
+            // ceiling. Supply that declared carrier evidence before forming
+            // the total complement; an authored rank interval supplies none.
+            let value = ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(value.clone()),
+                minimum: Some(BigInt::from_i128(minimum)),
+                maximum: Some(BigInt::from_i128(maximum)),
+            };
             Some(ScopedArithmeticValue::IntegerOperation {
                 operator: BinaryOperator::Subtract,
                 left: Box::new(ScopedArithmeticValue::Integer(BigInt::from_u64(
@@ -585,7 +597,7 @@ fn compare(
                         .function()
                         .complement_ceiling(source.coordinate.primitive)?,
                 ))),
-                right: Box::new(value.clone()),
+                right: Box::new(value),
             })
         }
     };
