@@ -6,18 +6,30 @@ machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5
 { value }
 boundary trait ReadingProbe {
-    machine probe(reading: Reading) -> f64 reaches;
+    machine probe(reading: Reading, expected_tag: u64) -> f64 reaches crashes Trap;
 }
 ArmReadingProbe satisfies ReadingProbe {
-    machine probe(reading: Reading) -> f64 reaches { admit(reading.value) }
+    machine probe(reading: Reading, expected_tag: u64) -> f64 reaches crashes Trap {
+        transition expected_tag == 17u64 { true -> deliver(reading) _ -> bad() }
+        machine deliver(reading: Reading) -> f64 reaches { admit(reading.value) }
+        machine bad() -> f64 { crash Trap; }
+    }
 }
 X86ReadingProbe satisfies ReadingProbe {
-    machine probe(reading: Reading) -> f64 reaches { admit(reading.value) }
+    machine probe(reading: Reading, expected_tag: u64) -> f64 reaches crashes Trap {
+        transition expected_tag == 29u64 { true -> deliver(reading) _ -> bad() }
+        machine deliver(reading: Reading) -> f64 reaches { admit(reading.value) }
+        machine bad() -> f64 { crash Trap; }
+    }
 }
-machine main() crashes Trap {
+machine main(expected_tag: u64) crashes Trap {
     let low: Reading = Reading { value: 0.125 };
     let high: Reading = Reading { value: 0.25 };
-    transition ReadingProbe::probe(low) == 0.125 && ReadingProbe::probe(high) == 0.25 { true -> done() _ -> bad() }
+    transition ReadingProbe::probe(low, expected_tag) == 0.125 && ReadingProbe::probe(high, expected_tag) == 0.25 { true -> done() _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }
+
+// The entry checks which ordinary implementation actually ran.
+machine arm_entry() crashes Trap { main(17u64); }
+machine x86_entry() crashes Trap { main(29u64); }

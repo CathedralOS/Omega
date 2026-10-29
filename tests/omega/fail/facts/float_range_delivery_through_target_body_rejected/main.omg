@@ -1,23 +1,35 @@
 // Inclusive f64 0.0 <= value <= 0.25 entails admit's 0.0 <= value <= 0.5.
-// Reject: missing narrow upper-bound proof at admit(value).
+// Expected exit: 0
 use omega::language::core::float_operations;
 data Reading [copy] where value >= 0.0 { value: f64; }
 machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5
 { value }
 boundary trait ReadingProbe {
-    machine probe(reading: Reading) -> f64 reaches;
+    machine probe(reading: Reading, expected_tag: u64) -> f64 reaches crashes Trap;
 }
 ArmReadingProbe satisfies ReadingProbe {
-    machine probe(reading: Reading) -> f64 reaches { admit(reading.value) }
+    machine probe(reading: Reading, expected_tag: u64) -> f64 reaches crashes Trap {
+        transition expected_tag == 17u64 { true -> deliver(reading) _ -> bad() }
+        machine deliver(reading: Reading) -> f64 reaches { admit(reading.value) }
+        machine bad() -> f64 { crash Trap; }
+    }
 }
 X86ReadingProbe satisfies ReadingProbe {
-    machine probe(reading: Reading) -> f64 reaches { admit(reading.value) }
+    machine probe(reading: Reading, expected_tag: u64) -> f64 reaches crashes Trap {
+        transition expected_tag == 29u64 { true -> deliver(reading) _ -> bad() }
+        machine deliver(reading: Reading) -> f64 reaches { admit(reading.value) }
+        machine bad() -> f64 { crash Trap; }
+    }
 }
-machine main() crashes Trap {
-    let reading: Reading = Reading { value: 0.25 };
-    let observed: f64 = ReadingProbe::probe(reading);
-    transition observed == 0.25 { true -> done() _ -> bad() }
+machine main(expected_tag: u64) crashes Trap {
+    let low: Reading = Reading { value: 0.125 };
+    let high: Reading = Reading { value: 0.25 };
+    transition ReadingProbe::probe(low, expected_tag) == 0.125 && ReadingProbe::probe(high, expected_tag) == 0.25 { true -> done() _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }
+
+// The entry checks which ordinary implementation actually ran.
+machine arm_entry() crashes Trap { main(17u64); }
+machine x86_entry() crashes Trap { main(29u64); }

@@ -107,7 +107,17 @@ float comparison. The producer identity remains Native14; the authored runtime
 library is a separate captured replay input. The baseline and exact library
 hashes are retained in the target-retirement qualification evidence.
 
-The complete row, reject controls, override and target-availability controls,
-Core Build activation custody, and both engines remain to be validated. Earlier
-execution claims above describe the pre-migration implementation, not this
-unfinished continuation.
+The immutable optimized producer at `2df14ada9760` now runs the root and all
+nine places with native exit 0 and Terminal exit 0. All nine reject twins refuse
+at `admit`'s unchanged range requirement. The selected target-body implementations
+carry independent 17/29 identity guards; the guard adds no premise about the
+float and both bodies still consume `admit(reading.value)`. The root's explicit
+entry owns its local state and binds all five hosted slots to `entry_start`.
+
+Compiler inputs are unchanged by these witness/oracle edits; the retained
+producer keeps its actual source revision. Source hashes and raw engine records
+are retained with the qualification evidence. Same-artifact multi-target
+installation, matching x86 execution, override/availability/spoof controls,
+canonical corpus recording, and the complete repository prefix/family migration
+remain open. Earlier execution claims above describe the pre-migration
+implementation; these observations establish only this continuation's range row.
