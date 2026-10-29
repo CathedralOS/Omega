@@ -55,17 +55,15 @@ pub fn admit_native_realization<'execution>(
         request.providers.profile,
         request.entry,
         request.private_entry_ram,
+        &crate::NativeExecutionSelection {
+            providers: request.providers.checked_adapters,
+            plans: request.providers.selected_provider_plans,
+            callbacks: &[],
+            entry_call: None,
+        },
     )
     .map_err(artifact_lowering_error)?;
     let input = input
-        .select_target_execution(
-            artifact,
-            request.providers.profile,
-            request.providers.checked_adapters,
-            request.providers.selected_provider_plans,
-            &[],
-        )
-        .map_err(|error| realization_error("execution scope", error))?
         .bind_selected_provider_coordinates(artifact, request.providers.selected_provider_plans)
         .map_err(|error| realization_error("selected provider coordinates", error))?;
     admit_prepared_native_realization(input, artifact, request)

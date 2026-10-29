@@ -26,8 +26,8 @@ type LoweredAffineLocal = (
 pub(super) fn lower_machine(
     module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<AbstractFunction, LoweringError> {
-    let structural_types = &module.structural_types;
     let result = machine.result.scalar();
     let blocks = machine
         .blocks

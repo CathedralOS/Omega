@@ -162,6 +162,12 @@ fn qualify_helper(machine: &str, writes: bool) {
             target::TargetProfile::host(),
             module.entry,
             std::slice::from_ref(&establishment),
+            &terminal_psi_to_abstract_operations::NativeExecutionSelection {
+                providers: &[],
+                plans: &effects::SelectedProviderPlanFacts::default(),
+                callbacks: &[],
+                entry_call: None,
+            },
         )
         .expect("native input retains the exact placed entry establishment");
     }

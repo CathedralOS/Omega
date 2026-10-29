@@ -166,21 +166,18 @@ impl TerminalNativeRealizationProposal {
             self.target_profile(),
             root,
             private_entry_ram,
+            &crate::NativeExecutionSelection {
+                providers: &local_adapters,
+                plans: &self.providers().selection,
+                callbacks: &self.occurrences().callbacks,
+                entry_call: semantic_call.as_ref(),
+            },
         )
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "native execution input: {error:?}"
             ))]
-        })?
-        .bind_program_entry_call(semantic_call)
-        .select_target_execution(
-            artifact,
-            self.target_profile(),
-            &local_adapters,
-            &self.providers().selection,
-            &self.occurrences().callbacks,
-        )
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        })?;
         self.finish_native_execution(artifact, input, local_adapters)
     }
 
@@ -198,20 +195,18 @@ impl TerminalNativeRealizationProposal {
             self.target_profile(),
             entry,
             &[],
+            &crate::NativeExecutionSelection {
+                providers: &self.providers().checked_adapters,
+                plans: &self.providers().selection,
+                callbacks: &self.occurrences().callbacks,
+                entry_call: None,
+            },
         )
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "component callable execution input: {error:?}",
             ))]
-        })?
-        .select_target_execution(
-            artifact,
-            self.target_profile(),
-            &self.providers().checked_adapters,
-            &self.providers().selection,
-            &self.occurrences().callbacks,
-        )
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        })?;
         self.finish_native_execution(artifact, input, self.providers().checked_adapters.clone())
     }
 

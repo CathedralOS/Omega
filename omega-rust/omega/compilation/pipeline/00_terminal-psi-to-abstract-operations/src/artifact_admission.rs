@@ -14,7 +14,7 @@ mod qualified_cleanup_receiving_tests;
 pub(crate) use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub(crate) use native::AdmittedNativeArtifact;
-pub use native::VerifiedNativeArtifactInput;
+pub use native::{NativeExecutionSelection, VerifiedNativeArtifactInput};
 
 /// Canonical artifact sections.
 #[derive(Clone, Copy)]

@@ -8,6 +8,10 @@ use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizatio
 use abstract_operations::AbstractOperationPlan;
 use terminal_installation::TerminalPlacedViewEstablishment;
 
+#[cfg(test)]
+#[path = "native_scope_tests.rs"]
+mod scope_tests;
+
 /// Native-admitted input and the provider establishments bound to its
 /// direct-entry placed-view roster rows. Construction is private:
 /// `AdmittedNativeArtifact::try_into_native_input` joins one supply per
@@ -19,14 +23,16 @@ pub struct VerifiedNativeArtifactInput {
     private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
+/// Invocation choices needed before executable lowering. These select work;
+/// provider admission still owns the authority to install the selected supply.
+pub struct NativeExecutionSelection<'request> {
+    pub providers: &'request [crate::SelectedProviderAdapter],
+    pub plans: &'request effects::SelectedProviderPlanFacts,
+    pub callbacks: &'request [backend_plan::TerminalCallbackOccurrenceProposal],
+    pub entry_call: Option<&'request crate::SelectedProgramEntryCall>,
+}
+
 impl VerifiedNativeArtifactInput {
-    pub(crate) fn bind_program_entry_call(
-        mut self,
-        binding: Option<crate::SelectedProgramEntryCall>,
-    ) -> Self {
-        self.optimization_input.selected_program_entry_call = binding;
-        self
-    }
     /// Resolve the portable entry for this exact deployment, lower its
     /// executable projection, and bind supplied direct-entry placed-view loans.
     /// Canonical semantics remain unchanged and no executable plan exists with
@@ -36,6 +42,7 @@ impl VerifiedNativeArtifactInput {
         profile: target::TargetProfile,
         root: terminal_psi::TargetMachineCallable,
         establishments: &[TerminalPlacedViewEstablishment],
+        selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
         profile
             .admit_address_representation()
@@ -48,8 +55,42 @@ impl VerifiedNativeArtifactInput {
         let entry = selections
             .entry(artifact.view().identity(), module, root)
             .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
-        lower_decoded_native_module(module, entry, Some(selections))?
-            .try_into_native_input(establishments)
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        let assumptions = selection
+            .plans
+            .assumed_binding_coordinates(module)
+            .map_err(ArtifactLoweringError::TargetFamily)?;
+        let scope = crate::native_execution_scope::NativeExecutionScope::derive(
+            module,
+            entry,
+            &selections,
+            selection.entry_call,
+            selection.providers,
+            &assumptions,
+            selection.callbacks,
+        )
+        .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        let mut structural_types = module.structural_types.clone();
+        for resolved in layouts.resolved_records() {
+            let declaration = structural_types
+                .iter_mut()
+                .find(|row| row.id == resolved.id)
+                .ok_or_else(|| {
+                    ArtifactLoweringError::TargetFamily(
+                        "selected layout lost its executable structural declaration".into(),
+                    )
+                })?;
+            *declaration = resolved.clone();
+        }
+        let plan =
+            crate::lowering::lower_selected_module(module, entry, structural_types, Some(&scope))
+                .map_err(ArtifactLoweringError::Lowering)?;
+        let mut input = retain_native_plan(module, plan, Some(selections))
+            .try_into_native_input(establishments)?;
+        input.optimization_input.selected_program_entry_call = selection.entry_call.cloned();
+        input.optimization_input.target_layout_selections = Some(layouts);
+        Ok(input)
     }
 
     /// Original guest-owned initialized storage the invocation boundary must construct.
@@ -63,6 +104,7 @@ impl VerifiedNativeArtifactInput {
         profile: target::TargetProfile,
         root: terminal_psi::TargetMachineCallable,
         recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
         if recipes
             .iter()
@@ -113,79 +155,13 @@ impl VerifiedNativeArtifactInput {
                 })
             })
             .collect::<Result<Vec<_>, ArtifactLoweringError>>()?;
-        let mut input = Self::prepare(artifact, profile, root, &establishments)?;
+        let mut input = Self::prepare(artifact, profile, root, &establishments, selection)?;
         input.private_entry_ram = recipes.to_vec();
         Ok(input)
     }
 
     pub fn plan(&self) -> &AbstractOperationPlan {
         self.optimization_input.plan()
-    }
-
-    /// Select one deployment's executable closure before physical work.
-    /// Entry artifacts and private callback artifacts use this same projection;
-    /// canonical storage and actual callable IDs never change. Selection grants
-    /// no provider installation authority. A self-contained callback supplies
-    /// an empty adapter roster and still requires ordinary target lowering.
-    pub fn select_target_execution(
-        self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        profile: target::TargetProfile,
-        selected: &[crate::SelectedProviderAdapter],
-        assumptions: &effects::SelectedProviderPlanFacts,
-        callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
-    ) -> Result<Self, crate::NativeExecutionScopeError> {
-        profile
-            .admit_address_representation()
-            .map_err(crate::NativeExecutionScopeError::TargetFamily)?;
-
-        if artifact.view().identity() != self.plan().psi {
-            return Err(crate::NativeExecutionScopeError::TerminalIdentityMismatch);
-        }
-        let mut input = self.select_target_families(profile);
-        // Selection can change the executable scope. It grants no callback
-        // authority; only admission of the newly selected input can restore it.
-        input.optimization_input.admitted_native_callbacks.clear();
-        input.optimization_input.admitted_assumed_bindings.clear();
-        let selections = terminal_installation::admit_target_machine_selections(
-            artifact.view(),
-            profile.target_name(),
-        );
-        selections
-            .entry(
-                artifact.view().identity(),
-                artifact.semantic_module(),
-                terminal_psi::TargetMachineCallable::Machine(input.plan().entry),
-            )
-            .map_err(|error| crate::NativeExecutionScopeError::TargetFamily(error.to_string()))?;
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|error| crate::NativeExecutionScopeError::TargetLayout(error.to_string()))?;
-        if !layouts.resolved_records().is_empty() {
-            let declarations = input.optimization_input.plan.structural_types.make_mut();
-            for resolved in layouts.resolved_records() {
-                let declaration = declarations
-                    .iter_mut()
-                    .find(|row| row.id == resolved.id)
-                    .ok_or_else(|| {
-                        crate::NativeExecutionScopeError::TargetLayout(
-                            "selected layout lost its executable structural declaration".to_owned(),
-                        )
-                    })?;
-                *declaration = resolved.clone();
-            }
-        }
-        input.optimization_input.target_machine_selections = Some(selections);
-        input.optimization_input.target_layout_selections = Some(layouts);
-        let scope = crate::native_execution_scope::NativeExecutionScope::derive(
-            &input.optimization_input,
-            selected,
-            &assumptions
-                .assumed_binding_coordinates(artifact.semantic_module())
-                .map_err(crate::NativeExecutionScopeError::TargetFamily)?,
-            callbacks,
-        )?;
-        input.retain_execution_scope(&scope);
-        Ok(input)
     }
 
     /// Retain selected requirement coordinates. Family aliases additionally
@@ -234,61 +210,6 @@ impl VerifiedNativeArtifactInput {
         self.optimization_input
             .selected_provider_requirement_identities = selected.identities().clone();
         Ok(self)
-    }
-
-    /// Restrict physical work to this deployment's retained implementations.
-    /// Canonical Terminal storage and actual member identities remain intact;
-    /// this does not redirect calls or substitute a body at a family head.
-    /// A surviving call to an excluded member still fails ordinary closure
-    /// admission. Portable head calls keep their original occurrence and bind
-    /// to the exact selected member through separate internal call custody.
-    fn select_target_families(mut self, profile: target::TargetProfile) -> Self {
-        let members = self
-            .optimization_input
-            .context
-            .module()
-            .target_machine_families
-            .iter()
-            .flat_map(|family| &family.members)
-            .filter_map(|member| match member.callable {
-                terminal_psi::TargetMachineCallable::Machine(machine) => {
-                    Some((machine, member.target.as_str() == profile.target_name()))
-                }
-                terminal_psi::TargetMachineCallable::Boundary(_) => None,
-            })
-            .collect::<Vec<_>>();
-        self.optimization_input.plan.functions.retain(|function| {
-            members
-                .iter()
-                .find(|(machine, _)| *machine == function.machine)
-                .is_none_or(|(_, selected)| *selected)
-        });
-        self
-    }
-
-    /// Narrow only the invocation's executable projection. The immutable
-    /// canonical module remains available to every contract/evidence consumer.
-    fn retain_execution_scope(
-        &mut self,
-        scope: &crate::native_execution_scope::NativeExecutionScope,
-    ) {
-        self.optimization_input
-            .plan
-            .functions
-            .retain(|function| scope.contains_machine(function.machine));
-        self.optimization_input
-            .plan
-            .boundary_machines
-            .retain(|boundary| scope.contains_boundary(boundary.id));
-        let mut candidate_position = 0;
-        self.optimization_input
-            .plan
-            .provider_candidates
-            .retain(|_| {
-                let retained = scope.contains_candidate_position(candidate_position);
-                candidate_position += 1;
-                retained
-            });
     }
 
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
@@ -395,8 +316,16 @@ pub(super) fn lower_decoded_native_module(
     selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
     let plan = lower_decoded_module(module, entry).map_err(ArtifactLoweringError::Lowering)?;
+    Ok(retain_native_plan(module, plan, selections))
+}
+
+fn retain_native_plan(
+    module: &terminal_psi::TerminalModule,
+    plan: AbstractOperationPlan,
+    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
+) -> AdmittedNativeArtifact {
     let context = retain_optimization_context(module);
-    Ok(AdmittedNativeArtifact {
+    AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput {
             selected_program_entry_call: None,
             plan,
@@ -411,7 +340,7 @@ pub(super) fn lower_decoded_native_module(
                 Vec::new(),
             ),
         },
-    })
+    }
 }
 
 #[cfg(test)]
@@ -507,6 +436,12 @@ mod private_entry_target_tests {
                 profile,
                 artifact.semantic_module().entry,
                 std::slice::from_ref(&recipe),
+                &NativeExecutionSelection {
+                    providers: &[],
+                    plans: &effects::SelectedProviderPlanFacts::default(),
+                    callbacks: &[],
+                    entry_call: None,
+                },
             )
             .expect_err("same checked receipt cannot be rebound to another target");
             assert!(

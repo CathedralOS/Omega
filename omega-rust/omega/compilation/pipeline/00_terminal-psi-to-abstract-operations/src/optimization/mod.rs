@@ -248,39 +248,52 @@ impl VerifiedPsiOptimizationInput {
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
     ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
-        let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
-        let families = &self.context.module.target_machine_families;
-        let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
-            return Ok(None);
-        };
-        if families[position]
-            .members
-            .iter()
-            .any(|member| member.callable == head)
+        target_family_member(
+            self.context.module(),
+            self.target_machine_selections(),
+            boundary,
+        )
+    }
+}
+
+/// Shared family join for pre-lowering selection and lowered consumers.
+pub(crate) fn target_family_member(
+    module: &terminal_psi::TerminalModule,
+    selections: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
+    let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
+    let families = &module.target_machine_families;
+    let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
+        return Ok(None);
+    };
+    if families[position]
+        .members
+        .iter()
+        .any(|member| member.callable == head)
+    {
+        return Ok(None);
+    }
+    let selections = selections.ok_or_else(|| {
+        format!("target-family head {boundary:?} has no invocation deployment selection")
+    })?;
+    let member = selections.member(head).map_err(|error| error.to_string())?;
+    match (member.callable(), member.supply()) {
+        (
+            terminal_psi::TargetMachineCallable::Machine(machine),
+            terminal_psi::TargetMachineSupply::CheckedBody
+            | terminal_psi::TargetMachineSupply::Boundary,
+        ) => Ok(Some(terminal_psi::TargetMachineCallable::Machine(machine))),
+        (terminal_psi::TargetMachineCallable::Boundary(member), supply)
+            if supply != terminal_psi::TargetMachineSupply::CheckedBody =>
         {
-            return Ok(None);
+            Ok(Some(terminal_psi::TargetMachineCallable::Boundary(member)))
         }
-        let selections = self.target_machine_selections().ok_or_else(|| {
-            format!("target-family head {boundary:?} has no invocation deployment selection")
-        })?;
-        let member = selections.member(head).map_err(|error| error.to_string())?;
-        match (member.callable(), member.supply()) {
-            (
-                terminal_psi::TargetMachineCallable::Machine(machine),
-                terminal_psi::TargetMachineSupply::CheckedBody
-                | terminal_psi::TargetMachineSupply::Boundary,
-            ) => Ok(Some(terminal_psi::TargetMachineCallable::Machine(machine))),
-            (terminal_psi::TargetMachineCallable::Boundary(member), supply)
-                if supply != terminal_psi::TargetMachineSupply::CheckedBody =>
-            {
-                Ok(Some(terminal_psi::TargetMachineCallable::Boundary(member)))
-            }
-            _ => Err(format!(
-                "target-family head {boundary:?} selected incompatible callable {:?} for `{}`",
-                member.callable(),
-                selections.target(),
-            )),
-        }
+        _ => Err(format!(
+            "target-family head {boundary:?} selected incompatible callable {:?} for `{}`",
+            member.callable(),
+            selections.target(),
+        )),
     }
 }
 
