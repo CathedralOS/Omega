@@ -3,9 +3,9 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    SelectedInstructionKind, X86_64SelectedFormEncodingError, encode_x86_64_selected_form,
-    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
-    encode_x86_64_selected_short_nonzero_branch_form,
+    SelectedInstructionKind, ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    encode_x86_64_selected_form, encode_x86_64_selected_i64_less_than_branch_form,
+    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form, validate_x86_64_selected_form_encoding,
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
@@ -21,7 +21,8 @@ use register_model::{
     RegisterViewId, ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
 use selected_instructions::{
-    MachineSemanticKind, SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
+    MachineMemoryEffect, MachineSemanticKind, SaturatingCarrier, SaturatingOperation, TrappingForm,
+    TrappingOperation,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue};
 use semantic_vocabulary::{MachineId, ObligationId};
@@ -50,6 +51,82 @@ pub(crate) fn assert_early_clobber_required(
 
 mod scalar;
 mod trapping;
+
+/// Both byte-loop encoders declare the same catalog contract: their loop
+/// scratch operands are early-clobber, the row names its memory effect, and
+/// the read and write surfaces are exactly the operand roles the loop reads
+/// and writes.
+pub(crate) fn assert_byte_loop_catalog_contract(
+    key: register_model::RegisterConstraintKey,
+    scratch: &[usize],
+    semantic: MachineSemanticKind,
+    memory: MachineMemoryEffect,
+    reads: &[u16],
+    writes: &[u16],
+) {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let catalog = crate::x86_64_register_constraint_catalog(&physical);
+    let constraints =
+        crate::validate_x86_64_register_constraint_catalog(catalog.clone(), &physical).unwrap();
+    assert_early_clobber_required(&catalog, &physical, key, scratch);
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let effects = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        crate::validate_x86_64_machine_effect_catalog(target, &constraints, effects.clone())
+            .unwrap();
+        let row = effects
+            .declarations
+            .iter()
+            .find(|row| row.semantic == semantic)
+            .unwrap();
+        assert_eq!(row.memory, memory);
+        assert_eq!(row.alternatives[0].encoded.external_operand_reads, reads);
+        assert_eq!(row.alternatives[0].encoded.external_operand_writes, writes);
+    }
+}
+
+/// A byte-loop form round-trips through its independent encoder and decoder,
+/// and every changed bit, truncated prefix, and trailing byte is refused. The
+/// loops differ only in how the predicate and displacement reach `encode` and
+/// `validate`, so those two calls arrive as closures over the shared body.
+pub(crate) fn assert_loop_form_round_trips_and_rejects_every_changed_bit(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    rosters: &[&[&str]],
+    encode: impl Fn(
+        &[RegisterViewId],
+        u32,
+    ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError>,
+    validate: impl Fn(&[RegisterViewId], &[u8]) -> bool,
+) {
+    for names in rosters {
+        let operands = names
+            .iter()
+            .map(|name| physical.model().view_named(name).unwrap().id)
+            .collect::<Vec<_>>();
+        let encoded = encode(&operands, 0).unwrap();
+        assert_eq!(
+            encode_x86_64_selected_form(physical, kind, alternative, &operands).unwrap(),
+            encoded
+        );
+        validate_x86_64_selected_form_encoding(
+            physical,
+            kind,
+            alternative,
+            &operands,
+            encoded.bytes(),
+        )
+        .unwrap();
+        super::assert_every_bit_flip_rejected(encoded.bytes(), |changed| {
+            validate(&operands, changed)
+        });
+        super::assert_byte_fragility(encoded.bytes(), |bytes| validate(&operands, bytes));
+        assert!(encode(&operands, 1).is_err());
+    }
+}
 
 fn alternative(family: MachineAlternativeFamily, variant: u32) -> MachineAlternativeKey {
     MachineAlternativeKey { family, variant }
@@ -123,69 +200,41 @@ fn assert_every_operand_substitution_rejected(
 
 #[test]
 fn saturating_subtract_binds_registers_condition_and_flag_effects() {
-    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::SaturatingSubtract {
-        carrier: SaturatingCarrier::U64,
-    };
-    let key = alternative(
-        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-        0,
+    assert_saturating_operation_binds_registers_condition_and_flag_effects(
+        SelectedInstructionKind::SaturatingSubtract {
+            carrier: SaturatingCarrier::U64,
+        },
+        alternative(
+            MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
+            0,
+        ),
+        13,
     );
-    for left in ["rax", "rcx", "r8", "r15"] {
-        for right in ["rax", "rcx", "r8", "r15"] {
-            for destination in ["rax", "rcx", "r8", "r15"] {
-                let operands = [left, right, destination]
-                    .map(|name| physical.model().view_named(name).unwrap().id);
-                let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands);
-                if destination == left || destination == right {
-                    assert!(
-                        encoded.is_err(),
-                        "early-clobber output cannot overlap either input"
-                    );
-                    continue;
-                }
-                let encoded = encoded.unwrap();
-                assert_eq!(encoded.bytes().len(), 13);
-                let decoded = validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
-                assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
-                assert!(
-                    !decoded
-                        .footprint()
-                        .encoded
-                        .implicit_unit_clobbers
-                        .is_empty()
-                );
-                assert_every_byte_change_rejected(
-                    &physical,
-                    kind,
-                    key,
-                    &operands,
-                    encoded.bytes(),
-                    "changed",
-                );
-            }
-        }
-    }
 }
 
 #[test]
 fn saturating_add_binds_registers_condition_and_flag_effects() {
-    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let kind = SelectedInstructionKind::SaturatingAdd {
-        carrier: SaturatingCarrier::U64,
-    };
-    let key = alternative(
-        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-        0,
+    assert_saturating_operation_binds_registers_condition_and_flag_effects(
+        SelectedInstructionKind::SaturatingAdd {
+            carrier: SaturatingCarrier::U64,
+        },
+        alternative(
+            MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
+            0,
+        ),
+        19,
     );
+}
+
+/// Every in-range triple of input, input, output encodes at the operation's
+/// own length and decodes to the same read, write, and flag-effect surfaces;
+/// an output that overlaps either input is the early-clobber rejection.
+fn assert_saturating_operation_binds_registers_condition_and_flag_effects(
+    kind: SelectedInstructionKind,
+    key: MachineAlternativeKey,
+    encoded_length: usize,
+) {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     for left in ["rax", "rcx", "r8", "r15"] {
         for right in ["rax", "rcx", "r8", "r15"] {
             for destination in ["rax", "rcx", "r8", "r15"] {
@@ -200,7 +249,7 @@ fn saturating_add_binds_registers_condition_and_flag_effects() {
                     continue;
                 }
                 let encoded = encoded.unwrap();
-                assert_eq!(encoded.bytes().len(), 19);
+                assert_eq!(encoded.bytes().len(), encoded_length);
                 let decoded = validate_x86_64_selected_form_encoding(
                     &physical,
                     kind,
