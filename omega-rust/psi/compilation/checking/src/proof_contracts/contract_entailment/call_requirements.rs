@@ -660,6 +660,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.inherited
                         .as_ref()
                         .map_or(&[], |predicate| predicate.selections.as_slice()),
+                    &[],
                     Some((machine, state)),
                 ),
                 StructuralJudgment::Proven,

@@ -1221,6 +1221,7 @@ impl StructuralJudge<'_> {
                         operand,
                         bindings,
                         &[],
+                        &[],
                         None,
                     )
                 };

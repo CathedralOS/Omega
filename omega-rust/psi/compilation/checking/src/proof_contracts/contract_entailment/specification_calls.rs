@@ -1097,6 +1097,10 @@ fn validate_specification_expression_in_scope(
                                         .as_ref()
                                         .expect("complete application")
                                         .machines,
+                                    &application_bindings
+                                        .as_ref()
+                                        .expect("complete application")
+                                        .types,
                                     caller.state_scope(),
                                 ),
                                 StructuralJudgment::Proven
@@ -1737,6 +1741,9 @@ fn structurally_substitutable_fact(
     expression: ExpressionHandle,
     term: &impl Fn(ExpressionHandle) -> Option<StructuralTerm>,
 ) -> bool {
+    if program.static_type_predicate_operands(expression).is_some() {
+        return term(expression).is_some_and(|term| term_has_complete_substitution(program, &term));
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return matches!(program.expression_table.expression(expression), ExpressionNode::Call(_))
             && term(expression).is_some_and(|term| {
@@ -1751,7 +1758,7 @@ fn structurally_substitutable_fact(
         return term(binary.left)
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
-    if binary.operator == BinaryOperator::And {
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         return structurally_substitutable_fact(program, binary.left, term)
             && structurally_substitutable_fact(program, binary.right, term);
     }

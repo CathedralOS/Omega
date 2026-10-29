@@ -554,19 +554,34 @@ impl TypedTrees {
             for contract in self.machine_contracts(machine) {
                 for fact in self.proof_facts.span_or_empty(contract.facts) {
                     if let crate::domain::ProofFact::Expression(expression) = fact {
+                        // Form each requirement under prior premises before its
+                        // static equations become available to later contracts
+                        // and the body. A goal cannot supply its own type facts.
                         visit_context(self, &mut contexts, *expression, &worlds, &mut active);
+                        if contract.kind == crate::signature::SignatureContractKind::Requires {
+                            worlds = condition(self, &worlds, *expression, true);
+                        }
                     }
                 }
             }
             for state in self.machine_states(machine) {
+                let mut remaining = worlds.clone();
                 for contract in self.state_contracts(state) {
                     for fact in self.proof_facts.span_or_empty(contract.facts) {
                         if let crate::domain::ProofFact::Expression(expression) = fact {
-                            visit_context(self, &mut contexts, *expression, &worlds, &mut active);
+                            visit_context(
+                                self,
+                                &mut contexts,
+                                *expression,
+                                &remaining,
+                                &mut active,
+                            );
+                            if contract.kind == crate::signature::SignatureContractKind::Requires {
+                                remaining = condition(self, &remaining, *expression, true);
+                            }
                         }
                     }
                 }
-                let mut remaining = worlds.clone();
                 for statement in self.statement_table.statements(state.statement_nodes) {
                     let mut visit = |expression, environment: &[TypeWorld]| {
                         visit_context(self, &mut contexts, expression, environment, &mut active)
