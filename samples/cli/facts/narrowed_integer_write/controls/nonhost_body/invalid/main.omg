@@ -3,8 +3,9 @@
 // Expected exit: 0
 use omega::language::core::layout;
 
-data SignedByte {}
-machine SignedByte::plan(schema: Schema) -> Plan {
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -13,6 +14,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         },
     };
     Plan { entries: entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
+}
 }
 data PortableByte [copy] { value: i64; }
 data Memory { bytes: [u8; 2]; }
@@ -23,7 +25,7 @@ macos_arm64 machine perform(destination: &mut i64, value: i64) { store(destinati
 linux_arm64 machine perform(destination: &mut i64, value: i64) { store(destination, value); }
 machine main(memory: &mut Memory) crashes Trap {
     memory.bytes[1] = 85;
-    let packed: &mut SignedByte<PortableByte> = &mut memory.bytes[0] as &mut SignedByte<PortableByte>;
+    let packed: &mut LayoutStorage<PortableByte, SignedByte> = &mut memory.bytes[0] as &mut LayoutStorage<PortableByte, SignedByte>;
     let value: i64 = 70;
     perform(&mut packed.value, value);
     transition memory.bytes[0] == 70 && memory.bytes[1] == 85 {

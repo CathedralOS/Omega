@@ -28,6 +28,7 @@ mod source_parsing;
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ConstantProofApplication,
     ConstantProofClosure, ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
+    check_closed_layout_applications, target_application_declarations,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,

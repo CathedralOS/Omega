@@ -4,6 +4,7 @@ pub mod boundary_catalogues;
 pub mod boundary_completions;
 pub mod calling_vocabulary;
 pub mod code_owners;
+pub mod compiler_primitives;
 pub mod constant;
 pub mod core_entry_intrinsics;
 pub mod data;

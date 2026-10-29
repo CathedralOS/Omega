@@ -335,14 +335,75 @@ impl ProviderSettlement {
 
 /// Limit selection to executable demands and explicitly authored choices.
 /// Merely declaring an implementation does not install its boundary slots.
+/// Discover only this target's executable applications. Candidate traversal is
+/// conservative until ordinary whole-map selection below: it supplies no authority.
+/// An explicit nomination narrows its schema's candidate edges and retains the
+/// nominated map's complete member roster, including uncalled members.
+fn provider_application_declarations(
+    checked: &checked_trees::CheckedTrees,
+    candidates: &[crate::DerivedProviderPlan],
+    target: &str,
+    defaults: &[ProviderSelection],
+    requested: &[ProviderSelection],
+    application_roots: &[symbols::SymbolHandle],
+) -> checked_trees::typed_trees::references::DeclarationSelection {
+    let applicable: Vec<_> = defaults
+        .iter()
+        .chain(requested)
+        .filter(|selection| {
+            selection
+                .target
+                .is_none_or(|profile| profile.canonical_name() == target)
+        })
+        .collect();
+    let mut roots = application_roots.to_vec();
+    let mut edges = Vec::new();
+    for candidate in candidates {
+        let choices: Vec<_> = applicable
+            .iter()
+            .filter(|selection| {
+                candidate.plan.rows.iter().any(|row| {
+                    selection.subject.selects_schema(
+                        candidate.provenance.schema.symbol(),
+                        candidate.plan.identity_text(row.requirement_identity),
+                    )
+                })
+            })
+            .collect();
+        let nominated = choices.iter().any(|selection| {
+            candidate.provenance.provider_type == Some(selection.provider_type.symbol)
+        });
+        if !choices.is_empty() && !nominated {
+            continue;
+        }
+        for (requirement, realization) in candidate
+            .provenance
+            .row_requirements
+            .iter()
+            .zip(&candidate.provenance.row_realizations)
+        {
+            if let Some(machine) = realization.machine() {
+                edges.push((*requirement, machine));
+                if nominated {
+                    roots.push(machine);
+                }
+            }
+        }
+    }
+    checked_trees::typed_trees::references::DeclarationSelection::from_symbols(
+        checked_trees::applications::application_machines(checked, target, &roots, &edges),
+    )
+}
+
 fn demanded_provider_plans(
     checked: &checked_trees::CheckedTrees,
     candidates: &[crate::DerivedProviderPlan],
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
+    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
 ) -> Vec<crate::DerivedProviderPlan> {
-    let uses = demanded_requirement_uses(checked);
-    let coordinates = demanded_requirement_coordinates(checked);
+    let uses = demanded_requirement_uses(checked, declarations);
+    let coordinates = demanded_requirement_coordinates(checked, declarations);
     candidates
         .iter()
         .filter(|candidate| {
@@ -407,12 +468,15 @@ fn demanded_provider_plans(
                 .iter()
                 .any(|requirement| uses.contains(requirement))
                 || defaults.iter().chain(requested).any(|selection| {
-                    candidate.plan.rows.iter().any(|row| {
-                        selection.subject.selects_schema(
-                            candidate.provenance.schema.symbol(),
-                            candidate.plan.identity_text(row.requirement_identity),
-                        )
-                    })
+                    selection
+                        .target
+                        .is_none_or(|target| target.canonical_name() == candidate.plan.target)
+                        && candidate.plan.rows.iter().any(|row| {
+                            selection.subject.selects_schema(
+                                candidate.provenance.schema.symbol(),
+                                candidate.plan.identity_text(row.requirement_identity),
+                            )
+                        })
                 })
         })
         .cloned()
@@ -421,8 +485,9 @@ fn demanded_provider_plans(
 
 fn demanded_requirement_uses(
     checked: &checked_trees::CheckedTrees,
+    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
 ) -> std::collections::HashSet<symbols::SymbolHandle> {
-    demanded_requirement_coordinates(checked)
+    demanded_requirement_coordinates(checked, declarations)
         .into_iter()
         .map(|symbol| {
             checked
@@ -435,21 +500,40 @@ fn demanded_requirement_uses(
 
 fn demanded_requirement_coordinates(
     checked: &checked_trees::CheckedTrees,
+    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
 ) -> std::collections::HashSet<symbols::SymbolHandle> {
     // Satisfaction declares a candidate, not a request to install it. Use the
     // source owner's callable-use inventory, not all nominal references: a
     // conformance row necessarily mentions its requirement without calling it.
-    let mut uses =
-        checked_trees::typed_trees::references::collect_program_references(&checked.typed)
-            .callable_uses
-            .into_iter()
-            .collect::<std::collections::HashSet<_>>();
+    let references = checked_trees::typed_trees::references::collect_selected_program_references(
+        &checked.typed,
+        declarations,
+    );
+    let site_is_retained =
+        |site: &checked_trees::operators::CheckedBoundaryOperatorApplicationUseSite| {
+            use checked_trees::operators::CheckedBoundaryOperatorApplicationUseSite;
+            match site {
+                CheckedBoundaryOperatorApplicationUseSite::Expression { expression, .. }
+                | CheckedBoundaryOperatorApplicationUseSite::MatchEquality { expression, .. } => {
+                    references.expressions.contains(expression)
+                }
+                CheckedBoundaryOperatorApplicationUseSite::Statement(statement) => {
+                    references.statements.contains(statement)
+                }
+            }
+        };
+    let mut uses = references
+        .callable_uses
+        .iter()
+        .copied()
+        .collect::<std::collections::HashSet<_>>();
     uses.extend(
         checked
             .facts
             .operators
             .boundary_applications
             .iter()
+            .filter(|application| site_is_retained(&application.site))
             .map(|application| application.requirement_symbol),
     );
     uses.extend(
@@ -458,6 +542,7 @@ fn demanded_requirement_coordinates(
             .operators
             .symbolic_boundary_applications
             .iter()
+            .filter(|application| site_is_retained(&application.site))
             .map(|application| application.requirement_symbol),
     );
     // Boundary requirements satisfied by the program's own selections are
@@ -469,6 +554,7 @@ fn demanded_requirement_coordinates(
             .facts
             .provider_closed_requirements
             .iter()
+            .filter(|row| declarations.contains(row.provider))
             .map(|row| row.closed_requirement),
     );
     uses
@@ -480,8 +566,9 @@ fn validate_native_binding_demand(
     target: Option<&str>,
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
+    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
 ) -> Result<(), Vec<Diagnostic>> {
-    let uses = demanded_requirement_uses(checked);
+    let uses = demanded_requirement_uses(checked, declarations);
     let typed = &checked.typed;
     for binding in bindings
         .iter()
@@ -545,6 +632,7 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
+    application_roots: &[symbols::SymbolHandle],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
@@ -559,13 +647,6 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    validate_native_binding_demand(
-        checked,
-        admitted_native_bindings,
-        target_name,
-        &target_provider_defaults,
-        build_provider_selections,
-    )?;
     let derived_provider_plans = derive_satisfies_plans(
         crate::ProviderPlanDerivation::new(
             context,
@@ -575,12 +656,29 @@ pub fn settle_checked_providers(
         )
         .with_native_bindings(admitted_native_bindings),
     )?;
+    let application_declarations = provider_application_declarations(
+        checked,
+        &derived_provider_plans,
+        target_name.unwrap_or_default(),
+        &target_provider_defaults,
+        build_provider_selections,
+        application_roots,
+    );
+    validate_native_binding_demand(
+        checked,
+        admitted_native_bindings,
+        target_name,
+        &target_provider_defaults,
+        build_provider_selections,
+        &application_declarations,
+    )?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
             checked,
             &derived_provider_plans,
             &target_provider_defaults,
             build_provider_selections,
+            &application_declarations,
         ),
         planning_target.unwrap_or_else(target::TargetProfile::host),
         &target_provider_defaults,

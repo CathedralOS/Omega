@@ -3,8 +3,10 @@
 A shared two-byte Pair view starting at byte 1 of live [u8; 4] preserves the original first-byte address and full two-byte loan while its second field reads 37.
 
 The source is always the live mutable array `[11, 23, 37, 41]`. The shared
-`&Pair` is always formed by `&bytes[1] as &Pair`; `Pair` has two `u8` fields,
-so its referent occupies bytes 1 and 2 at alignment 1. The positive observes
+`&LayoutStorage<Pair, PairLayout>` is formed by the same explicit recast from
+`&bytes[1]`. The ordinary named `PairLayout` supplies the two `u8` fields at
+offsets 0 and 1, size 2 and alignment 1, so the referent occupies bytes 1 and 2.
+The positive observes
 `address_of(&view.first) == address_of(&bytes[1])` and `view.second == 37`.
 The original address is captured before transport and the backing stays in
 place. The final branch observes the operation's result; it grants no access,
@@ -40,7 +42,7 @@ A formation error or unrelated refusal does not count.
 
 Every positive declares `Expected exit: 0`, has native and interpreter exit-0
 oracles, and binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
-`macos_arm64`, and `linux_arm64`. Bindings do not establish execution on those
+`macos_arm64`, `macos_x86_64`, and `linux_arm64`. Bindings do not establish execution on those
 hosts. All nine pairs are pinned as
 `tests/omega/pass/facts/reference_recast_backing_footprint_through_<place>_exit`
 and
@@ -55,6 +57,10 @@ retained parent or call-held operand remains live: it cannot skip that lineage.
 ## Requirement and evidence
 
 Owning task: **REFERENCE-LOCAL-BINDING-ROUTES** in [TASKS.md](../../../../TASKS.md).
+The `LayoutStorage` production also establishes the borrowed representation
+requirement of **LIBRARY-REPRESENTATION-FAMILIES**. The unchanged default
+representation remains in [default_representation](default_representation/main.omg)
+with its own [live-write twin](default_representation/invalid/main.omg).
 This row targets the admitted recast producer's original backing, exact
 formation and full referent footprint through reads, calls and state forwarding.
 It also exercises the original-storage obligation of
@@ -85,7 +91,33 @@ It also exercises the original-storage obligation of
    execution at exit 0; exact producer/target and canonical artifact records
    belong in qualification evidence, not this static source inventory.
 
-## Current status and remaining acceptance
+## Current LayoutStorage evidence
+
+[Qualification](qualification.json) retains producer30's exact dirty-source
+archive digest separately from its actual Git base, optimized binary and runner
+digests, runtime library manifest, source overlay and explicit engine results.
+All nine `LayoutStorage` places and the retained default-representation control
+ran with native exit 0, Terminal exit 0 and agreement on `macos_arm64` and
+`macos_x86_64`. All ten live-write controls rejected for the authored live-loan
+reason. The first address comparison and second-field value are runtime oracles;
+changing either result reaches `Trap`.
+
+Producer29 wrongly refused the valid call-result, parameter, match-join,
+nested-machine and other-machine borrowed-storage productions because indexed
+recast backing was not retained across the call/state boundary before geometry
+settlement. The compiler now retains the actual indexed backing conservatively
+until strict replay validates the exact geometry; it grants no provisional
+extent or new access. The local, field and const-name productions already
+checked before that repair. The target-body authoring collision was recorded
+separately and corrected before qualification.
+
+These are actual engine observations. A target-qualified `run --both --target`
+command is compile-only and supplies no runtime acceptance. Windows and Linux
+entries remain unexecuted here. Current application-scope changes still need
+focused requalification, independent review and verified main landing. This row
+does not close the full parent capability.
+
+## Retained default-representation evidence
 
 The nine-place sample row and its nine pinned corpus counterparts passed on
 `macos_arm64` with actual producer

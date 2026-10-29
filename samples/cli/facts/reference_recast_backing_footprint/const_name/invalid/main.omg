@@ -1,12 +1,23 @@
 // A shared two-byte Pair view starting at byte 1 of live [u8; 4] preserves the original first-byte address and full two-byte loan while its second field reads 37.
 // Expected exit: 0
 // Place: const_name.
+use omega::language::core::layout;
 data Pair { first: u8; second: u8; }
+
+PairLayout satisfies FixedLayout<Pair> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 1 } };
+        Plan { entries: entries, entry_count: 2, size_fixed: 2, size_is_dynamic: false, align: 1 }
+    }
+}
+
 const START: u64 = 1;
 machine probe() -> bool {
     let mut bytes: [u8; 4] = [11, 23, 37, 41];
     let original: addr = address_of(&bytes[START]);
-    let view: &Pair = &bytes[START] as &Pair;
+    let view: &LayoutStorage<Pair, PairLayout> = &bytes[START] as &LayoutStorage<Pair, PairLayout>;
     bytes[2] = 99;
     address_of(&view.first) == original && view.second == 37
 }

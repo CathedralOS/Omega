@@ -11,7 +11,11 @@ use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
 mod constant_closure;
-pub use constant_closure::{ConstantProofApplication, ConstantProofClosure};
+mod layout_closure;
+pub use constant_closure::{
+    ConstantProofApplication, ConstantProofClosure, target_application_declarations,
+};
+pub use layout_closure::check_closed_layout_applications;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
@@ -61,7 +65,7 @@ impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
-        let constants = build_time_evaluation::RetainedConstantEvaluation::capture(
+        let mut constants = build_time_evaluation::RetainedConstantEvaluation::capture(
             &program,
             self.pending_constants,
         );
@@ -77,7 +81,25 @@ impl CheckRequest<'_> {
                 &self.admission.catalogues,
             )
         })?;
+        let deferred_layout_applications = if constants.is_some() {
+            typed_trees::references::collect_program_type_occurrences(&program)
+                .into_iter()
+                .filter_map(|occurrence| program.layout_storage_arguments(occurrence.reference))
+                .filter(|storage| {
+                    program
+                        .closed_data_field_definition(storage.semantic_type)
+                        .is_some()
+                        && program
+                            .plan_laid_layout_for_type(storage.application)
+                            .is_none()
+                })
+                .map(|storage| storage.application)
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+            .with_deferred_layout_applications(&deferred_layout_applications)
             .with_opaque_property_receipts(self.admission.opaque_properties)
             .with_opaque_representation_selections(self.admission.opaque_representations)
             .with_wire_compatibility_demands(self.admission.wire_demands);
@@ -87,6 +109,10 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let admission = preparation.admission();
+        if !deferred_layout_applications.is_empty() {
+            constants = constants
+                .map(|continuation| continuation.with_layout_preparation(admission.clone()));
+        }
         let matching = phase_profile::scope("05.b.retained_match", || {
             self.previous
                 .iter()

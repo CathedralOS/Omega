@@ -1,9 +1,6 @@
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-
-type SymbolIdentity = (symbols::SymbolHandle, Option<TypeReferenceHandle>);
 
 enum ByteRegionExtent {
     Fixed(i64),
@@ -378,69 +375,11 @@ pub(super) fn push_offset_unproven(
     );
 }
 
-/// Mutable byte views must preserve every target fact after arbitrary writes.
-/// Until the general bidirectional entailment solver lands, the complete
-/// decidable subset is a raw named record whose transitive fields are raw
-/// fact-free scalar primitives or records with no default-domain facts.
-fn record_view_is_fact_free(
-    program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-    visiting: &mut HashSet<SymbolIdentity>,
-) -> bool {
-    let symbol_identity = (data.symbol, data.generic_instance);
-    if !visiting.insert(symbol_identity) {
-        return false;
-    }
-    if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-        || data.quotient.is_some()
-        || !data.where_facts.is_empty()
-        || data.zero_gated
-    {
-        visiting.remove(&symbol_identity);
-        return false;
-    }
-    for member in program.data_members(data) {
-        let Some(field) = member.as_field() else {
-            visiting.remove(&symbol_identity);
-            return false;
-        };
-        if !record_view_type_is_fact_free(program, field.type_reference, visiting) {
-            visiting.remove(&symbol_identity);
-            return false;
-        }
-    }
-    visiting.remove(&symbol_identity);
-    true
-}
-
+/// Read semantic validity through the same exact application graph used by
+/// retained indexed-loan geometry. Physical layout remains a separate judgment.
 pub(super) fn record_view_type_is_fact_free(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-    visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. } => {
-            // Storage atoms retain their operation protocol. Carrier-name
-            // normalization also maps atomic integers to ordinary integers;
-            // raw byte geometry establishes neither atomic authority nor the
-            // backing alignment those operations require. Ordinary typed
-            // atomic views use the independent representation judgment.
-            if program.symbols.builtin_type_atom(*symbol).is_some() {
-                super::representation_types::exact_primitive_type(program, type_reference)
-                    .is_some_and(|primitive| primitive != PrimitiveType::Bool)
-            } else {
-                program
-                    .closed_data_definition(type_reference)
-                    .is_some_and(|data| record_view_is_fact_free(program, data, visiting))
-            }
-        }
-        TypeReferenceNode::Generic { .. } => program
-            .closed_data_definition(type_reference)
-            .is_some_and(|data| record_view_is_fact_free(program, data, visiting)),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(_),
-        } => record_view_type_is_fact_free(program, *element_type, visiting),
-        _ => false,
-    }
+    super::record_eligibility::closed_fact_free_record_type_is_eligible(program, type_reference)
 }

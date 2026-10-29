@@ -307,26 +307,41 @@ pub(super) fn check_call_requires(
                 if let FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
                     && let Some((target_machine, target_state)) =
                         validation::find_state(program, call_flow.target_symbol)
-                    && let Some(obligation) = checked_trees::ConstantPredicateObligation::retain(
-                        program,
-                        expression,
-                        target_machine.symbol,
-                        state_flow.machine_symbol,
-                        format!(
-                            "requires contract for call {} from {}: {}",
-                            call_target_label(program, call_flow.target_symbol),
-                            machine_name(program, state_flow.machine_symbol),
-                            semantic_fact_requirement_label(program, &facts.semantic, fact)
-                        ),
-                        &|expression| {
-                            validation::has_builtin_binary_expression_meaning(
-                                program,
-                                target_machine,
-                                Some(target_state),
+                    && let Some(obligation) =
+                        checked_trees::ConstantPredicateObligation::retain_application(
+                            program,
+                            checked_trees::ConstantPredicateSource {
                                 expression,
+                                owner: target_machine.symbol,
+                                state: target_state.symbol,
+                            },
+                            state_flow.machine_symbol,
+                            format!(
+                                "requires contract for call {} from {}: {}",
+                                call_target_label(program, call_flow.target_symbol),
+                                machine_name(program, state_flow.machine_symbol),
+                                semantic_fact_requirement_label(program, &facts.semantic, fact)
+                            ),
+                            &super::call_values::captured_constant_arguments(
+                                program, facts, state_flow, call_flow,
                             )
-                        },
-                    )
+                            .unwrap_or_default(),
+                            &|source, expression| {
+                                validation::machine_state_by_symbols(
+                                    program,
+                                    source.owner,
+                                    source.state,
+                                )
+                                .is_some_and(|(machine, state)| {
+                                    validation::has_builtin_binary_expression_meaning(
+                                        program,
+                                        machine,
+                                        Some(state),
+                                        expression,
+                                    )
+                                })
+                            },
+                        )
                 {
                     constant_obligations.push(obligation);
                     continue;

@@ -28,12 +28,19 @@ pub(super) fn prepare<'host, 'artifact>(
         artifact,
         runtime.target().target_name(),
     );
-    let target_layouts = terminal_interpreter::admit_target_layouts(artifact, &target_machines)
-        .map_err(|error| {
-            TerminalRuntimeError::Requirements(
-                terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-            )
-        })?;
+    let facts = super::layout_target_facts(runtime.target().target_name()).map_err(|error| {
+        TerminalRuntimeError::Requirements(
+            terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
+        )
+    })?;
+    let target_layouts =
+        terminal_interpreter::admit_target_layouts(artifact, &target_machines, &facts).map_err(
+            |error| {
+                TerminalRuntimeError::Requirements(
+                    terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
+                )
+            },
+        )?;
     let mut imports = Vec::new();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,

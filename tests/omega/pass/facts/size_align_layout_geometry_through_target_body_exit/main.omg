@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Place: another target body. Each of four target bodies evaluates size_of and align_of and subtracts.
+// Place: another target body. Build selects an ordinary implementation that evaluates size_of and align_of and subtracts.
 // Expected exit: 0
 
 data Pair {
@@ -7,24 +7,18 @@ data Pair {
     hi: u64;
 }
 
-linux_x86_64 machine compute_geometry() -> u64 {
-    size_of<Pair>() - (align_of<Pair>() * 2u64)
+boundary trait Geometry {
+    machine compute() -> u64 reaches terminates;
 }
-
-linux_arm64 machine compute_geometry() -> u64 {
-    size_of<Pair>() - (align_of<Pair>() * 2u64)
+ArmGeometry satisfies Geometry {
+    machine compute() -> u64 { size_of<Pair>() - (align_of<Pair>() * 2u64) }
 }
-
-macos_arm64 machine compute_geometry() -> u64 {
-    size_of<Pair>() - (align_of<Pair>() * 2u64)
-}
-
-windows_x86_64 machine compute_geometry() -> u64 {
-    size_of<Pair>() - (align_of<Pair>() * 2u64)
+OtherGeometry satisfies Geometry {
+    machine compute() -> u64 { size_of<Pair>() - (align_of<Pair>() * 2u64) }
 }
 
 machine probe() -> u64 {
-    compute_geometry()
+    Geometry::compute()
 }
 
 machine main() crashes Trap {

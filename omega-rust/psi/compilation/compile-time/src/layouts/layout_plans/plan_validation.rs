@@ -422,7 +422,8 @@ pub(crate) fn validate_plan(
     }
 
     // Authored entry order is presentation, not identity. Normalize by schema
-    // declaration and then by logical source position so two policies that
+    // canonical numbered identity (or unnumbered declaration position) and
+    // logical source position so two policies that
     // describe the same geometry produce the same report.
     entries.sort_by_key(|entry| {
         let field_index = schema_fields
@@ -439,7 +440,12 @@ pub(crate) fn validate_plan(
             LayoutPlacementReport::IntegerAt { .. } => 0,
             LayoutPlacementReport::Bits { source_lsb, .. } => *source_lsb,
         };
-        (field_index, source_lsb)
+        (
+            schema_fields[field_index]
+                .identity
+                .unwrap_or(field_index as u64),
+            source_lsb,
+        )
     });
 
     let offsets = offsets_by_field

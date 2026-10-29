@@ -13,6 +13,7 @@ use language_core::data_layout_queries::DataLayoutQueryKind;
 /// Target/representation inputs stay outside Psi's evaluation sequence.
 pub struct TargetLayoutQueries<'selection> {
     pub target: target::TargetProfile,
+    pub applications: Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
     pub opaque_representations:
         &'selection [representation_planning::OpaqueRepresentationSelection],
 }
@@ -29,19 +30,24 @@ impl<'selection> LayoutQueryProvider for TargetLayoutQueries<'selection> {
     type Measurements = TargetLayoutMeasurements<'selection>;
 
     fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
-        target::TargetProfile::ALL
-            .into_iter()
-            .filter_map(|profile| {
-                profile.address_model()?;
-                let target = profile.native_realization()?;
-                Some(layout_plans::LayoutTargetFacts {
-                    profile: profile.target_name().to_owned(),
-                    pointer_size: target.pointer_size as u64,
-                    pointer_alignment: target.pointer_alignment as u64,
-                    little_endian: true,
-                })
-            })
-            .collect()
+        match self.applications {
+            Some(inputs) => {
+                let mut targets = Vec::new();
+                for input in inputs {
+                    if !targets.contains(&input.target) {
+                        targets.push(input.target.clone());
+                    }
+                }
+                targets
+            }
+            None => self.target.layout_target_facts().into_iter().collect(),
+        }
+    }
+
+    fn layout_application_inputs(
+        &self,
+    ) -> Option<&[build_time_evaluation::LayoutApplicationTargetInput]> {
+        self.applications
     }
 
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements {

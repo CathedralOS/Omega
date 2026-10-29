@@ -138,23 +138,24 @@ impl<'program> Evaluator<'program> {
     /// recurse, permitting a plain wrapper around a plan-laid foreign record.
     fn assemble_record_view_inner(
         &self,
-        type_name: &str,
+        type_reference: TypeReferenceHandle,
         cells: &[Cell],
         base_offset: usize,
-        visiting: &mut HashSet<String>,
+        visiting: &mut HashSet<typed_trees::type_identity::TypeIdentityId>,
     ) -> EvalResult<Option<Value>> {
-        if !visiting.insert(type_name.to_owned()) {
+        let identity = self.program.normalized_type_identity(type_reference);
+        if !visiting.insert(identity) {
             return Ok(None);
         }
-        let Some(data) = self.find_data_by_name(type_name) else {
-            visiting.remove(type_name);
+        let Some(data) = self.program.closed_data_definition(type_reference) else {
+            visiting.remove(&identity);
             return Ok(None);
         };
         let mut field_specs: Vec<(String, TypeReferenceHandle, usize, usize)> = Vec::new();
         let mut field_symbols = Vec::new();
         for member in self.program.data_members(data) {
             let Some(field) = member.as_field() else {
-                visiting.remove(type_name);
+                visiting.remove(&identity);
                 return Ok(None);
             };
             if field.relevance.is_erased() {
@@ -162,7 +163,7 @@ impl<'program> Evaluator<'program> {
             }
             let Some((size, align)) = self.record_view_type_layout(field.type_reference, visiting)
             else {
-                visiting.remove(type_name);
+                visiting.remove(&identity);
                 return Ok(None);
             };
             field_specs.push((
@@ -174,14 +175,23 @@ impl<'program> Evaluator<'program> {
             field_symbols.push(field.symbol);
         }
 
-        let application = self.program.plan_laid_layout(data.symbol);
+        let application = self.program.plan_laid_layout_for_data(data);
+        if application.is_none()
+            && self
+                .program
+                .layout_storage_arguments(type_reference)
+                .is_some()
+        {
+            visiting.remove(&identity);
+            return trap("record view requires the exact admitted fixed representation geometry");
+        }
         // Private checked interpretation owns no deployment selection. A family
         // cannot be decoded as either ordinary packing or one representative.
         let plan = match application {
             Some(application) => match application.invariant_geometry() {
                 Some(geometry) => Some(geometry),
                 None => {
-                    visiting.remove(type_name);
+                    visiting.remove(&identity);
                     return Ok(None);
                 }
             },
@@ -191,7 +201,7 @@ impl<'program> Evaluator<'program> {
             if plan.offsets.len() != field_specs.len()
                 || application.is_none_or(|application| application.field_symbols != field_symbols)
             {
-                visiting.remove(type_name);
+                visiting.remove(&identity);
                 return Ok(None);
             }
             plan.offsets.clone()
@@ -202,7 +212,7 @@ impl<'program> Evaluator<'program> {
                 offset = offset.div_ceil(*align) * *align;
                 offsets.push(offset);
                 let Some(next) = offset.checked_add(*size) else {
-                    visiting.remove(type_name);
+                    visiting.remove(&identity);
                     return Ok(None);
                 };
                 offset = next;
@@ -221,7 +231,7 @@ impl<'program> Evaluator<'program> {
                     .find(|integer| integer.field_index == field_index)
             }) {
                 let Some(primitive) = self.program.primitive_type_reference(type_reference) else {
-                    visiting.remove(type_name);
+                    visiting.remove(&identity);
                     return Ok(None);
                 };
                 self.assemble_stored_integer_byte_region(
@@ -245,15 +255,15 @@ impl<'program> Evaluator<'program> {
             )? {
                 value
             } else {
-                visiting.remove(type_name);
+                visiting.remove(&identity);
                 return Ok(None);
             };
             field_values.insert(name.into(), self.allocate_cell(value)?);
         }
-        visiting.remove(type_name);
+        visiting.remove(&identity);
         Ok(Some(Value::Struct {
             type_symbol,
-            type_name: type_name.into(),
+            type_name: data.name.as_str().into(),
             fields: field_values,
         }))
     }
@@ -320,7 +330,7 @@ impl<'program> Evaluator<'program> {
         type_reference: TypeReferenceHandle,
         cells: &[Cell],
         base_offset: usize,
-        visiting: &mut HashSet<String>,
+        visiting: &mut HashSet<typed_trees::type_identity::TypeIdentityId>,
         outer_stride: Option<usize>,
     ) -> EvalResult<Option<Value>> {
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
@@ -406,8 +416,8 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Array(values)))
             }
-            TypeReferenceNode::Named { name, .. } => {
-                self.assemble_record_view_inner(name.as_str(), cells, base_offset, visiting)
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                self.assemble_record_view_inner(type_reference, cells, base_offset, visiting)
             }
             _ => Ok(None),
         }
@@ -416,7 +426,7 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn record_view_type_layout(
         &self,
         type_reference: TypeReferenceHandle,
-        visiting: &mut HashSet<String>,
+        visiting: &mut HashSet<typed_trees::type_identity::TypeIdentityId>,
     ) -> Option<(usize, usize)> {
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
             let size = primitive.scalar_byte_size()?;
@@ -439,8 +449,8 @@ impl<'program> Evaluator<'program> {
                     self.record_view_type_layout(*element_type, visiting)?;
                 Some((element_size.checked_mul(*length)?, element_align))
             }
-            TypeReferenceNode::Named { name, .. } => {
-                self.record_view_data_layout(name.as_str(), visiting)
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                self.record_view_data_layout(type_reference, visiting)
             }
             _ => None,
         }
@@ -448,31 +458,41 @@ impl<'program> Evaluator<'program> {
 
     fn record_view_data_layout(
         &self,
-        type_name: &str,
-        visiting: &mut HashSet<String>,
+        type_reference: TypeReferenceHandle,
+        visiting: &mut HashSet<typed_trees::type_identity::TypeIdentityId>,
     ) -> Option<(usize, usize)> {
-        if !visiting.insert(type_name.to_owned()) {
+        let identity = self.program.normalized_type_identity(type_reference);
+        if !visiting.insert(identity) {
             return None;
         }
-        let data = self.find_data_by_name(type_name)?;
+        let data = self.program.closed_data_definition(type_reference)?;
         let mut field_layouts = Vec::new();
         let mut field_symbols = Vec::new();
         for member in self.program.data_members(data) {
             let Some(field) = member.as_field() else {
-                visiting.remove(type_name);
+                visiting.remove(&identity);
                 return None;
             };
             if field.relevance.is_erased() {
                 continue;
             }
             let Some(layout) = self.record_view_type_layout(field.type_reference, visiting) else {
-                visiting.remove(type_name);
+                visiting.remove(&identity);
                 return None;
             };
             field_layouts.push(layout);
             field_symbols.push(field.symbol);
         }
-        let result = if let Some(application) = self.program.plan_laid_layout(data.symbol) {
+        if self
+            .program
+            .layout_storage_arguments(type_reference)
+            .is_some()
+            && self.program.plan_laid_layout_for_data(data).is_none()
+        {
+            visiting.remove(&identity);
+            return None;
+        }
+        let result = if let Some(application) = self.program.plan_laid_layout_for_data(data) {
             let plan = application.invariant_geometry()?;
             (plan.offsets.len() == field_layouts.len()
                 && application.field_symbols == field_symbols)
@@ -487,13 +507,13 @@ impl<'program> Evaluator<'program> {
             }
             Some((offset.div_ceil(max_align) * max_align, max_align))
         };
-        visiting.remove(type_name);
+        visiting.remove(&identity);
         result
     }
 
     fn record_view_fields(
         &self,
-        type_name: &str,
+        type_reference: TypeReferenceHandle,
     ) -> Option<
         Vec<(
             String,
@@ -503,7 +523,7 @@ impl<'program> Evaluator<'program> {
             Option<typed_trees::PlanLaidRepeatedField>,
         )>,
     > {
-        let data = self.find_data_by_name(type_name)?;
+        let data = self.program.closed_data_definition(type_reference)?;
         let mut fields = Vec::new();
         let mut layouts = Vec::new();
         let mut field_symbols = Vec::new();
@@ -517,8 +537,16 @@ impl<'program> Evaluator<'program> {
             layouts.push(layout);
             field_symbols.push(field.symbol);
         }
+        if self
+            .program
+            .layout_storage_arguments(type_reference)
+            .is_some()
+            && self.program.plan_laid_layout_for_data(data).is_none()
+        {
+            return None;
+        }
         let (offsets, integer_fields, repeated_fields) = if let Some(application) =
-            self.program.plan_laid_layout(data.symbol)
+            self.program.plan_laid_layout_for_data(data)
         {
             let plan = application.invariant_geometry()?;
             if plan.offsets.len() != fields.len() || application.field_symbols != field_symbols {
@@ -561,17 +589,18 @@ impl<'program> Evaluator<'program> {
 
     fn record_view_projection(
         &mut self,
-        type_name: &str,
+        type_reference: TypeReferenceHandle,
         path: &[ReferenceProjectionStep],
         base_offset: usize,
         region_len: usize,
         frame: &mut Frame,
     ) -> EvalResult<Option<ReferenceProjection>> {
+        let type_name = self.program.display_type_reference(type_reference);
         let Some((ReferenceProjectionStep::Field(field_name), rest)) = path.split_first() else {
             return Ok(None);
         };
         let (_, field_type, field_offset, stored_integer, repeated_field) = self
-            .record_view_fields(type_name)
+            .record_view_fields(type_reference)
             .unwrap_or_default()
             .into_iter()
             .find(|(name, _, _, _, _)| name == field_name)
@@ -619,13 +648,24 @@ impl<'program> Evaluator<'program> {
         let (step, rest) = path.split_first().expect("nonempty projection path");
         match step {
             ReferenceProjectionStep::Field(_) => {
-                let Some(nested_name) = self
-                    .record_view_named_type(type_reference)
-                    .map(str::to_owned)
-                else {
+                let mut record_type = type_reference;
+                loop {
+                    match self
+                        .program
+                        .type_reference_table
+                        .type_reference(record_type)
+                    {
+                        TypeReferenceNode::Constrained { base_type, .. }
+                        | TypeReferenceNode::Reference {
+                            referee: base_type, ..
+                        } => record_type = *base_type,
+                        _ => break,
+                    }
+                }
+                if self.program.closed_data_definition(record_type).is_none() {
                     return Ok(None);
-                };
-                self.record_view_projection(&nested_name, path, base_offset, region_len, frame)
+                }
+                self.record_view_projection(record_type, path, base_offset, region_len, frame)
             }
             ReferenceProjectionStep::Index(index_handle) => {
                 let node = self
@@ -694,17 +734,18 @@ impl<'program> Evaluator<'program> {
 
     fn write_record_view(
         &self,
-        type_name: &str,
+        type_reference: TypeReferenceHandle,
         cells: &[Cell],
         base_offset: usize,
         value: Value,
     ) -> EvalResult<()> {
+        let type_name = self.program.display_type_reference(type_reference);
         let Value::Struct { fields, .. } = value else {
             return trap(format!(
                 "mutable record recast `{type_name}` requires a record value"
             ));
         };
-        let Some(field_specs) = self.record_view_fields(type_name) else {
+        let Some(field_specs) = self.record_view_fields(type_reference) else {
             return trap(format!(
                 "cannot lay out mutable record recast `{type_name}`"
             ));
@@ -917,8 +958,8 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(())
             }
-            TypeReferenceNode::Named { name, .. } => {
-                self.write_record_view(name.as_str(), cells, base_offset, value)
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                self.write_record_view(type_reference, cells, base_offset, value)
             }
             _ => trap("mutable record projection is not a fixed-layout value"),
         }

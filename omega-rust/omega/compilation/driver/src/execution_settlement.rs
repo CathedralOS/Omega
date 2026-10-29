@@ -346,6 +346,28 @@ fn prepare_target_provider_selection(
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    let profile = selected_target_profile.unwrap_or_else(target::TargetProfile::host);
+    let application_roots = if build_config.root_bindings.is_empty() {
+        typed
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .collect::<Vec<_>>()
+    } else if build_config.root_bindings.iter().any(|binding| {
+        binding.slot.rsplit_once("::").is_some_and(|(owner, _)| {
+            target::TargetProfile::from_root_slot_owner(owner).ok() == Some(profile)
+        })
+    }) {
+        provider_planning::program_entry::selected_program_entry_machine(
+            &build_config.root_bindings,
+            Some(profile),
+        )?
+        .into_iter()
+        .map(|entry| entry.machine_symbol)
+        .collect()
+    } else {
+        Vec::new()
+    };
     provider_planning::settle_checked_providers(
         &source.program,
         settled_target_machines,
@@ -358,6 +380,7 @@ fn prepare_target_provider_selection(
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
         &source.program.facts.synchronous_invocations,
+        &application_roots,
     )
 }
 

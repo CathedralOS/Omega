@@ -74,34 +74,19 @@ impl<'program> ShapeCollector<'program> {
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let mut reference = carrier;
-        let mut has_domain_constraints = false;
-        let mut selected_application = None;
-        loop {
-            match self.program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    for constraint in self.program.type_reference_table.constraints(*constraints) {
-                        let TypeConstraintNode::Domain(constraint) = constraint else {
-                            continue;
-                        };
-                        has_domain_constraints = true;
-                        if constraint.semantic_id == domain
-                            && selected_application.replace(constraint).is_some()
-                        {
-                            return None;
-                        }
-                    }
-                    reference = *base_type;
-                }
-                _ => break,
+        let constraints = typed_trees::operator::declared_domain_constraints(
+            self.program.typed_program(),
+            carrier,
+        );
+        if !constraints.is_empty() {
+            let mut selected = constraints
+                .into_iter()
+                .filter(|constraint| constraint.semantic_id == domain);
+            let application = selected.next()?;
+            if selected.next().is_some() {
+                return None;
             }
-        }
-        if has_domain_constraints {
-            return self.add_domain_application(selected_application?, carrier, binders, false);
+            return self.add_domain_application(application, carrier, binders, false);
         }
         let definition = {
             // Legacy unqualified carriers carry only the semantic family.
@@ -1073,6 +1058,15 @@ impl<'program> ShapeCollector<'program> {
         // without a selected application still cannot claim storage.
         let mut data = data;
         if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
+            // The layout evaluator lends this context; it is never executable
+            // storage that an authored OpaqueRepresentation can manufacture.
+            if self
+                .program
+                .core_layout_declaration(data.symbol, "LayoutTarget")
+            {
+                self.in_progress.remove(&identity);
+                return None;
+            }
             if validation::activation_claim_byte_carrier(self.program, data.symbol).is_some() {
                 // The descriptor moves with linear custody. Its byte backing
                 // belongs to the caller-site establishment, never this home.

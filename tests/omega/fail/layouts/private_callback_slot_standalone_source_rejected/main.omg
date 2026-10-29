@@ -9,12 +9,11 @@ boundary trait WindowProcedure {
     machine call(message: u64) -> u64 reaches;
 }
 
-data Spread {
-}
 
 WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, WindowProcedure::call> { }
 
-machine Spread::plan(schema: Schema) -> Plan {
+Spread satisfies FixedLayout<ForeignRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -29,13 +28,14 @@ machine Spread::plan(schema: Schema) -> Plan {
     };
     Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)
 }
+}
 
 data ForeignRecord {
     payload: u64;
 }
 
 data Main {
-    value: Spread<ForeignRecord>;
+    value: LayoutStorage<ForeignRecord, Spread>;
 }
 
 machine Main::main() {

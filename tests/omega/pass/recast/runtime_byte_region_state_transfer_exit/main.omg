@@ -3,18 +3,20 @@
 use omega::language::core::layout;
 
 data Record { number: i64; }
-data RecordLayout {}
-data RecordView { value: RecordLayout<Record>; }
+
+data RecordView { value: LayoutStorage<Record, RecordLayout>; }
 data Host { bytes: [u8; 8]; }
 data Window<'storage> { bytes: &'storage [u8; 8]; }
 
-machine RecordLayout::plan(schema: Schema) -> Plan {
+RecordLayout satisfies FixedLayout<Record> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 }
 }
+}
 
-machine decode_record(value: &RecordLayout<Record>) -> i64 { value.number }
+machine decode_record(value: &LayoutStorage<Record, RecordLayout>) -> i64 { value.number }
 machine decode_view(view: &RecordView) -> i64 { decode_record(&view.value) }
 
 machine read(host: &Host) -> i64 {

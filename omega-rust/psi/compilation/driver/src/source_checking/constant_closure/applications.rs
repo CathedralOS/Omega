@@ -6,23 +6,8 @@
 //! substitution is invocation-local: a machine reached with another binding
 //! is another application even when its declaration symbol is unchanged.
 
-use arena::HandleSpan;
 use checked_trees::CheckedTrees;
-use flow_effects::{OperationalPlan, StaticMachineCallBinding};
 use symbols::SymbolHandle;
-
-#[derive(Clone, PartialEq, Eq)]
-struct Binding {
-    parameter: SymbolHandle,
-    selected: SymbolHandle,
-    arguments: Vec<Binding>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-struct Application {
-    machine: SymbolHandle,
-    bindings: Vec<Binding>,
-}
 
 /// Invocation-owned source demands. Provider choices arrive only as exact edges.
 pub(super) struct ProofApplications<'source> {
@@ -31,6 +16,7 @@ pub(super) struct ProofApplications<'source> {
     owners: Vec<SymbolHandle>,
     has_obligations: bool,
     unscoped_recipe: bool,
+    roots: Vec<checked_trees::applications::TargetApplicationRoots>,
 }
 
 impl<'source> ProofApplications<'source> {
@@ -56,6 +42,7 @@ impl<'source> ProofApplications<'source> {
             .collect();
         Self {
             source,
+            roots: Vec::new(),
             declarations: declaration_formation_owners(source),
             owners,
             has_obligations: !facts.constant_predicate_obligations.is_empty()
@@ -68,11 +55,26 @@ impl<'source> ProofApplications<'source> {
         }
     }
 
+    pub(super) fn set_roots(
+        &mut self,
+        roots: Vec<checked_trees::applications::TargetApplicationRoots>,
+    ) {
+        self.roots = roots;
+    }
+
     /// Preserve selected-first and authored declaration order. The target owner
     /// validates every returned identity before any provider request is made.
     pub(super) fn scopes<'request>(&'request self, primary: &'request str) -> Vec<&'request str> {
         let mut scopes = vec![primary];
         if self.has_obligations {
+            for application in &self.roots {
+                if !scopes.contains(&application.target.as_str()) {
+                    scopes.push(&application.target);
+                }
+            }
+            if !self.roots.is_empty() {
+                return scopes;
+            }
             for machine in self.source.typed.machines() {
                 if let Some(scope) = self.source.typed.machine_authored_target(machine)
                     && !scopes.contains(&scope)
@@ -87,7 +89,16 @@ impl<'source> ProofApplications<'source> {
     pub(super) fn needs_scope(&self, scope: &str, primary: &str) -> bool {
         scope == primary
             || self.unscoped_recipe
-            || target_has_proof_demand(self.source, scope, &self.owners, &self.declarations)
+            || target_has_proof_demand(
+                self.source,
+                scope,
+                &self.owners,
+                &self.declarations,
+                self.roots
+                    .iter()
+                    .find(|application| application.target == scope)
+                    .map(|application| application.machines.as_slice()),
+            )
     }
 
     pub(super) fn membership(
@@ -96,7 +107,20 @@ impl<'source> ProofApplications<'source> {
         selected_product: bool,
         providers: &[(SymbolHandle, SymbolHandle)],
     ) -> (Vec<SymbolHandle>, Vec<SymbolHandle>) {
-        let machines = application_machines(self.source, scope, selected_product, providers);
+        let machines = if let Some(application) = self
+            .roots
+            .iter()
+            .find(|application| application.target == scope)
+        {
+            checked_trees::applications::application_machines(
+                self.source,
+                scope,
+                &application.machines,
+                providers,
+            )
+        } else {
+            application_machines(self.source, scope, selected_product, providers)
+        };
         let declarations =
             proof_application_declaration_owners(self.source, &machines, &self.declarations);
         (machines, declarations)
@@ -208,6 +232,7 @@ fn target_has_proof_demand(
     target: &str,
     owners: &[SymbolHandle],
     declarations: &[SymbolHandle],
+    roots: Option<&[SymbolHandle]>,
 ) -> bool {
     let typed = &checked.typed;
     let mut candidates: Vec<_> = typed
@@ -229,7 +254,12 @@ fn target_has_proof_demand(
                 .map(|clause| (clause.requirement_symbol, machine.symbol)),
         );
     }
-    let machines = application_machines(checked, target, false, &candidates);
+    let machines = match roots {
+        Some(roots) => {
+            checked_trees::applications::application_machines(checked, target, roots, &candidates)
+        }
+        None => application_machines(checked, target, false, &candidates),
+    };
     machines.iter().any(|machine| owners.contains(machine))
         || proof_application_declaration_owners(checked, &machines, declarations)
             .iter()
@@ -243,149 +273,34 @@ fn application_machines(
     provider_edges: &[(SymbolHandle, SymbolHandle)],
 ) -> Vec<SymbolHandle> {
     let typed = &checked.typed;
-    let plan = &checked.facts.operational;
-    let mut pending = Vec::new();
+    let mut roots = Vec::new();
     for machine in typed.machines() {
         let authored = typed.source_target_context(machine);
         if authored.is_some_and(|name| name == target) || (selected_product && authored.is_none()) {
-            pending.push(Application {
-                machine: machine.symbol,
-                bindings: Vec::new(),
-            });
+            roots.push(machine.symbol);
         }
     }
-    let mut visited = Vec::new();
-    let mut machines = Vec::new();
-    while let Some(mut application) = pending.pop() {
-        let Some(declaration) = called_machine(typed, application.machine) else {
-            continue;
-        };
-        let Some(machine) = typed.machine_for_target(declaration, target) else {
-            continue;
-        };
-        if declaration.symbol != machine.symbol {
-            // Family formation established declaration-order correspondence;
-            // symbols of the member's binders are nevertheless its own.
-            for binding in &mut application.bindings {
-                if let Some((_, selected)) = typed
-                    .machine_kind_type_parameters(declaration)
-                    .zip(typed.machine_kind_type_parameters(machine))
-                    .find(|(declared, _)| declared.symbol == binding.parameter)
-                {
-                    binding.parameter = selected.symbol;
-                }
-            }
-        }
-        application.machine = machine.symbol;
-        if visited.contains(&application) {
-            continue;
-        }
-        visited.push(application.clone());
-        if !machines.contains(&machine.symbol) {
-            machines.push(machine.symbol);
-        }
-        let Some(summary) = plan.machine_by_symbol(machine.symbol) else {
-            continue;
-        };
-        for state in plan.states.span_or_empty(summary.states) {
-            for call in plan.calls.span_or_empty(state.calls) {
-                // An unspecialized binder call names the binder as its target
-                // state; a specialized call retains that identity separately.
-                let binder = if call.static_machine_parameter.is_valid() {
-                    call.static_machine_parameter
-                } else {
-                    call.target_state_symbol
-                };
-                let selected = application
-                    .bindings
-                    .iter()
-                    .find(|binding| binding.parameter == binder);
-                let (callee, bindings) = match selected {
-                    Some(selected) => (selected.selected, selected.arguments.clone()),
-                    None => (
-                        call.target_machine_symbol,
-                        resolve_bindings(plan, call.static_machine_bindings, &application.bindings),
-                    ),
-                };
-                pending.push(Application {
-                    machine: callee,
-                    bindings,
-                });
-                let requirement_machine =
-                    called_machine(typed, callee).map(|machine| machine.symbol);
-                for (requirement, realization) in provider_edges {
-                    if *requirement == callee
-                        || Some(*requirement) == requirement_machine
-                        || *requirement == call.target_state_symbol
-                        || *requirement == call.target_operator_symbol
-                    {
-                        pending.push(Application {
-                            machine: *realization,
-                            bindings: Vec::new(),
-                        });
-                    }
-                }
-            }
-        }
-        for (_, cleanup) in plan.cleanup_dependencies.iter() {
-            if cleanup.caller_machine == machine.symbol {
-                pending.push(Application {
-                    machine: cleanup.target_machine,
-                    bindings: Vec::new(),
-                });
-            }
-        }
-        // Constructing a dynamic selection makes each of its checked rows a
-        // possible runtime invocation in this capsule; runtime data decides
-        // which row is exercised, not whether its body must form correctly.
-        for selection in &checked.facts.dynamic_conformances.selections {
-            if selection.machine == machine.symbol {
-                pending.extend(selection.rows.iter().map(|row| Application {
-                    machine: row.realization_machine,
-                    bindings: Vec::new(),
-                }));
-            }
-        }
-    }
-    machines
+    checked_trees::applications::application_machines(checked, target, &roots, provider_edges)
 }
 
-fn resolve_bindings(
-    plan: &OperationalPlan,
-    arguments: HandleSpan<StaticMachineCallBinding>,
-    enclosing: &[Binding],
-) -> Vec<Binding> {
-    plan.static_machine_bindings
-        .span_or_empty(arguments)
-        .iter()
-        .map(|argument| {
-            if let Some(selected) = enclosing
-                .iter()
-                .find(|binding| binding.parameter == argument.selected)
-            {
-                Binding {
-                    parameter: argument.parameter,
-                    selected: selected.selected,
-                    arguments: selected.arguments.clone(),
-                }
-            } else {
-                Binding {
-                    parameter: argument.parameter,
-                    selected: argument.selected,
-                    arguments: resolve_bindings(plan, argument.arguments, enclosing),
-                }
-            }
-        })
-        .collect()
-}
-
-fn called_machine(
-    typed: &typed_trees::TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::machine::Machine> {
-    typed
-        .machine_by_symbol(symbol)
-        .or_else(|| typed.machine_holding_state(symbol))
+/// Reuse the checked invocation walk for an explicit Build application. Exact
+/// provider edges arrive already settled; metadata discovery adds no bodies.
+pub fn target_application_declarations(
+    checked: &CheckedTrees,
+    target: &str,
+    roots: &[SymbolHandle],
+    provider_edges: &[(SymbolHandle, SymbolHandle)],
+) -> typed_trees::references::DeclarationSelection {
+    let machines =
+        checked_trees::applications::application_machines(checked, target, roots, provider_edges);
+    let declarations = proof_application_declaration_owners(
+        checked,
+        &machines,
+        &declaration_formation_owners(checked),
+    );
+    typed_trees::references::DeclarationSelection::from_symbols(
+        machines.into_iter().chain(declarations),
+    )
 }
 
 #[cfg(test)]
@@ -393,6 +308,7 @@ mod tests {
     use super::*;
     use checked_trees::{CheckFacts, ConstantRecipeObligation, ConstantRecipeRequirement};
     use flow_effects::{CallOperational, CleanupDependency, MachineOperational, StateOperational};
+    use flow_effects::{OperationalPlan, StaticMachineCallBinding};
     use typed_trees::TypedTrees;
     use typed_trees::machine::{Machine, TargetMachineFamily, TargetMachineFamilyMember};
 

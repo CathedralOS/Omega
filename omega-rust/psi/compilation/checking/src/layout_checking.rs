@@ -25,6 +25,9 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn defers_pending_layout_geometry(&self) -> bool {
+        self.input.defers_pending_layout_geometry()
+    }
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         self.input.retained_borrow_custodies()
     }
@@ -73,8 +76,7 @@ pub(crate) fn layout_family_is_complete(
     let Some(rows) = program.plan_laid_target_layouts.span(span) else {
         return false;
     };
-    !rows.is_empty()
-        && rows.len() == layout.target_inputs.len()
+    rows.len() == layout.target_inputs.len()
         && rows
             .iter()
             .zip(&layout.target_inputs)
@@ -202,4 +204,55 @@ fn discover_layout_checking_targets(
         targets.push(None);
     }
     Ok(targets)
+}
+
+/// The normalized constructor occurrence is the pending obligation. Walk exact
+/// semantic members, not erased implementation arguments or nominal headers.
+/// No caller may use this test to claim geometry: it only withholds preliminary
+/// physical judgments until policy evaluation installs their complete inputs.
+pub(crate) fn pending_layout_geometry(
+    program: &dyn CheckingInput,
+    roots: impl IntoIterator<Item = TypeReferenceHandle>,
+) -> bool {
+    let mut work = roots.into_iter().collect::<Vec<_>>();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(reference) = work.pop() {
+        if !reference.is_valid() || !visited.insert(program.normalized_type_identity(reference)) {
+            continue;
+        }
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            if program
+                .plan_laid_layout_for_type(storage.application)
+                .is_none()
+            {
+                return true;
+            }
+            work.push(storage.semantic_type);
+            continue;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::Reference {
+                referee: base_type, ..
+            }
+            | TypeReferenceNode::FixedArray {
+                element_type: base_type,
+                ..
+            }
+            | TypeReferenceNode::Slice {
+                element_type: base_type,
+            } => work.push(*base_type),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                if let Some(data) = program.closed_data_definition(reference) {
+                    work.extend(
+                        program
+                            .live_data_fields(program.data_members(data))
+                            .map(|field| field.type_reference),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }

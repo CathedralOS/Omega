@@ -1,1 +1,1 @@
-exact arithmetic may overflow
+constant predicate is false

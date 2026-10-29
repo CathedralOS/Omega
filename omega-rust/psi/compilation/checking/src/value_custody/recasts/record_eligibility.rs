@@ -1,215 +1,117 @@
-//! Fact-free record graph eligibility for recasts.
+//! Fact-free value eligibility follows exact closed data applications.
 
 use crate::value_custody::places::unique_data_definition_by_symbol;
-use crate::value_custody::recasts::raw_byte_region::record_view_type_is_fact_free;
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
 use std::collections::HashSet;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn closed_fact_free_record_symbol_is_eligible(
-    program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> bool {
-    fact_free_record_graph_is_eligible(program, symbol, false)
-}
-
 const MAX_RECAST_RECORD_GRAPH_NODES: usize = 4096;
-
 const MAX_RECAST_RECORD_GRAPH_EDGES: usize = 16384;
-
-type RecordEligibilityContext = (u32, u32, usize, bool, bool);
-
-#[derive(Clone, Copy)]
-enum RecordEligibilityWork {
-    Enter {
-        symbol: symbols::SymbolHandle,
-        lifetime_shell_depth: usize,
-        entered_through_lifetime_shell: bool,
-        allow_lifetime_shell: bool,
-    },
-    Type {
-        type_reference: TypeReferenceHandle,
-        lifetime_shell_depth: usize,
-        allow_lifetime_shell: bool,
-    },
-    Exit {
-        symbol: symbols::SymbolHandle,
-        context: RecordEligibilityContext,
-    },
-}
-
 pub(crate) const MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH: usize = 2;
 
-/// Bounded, memoized exact-symbol walk for recursively fact-free records.
-/// Explicit exit markers detect cycles without host recursion, while completed
-/// symbols make shared diamonds linear in the distinct schema graph.
-fn fact_free_record_graph_is_eligible(
+/// A representation changes storage, never the semantic value it must establish.
+/// Closed application views retain substituted field types; erased policy
+/// evidence contributes no value fields or additional authority. Qualification
+/// wrappers stay visible and cannot be discharged by arbitrary byte contents.
+pub(crate) fn closed_fact_free_record_type_is_eligible(
     program: &dyn crate::CheckingInput,
-    root: symbols::SymbolHandle,
-    permit_root_lifetime_parameters: bool,
+    root: TypeReferenceHandle,
 ) -> bool {
-    if !root.is_valid() {
-        return false;
+    enum Work {
+        Enter(TypeReferenceHandle),
+        Exit(typed_trees::type_identity::TypeIdentityId),
     }
-
-    let Some(work_capacity) =
-        MAX_RECAST_RECORD_GRAPH_EDGES.checked_add(MAX_RECAST_RECORD_GRAPH_NODES)
-    else {
-        return false;
-    };
-    let mut work = Vec::new();
-    if work.try_reserve_exact(work_capacity).is_err() {
-        return false;
-    }
-    let mut visiting = HashSet::new();
-    if visiting.try_reserve(MAX_RECAST_RECORD_GRAPH_NODES).is_err() {
-        return false;
-    }
+    let mut pending = vec![Work::Enter(root)];
+    let mut active = HashSet::new();
     let mut complete = HashSet::new();
-    if complete.try_reserve(MAX_RECAST_RECORD_GRAPH_NODES).is_err() {
-        return false;
-    }
-    work.push(RecordEligibilityWork::Enter {
-        symbol: root,
-        lifetime_shell_depth: usize::from(permit_root_lifetime_parameters),
-        entered_through_lifetime_shell: permit_root_lifetime_parameters,
-        allow_lifetime_shell: true,
-    });
-    let mut node_count = 0usize;
-    let mut edge_count = 0usize;
-
-    while let Some(next) = work.pop() {
-        match next {
-            RecordEligibilityWork::Enter {
-                symbol,
-                lifetime_shell_depth,
-                entered_through_lifetime_shell,
-                allow_lifetime_shell,
-            } => {
-                if !symbol.is_valid() {
-                    return false;
-                }
-                let identity = (symbol.arena_index(), symbol.generation());
-                let context = (
-                    identity.0,
-                    identity.1,
-                    lifetime_shell_depth,
-                    entered_through_lifetime_shell,
-                    allow_lifetime_shell,
-                );
-                if complete.contains(&context) {
-                    continue;
-                }
-                if !visiting.insert(identity) {
-                    return false;
-                }
-                node_count = match node_count.checked_add(1) {
-                    Some(count) if count <= MAX_RECAST_RECORD_GRAPH_NODES => count,
-                    _ => return false,
-                };
-                let Some(data) = unique_data_definition_by_symbol(program, symbol) else {
-                    return false;
-                };
-                let members = program.data_members(data);
-                if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-                    || (!entered_through_lifetime_shell && !data.lifetime_parameters.is_empty())
-                    || !program.data_type_parameters(data).is_empty()
-                    || !closed_record_generic_origin_is_eligible(program, data)
-                    || data.quotient.is_some()
-                    || !data.where_facts.is_empty()
-                    || data.zero_gated
-                    || typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                        != typed_trees::data::DataShapeKind::Record
-                {
-                    return false;
-                }
-                work.push(RecordEligibilityWork::Exit { symbol, context });
-                for member in members.iter().rev() {
-                    let Some(field) = member.as_field() else {
-                        return false;
-                    };
-                    if field.relevance.is_erased() {
-                        return false;
-                    }
-                    edge_count = match edge_count.checked_add(1) {
-                        Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
-                        _ => return false,
-                    };
-                    work.push(RecordEligibilityWork::Type {
-                        type_reference: field.type_reference,
-                        lifetime_shell_depth,
-                        allow_lifetime_shell,
-                    });
-                }
+    let mut edges = 0usize;
+    while let Some(work) = pending.pop() {
+        let reference = match work {
+            Work::Exit(identity) => {
+                active.remove(&identity);
+                complete.insert(identity);
+                continue;
             }
-            RecordEligibilityWork::Type {
-                type_reference,
-                lifetime_shell_depth,
-                allow_lifetime_shell,
-            } => {
-                if let Some(primitive) = exact_primitive_type(program, type_reference) {
-                    if primitive == PrimitiveType::Bool || primitive.scalar_byte_size().is_none() {
+            Work::Enter(reference) => reference,
+        };
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return false;
+        }
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Constrained { .. }
+        ) {
+            return false;
+        }
+        let identity = program.normalized_type_identity(reference);
+        if !identity.is_valid() {
+            return false;
+        }
+        if complete.contains(&identity) {
+            continue;
+        }
+        if !active.insert(identity) || active.len() + complete.len() > MAX_RECAST_RECORD_GRAPH_NODES
+        {
+            return false;
+        }
+        pending.push(Work::Exit(identity));
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            pending.push(Work::Enter(storage.semantic_type));
+            edges += 1;
+        } else if let Some(primitive) = exact_primitive_type(program, reference) {
+            if primitive == PrimitiveType::Bool || primitive.scalar_byte_size().is_none() {
+                return false;
+            }
+        } else {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(_),
+                } => {
+                    pending.push(Work::Enter(*element_type));
+                    edges += 1;
+                }
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                    if program
+                        .type_reference_table
+                        .type_reference(reference)
+                        .as_named_symbol()
+                        .is_some_and(|symbol| program.symbols.builtin_type_atom(symbol).is_some())
+                    {
                         return false;
                     }
-                    continue;
-                }
-                match program.type_reference_table.type_reference(type_reference) {
-                    TypeReferenceNode::Named { symbol, .. } => {
-                        edge_count = match edge_count.checked_add(1) {
-                            Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
-                            _ => return false,
-                        };
-                        work.push(RecordEligibilityWork::Enter {
-                            symbol: *symbol,
-                            lifetime_shell_depth,
-                            entered_through_lifetime_shell: false,
-                            allow_lifetime_shell,
-                        });
-                    }
-                    TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: typed_trees::types::FixedArrayLength::Literal(_),
-                    } => {
-                        edge_count = match edge_count.checked_add(1) {
-                            Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
-                            _ => return false,
-                        };
-                        work.push(RecordEligibilityWork::Type {
-                            type_reference: *element_type,
-                            lifetime_shell_depth,
-                            allow_lifetime_shell: false,
-                        });
-                    }
-                    TypeReferenceNode::Generic { .. }
-                        if allow_lifetime_shell
-                            && lifetime_shell_depth > 0
-                            && lifetime_shell_depth < MAX_RECAST_PHANTOM_LIFETIME_SHELL_DEPTH =>
+                    let Some(data) = program.closed_data_definition(reference) else {
+                        return false;
+                    };
+                    let members = program.data_members(data);
+                    if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+                        || data.quotient.is_some()
+                        || !data.where_facts.is_empty()
+                        || data.zero_gated
+                        || typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                            != typed_trees::data::DataShapeKind::Record
                     {
-                        let Some(symbol) =
-                            phantom_lifetime_record_symbol_shape(program, type_reference)
-                        else {
+                        return false;
+                    }
+                    for member in members.iter().rev() {
+                        let Some(field) = member.as_field() else {
                             return false;
                         };
-                        edge_count = match edge_count.checked_add(1) {
-                            Some(count) if count <= MAX_RECAST_RECORD_GRAPH_EDGES => count,
-                            _ => return false,
-                        };
-                        work.push(RecordEligibilityWork::Enter {
-                            symbol,
-                            lifetime_shell_depth: lifetime_shell_depth + 1,
-                            entered_through_lifetime_shell: true,
-                            allow_lifetime_shell,
-                        });
+                        if field.relevance.is_erased() {
+                            return false;
+                        }
+                        pending.push(Work::Enter(field.type_reference));
+                        edges += 1;
                     }
-                    _ => return false,
                 }
+                _ => return false,
             }
-            RecordEligibilityWork::Exit { symbol, context } => {
-                let identity = (symbol.arena_index(), symbol.generation());
-                if !visiting.remove(&identity) || !complete.insert(context) {
-                    return false;
-                }
-            }
+        }
+        if edges > MAX_RECAST_RECORD_GRAPH_EDGES {
+            return false;
         }
     }
     true
@@ -287,15 +189,14 @@ pub(crate) fn direct_phantom_lifetime_record_symbol(
     type_reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
     let symbol = phantom_lifetime_record_symbol_shape(program, type_reference)?;
-    fact_free_record_graph_is_eligible(program, symbol, true).then_some(symbol)
+    closed_fact_free_record_type_is_eligible(program, type_reference).then_some(symbol)
 }
 
 pub(crate) fn direct_record_view_type_is_fact_free(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    direct_phantom_lifetime_record_symbol(program, type_reference).is_some()
-        || record_view_type_is_fact_free(program, type_reference, &mut HashSet::new())
+    closed_fact_free_record_type_is_eligible(program, type_reference)
 }
 
 fn closed_record_generic_origin_is_eligible(

@@ -1,24 +1,9 @@
+use omega::language::core::layout;
 // Scalar loans retain both the nonzero byte offset and unsigned stored width.
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField
-where size <= 4096, 1 <= align, align <= 16,
-{ key: u64; size: u64; align: u64; number: i64; kind: FieldKind; }
-data Schema where field_count <= 32,
-{ fields: [SchemaField; 32]; field_count: u64; }
-data IntegerInterpretation { case Signed; case Unsigned; }
-data FieldPlan {
-    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
-data OffsetWord { }
-machine OffsetWord::plan(schema: Schema) -> Plan {
+
+
+OffsetWord satisfies FixedLayout<PortableWord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -36,8 +21,9 @@ machine OffsetWord::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 data PortableWord [copy] { value: i64; }
-data RawView { value: OffsetWord<PortableWord>; }
+data RawView { value: LayoutStorage<PortableWord, OffsetWord>; }
 data Main { bytes: [u8; 6]; }
 
 machine retain<'a>(value: &'a mut i64) -> &'a mut i64 { &mut value }

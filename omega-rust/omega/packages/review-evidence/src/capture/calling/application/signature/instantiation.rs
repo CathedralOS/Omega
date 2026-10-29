@@ -169,44 +169,22 @@ fn project(
             {
                 return Ok(*actual);
             }
-            let plan = compilation
-                .plan_laid_layout(symbol)
-                .map(|layout| (layout.schema_symbol, layout.policy_symbol));
-            if let Some((schema_symbol, policy_symbol)) = plan {
-                let schema = compilation
-                    .data_definition_by_symbol(schema_symbol)
-                    .map(|definition| {
-                        (
-                            definition.symbol,
-                            definition.name.clone(),
-                            definition.generic_instance,
-                        )
-                    })
-                    .ok_or_else(|| rejected("plan-laid signature type lost its exact schema"))?;
-                let schema_reference = match schema.2 {
-                    Some(reference) => {
-                        project(compilation, reference, substitutions, lifetimes, depth + 1)?
-                    }
-                    None => compilation
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Named {
-                            symbol: schema.0,
-                            name: schema.1,
-                        }),
-                };
-                let base_name = Identifier::generated(compilation.symbols.name(policy_symbol));
-                let arguments = compilation
-                    .type_reference_table
-                    .insert_type_reference_handles([schema_reference]);
-                TypeReferenceNode::Generic {
-                    base_symbol: policy_symbol,
-                    base_name,
-                    lifetime_arguments: Vec::new(),
-                    arguments,
-                }
-            } else {
-                return Ok(reference);
+            // A closed nominal view retains its original complete application.
+            // Project that ordinary tuple; never synthesize a Policy<Schema>
+            // carrier from a plan's diagnostic declaration symbols.
+            if let Some(application) = compilation
+                .data_definition_by_symbol(symbol)
+                .and_then(|data| data.generic_instance)
+            {
+                return project(
+                    compilation,
+                    application,
+                    substitutions,
+                    lifetimes,
+                    depth + 1,
+                );
             }
+            return Ok(reference);
         }
         TypeReferenceNode::Reference {
             referee,

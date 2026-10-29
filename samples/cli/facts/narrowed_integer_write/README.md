@@ -92,3 +92,14 @@ engines exiting 0. The existing nine-place narrowed-write and placed-view rows
 also retain native/Terminal agreement. Frozen-selector, descriptor replacement,
 and out-of-range write controls still reject. This closes the demonstrated
 assignment regression, not the parent task's remaining result-composition work.
+
+The nested machine declares `SignedByteInput` (`-128..=127`), the exact signed
+eight-bit write bound. Nesting supplies no runtime capture or implicit parameter
+fact ([nested machines](../../../../wiki/spec/language/machines.md#nested-machines-and-identity)).
+The prior unqualified `apply(value: i64)` positive already rejects on the retained
+Native34 producer (`eb3a21b7e603a2e1b2a8a3ddf5946a9cf0baff03`): its abstract entry
+cannot prove that arbitrary `i64` input fits. That historical refusal is retained;
+this entry-contract correction is not counted as an implicit caller-fact compiler
+repair. The positive still sends 70, the twin sends 200, and both retain the same
+eight-bit geometry, store operation and adjacent-byte oracle. The twin now rejects
+the exact `SignedByteInput` arrival obligation.

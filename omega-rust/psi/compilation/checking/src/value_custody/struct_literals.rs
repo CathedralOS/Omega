@@ -308,9 +308,10 @@ fn scan_expression(
     }
 
     // The child roster is the shared expression traversal's, so this scan
-    // cannot drift from the checks that walk the same tree. Only three node
+    // cannot drift from the checks that walk the same tree. Only four node
     // kinds keep an arm of their own, because their judgment rather than their
-    // shape is special: a struct literal is judged before its fields, a proven
+    // shape is special: a struct literal is judged before its fields, a match separates
+    // case classifiers from value formation, a proven
     // case membership never scans its right operand, and an atomic access
     // scans its value but never its result. Each of those walks itself.
     let node = program.expression_table.expression(expression);
@@ -338,6 +339,62 @@ fn scan_expression(
                 statement_index,
                 formation_obligations,
             );
+        }
+        ExpressionNode::Match(dispatch) => {
+            // A checked case classifier observes the subject's tag; it does
+            // not construct a fresh generic case value. Other pattern operands
+            // and every arm result keep their ordinary formation obligations.
+            scan_expression(
+                program,
+                machine,
+                state,
+                observations,
+                dispatch.subject,
+                diagnostics,
+                stored_integer_writes,
+                statement_index,
+                formation_obligations,
+            );
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let classifier = crate::structural_match_pattern_case(
+                    program,
+                    machine,
+                    state,
+                    dispatch,
+                    arm.pattern,
+                )
+                .is_some_and(|case| case.is_valid());
+                for operand in program.expression_table.match_pattern_operands(arm.pattern) {
+                    if matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(value)
+                        if value == operand && classifier)
+                    {
+                        continue;
+                    }
+                    scan_expression(
+                        program,
+                        machine,
+                        state,
+                        observations,
+                        operand,
+                        diagnostics,
+                        stored_integer_writes,
+                        statement_index,
+                        formation_obligations,
+                    );
+                }
+                scan_expression(
+                    program,
+                    machine,
+                    state,
+                    observations,
+                    arm.value,
+                    diagnostics,
+                    stored_integer_writes,
+                    statement_index,
+                    formation_obligations,
+                );
+            }
+            return;
         }
         ExpressionNode::Binary(binary) => {
             scan_expression(

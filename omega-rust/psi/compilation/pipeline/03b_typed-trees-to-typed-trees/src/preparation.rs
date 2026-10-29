@@ -27,6 +27,7 @@ use typed_trees::TypedTrees;
 #[derive(Clone, Copy)]
 pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
+    deferred_layout_applications: &'request [typed_trees::types::TypeReferenceHandle],
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
     opaque_representation_selections: &'request [OpaqueRepresentationSelection],
@@ -38,6 +39,7 @@ impl<'request> PreparationRequest<'request> {
     pub const fn settled() -> Self {
         Self {
             admits_pending_inputs: false,
+            deferred_layout_applications: &[],
             asm_authority: None,
             opaque_property_receipts: &[],
             opaque_representation_selections: &[],
@@ -51,6 +53,16 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: true,
             ..Self::settled()
         }
+    }
+
+    /// Exact applications whose physical judgments belong to the retained
+    /// target-value continuation. All other source checks remain settled.
+    pub fn with_deferred_layout_applications(
+        mut self,
+        applications: &'request [typed_trees::types::TypeReferenceHandle],
+    ) -> Self {
+        self.deferred_layout_applications = applications;
+        self
     }
 
     /// Admit privileged instructions against this invocation's evaluated Build.
@@ -98,6 +110,7 @@ impl<'request> PreparationRequest<'request> {
 #[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
+    deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
@@ -111,6 +124,7 @@ impl PreparationRequest<'_> {
     pub fn admission(&self) -> PreparationAdmission {
         PreparationAdmission {
             admits_pending_inputs: self.admits_pending_inputs,
+            deferred_layout_applications: self.deferred_layout_applications.to_vec(),
             asm_authority: self.asm_authority,
             opaque_property_receipts: self.opaque_property_receipts.to_vec(),
             opaque_representation_selections: self.opaque_representation_selections.to_vec(),
@@ -119,10 +133,30 @@ impl PreparationRequest<'_> {
     }
 }
 
+impl PreparationAdmission {
+    /// Require validated geometry while preserving the source continuation's
+    /// pending constants. Their predicates discharge per target afterwards.
+    pub fn layout_settled_request(&self) -> PreparationRequest<'_> {
+        PreparationRequest {
+            admits_pending_inputs: self.admits_pending_inputs,
+            deferred_layout_applications: &[],
+            asm_authority: self.asm_authority,
+            opaque_property_receipts: &self.opaque_property_receipts,
+            opaque_representation_selections: &self.opaque_representation_selections,
+            wire_compatibility_demands: &self.wire_compatibility_demands,
+        }
+    }
+
+    pub fn deferred_layout_applications(&self) -> &[typed_trees::types::TypeReferenceHandle] {
+        &self.deferred_layout_applications
+    }
+}
+
 /// Judgments retained while closing the typed program. Its ordinary TypedTrees
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
     admits_pending_inputs: bool,
+    deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
@@ -137,12 +171,14 @@ impl TypedPreparation {
         self,
     ) -> (
         bool,
+        Vec<typed_trees::types::TypeReferenceHandle>,
         proof::mathematical_declarations::CheckedMathematics,
         Vec<validation::OpaqueDataPropertyReceipt>,
         Vec<OpaqueRepresentationSelection>,
     ) {
         (
             self.admits_pending_inputs,
+            self.deferred_layout_applications,
             self.mathematics,
             self.opaque_property_receipts,
             self.opaque_representation_selections,
@@ -353,6 +389,7 @@ pub fn prepare_typed_trees(
         program.into(),
         TypedPreparation {
             admits_pending_inputs: request.admits_pending_inputs,
+            deferred_layout_applications: request.deferred_layout_applications.to_vec(),
             mathematics,
             opaque_property_receipts,
             opaque_representation_selections,
@@ -439,6 +476,7 @@ pub fn specialize_static_machine_calls(
 pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
+    program.retain_compiler_primitive_supplies();
     data_applications::elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;

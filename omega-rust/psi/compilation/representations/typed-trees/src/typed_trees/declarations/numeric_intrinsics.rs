@@ -350,20 +350,6 @@ impl TypedTrees {
             .map(|catalogue| catalogue.execution)
     }
 
-    /// Settle source-shaped bodyless declarations only after their complete
-    /// immutable catalogue, signature and satisfaction edge authenticate.
-    /// Ordinary boundary claims retain their owner-acceptance classification.
-    pub fn retain_compiler_primitive_supplies(&mut self) {
-        for position in 0..self.machines().len() {
-            let machine = &self.machines()[position];
-            let authenticated = self.has_authenticated_compiler_primitive_supply(machine);
-            if authenticated {
-                self.machines_mut()[position].supply_mode =
-                    language_semantics::MachineSupplyMode::CompilerPrimitive;
-            }
-        }
-    }
-
     pub fn sealed_numeric_realization_descriptor(
         &self,
         realization: symbols::SymbolHandle,

@@ -44,6 +44,7 @@ pub(super) fn lower(
             storage:
                 CheckedUnitRecordStorage::TargetLayout {
                     application,
+                    application_identity,
                     schema_type_identity,
                     ..
                 },
@@ -52,6 +53,11 @@ pub(super) fn lower(
         else {
             return unsupported("target layout record lost its exact checked application marker");
         };
+        if checked.typed.normalized_type_identity(*application) != *application_identity {
+            return unsupported(
+                "target layout raw application differs from its canonical checked identity",
+            );
+        }
         let plan = checked
             .typed
             .plan_laid_layout_for_type(*application)
@@ -97,51 +103,6 @@ pub(super) fn lower(
             &plan.schema_field_symbols,
             &schema_fields,
         )?;
-        let argument = plan
-            .schema_argument
-            .as_ref()
-            .ok_or(LoweringError::Unsupported(
-                "target layout application lost its exact Schema argument",
-            ))?;
-        if argument.abi_version != 1 {
-            return unsupported("target layout application uses an unsupported Schema ABI version");
-        }
-        let argument_fields = checked
-            .typed
-            .plan_laid_schema_fields
-            .span(argument.fields)
-            .ok_or(LoweringError::Unsupported(
-                "target layout application lost its Schema argument span",
-            ))?;
-        if argument_fields.len() != record_fields.len()
-            || argument_fields.len() != schema_fields.len()
-        {
-            return unsupported("unsupported target layout Schema argument field inventory");
-        }
-        let mut captured_fields = Vec::with_capacity(argument_fields.len());
-        for (position, field) in argument_fields.iter().enumerate() {
-            if field.schema_field != plan.schema_field_symbols[position] {
-                return unsupported(
-                    "target layout Schema argument changed exact field identity/order",
-                );
-            }
-            captured_fields.push(TargetLayoutSchemaField {
-                record_field: record_fields[position].id,
-                schema_field: schema_fields[position].id,
-                key: field.key,
-                identity: field.identity,
-                byte_size: field.byte_size,
-                byte_alignment: field.byte_alignment,
-                kind: match field.kind {
-                    typed_trees::PlanLaidSchemaFieldKind::Scalar => {
-                        TargetLayoutSchemaFieldKind::Scalar
-                    }
-                    typed_trees::PlanLaidSchemaFieldKind::Nested => {
-                        TargetLayoutSchemaFieldKind::Nested
-                    }
-                },
-            });
-        }
         let policy_identity = identities.intern(
             &checked
                 .typed
@@ -162,11 +123,64 @@ pub(super) fn lower(
                 "fixed representation policy has no checked callable identity",
             ))?,
         );
-        if alternatives.is_empty() {
+        if alternatives.is_empty() && !plan.target_inputs.is_empty() {
             return unsupported("fixed representation omitted its target inputs");
         }
         let mut realizations = Vec::with_capacity(alternatives.len());
         for alternative in alternatives {
+            let argument =
+                alternative
+                    .schema_argument
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout application lost its exact Schema argument",
+                    ))?;
+            if argument.abi_version != 3 {
+                return unsupported(
+                    "target layout application uses an unsupported Schema ABI version",
+                );
+            }
+            let argument_fields = checked
+                .typed
+                .plan_laid_schema_fields
+                .span(argument.fields)
+                .ok_or(LoweringError::Unsupported(
+                    "target layout application lost its Schema argument span",
+                ))?;
+            if argument_fields.len() != record_fields.len()
+                || argument_fields.len() != schema_fields.len()
+            {
+                return unsupported("unsupported target layout Schema argument field inventory");
+            }
+            let mut captured_fields = Vec::with_capacity(argument_fields.len());
+            for field in argument_fields {
+                let position = plan
+                    .schema_field_symbols
+                    .iter()
+                    .position(|symbol| *symbol == field.schema_field)
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout Schema argument changed exact field correspondence",
+                    ))?;
+                captured_fields.push(TargetLayoutSchemaField {
+                    record_field: record_fields[position].id,
+                    schema_field: schema_fields[position].id,
+                    key: field.key,
+                    identity: field.identity,
+                    byte_size: field.byte_size,
+                    byte_alignment: field.byte_alignment,
+                    kind: match field.kind {
+                        typed_trees::PlanLaidSchemaFieldKind::Scalar => {
+                            TargetLayoutSchemaFieldKind::Scalar
+                        }
+                        typed_trees::PlanLaidSchemaFieldKind::Nested => {
+                            TargetLayoutSchemaFieldKind::Nested
+                        }
+                        typed_trees::PlanLaidSchemaFieldKind::Repeated => {
+                            TargetLayoutSchemaFieldKind::Repeated
+                        }
+                    },
+                });
+            }
             if alternative.machine != plan.policy_plan_machine_symbol
                 || alternative.target.as_str() != alternative.target_facts.profile
                 || alternative.target_facts.validate().is_err()
@@ -209,6 +223,20 @@ pub(super) fn lower(
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             realizations.push(TargetLayoutRealization {
+                schema_argument: TargetLayoutSchemaArgument {
+                    abi_version: argument.abi_version,
+                    fields: captured_fields,
+                    retired_field_identities: checked
+                        .typed
+                        .plan_laid_retired_field_identities
+                        .span(argument.retired_field_identities)
+                        .ok_or(LoweringError::Unsupported(
+                            "target layout application lost its retired Schema identities",
+                        ))?
+                        .iter()
+                        .map(|row| row.identity)
+                        .collect(),
+                },
                 target: alternative.target.as_str().to_owned(),
                 pointer_size: alternative.target_facts.pointer_size,
                 pointer_alignment: alternative.target_facts.pointer_alignment,
@@ -221,16 +249,25 @@ pub(super) fn lower(
             });
         }
         realizations.sort_by(|a, b| a.target.cmp(&b.target));
+        let mut target_inputs = plan
+            .target_inputs
+            .iter()
+            .map(|target| terminal_psi::TargetLayoutInput {
+                target: target.profile.clone(),
+                pointer_size: target.pointer_size,
+                pointer_alignment: target.pointer_alignment,
+                little_endian: target.little_endian,
+            })
+            .collect::<Vec<_>>();
+
+        target_inputs.sort_by(|a, b| a.target.cmp(&b.target));
         applications.push(TargetLayoutApplication {
             id: *id,
             record: record.id,
             schema: schema.id,
             policy_identity,
             plan_identity,
-            schema_argument: TargetLayoutSchemaArgument {
-                abi_version: argument.abi_version,
-                fields: captured_fields,
-            },
+            target_inputs,
             realizations,
         });
     }

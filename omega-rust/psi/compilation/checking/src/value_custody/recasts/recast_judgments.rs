@@ -22,7 +22,6 @@ use crate::value_custody::recasts::scalar_representation::{
     narrow_to_integer_interval, scalar_representation_facts_imply,
 };
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -51,6 +50,15 @@ pub(crate) fn judge_scalar_recast(
     let roots = source_type
         .into_iter()
         .chain([cast.target_type, let_referee]);
+    let roots = roots.collect::<Vec<_>>();
+    if program.defers_pending_layout_geometry()
+        && crate::layout_checking::pending_layout_geometry(program, roots.iter().copied())
+    {
+        // This preparation checkpoint is not a strict source judgment. The
+        // exact application stays pending and the source facade checks again
+        // after validated plans enter the input; no compatibility is recorded.
+        return;
+    }
     let Ok(targets) = crate::layout_checking_targets(program, roots) else {
         diagnostics.push(Diagnostic::error(
             "recast has no complete exact layout alternative roster",
@@ -653,8 +661,7 @@ fn judge_slice_recast(
     } = interior
     {
         let target_tiled = representation_is_exactly_tiled(&element_representation);
-        let target_fact_free =
-            record_view_type_is_fact_free(program, element_type, &mut HashSet::new());
+        let target_fact_free = record_view_type_is_fact_free(program, element_type);
         if !target_tiled || !target_fact_free {
             diagnostics.push(
                 Diagnostic::error(format!(
@@ -783,9 +790,8 @@ fn judge_slice_recast(
 
     let source_tiled = representation_is_exactly_tiled(&source_representation);
     let target_tiled = representation_is_exactly_tiled(&target_representation);
-    let source_fact_free = record_view_type_is_fact_free(program, source_type, &mut HashSet::new());
-    let target_fact_free =
-        record_view_type_is_fact_free(program, element_type, &mut HashSet::new());
+    let source_fact_free = record_view_type_is_fact_free(program, source_type);
+    let target_fact_free = record_view_type_is_fact_free(program, element_type);
     // Plain target bits do not erase a source observation protocol. Atomic
     // storage still uses the leaf-wise operation/representation judgment,
     // including for a shared slice that performs no ordinary writes.

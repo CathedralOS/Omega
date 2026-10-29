@@ -1,0 +1,29 @@
+// Expected exit: 0
+use omega::language::core::layout;
+public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
+public data Pair<'storage> [copy] { lo: u64 in Delivered; hi: u64; seen: &'storage u64; }
+PairLayout<'storage> satisfies FixedLayout<Pair<'storage>> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
+        Plan { entries: entries, entry_count: 3, size_fixed: 32, size_is_dynamic: false, align: 8 }
+    }
+}
+machine exercise<'storage>(seen: &'storage u64) -> u64 {
+    let mut value: LayoutStorage<Pair<'storage>, PairLayout<'storage>>;
+    value.lo = 42u64;
+    value.hi = 9u64;
+    value.seen = seen;
+    let difference: u64 = value.lo - 42u64;
+    let observed: u64 = value.seen;
+    difference + observed
+}
+machine main() crashes Trap {
+    let seen: u64 = 9u64;
+    let observed: u64 = exercise(&seen);
+    transition observed == 9u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

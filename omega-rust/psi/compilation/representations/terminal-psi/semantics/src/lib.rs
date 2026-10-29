@@ -98,7 +98,7 @@ pub mod scalar_ordering;
 mod scalar_representation_view;
 pub use membership_presentations::present_structural_memberships;
 mod selected_memberships;
-pub use selected_memberships::reference_source_memberships;
+pub use selected_memberships::{reference_carrier_memberships, reference_source_memberships};
 mod semantic_rows;
 mod service_binding;
 mod shared_mutation;

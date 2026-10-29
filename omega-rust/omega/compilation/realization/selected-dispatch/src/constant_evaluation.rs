@@ -25,6 +25,7 @@ pub struct SelectedConstantEvaluation {
     /// subject from. Never the host's facts: a `--target` build folds every
     /// query against this target's layout closure.
     target_profile: target::TargetProfile,
+    layout_applications: Option<Vec<build_time_evaluation::LayoutApplicationTargetInput>>,
     /// Only these declaration roots own folds; canonical arenas also retain
     /// Product descriptions during Build admission.
     selection: typed_trees::references::DeclarationSelection,
@@ -34,6 +35,14 @@ pub struct SelectedConstantEvaluation {
 }
 
 impl SelectedConstantEvaluation {
+    pub fn with_layout_applications(
+        mut self,
+        inputs: &[build_time_evaluation::LayoutApplicationTargetInput],
+    ) -> Self {
+        self.layout_applications = Some(inputs.to_vec());
+        self
+    }
+
     /// Resume pending Psi evaluation under the exact selected providers.
     /// Consume continuations in their original order against canonical storage.
     /// Preparation may select an executable declaration projection of that same
@@ -61,6 +70,7 @@ impl SelectedConstantEvaluation {
             selection: &self.selection,
             layouts: &provider_planning::data_layout_queries::TargetLayoutQueries {
                 target: self.target_profile,
+                applications: self.layout_applications.as_deref(),
                 opaque_representations: &self.opaque_representation_selections,
             },
         }
@@ -134,6 +144,7 @@ impl SelectedConstantEvaluation {
             selection: &self.selection,
             layouts: provider_planning::data_layout_queries::TargetLayoutQueries {
                 target: self.target_profile,
+                applications: self.layout_applications.as_deref(),
                 opaque_representations: &self.opaque_representation_selections,
             },
             receipts,
@@ -165,6 +176,7 @@ impl SelectedConstantEvaluation {
                 target_profile,
             )?,
             target_profile,
+            layout_applications: None,
             selection: typed_trees::references::DeclarationSelection::from_program(typed),
             opaque_representation_selections: opaque_representation_selections.to_vec(),
         };

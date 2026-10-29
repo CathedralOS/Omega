@@ -40,8 +40,16 @@ pub fn compile(
             artifact.view(),
             proposal.target_profile().target_name(),
         );
+        let target_facts = proposal
+            .target_profile()
+            .layout_target_facts()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected native target has no layout context",
+                )]
+            })?;
         let layouts = phase_profile::scope("06.1.b_admit_target_layouts", || {
-            terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            terminal_installation::admit_target_layouts(artifact.view(), &selections, &target_facts)
                 .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])
         })?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();

@@ -73,7 +73,25 @@ fn replay_structural_shape(
         // and have no native condition layout in this consumer.
         terminal_psi::StructuralTypeShape::ByteSequence(_)
         | terminal_psi::StructuralTypeShape::ElementView { .. } => return None,
-        terminal_psi::StructuralTypeShape::Record { fields, .. } => {
+        terminal_psi::StructuralTypeShape::Record { fields, storage } => {
+            // These declarations come from the admitted artifact's layout
+            // closure. Replay reads its authored geometry, never the target's
+            // claimed call shape or a second conventional packing of T.
+            match storage {
+                terminal_psi::StructuralRecordStorage::TargetLayout(_) => return None,
+                terminal_psi::StructuralRecordStorage::Authored(layout)
+                | terminal_psi::StructuralRecordStorage::PlacedView(layout)
+                | terminal_psi::StructuralRecordStorage::PlacedAccessor(layout) => {
+                    let shape = ValueShape::integer(
+                        u32::try_from(layout.byte_size).ok()?,
+                        u16::try_from(layout.byte_alignment).ok()?,
+                    );
+                    active.remove(&structural_type);
+                    cache.insert(structural_type, shape);
+                    return Some(shape);
+                }
+                terminal_psi::StructuralRecordStorage::Packed => {}
+            }
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;
             for field in fields.iter().filter(|field| layout_field(field)) {
@@ -245,7 +263,7 @@ pub(crate) fn replay_structural_projection(
                         &mut cache,
                         &mut active,
                     )?;
-                    field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
+                    field_offset = replay_field_offset(field, shape, field_offset)?;
                     if field.identity == *identity {
                         let nested = field.field_type.as_structural()?;
                         selected = Some((nested, shape, field_offset));
@@ -368,7 +386,7 @@ pub(crate) fn replay_bounded_byte_field(
                         &mut cache,
                         &mut active,
                     )?;
-                    field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
+                    field_offset = replay_field_offset(field, shape, field_offset)?;
                     if field.identity == *identity {
                         let nested = field.field_type.as_structural()?;
                         selected = Some((nested, field_offset));
@@ -407,7 +425,7 @@ pub(crate) fn replay_bounded_byte_field(
             &mut cache,
             &mut active,
         )?;
-        field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
+        field_offset = replay_field_offset(field, shape, field_offset)?;
         if field.identity == *identity {
             let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
                 field.field_type.byte_sequence_carrier()
@@ -421,6 +439,19 @@ pub(crate) fn replay_bounded_byte_field(
         field_offset = field_offset.checked_add(shape.byte_size)?;
     }
     None
+}
+
+/// Exact retained field placement. Fragmented bit recipes expose no ordinary
+/// contiguous address; their dedicated observation/codec replay owns accesses.
+fn replay_field_offset(
+    field: &terminal_psi::StructuralFieldDeclaration,
+    shape: ValueShape,
+    cursor: u32,
+) -> Option<u32> {
+    match &field.storage {
+        Some(storage) => u32::try_from(storage.byte_offset()?).ok(),
+        None => checked_align_up(cursor, u32::from(shape.alignment)),
+    }
 }
 
 fn replay_structural_field_shape(
@@ -522,7 +553,7 @@ pub(crate) fn replay_boolean_field_offset(
             &mut cache,
             &mut active,
         )?;
-        offset = checked_align_up(offset, u32::from(shape.alignment))?;
+        offset = replay_field_offset(candidate, shape, offset)?;
         if candidate.id == field {
             return matches!(
                 candidate.field_type,

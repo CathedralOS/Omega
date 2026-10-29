@@ -105,3 +105,6 @@ pub mod test_support;
 
 mod target_facts;
 pub use target_facts::LayoutTargetFacts;
+
+mod scalar_reference;
+pub use scalar_reference::scalar_reference_storage_layout;

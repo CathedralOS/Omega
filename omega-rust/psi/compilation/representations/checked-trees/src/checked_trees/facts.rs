@@ -14,7 +14,9 @@ mod collection;
 mod constant_predicate_obligations;
 mod constant_recipe_obligations;
 mod integer_range_obligations;
-pub use constant_predicate_obligations::ConstantPredicateObligation;
+pub use constant_predicate_obligations::{
+    ConstantPredicateArgument, ConstantPredicateObligation, ConstantPredicateSource,
+};
 pub use integer_range_obligations::{
     IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe,
 };

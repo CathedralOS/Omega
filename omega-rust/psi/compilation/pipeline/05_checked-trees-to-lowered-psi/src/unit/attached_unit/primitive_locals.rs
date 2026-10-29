@@ -522,6 +522,7 @@ impl super::argument_evaluation::Evaluation {
             )?;
         } else {
             self.prepare_immutable_local_borrow(
+                identities,
                 checked,
                 state,
                 source.structural_storage_root(),
@@ -544,6 +545,7 @@ impl super::argument_evaluation::Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::unit::attached_unit) fn prepare_immutable_local_borrow(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state_symbol: symbols::SymbolHandle,
         root: Option<facts::PlaceRoot>,
@@ -577,17 +579,26 @@ impl super::argument_evaluation::Evaluation {
         if value.scalar_type != scalar_type {
             return unsupported("immutable primitive borrow changes its completed scalar type");
         }
-        let mut carriers = structural_types.iter().filter(|declaration| {
-            declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
-        });
+        let identity =
+            identities.intern(&checked.normalized_type_identity_text(local.declared_type));
+        let mut carriers = structural_types
+            .iter()
+            .filter(|declaration| declaration.identity == identity);
+
         let structural_type = carriers
             .next()
             .ok_or(LoweringError::Unsupported(
                 "immutable primitive home has no storage carrier",
             ))?
             .id;
-        if carriers.next().is_some() {
-            return unsupported("immutable primitive home has ambiguous storage carriers");
+        if carriers.next().is_some()
+            || terminal_psi::find_structural_type(structural_types, structural_type).is_none_or(
+                |declaration| {
+                    declaration.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
+                },
+            )
+        {
+            return unsupported("immutable primitive home lost its exact declared storage carrier");
         }
         let place = self.immutable_primitive_home(
             symbol,

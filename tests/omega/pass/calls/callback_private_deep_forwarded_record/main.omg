@@ -117,9 +117,10 @@ boundary trait WindowProcedure: Calling<User32PolicyCalling> {
  machine call(window: u64, message: u32, wparam: u64, lparam: i64) -> i64 reaches ContextApi
  invokes ContextApi;
 }
-data ClassLayout { }
+
 ProcedureSlot satisfies PrivateCallbackSlot<ClassHeader, ClassLayout, WindowProcedure::call> { }
-machine ClassLayout::plan(schema: Schema) -> Plan {
+ClassLayout satisfies FixedLayout<ClassHeader> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
  let mut entries: [FieldEntry; 64];
  entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
  entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
@@ -133,12 +134,13 @@ machine ClassLayout::plan(schema: Schema) -> Plan {
  let plan: Plan = Plan { entries: entries, entry_count: 9, size_fixed: 64, size_is_dynamic: false, align: 8 };
  Plan::place_private<ProcedureSlot>(plan, 8)
 }
+}
 data ClassHeader {
  size: u32; style: u32; class_extra: i32; window_extra: i32;
  instance: u64; icon: u64; cursor: u64; background: u64;
  menu: u64;
 }
-data NativeClass { header: ClassLayout<ClassHeader>; name: &[u8; 13]; small_icon: u64;
+data NativeClass { header: LayoutStorage<ClassHeader, ClassLayout>; name: &[u8; 13]; small_icon: u64;
 }
 data InnerClass { native: NativeClass; }
 data MiddleClass { inner: InnerClass; }
@@ -259,7 +261,7 @@ where machine Selected satisfies WindowProcedure::call;
 satisfies Registrar::register
 reaches ClassApi + ModuleApi {
  let instance: u64 = capacity.module;
- let mut header: ClassLayout<ClassHeader>;
+ let mut header: LayoutStorage<ClassHeader, ClassLayout>;
  header.size = 80;
  header.style = 0;
  header.class_extra = 0;

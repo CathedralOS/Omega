@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 208 even when every table
+order below. This layout uses semantic format marker 217 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -705,7 +705,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 208 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 217 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -950,26 +950,42 @@ The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
 
-Marker 140 adds target layout applications after the legacy family section. A
-record whose geometry remains target dependent uses structural shape tag `13`,
-a nonzero layout-application `u32`, and its counted structural fields. It has
-no packed or host-selected geometry in the portable artifact.
+The current target-layout application section uses marker 217. It combines the
+exact numeric schema/ISA roster with application-owned fixed storage; independent
+markers 208 and 216 are not reinterpreted as these combined bytes. A record whose
+geometry remains target dependent uses structural shape tag `13`, a nonzero
+layout-application `u32`, and its counted structural fields. It has no packed or
+host-selected geometry in the portable artifact.
 
-A layout application encodes its `u32` id, record and schema type ids, policy
-identity string, family callable, and `u16` Schema ABI version. Its counted
-Schema fields each carry record-field and schema-field ids, `u64` key, optional
-`u64` identity, `u64` byte size and alignment, and a kind byte (`0` scalar,
-`1` nested). Counted alternatives follow: deployment string, member machine id,
-`u64` record size and alignment, then counted field ids with non-absent authored
-field storage. The codec requires a complete exact family roster and validates
-every alternative against the retained invariant Schema argument. This is
-representation validation; semantic checking remains the producer's obligation.
-Deployment selection consumes one retained alternative without changing the
-canonical portable artifact or inferring default storage for an unresolved row.
-The family callable/member roster in this reference layout encoding is also
-migration work. Target-dependent geometry remains supported, but its policy
-applications must name ordinary checked implementations and join target-keyed
-Build rows, not require target-prefixed source bodies.
+A layout application encodes its `u32` id, record and semantic-schema type ids,
+policy identity index, and exact checked plan-callable identity index. Its
+independent counted target inputs follow: target string, `u64` pointer size and
+alignment, and a little-endian Boolean. These inputs are strictly ordered by
+target and come from the checked application's issuer; they are not recovered
+from whichever realization the receiver selects.
+
+Counted realizations follow in that same target order. Each first carries its
+complete Schema argument: `u16` ABI version `3`, counted fields, and counted
+retired `u64` field identities. A Schema field contains record-field and
+schema-field ids, `u64` opaque key, optional `u64` stable identity, `u64` byte size
+and alignment, and a kind byte (`0` scalar, `1` nested, `2` repeated). Numbered
+fields use strictly increasing stable identities independently of declaration
+order; all fields are numbered or none are. Unnumbered fields retain authored
+order. Retired identities are strictly ordered, unique and disjoint from live
+identities. The receiver validates the exact field bijection, type geometry and
+opaque-key uniqueness; source names and ordinal coincidences supply no join.
+Case-bearing schemas cannot enter this record ABI.
+
+After its Schema argument, a realization encodes the target string, pointer
+size/alignment and endianness, record size/alignment, then counted field ids with
+non-absent authored field storage. Realizations must cover the independent input
+roster exactly and preserve each input's facts. The producer checks policy
+evaluation and the fixed public Schema value's inactive-row padding; codec
+validation does not manufacture a missing source judgment. Target selection
+consumes one retained realization without changing the portable artifact,
+reopening source, or assigning default geometry to an unresolved application.
+Policy and plan identities name ordinary checked implementations; this section
+contains no target-family callable or member-machine roster.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1346,7 +1362,8 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
-Marker 208 retains a counted module-level numeric-realization roster after
+Marker 217 retains the counted module-level numeric-realization roster introduced
+by marker 208 after
 boundary machines and before checked provider candidates. It replaces the retired
 external-binding conformance payload; markers 201 through 207 are not decoded as
 this layout. Each row contains the requirement nominal declaration and callable

@@ -674,5 +674,63 @@
         "recorded_at": "1abd71057ea2+wt"
       }
     ]
+  },
+  "checkpoint32": {
+    "producer_git": "ada800b9313ebc5c3c2344a937219bec20ecb25d",
+    "producer_source_archive_sha256": "1a31d2168646feb3fd065adf8e71ce9ec4a5f7750014b31626677e40171ab244",
+    "producer_sha256": "e8bda31f8cb91e690f9d6703732aa62b8ed87434921e3290b94c85a427566582",
+    "terminal_format": 216,
+    "actual_host_pairs": [
+      {
+        "command": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer32/omega",
+          "run",
+          "--both",
+          "tests/omega/pass/layouts/runtime_target_layout_queries_exit/main.omg"
+        ],
+        "returncode": 0,
+        "seconds": 3.825362083,
+        "stdout": "",
+        "stderr": "native exit 0\ninterp exit: 0\n"
+      },
+      {
+        "command": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer32/omega",
+          "run",
+          "--both",
+          "samples/cli/facts/reference_recast_backing_footprint/call_result/main.omg"
+        ],
+        "returncode": 0,
+        "seconds": 2.249384667,
+        "stdout": "",
+        "stderr": "native exit 0\ninterp exit: 0\n"
+      },
+      {
+        "command": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/layout-storage/build/layout-storage-evidence/producer32/omega",
+          "run",
+          "--both",
+          "tests/omega/pass/layouts/fixed_layout_linear_child_scope_exit/main.omg"
+        ],
+        "returncode": 0,
+        "seconds": 3.3888078749999995,
+        "stdout": "",
+        "stderr": "native exit 0\ninterp exit: 0\n"
+      }
+    ],
+    "terminal_scope_record": {
+      "path": "build/layout-storage-evidence/producer32-application-scopes-terminal-raw.txt",
+      "sha256": "6377f02c0a6d73cd6807c47936fda5e489b17827d1fcc69f6b9a0b124811cf68"
+    },
+    "open_controls": [
+      "Unused/demanded partial policies still encounter unrelated std provider-default candidate failures.",
+      "Sibling helper/callback underflow controls still refuse before their intended underflow because a nomination-only target lacks applicable geometry.",
+      "One unchanged Terminal artifact cannot yet retarget the query canary: foreign targets refuse the folded constant closure."
+    ],
+    "portability_baseline": {
+      "path": "build/layout-storage-evidence/producer32-query-portability-baseline-raw.txt",
+      "sha256": "9f7759e91086838a9e92eba55f01644446a6979003e473e1061ef14d54c39413"
+    },
+    "acceptance": "Checkpoint only; feature acceptance, independent review and verified main publication remain open."
   }
 }

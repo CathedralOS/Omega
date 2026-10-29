@@ -40,6 +40,12 @@ mod sealed {
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
 
+    /// Preliminary source work cannot settle a pending representation's
+    /// physical judgments. Strict checks and bare trees never defer them.
+    fn defers_pending_layout_geometry(&self) -> bool {
+        false
+    }
+
     /// Checked declaration dependencies constrain loan flow even when their
     /// carrier has no runtime reference field. Bare trees grant no such row.
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
@@ -112,6 +118,7 @@ impl Deref for dyn CheckingInput + '_ {
 impl PartialEq for dyn CheckingInput + '_ {
     fn eq(&self, other: &Self) -> bool {
         self.layout_target() == other.layout_target()
+            && self.defers_pending_layout_geometry() == other.defers_pending_layout_geometry()
             && self.typed_program() == other.typed_program()
     }
 }
@@ -173,6 +180,7 @@ impl CheckingInput for checked_trees::CheckedTrees {
 /// Borrows one immutable program and owns invocation-local query state. Moving
 /// or nesting contexts preserves memos without installing ambient state.
 pub struct CheckingContext<'program> {
+    defer_layout_geometry: bool,
     program: &'program TypedTrees,
     retained_borrows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
@@ -208,8 +216,19 @@ impl<'program> CheckingContext<'program> {
         self
     }
 
+    /// This is the preparation owner's pending-input checkpoint. It grants no
+    /// geometry or access evidence and cannot be retained as a strict judgment.
+    pub fn with_pending_layout_geometry(mut self, defer: bool) -> Self {
+        if self.defer_layout_geometry != defer {
+            self.defer_layout_geometry = defer;
+            self.reset_context_sensitive_memos();
+        }
+        self
+    }
+
     pub fn new(program: &'program TypedTrees) -> Self {
         Self {
+            defer_layout_geometry: false,
             program,
             retained_borrows: Arc::from([]),
             finalized_selections: None,
@@ -267,6 +286,7 @@ impl<'program> CheckingContext<'program> {
             Arc::new(self.memos.clone_typed_tree_memos())
         };
         CheckingContext {
+            defer_layout_geometry: self.defer_layout_geometry,
             program: self.program,
             retained_borrows: self.retained_borrows.clone(),
             finalized_selections: self.finalized_selections,
@@ -320,6 +340,9 @@ impl Deref for CheckingContext<'_> {
 }
 
 impl CheckingInput for CheckingContext<'_> {
+    fn defers_pending_layout_geometry(&self) -> bool {
+        self.defer_layout_geometry
+    }
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         &self.retained_borrows
     }
@@ -407,6 +430,9 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn defers_pending_layout_geometry(&self) -> bool {
+        self.original.defers_pending_layout_geometry()
+    }
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         self.original.retained_borrow_custodies()
     }

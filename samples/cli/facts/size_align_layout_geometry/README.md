@@ -4,6 +4,32 @@ Fact: querying size_of and align_of on a two-field u64 structural record (Pair {
 
 Every place performs the same operation: query the byte size (`size_of<Pair>() == 16u64`) and alignment (`align_of<Pair>() == 8u64`) of a two-field `u64` structural record (`Pair { lo: u64, hi: u64 }`), discharge exact subtraction `size - (align * 2u64)`, verify `diff == 0`, and exit 0. Only the transport mechanism of the geometry queries and subtraction computation changes across places.
 
+## Current layout continuation
+
+This row also retains the query-argument transport requirement used by
+`LIBRARY-REPRESENTATION-FAMILIES`. The original nested-machine source had no
+arrival contract and already rejected on Native34; nesting supplies no implicit
+runtime parameter fact. Its explicit `size == 16u64 && align == 8u64` arrival
+contract preserves the fact, bound and subtraction operation. Producer26 then
+wrongly refused the valid captured query actuals. Producer28 passes that source;
+the one-field twin rejects because its captured predicate is false. The other
+eight twins retain their arithmetic-formation refusals.
+
+Producer28 (actual git `ada800b9313ebc5c3c2344a937219bec20ecb25d`, frozen
+source archive `c8596bfa7b8e44d9910d335281f51213466ea8a090e0de0e6b693472b9d27808`,
+Terminal format215) observes all nine positives with native exit0, interpreter
+exit0 and agreement on both macOS ARM64 and x86_64. The five-entry Source overlay
+and exact engine records are retained under `build/layout-storage-evidence/` as
+`producer28-query-row-five-entry-{arm,x86}-gate.json` and
+`producer28-query-row-source-overlay.json`. All nine reject twins match intended
+obligations in `producer28-query-row-five-entry-terminal-raw.txt`. The target
+place uses ordinary named implementations and explicit Build provider rows.
+
+The execution narrative below is retained history from before this source
+migration; it does not qualify current Windows or Linux execution. Those hosts
+remain unverified by this continuation. This invariant geometry row does not
+establish portable target-varying query values or close either parent task.
+
 ## Places
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
@@ -17,10 +43,10 @@ Every place performs the same operation: query the byte size (`size_of<Pair>() =
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants evaluate size_of and align_of before subtracting |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the size and alignment queries before subtracting |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine delegates the subtraction to the geometry query machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies evaluates size_of and align_of and subtracts |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Build selects ordinary named implementations that evaluate size_of and align_of and subtract |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`, and `macos_x86_64` and declares
 `Expected exit: 0`.
 
 ## Execution

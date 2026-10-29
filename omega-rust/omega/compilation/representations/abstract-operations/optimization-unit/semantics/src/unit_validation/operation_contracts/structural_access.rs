@@ -192,6 +192,8 @@ impl StructuralSourceContract<'_> {
         identities: &terminal_psi::TerminalIdentityTable,
         path: &[terminal_psi::StructuralPathSegment],
         access: terminal_psi::StructuralAccess,
+        reference: semantic_vocabulary::StructuralTypeId,
+        storage: Option<&terminal_psi::ReferenceStorageView>,
     ) -> Result<Vec<terminal_psi::StructuralPathQualification>, &'static str> {
         if !terminal_semantics::reference_preserves_ancestor_qualifications(
             types.clone(),
@@ -204,13 +206,15 @@ impl StructuralSourceContract<'_> {
         ) {
             return Err("reference formation would hide an ancestor qualification obligation");
         }
-        terminal_semantics::reference_source_memberships(
+        terminal_semantics::reference_carrier_memberships(
             types,
             self.structural_type,
             self.qualifications,
             self.projected_qualifications,
             path,
             access,
+            reference,
+            storage,
         )
     }
 

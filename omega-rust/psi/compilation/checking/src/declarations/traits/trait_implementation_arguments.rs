@@ -248,7 +248,11 @@ fn validate_binding(
     let expected_arguments =
         applied_bound_argument_identities(program, bound, receiving_owner, owner, scopes)
             .ok_or_else(|| {
-                "implementation slot has incomplete applied argument identity".to_owned()
+                format!(
+                    "implementation slot has incomplete applied argument identity in `{}` for `{}`",
+                    program.symbols.display_path(owner, "::"),
+                    program.display_type_reference(argument)
+                )
             })?;
     if program.symbols.get(selected.symbol).kind == SymbolKind::ConformanceParameter {
         return super::conformance_applications::validate_forwarded_argument(

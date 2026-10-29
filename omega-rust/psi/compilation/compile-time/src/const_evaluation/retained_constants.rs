@@ -23,6 +23,7 @@ pub struct RetainedConstantEvaluation {
 struct ConstantEvaluationInput {
     source: TypedTrees,
     pending: Vec<PreCheckEvaluation>,
+    layout_preparation: Option<typed_trees_to_typed_trees::PreparationAdmission>,
 }
 
 impl RetainedConstantEvaluation {
@@ -36,8 +37,25 @@ impl RetainedConstantEvaluation {
             input: Arc::new(ConstantEvaluationInput {
                 source: source.clone(),
                 pending,
+                layout_preparation: None,
             }),
         })
+    }
+
+    /// Bind this continuation to the exact source preparation permissions.
+    /// Only this invocation's source facade supplies these inputs.
+    pub fn with_layout_preparation(
+        mut self,
+        preparation: typed_trees_to_typed_trees::PreparationAdmission,
+    ) -> Self {
+        Arc::get_mut(&mut self.input)
+            .expect("source preparation precedes sharing its continuation")
+            .layout_preparation = Some(preparation);
+        self
+    }
+
+    pub fn layout_preparation(&self) -> Option<&typed_trees_to_typed_trees::PreparationAdmission> {
+        self.input.layout_preparation.as_ref()
     }
 
     /// Read-only source for selecting the exact external execution inputs.
@@ -80,6 +98,8 @@ impl<Layouts: LayoutQueryProvider> ConstantValueClosureRequest<'_, Layouts> {
         closed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
         closed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);
         closed.plan_laid_schema_fields = std::mem::take(&mut evaluated.plan_laid_schema_fields);
+        closed.plan_laid_retired_field_identities =
+            std::mem::take(&mut evaluated.plan_laid_retired_field_identities);
         let has_queries = typed_trees::references::collect_program_references(self.checked)
             .expressions
             .into_iter()

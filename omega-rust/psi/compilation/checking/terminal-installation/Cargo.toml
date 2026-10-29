@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+layout-plans = { path = "../../../foundation/layout-plans" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../representations/terminal-psi" }

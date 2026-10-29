@@ -243,10 +243,7 @@ fn unique_record_field<'program>(
     carrier: TypeReferenceHandle,
     select: impl Fn(&typed_trees::data::DataField) -> bool,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let owner = crate::declarations::data_queries::data_definition_by_symbol(
-        program,
-        program.type_reference_symbol(carrier),
-    )?;
+    let owner = program.closed_data_field_definition(carrier)?;
     let mut fields = program
         .data_members(owner)
         .iter()
@@ -657,11 +654,19 @@ fn mutable_record_representation_inner_body(
         return None;
     }
     let layout = program.plan_laid_layout_for_data(data);
+    if layout.is_none()
+        && data
+            .generic_instance
+            .is_some_and(|reference| program.layout_storage_arguments(reference).is_some())
+    {
+        visiting.remove(&symbol_identity);
+        return None;
+    }
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
     let semantic_data = match layout {
-        Some(plan) => program.closed_data_definition(plan.semantic_type)?,
+        Some(plan) => program.closed_data_field_definition(plan.semantic_type)?,
         None => data,
     };
     let Some(where_bounds) =

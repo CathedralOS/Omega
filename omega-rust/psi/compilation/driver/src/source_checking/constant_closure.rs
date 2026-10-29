@@ -13,6 +13,7 @@ use typed_trees::TypedTrees;
 
 mod applications;
 use applications::ProofApplications;
+pub use applications::target_application_declarations;
 
 /// Invocation-local proof closure over a private, evaluated copy of a checked program.
 /// Provider selection stays with the caller; only complete coverage can publish.
@@ -54,6 +55,15 @@ impl<'source> ConstantProofClosure<'source> {
             ranges_closed: vec![false; source.facts.integer_range_obligations.len()],
             recipes_closed: vec![false; source.facts.constant_recipe_obligations.len()],
         }
+    }
+
+    /// Join the exact authored Build applications used for layout closure.
+    pub fn with_target_applications(
+        mut self,
+        roots: Vec<checked_trees::applications::TargetApplicationRoots>,
+    ) -> Self {
+        self.applications.set_roots(roots);
+        self
     }
 
     /// Selected scope first, then every distinct authored proof scope. Target

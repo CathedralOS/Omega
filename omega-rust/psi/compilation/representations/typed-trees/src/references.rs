@@ -15,7 +15,7 @@ use crate::{
     machine::TraitConformance,
     proposition::{PropositionApplication, PropositionBinderArgumentKind, PropositionFormula},
     signature::{AuthoredInvocationTarget, SignatureContract},
-    statement::{StatementNode, TransitionTargetNode},
+    statement::{StatementHandle, StatementNode, TransitionTargetNode},
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 use symbols::SymbolHandle;
@@ -157,6 +157,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn expression(&mut self, _: ExpressionHandle) -> bool {
         true
     }
+    fn statement_handle(&mut self, _: StatementHandle) {}
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
     }
@@ -187,6 +188,7 @@ pub struct ProgramReferences {
     /// Declaration dependencies retained as descriptions, not executable edges.
     pub descriptor_symbols: HashSet<SymbolHandle>,
     pub expressions: HashSet<ExpressionHandle>,
+    pub statements: HashSet<StatementHandle>,
     pub type_references: Vec<TypeReferenceHandle>,
     pub proof_facts: Vec<arena::Handle<ProofFact>>,
     /// Exact ledger identities owned by these roots, not selections inferred
@@ -201,6 +203,7 @@ struct ReferenceCollector {
     callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
+    statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
     track_new_expressions: bool,
     new_expressions: HashSet<ExpressionHandle>,
@@ -215,6 +218,9 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn statement_handle(&mut self, handle: StatementHandle) {
+        self.statements.insert(handle);
+    }
     fn callable_use(&mut self, symbol: SymbolHandle) {
         if symbol.is_valid() {
             self.callable_uses.insert(symbol);
@@ -663,6 +669,7 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
         symbols: roots.symbols,
         descriptor_symbols: roots.descriptor_symbols,
         expressions: roots.expressions,
+        statements: roots.statements,
         type_references,
         proof_facts,
         authored_selection_occurrences: roots.authored_selection_occurrences,
@@ -2409,7 +2416,11 @@ fn visit_machine_with_sidecars(
         for contract in program.state_contracts(state) {
             visit_proof_facts(program, retained, contract.facts);
         }
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for (handle, statement) in program
+            .statement_table
+            .iter_statements(state.statement_nodes)
+        {
+            retained.statement_handle(handle);
             visit_statement(program, retained, statement);
         }
     }

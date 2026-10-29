@@ -1,0 +1,35 @@
+// Expected exit: 0
+// Moving represented storage preserves the contained linear grant and its one cleanup.
+use omega::language::core::layout;
+use omega::language::core::drop;
+data Counter { value: u64; }
+data Grant<'storage> [linear] dropped by release_grant<'storage> {
+    counter: &'storage mut Counter;
+    code: u64;
+}
+machine release_grant<'storage>(grant: &mut Grant<'storage>) {
+    grant.counter.value = grant.code;
+}
+data Parcel<'storage> { tag: u64; grant: Grant<'storage>; }
+ParcelLayout<'storage> satisfies FixedLayout<Parcel<'storage>> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 16 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };
+        Plan { entries: entries, entry_count: 2, size_fixed: 24, size_is_dynamic: false, align: 8 }
+    }
+}
+machine exercise<'storage>(counter: &'storage mut Counter) -> u64 {
+    let original: LayoutStorage<Parcel<'storage>, ParcelLayout<'storage>> = Parcel { tag: 9u64, grant: Grant { counter: counter, code: 42u64 } };
+    let value: LayoutStorage<Parcel<'storage>, ParcelLayout<'storage>> = original;
+    let repeated: LayoutStorage<Parcel<'storage>, ParcelLayout<'storage>> = original;
+    let tag: u64 = value.tag;
+    tag
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 0u64 };
+    let tag: u64 = exercise(&mut counter);
+    transition counter.value == 42u64 && tag == 9u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

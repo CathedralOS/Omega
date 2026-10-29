@@ -14,6 +14,7 @@ use typed_trees::references::DeclarationSelection;
 #[derive(Clone, compiler_storage::Record)]
 pub(crate) struct EvaluationDomain {
     pub(crate) layout_targets: Vec<layout_plans::LayoutTargetFacts>,
+    pub(crate) layout_applications: Option<Vec<crate::LayoutApplicationTargetInput>>,
     work: DeclarationSelection,
     execution: DeclarationSelection,
     product_frontier: Option<Arc<typed_trees::TypedTrees>>,
@@ -26,6 +27,7 @@ pub(crate) struct EvaluationDomain {
 impl PartialEq for EvaluationDomain {
     fn eq(&self, other: &Self) -> bool {
         self.layout_targets == other.layout_targets
+            && self.layout_applications == other.layout_applications
             && self.work == other.work
             && self.execution == other.execution
             && self.product_frontier == other.product_frontier
@@ -53,6 +55,7 @@ impl EvaluationDomain {
     pub(crate) fn selected(work: DeclarationSelection, execution: DeclarationSelection) -> Self {
         Self {
             layout_targets: Vec::new(),
+            layout_applications: None,
             work,
             execution,
             product_frontier: None,
@@ -63,6 +66,7 @@ impl EvaluationDomain {
     pub(crate) fn all() -> Self {
         Self {
             layout_targets: Vec::new(),
+            layout_applications: None,
             work: DeclarationSelection::all(),
             execution: DeclarationSelection::all(),
             product_frontier: None,
@@ -114,6 +118,7 @@ impl EvaluationDomain {
         );
         domain.execution = domain.execution.intersect(&self.execution);
         domain.layout_targets = self.layout_targets.clone();
+        domain.layout_applications = self.layout_applications.clone();
         domain.product_frontier = self.product_frontier.clone();
         domain.accounting = self.accounting.clone();
         domain
@@ -546,6 +551,7 @@ impl PreCheckEvaluation {
             original,
             EvaluationDomain {
                 layout_targets: self.domain.layout_targets.clone(),
+                layout_applications: self.domain.layout_applications.clone(),
                 work: self.domain.work.intersect(&selected),
                 execution: self.domain.execution.intersect(&selected),
                 product_frontier: projection.product_declaration_frontier.clone(),
@@ -584,6 +590,7 @@ impl PreCheckEvaluation {
             original,
             EvaluationDomain {
                 layout_targets: self.domain.layout_targets.clone(),
+                layout_applications: self.domain.layout_applications.clone(),
                 work: self
                     .domain
                     .work
@@ -757,6 +764,14 @@ impl PreCheckEvaluation {
         targets: &[layout_plans::LayoutTargetFacts],
     ) -> Self {
         self.domain.layout_targets = targets.to_vec();
+        self
+    }
+
+    pub(crate) fn with_layout_applications(
+        mut self,
+        inputs: Option<&[crate::LayoutApplicationTargetInput]>,
+    ) -> Self {
+        self.domain.layout_applications = inputs.map(<[_]>::to_vec);
         self
     }
 

@@ -51,6 +51,11 @@ pub fn lower_machine(
     program_roots: crate::TerminalProgramRoots<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredPsi, LoweringError> {
+    if !checked.facts.deferred_layout_applications.is_empty() {
+        return unsupported(
+            "physical layout applications require strict target closure before Terminal production",
+        );
+    }
     if checked
         .facts
         .flow

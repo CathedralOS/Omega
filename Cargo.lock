@@ -2335,6 +2335,7 @@ version = "0.1.0"
 dependencies = [
  "compiler-storage",
  "diagnostics",
+ "layout-plans",
  "optimization-core",
  "semantic-vocabulary",
  "sha2",
@@ -2427,6 +2428,7 @@ name = "terminal-installation"
 version = "0.1.0"
 dependencies = [
  "compiler-storage",
+ "layout-plans",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",

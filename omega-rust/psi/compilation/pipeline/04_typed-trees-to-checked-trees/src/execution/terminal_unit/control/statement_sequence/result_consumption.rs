@@ -471,10 +471,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             .chain(prepared_calls.operations_for(machine, state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| {
-                operation
-                    .call()
-                    .and_then(|call| call.structural_custody())
-                    .is_some()
+                // Every materialized descriptor has a retirement owner,
+                // including an exact, proven-empty source loan roster.
+                // Calls, stored values and direct formations share that join.
+                captured_reference_result(
+                    program, facts, machine, state, results, operation, operations,
+                )
+                .is_some()
             })
     {
         return Some(());
@@ -1008,10 +1011,13 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             .chain(prepared_calls.operations_for(machine, state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| {
-                operation
-                    .call()
-                    .and_then(|call| call.structural_custody())
-                    .is_some()
+                // Every materialized descriptor has a retirement owner,
+                // including an exact, proven-empty source loan roster.
+                // Calls, stored values and direct formations share that join.
+                captured_reference_result(
+                    program, facts, machine, state, results, operation, operations,
+                )
+                .is_some()
             })
     {
         return Some(());

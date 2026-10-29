@@ -485,6 +485,19 @@ impl TargetProfile {
         }
     }
 
+    /// Compiler catalog inputs for fixed representation policy evaluation and
+    /// receiving-boundary replay. The executing host supplies none of these.
+    pub fn layout_target_facts(self) -> Option<layout_plans::LayoutTargetFacts> {
+        self.address_model()?;
+        let native = self.native_realization()?;
+        Some(layout_plans::LayoutTargetFacts {
+            profile: self.target_name().to_owned(),
+            pointer_size: native.pointer_size as u64,
+            pointer_alignment: native.pointer_alignment as u64,
+            little_endian: true,
+        })
+    }
+
     pub fn native_target(self) -> NativeTarget {
         match self {
             Self::LinuxArm64 => NativeTarget::linux_arm64(),

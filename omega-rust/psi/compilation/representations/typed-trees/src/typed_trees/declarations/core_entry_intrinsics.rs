@@ -3,7 +3,7 @@
 //! Exact source and public requirement identity authenticate these two leaves.
 //! They do not grant an image/storage root or a selected continuation. Omega
 //! separately rejoins the Build row, UEFI profile and installed entry custody.
-use crate::{TypedTrees, machine::Machine};
+use crate::TypedTrees;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,18 +148,5 @@ impl TypedTrees {
             return None;
         }
         Some(role)
-    }
-
-    /// Source cannot author CompilerPrimitive. Every producer and checker
-    /// reauthenticates the complete fixed catalogue that owns its meaning.
-    pub fn has_authenticated_compiler_primitive_supply(&self, machine: &Machine) -> bool {
-        let [conformance] = self.machine_trait_conformances(machine) else {
-            return false;
-        };
-        self.sealed_numeric_realization_descriptor(machine.symbol, conformance.requirement_symbol)
-            .is_some()
-            || self
-                .sealed_core_entry_realization(machine.symbol, conformance.requirement_symbol)
-                .is_some()
     }
 }

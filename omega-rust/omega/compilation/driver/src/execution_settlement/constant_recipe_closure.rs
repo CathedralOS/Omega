@@ -17,6 +17,8 @@ use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
+mod layout_applications;
+
 /// Proof closure consumes selected constant facts, not native calling or emission plans.
 #[derive(Default)]
 pub(crate) struct ConstantProviders {
@@ -53,7 +55,7 @@ pub(crate) fn close_constant_recipes(
                 .layout_storage_arguments(occurrence.reference)
                 .is_some_and(|storage| {
                     typed
-                        .closed_data_definition(storage.semantic_type)
+                        .closed_data_field_definition(storage.semantic_type)
                         .is_some()
                 })
         });
@@ -64,21 +66,50 @@ pub(crate) fn close_constant_recipes(
     }
     // A captured model-fit obligation needs no source evaluation or dummy
     // recipe. Only real constant dependencies resume their continuation.
+    let mut supplemental_providers = Vec::new();
+    let applications = if representation_demands {
+        layout_applications::collect(
+            source,
+            selected_target_profile,
+            selected_provider_provenance,
+            &mut supplemental_providers,
+            &mut proof_providers,
+        )?
+    } else {
+        layout_applications::CollectedApplications::default()
+    };
+    let layout_inputs = &applications.layouts;
     let closed_typed = if needs_constant_values {
         close_constant_values(
             source,
             selected_target_profile,
             opaque_representation_selections,
             selected_provider_plan_facts,
+            layout_inputs,
         )?
     } else {
         (**typed).clone()
     };
+    let layout_checked;
+    let proof_source = if shared.facts.deferred_layout_applications.is_empty() {
+        shared.as_ref()
+    } else {
+        layout_checked = psi_compiler::check_closed_layout_applications(
+            shared,
+            &closed_typed,
+            source
+                .constants
+                .as_ref()
+                .and_then(|constants| constants.layout_preparation()),
+        )?;
+        &layout_checked
+    };
     let mut proof_closure = psi_compiler::ConstantProofClosure::new(
-        shared,
+        proof_source,
         closed_typed,
         selected_target_profile.target_name(),
-    );
+    )
+    .with_target_applications(applications.roots);
     let proof_targets = proof_closure
         .target_scopes()
         .into_iter()
@@ -92,7 +123,19 @@ pub(crate) fn close_constant_recipes(
         let supplemental = if target == selected_target_profile {
             None
         } else {
-            Some(proof_providers(target)?)
+            if !supplemental_providers
+                .iter()
+                .any(|(known, _)| *known == target)
+            {
+                supplemental_providers.push((target, proof_providers(target)?));
+            }
+            Some(
+                &supplemental_providers
+                    .iter()
+                    .find(|(known, _)| *known == target)
+                    .expect("supplemental provider closure retained")
+                    .1,
+            )
         };
         let provenance = supplemental
             .as_ref()
@@ -125,6 +168,7 @@ pub(crate) fn close_constant_recipes(
                 target,
                 opaque_representation_selections,
                 &selected.facts,
+                layout_inputs,
             )?),
         };
         // Model lookup is pure. Retain its refusal for Psi to report after
@@ -171,6 +215,7 @@ fn close_constant_values(
     selected_target_profile: target::TargetProfile,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     selected_provider_plan_facts: &effects::SelectedProviderPlanFacts,
+    layout_inputs: &[build_time_evaluation::LayoutApplicationTargetInput],
 ) -> Result<typed_trees::TypedTrees, Vec<Diagnostic>> {
     // The continuation folds on the authored source it was deferred from,
     // where a boundary token use is still the occurrence the selected rows
@@ -189,7 +234,9 @@ fn close_constant_values(
         &validation::derive_pre_flow_operator_selections(authored),
         selected_provider_plan_facts,
     )?;
-    evaluation.close_constants(constants, &source.program.typed)
+    evaluation
+        .with_layout_applications(layout_inputs)
+        .close_constants(constants, &source.program.typed)
 }
 
 /// Whether two selections consume one checked program: the same shared

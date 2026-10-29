@@ -149,6 +149,77 @@ fn captured_operand<'facts>(
 /// The complete call telescope in exact captured source order. Static namespace
 /// receivers are evaluation positions but not explicit argument parameters;
 /// retain the same receiver offset used by individual captured observations.
+/// Ground-constant deferral reads the same completed operand inventory as
+/// ordinary contract proofs. Locals, fields and joins resolve at their saved
+/// storage cuts; no initializer is reread to discover a former value.
+pub(crate) fn captured_constant_arguments(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+) -> Option<Vec<checked_trees::ConstantPredicateArgument>> {
+    if !call.authored_source_custody_valid {
+        return None;
+    }
+    let (operands, receiver_offset) =
+        crate::flow::captured_call_operands(program, &facts.flow, state, call)?;
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+    if operands.len().checked_sub(receiver_offset)? != parameters.len() {
+        return None;
+    }
+    let epoch = operands.last()?;
+    let mut arguments = Vec::with_capacity(parameters.len());
+    for (position, parameter) in parameters.iter().enumerate() {
+        let mut sources = Vec::new();
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            let operand = crate::flow::CapturedOperand::recorded(
+                &facts.flow.control,
+                call.operands
+                    .handle_at(u32::try_from(position + receiver_offset).ok()?),
+            )?;
+            let values = crate::flow::captured_operand_values(
+                program,
+                &facts.flow,
+                &facts.semantic,
+                state,
+                operand,
+                parameter.type_reference,
+                &[],
+            )?;
+            let values = crate::flow::observe_captured_values(
+                program,
+                &facts.flow,
+                &facts.semantic,
+                state,
+                values,
+                epoch,
+            );
+            for value in values {
+                if !value.projection.remaining.is_empty() {
+                    return None;
+                }
+                let origin = program.machine_holding_state(value.operand.state_symbol)?;
+                let source = checked_trees::ConstantPredicateSource {
+                    expression: value.projection.expression,
+                    owner: origin.symbol,
+                    state: value.operand.state_symbol,
+                };
+                if !sources.contains(&source) {
+                    sources.push(source);
+                }
+            }
+        }
+        arguments.push(checked_trees::ConstantPredicateArgument {
+            parameter: parameter.symbol,
+            sources,
+        });
+    }
+    Some(arguments)
+}
+
 pub(crate) fn captured_argument_expressions(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

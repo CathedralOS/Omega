@@ -27,3 +27,19 @@ Establishment comes from the declared receiving field obligation, independently 
 The target-body place additionally selects provider marker 17 for macOS arm64 and 29 for the other hosted entries, and verifies that marker independently of the unchanged Pair field fact and lo-at-8 geometry. The qualification retains separate canonical observations for that strengthened source.
 
 The row establishes fixed record representation transport and fact preservation. It does not close the parent tasks. Remaining acceptance includes lifetime-bearing fields and their reject controls, ownership/cleanup compositions, complete target-dependent schema and policy migration, portable artifact validation, affected fixture gates and independent exact-candidate review. ABI, callback and unrelated instruction requirements receive no coverage claim from this row.
+
+Producer32 additionally ran the unchanged target-query canary, the borrowed
+`LayoutStorage` call-result witness and the lifetime-bearing linear-child scope
+cleanup control with actual host native exit 0 and interpreter exit 0. The
+qualification retains their exact commands without `--target`. Its optimized
+producer used wire 216 and source archive
+`1a31d2168646feb3fd065adf8e71ce9ec4a5f7750014b31626677e40171ab244`;
+its actual Git base remains separately recorded.
+
+This is a development checkpoint. Partial-policy imports still hit unrelated
+standard-library provider-default failures; sibling helper/callback underflow
+controls still stop before their intended diagnostic. The target-query canary
+now also requests four installations of one unchanged Terminal artifact. Its
+foreign installations explicitly refuse the primary folded-constant closure,
+so portable query values remain open. Neither those refusals nor earlier
+compile-only runs count as runtime acceptance.

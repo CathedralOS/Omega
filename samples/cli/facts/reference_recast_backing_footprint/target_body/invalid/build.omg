@@ -1,7 +1,13 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "reference_recast_backing_footprint_target_body");
+    Build::select_provider<FootprintObserver, OtherFootprintObserver>(builder, windows_x86_64);
+    Build::select_provider<FootprintObserver, OtherFootprintObserver>(builder, linux_x86_64);
+    Build::select_provider<FootprintObserver, OtherFootprintObserver>(builder, linux_arm64);
+    Build::select_provider<FootprintObserver, ArmFootprintObserver>(builder, macos_arm64);
+    Build::select_provider<FootprintObserver, OtherFootprintObserver>(builder, macos_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
 }

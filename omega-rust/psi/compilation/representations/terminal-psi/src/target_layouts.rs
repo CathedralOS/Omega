@@ -33,24 +33,27 @@ pub struct TargetLayoutApplication {
     pub policy_identity: TerminalIdentityIndex,
     /// Exact checked plan callable contract, independent from a runtime family.
     pub plan_identity: TerminalIdentityIndex,
-    pub schema_argument: TargetLayoutSchemaArgument,
+    /// Independent complete issuer input roster; alternatives must cover it exactly.
+    pub target_inputs: Vec<TargetLayoutInput>,
     pub realizations: Vec<TargetLayoutRealization>,
 }
 
-/// Version 1 is the compiler's record Schema ABI: active fields followed by
-/// padding to 32, no cases or retired identities. Counts and every unused tail
-/// reconstruct from the version. Producers reject other schema shapes rather
-/// than discard them. Field keys are exact invocation inputs, not identities.
+/// Version 3 retains canonical numbered record Schema order independently
+/// of semantic declaration order: active fields,
+/// retired field identities and fixed unused-row padding. Case-bearing
+/// schemas require a separate placement vocabulary and cannot enter this ABI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutSchemaArgument {
     pub abi_version: u16,
     pub fields: Vec<TargetLayoutSchemaField>,
+    pub retired_field_identities: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetLayoutSchemaFieldKind {
     Scalar,
     Nested,
+    Repeated,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,7 +68,16 @@ pub struct TargetLayoutSchemaField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetLayoutInput {
+    pub target: String,
+    pub pointer_size: u64,
+    pub pointer_alignment: u64,
+    pub little_endian: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutRealization {
+    pub schema_argument: TargetLayoutSchemaArgument,
     pub target: String,
     pub pointer_size: u64,
     pub pointer_alignment: u64,

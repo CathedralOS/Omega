@@ -301,7 +301,16 @@ impl<'input> BoundaryValueLayout<'input> {
                 "recursive by-value data `{name}` has no finite boundary shape"
             ));
         }
-        let application = typed.plan_laid_layout(definition.symbol);
+        let application = typed.plan_laid_layout_for_data(definition);
+        if application.is_none()
+            && definition
+                .generic_instance
+                .is_some_and(|reference| typed.layout_storage_arguments(reference).is_some())
+        {
+            return Err(format!(
+                "boundary data `{name}` requires its exact admitted fixed representation"
+            ));
+        }
         let planned_layout = application.map(|layout| {
             layout.invariant_geometry().ok_or_else(|| format!(
                 "plan-laid data `{name}` retains an unresolved target-family layout; native boundary classification requires an invariant layout or a target-closed Terminal view"

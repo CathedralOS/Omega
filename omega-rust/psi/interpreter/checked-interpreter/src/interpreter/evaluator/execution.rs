@@ -11,6 +11,7 @@
 //! `boundary_adapter_dispatch` and `boundary_console` for leaving the program.
 
 mod assignments;
+mod build_time_arguments;
 pub(in crate::interpreter::evaluator) mod boundary_adapter_dispatch;
 pub(in crate::interpreter::evaluator) mod boundary_console;
 pub(in crate::interpreter::evaluator) mod casts_and_recasts;
