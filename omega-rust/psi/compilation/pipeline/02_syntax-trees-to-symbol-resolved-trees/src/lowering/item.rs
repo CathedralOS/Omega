@@ -313,6 +313,7 @@ fn lower_item_with_exposure(
                 symbol_resolved_trees::constant::ConstDeclaration {
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: definition.is_public,
+                    requires_value_replay: definition.normalization.is_some(),
                     declared_type,
                     initializer,
                     authored_initializer: lowerer

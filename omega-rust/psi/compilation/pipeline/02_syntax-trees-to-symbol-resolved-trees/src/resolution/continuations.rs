@@ -26,7 +26,7 @@ pub struct ConstInitializerSelection {
 /// Encoding for private initializer preparation. Its bytes carry no domain
 /// evidence; the exact pending destination must still pass ordinary checking.
 pub struct ConstInitializerPayload {
-    pub value: language_semantics::const_value::CanonicalConstValue,
+    pub value: language_core::constant_value::EvaluatedConstant,
     pub pending_destination: Option<ConstDestinationObligation>,
 }
 

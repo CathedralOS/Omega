@@ -464,7 +464,7 @@ pub(crate) fn evaluate(
                     declarations[*ordinal].item,
                     Item::Const(declarations[*ordinal].definition.clone()),
                 );
-                declarations[*ordinal].evaluated_value = Some(value.value.encoding.into());
+                declarations[*ordinal].evaluated_value = Some(value.value);
             }
         }
         ready.retain(|ordinal| !declarations[*ordinal].leaves.is_empty());
@@ -783,7 +783,7 @@ pub(crate) fn evaluate(
                         failure(syntax.expressions.source_span(authored_expression), reason)
                     })?;
                 pending_destination = payload.pending_destination;
-                payload.value.encoding.into()
+                payload.value
             };
             // A declaration's geometry is part of its normalization custody,
             // even when a scalar payload leaf never reads that extent. Keep

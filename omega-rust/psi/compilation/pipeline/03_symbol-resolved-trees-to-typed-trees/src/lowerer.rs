@@ -552,6 +552,7 @@ impl Lowerer<'_> {
             .push_const_declaration(typed_trees::constant::ConstDeclaration {
                 symbol: declaration.symbol,
                 is_public: declaration.is_public,
+                requires_value_replay: declaration.requires_value_replay,
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
                 pending_target_observation: declaration.pending_target_observation,

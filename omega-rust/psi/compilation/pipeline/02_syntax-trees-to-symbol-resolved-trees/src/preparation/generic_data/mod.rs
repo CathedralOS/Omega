@@ -556,15 +556,34 @@ pub(crate) fn canonicalize_pending_initializer_payload(
     {
         payload.type_reference = *base_type;
     }
-    let value = canonicalize_selected_declaration_value_with_admission(
-        syntax,
-        &payload,
-        selection,
-        ConstPredicateAdmission::PendingDestination,
-    )?;
+    let value = if definition.normalization.is_some() {
+        // A completed declaration receipt remains a claim until exact typed
+        // replay checks both retained roots under the applied destination.
+        // Syntax cannot reopen an erased implementation as a nominal datum.
+        crate::constant::evaluated_declaration_value(syntax, definition, selection)?
+    } else {
+        canonicalize_selected_declaration_value_with_admission(
+            syntax,
+            &payload,
+            selection,
+            ConstPredicateAdmission::PendingDestination,
+        )?
+        .encoding
+        .into()
+    };
     Ok(crate::resolution::ConstInitializerPayload {
         value,
-        pending_destination: if let Some(obligation) = &definition.pending_qualification {
+        pending_destination: pending_initializer_destination(syntax, definition, selection)?,
+    })
+}
+
+pub(crate) fn pending_initializer_destination(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&declaration_selection::ConstantSelection>,
+) -> Result<Option<syntax_trees::item::ConstDestinationObligation>, String> {
+    Ok(
+        if let Some(obligation) = &definition.pending_qualification {
             if obligation.declaration != definition.name.source_span()
                 || obligation.initializer != definition.value
             {
@@ -592,7 +611,7 @@ pub(crate) fn canonicalize_pending_initializer_payload(
         } else {
             None
         },
-    })
+    )
 }
 
 /// Canonicalize one source const declaration against its own declared type.

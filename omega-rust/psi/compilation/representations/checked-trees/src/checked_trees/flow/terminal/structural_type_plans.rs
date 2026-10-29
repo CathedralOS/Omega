@@ -79,7 +79,7 @@ pub struct CheckedUnitStructuralTypePlan {
 /// Physical storage remains unresolved until the exact target layout is closed.
 /// The typed application owns its checked alternatives; this row retains the
 /// precise application and schema needed by source-free Terminal publication.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub enum CheckedUnitRecordStorage {
     Packed,
     /// Logical placed interpretation; schema storage is an independent root.
@@ -91,9 +91,45 @@ pub enum CheckedUnitRecordStorage {
     Authored(semantic_vocabulary::AuthoredRecordStorage),
     TargetLayout {
         application: typed_trees::types::TypeReferenceHandle,
+        /// The full normalized application, independent of source arena handles.
+        application_identity: TypeIdentityId,
         schema_type_identity: TypeIdentityId,
     },
 }
+
+impl PartialEq for CheckedUnitRecordStorage {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Packed, Self::Packed) => true,
+            (
+                Self::PlacedView {
+                    schema_type_identity: left,
+                    storage: left_storage,
+                },
+                Self::PlacedView {
+                    schema_type_identity: right,
+                    storage: right_storage,
+                },
+            ) => left == right && left_storage == right_storage,
+            (Self::PlacedAccessor(left), Self::PlacedAccessor(right))
+            | (Self::Authored(left), Self::Authored(right)) => left == right,
+            (
+                Self::TargetLayout {
+                    application_identity: left,
+                    schema_type_identity: left_schema,
+                    ..
+                },
+                Self::TargetLayout {
+                    application_identity: right,
+                    schema_type_identity: right_schema,
+                    ..
+                },
+            ) => left == right && left_schema == right_schema,
+            _ => false,
+        }
+    }
+}
+impl Eq for CheckedUnitRecordStorage {}
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitStructuralTypeShape {

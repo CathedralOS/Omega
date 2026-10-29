@@ -161,30 +161,35 @@ pub(crate) fn retain(
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = if lowerer.const_resolution_mode
-        == crate::resolution::lowerer::ConstResolutionMode::Complete
+    if lowerer.const_resolution_mode != crate::resolution::lowerer::ConstResolutionMode::Complete
+        && crate::preparation::generic_data::pending_initializer_destination(
+            syntax,
+            definition,
+            lowerer.constant_selection.as_ref(),
+        )
+        .map_err(|reason| error(reference, &reason))?
+            != definition.pending_qualification
     {
-        super::declaration_values::evaluated_declaration_value(
-            syntax,
-            definition,
-            lowerer.constant_selection.as_ref(),
-        )
-    } else {
-        crate::preparation::generic_data::canonicalize_pending_initializer_payload(
-            syntax,
-            definition,
-            lowerer.constant_selection.as_ref(),
-        )
-        .and_then(|payload| {
-            if payload.pending_destination != definition.pending_qualification {
-                return Err(
-                    "private initializer lost its exact pending destination obligation".to_owned(),
-                );
-            }
-            Ok(payload.value.encoding.into())
-        })
+        return Err(error(
+            reference,
+            "private initializer lost its exact pending destination obligation",
+        ));
     }
-    .map_err(|_| error(reference, "materialized value is not canonical"))?;
+    // The receiving typed replay checks the materialized value and original
+    // computation independently under the declared application. Resolution
+    // retains source custody and bounded payload framing, never a synthetic
+    // source shape or a proof inferred from this receipt.
+    let value = super::declaration_values::evaluated_declaration_value(
+        syntax,
+        definition,
+        lowerer.constant_selection.as_ref(),
+    )
+    .map_err(|reason| {
+        error(
+            reference,
+            &format!("materialized value is not canonical: {reason}"),
+        )
+    })?;
     if value != receipt.result_value {
         return Err(error(
             reference,

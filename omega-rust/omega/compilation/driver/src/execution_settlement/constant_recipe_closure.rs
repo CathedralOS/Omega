@@ -44,9 +44,21 @@ pub(crate) fn close_constant_recipes(
             )
         })
         .collect();
-    // Runtime layout queries also retain a continuation even when no array,
-    // range endpoint, or const application contributes a recipe roster entry.
-    let needs_constant_values = !typed.constant_recipes.is_empty() || !layout_queries.is_empty();
+    // Storage applications and runtime queries demand validated geometry even
+    // when no array, endpoint or constant contributes a value recipe.
+    let representation_demands = typed_trees::references::collect_program_type_occurrences(typed)
+        .into_iter()
+        .any(|occurrence| {
+            typed
+                .layout_storage_arguments(occurrence.reference)
+                .is_some_and(|storage| {
+                    typed
+                        .closed_data_definition(storage.semantic_type)
+                        .is_some()
+                })
+        });
+    let needs_constant_values =
+        !typed.constant_recipes.is_empty() || !layout_queries.is_empty() || representation_demands;
     if !needs_constant_values && shared.facts.integer_range_obligations.is_empty() {
         return Ok(Arc::clone(shared));
     }

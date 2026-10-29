@@ -45,6 +45,7 @@ pub(super) fn lower(
                 CheckedUnitRecordStorage::TargetLayout {
                     application,
                     schema_type_identity,
+                    ..
                 },
             ..
         } = &checked_record.shape

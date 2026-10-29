@@ -1231,10 +1231,10 @@ impl<'program> ShapeCollector<'program> {
         }
 
         let program = self.program;
-        let authored_layout = program
-            .plan_laid_layouts
-            .iter()
-            .find(|plan| program.normalized_type_identity(plan.application) == identity);
+        // Storage identity can erase independent value indices. The prepared
+        // field view retains the exact representation application and owns
+        // the policy join; semantic T's symbol cannot select its geometry.
+        let authored_layout = program.plan_laid_layout_for_data(&data);
         let placed_view = program.placed_view_plans.iter().find_map(|view| {
             let definition = program.data_definition_by_symbol(view.data_symbol)?;
             (closed_data_identity(program, definition, binders) == identity).then_some(view)
@@ -1248,6 +1248,17 @@ impl<'program> ShapeCollector<'program> {
                     byte_size: view.placement.layout().size?,
                     byte_alignment: view.placement.layout().align,
                 },
+            }
+        } else if let Some(storage) = data
+            .generic_instance
+            .and_then(|application| program.layout_storage_arguments(application))
+        {
+            // Checking records the representation demand before target inputs
+            // exist. Ordinary packing cannot stand in for a pending policy.
+            checked_trees::CheckedUnitRecordStorage::TargetLayout {
+                application: storage.application,
+                application_identity: program.normalized_type_identity(storage.application),
+                schema_type_identity: self.add_type(storage.semantic_type, binders, &[])?,
             }
         } else {
             match authored_layout {
@@ -1263,6 +1274,8 @@ impl<'program> ShapeCollector<'program> {
                             self.add_type(layout.semantic_type, binders, &[])?;
                         checked_trees::CheckedUnitRecordStorage::TargetLayout {
                             application: layout.application,
+                            application_identity: program
+                                .normalized_type_identity(layout.application),
                             schema_type_identity,
                         }
                     }

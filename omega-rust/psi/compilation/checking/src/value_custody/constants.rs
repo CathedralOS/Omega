@@ -138,6 +138,11 @@ fn eligible_type(
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> bool {
+    if let Some(storage) = program.layout_storage_arguments(reference) {
+        // Representation evidence is erased. Exact semantic T supplies all
+        // copy, cleanup, shared ownership and interior-mutability obligations.
+        return eligible(program, storage.semantic_type, active);
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Unit => true,
         // A selector contains code selection only: copying it neither captures
