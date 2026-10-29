@@ -404,7 +404,20 @@ pub(crate) fn unique_complete_selections(
 ) -> Result<Vec<(SpecializationKey, Vec<usize>)>, diagnostics::Diagnostic> {
     let mut groups: Vec<(SpecializationKey, Vec<usize>)> = Vec::new();
     for (selection_index, selection) in selections.iter().enumerate() {
-        if selection.candidate_index != candidate_index || !selection.is_complete() {
+        if selection.candidate_index != candidate_index
+            || !selection.is_complete()
+            || selection
+                .type_bindings
+                .iter()
+                .chain(&selection.const_bindings)
+                .flatten()
+                .any(|reference| {
+                    super::super::contextual_calls::operand_is_open(
+                        program.typed_program(),
+                        *reference,
+                    )
+                })
+        {
             continue;
         }
         let key = SpecializationKey {

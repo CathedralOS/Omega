@@ -2519,13 +2519,24 @@ impl<'program> StructuralJudge<'program> {
             )
         {
             let plans = crate::operand_call_plans(program, self.frame_resolver());
-            let repeatable =
+            let normal_identity =
                 crate::machine_calls::denotational_calls::normal_return_call_candidate(
                     program, call, &plans.0, &plans.1,
-                ).is_ok()
+                );
+            let repeatable = normal_identity.is_ok()
                 || crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity(
                     program, call, &plans.0, &plans.1,
                 );
+            if super::super::struct_trace() && !repeatable {
+                eprintln!(
+                    "STRUCT normal-identity caller={} target={} failure={:?} static_arguments={} evidence_arguments={}",
+                    scope.0.name,
+                    call.target,
+                    normal_identity.err(),
+                    call.machine_arguments.len(),
+                    call.evidence_arguments.len()
+                );
+            }
             if repeatable {
                 equations.push((
                     captured.clone(),

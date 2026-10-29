@@ -185,6 +185,11 @@ fn closed_expression(
     if !expression.is_valid() || depth >= 128 {
         return false;
     }
+    // Closed type propositions observe the immutable application tuple, not
+    // runtime storage. Unresolved type operands remain outside this closure.
+    if program.static_type_predicate_operands(expression).is_some() {
+        return program.static_type_predicate_value(expression).is_some();
+    }
     let child =
         |expression| closed_expression(program, machine, state, expression, available, depth + 1);
     match program.expression_table.expression(expression) {
