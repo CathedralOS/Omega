@@ -1767,6 +1767,20 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
             [29; 32],
         )
     };
+    let with_geometry = |offset, width, addend, kind| {
+        foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin(7),
+            offset,
+            width,
+            addend,
+            kind,
+            callback,
+            [29; 32],
+        )
+    };
     let expected = child_identity(with_callback(callback));
 
     for mutation in 0..15 {
@@ -1867,54 +1881,10 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 [29; 32],
             ),
             // Byte geometry, addend, and encoding kind.
-            7 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                14,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            8 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                8,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            9 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -8,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            10 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::Aarch64Branch26,
-                callback,
-                [29; 32],
-            ),
+            7 => with_geometry(14, 4, -4, RelocationKind::X86_64Relative32),
+            8 => with_geometry(13, 8, -4, RelocationKind::X86_64Relative32),
+            9 => with_geometry(13, 4, -8, RelocationKind::X86_64Relative32),
+            10 => with_geometry(13, 4, -4, RelocationKind::Aarch64Branch26),
             // Callback custody: dropped, swapped encoding, a different
             // callback function, or a different callback relocation.
             11 => with_callback(None),
