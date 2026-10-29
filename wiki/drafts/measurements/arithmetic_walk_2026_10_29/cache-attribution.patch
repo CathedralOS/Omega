@@ -1,0 +1,30 @@
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/call_result_bounds.rs
+@@ -31,6 +31,7 @@
+     {
+         return declared;
+     }
++    let query_started = std::time::Instant::now();
+     let memos = crate::frozen_program::frozen_program_memos(program).filter(|_| {
+         crate::machine_calls::calls::callee_entry_contract(program, callee.callable).is_some_and(
+             |stored| {
+@@ -42,6 +43,7 @@
+         )
+     });
+     let Some(memos) = memos else {
++        eprintln!("RETURN_CACHE_BYPASS\t{:?}", callee.callable);
+         return project_normal_return_interval(program, callee, declared, actuals);
+     };
+     let captured = |values: &[(SymbolHandle, Interval)]| {
+@@ -61,9 +63,11 @@
+     if let Ok(intervals) = memos.guaranteed_return_intervals.lock()
+         && let Some(&interval) = intervals.get(&key)
+     {
++        eprintln!("RETURN_CACHE_HIT\t{}\t{:?}", query_started.elapsed().as_secs_f64() * 1000.0, key);
+         return interval;
+     }
+     let interval = project_normal_return_interval(program, callee, declared, actuals);
++    eprintln!("RETURN_CACHE_MISS\t{}\t{:?}", query_started.elapsed().as_secs_f64() * 1000.0, key);
+     if let Ok(mut intervals) = memos.guaranteed_return_intervals.lock() {
+         intervals.insert(key, interval);
+     }

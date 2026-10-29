@@ -147,20 +147,37 @@ impl<'relations> DifferenceGraph<'relations> {
         }
     }
 
+    pub(super) fn operand_index(&self, operand: &Operand) -> Option<usize> {
+        self.operands.iter().position(|known| *known == operand)
+    }
+
     pub(super) fn mutual_nonnegative_gap(&mut self, left: &Operand, right: &Operand) -> bool {
         if left == right {
             return true;
         }
-        let Some(source) = self.operands.iter().position(|operand| *operand == left) else {
+        let Some(source) = self.operand_index(left) else {
             return false;
         };
         if !self.has_outgoing[source] || !self.has_incoming[source] {
             return false;
         }
-        let Some(destination) = self.operands.iter().position(|operand| *operand == right) else {
+        let Some(destination) = self.operand_index(right) else {
             return false;
         };
-        if !self.has_outgoing[destination]
+        self.mutual_nonnegative_gap_indexed(source, destination)
+    }
+
+    pub(super) fn mutual_nonnegative_gap_indexed(
+        &mut self,
+        source: usize,
+        destination: usize,
+    ) -> bool {
+        if source == destination {
+            return true;
+        }
+        if !self.has_outgoing[source]
+            || !self.has_incoming[source]
+            || !self.has_outgoing[destination]
             || !self.has_incoming[destination]
             || self.core_component[source] != self.core_component[destination]
         {

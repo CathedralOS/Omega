@@ -105,6 +105,21 @@ fn compact_difference_rows_match_symbolic_walk_with_cycles_and_overflow() {
         for from in operands.iter().chain(operands.iter().rev()) {
             let expected = reference_gaps(&relations, from);
             for to in &operands {
+                let mutual = expected
+                    .iter()
+                    .any(|(operand, gap)| *operand == to && *gap >= 0)
+                    && reference_gaps(&relations, to)
+                        .iter()
+                        .any(|(operand, gap)| *operand == from && *gap >= 0);
+                assert_eq!(graph.mutual_nonnegative_gap(from, to), mutual);
+                if let (Some(source), Some(destination)) =
+                    (graph.operand_index(from), graph.operand_index(to))
+                {
+                    assert_eq!(
+                        graph.mutual_nonnegative_gap_indexed(source, destination),
+                        mutual
+                    );
+                }
                 assert_eq!(
                     graph.nonnegative_gap(from, to),
                     expected

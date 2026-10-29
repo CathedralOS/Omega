@@ -1,0 +1,131 @@
+{
+  "dispatch": {
+    "A": {
+      "wall_ms": {
+        "median": 2389.2321000021184,
+        "min": 2264.586099990993,
+        "max": 2496.1164999986067,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1138.6575,
+        "min": 1123.973,
+        "max": 1157.965,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1283567616.0,
+        "min": 1257697280,
+        "max": 1322377216,
+        "count": 4
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 2284.5967000102974,
+        "min": 2222.8151000017533,
+        "max": 2380.3259000123944,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1111.742,
+        "min": 1089.531,
+        "max": 1126.048,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1314326528.0,
+        "min": 1284743168,
+        "max": 1339498496,
+        "count": 4
+      }
+    },
+    "wall_improvement_percent": 4.37945731566759
+  },
+  "length": {
+    "A": {
+      "wall_ms": {
+        "median": 2327.753550001944,
+        "min": 2154.2200000112643,
+        "max": 2352.639499993529,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1113.394,
+        "min": 1078.935,
+        "max": 1189.5,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1291847680.0,
+        "min": 1271500800,
+        "max": 1306890240,
+        "count": 4
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 2248.889850008709,
+        "min": 2153.9185000001453,
+        "max": 2300.6278999964707,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 1102.4285,
+        "min": 1046.999,
+        "max": 1123.917,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1291868160.0,
+        "min": 1280303104,
+        "max": 1317998592,
+        "count": 4
+      }
+    },
+    "wall_improvement_percent": 3.387974641609681
+  },
+  "stack32": {
+    "A": {
+      "wall_ms": {
+        "median": 7629.6441999948,
+        "min": 6586.517699994147,
+        "max": 8121.71269999817,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 3113.4305000000004,
+        "min": 2864.325,
+        "max": 3324.047,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1352812544.0,
+        "min": 1342668800,
+        "max": 1412857856,
+        "count": 4
+      }
+    },
+    "B": {
+      "wall_ms": {
+        "median": 6539.044000004651,
+        "min": 5453.737000003457,
+        "max": 7176.032699993812,
+        "count": 4
+      },
+      "checking_ms": {
+        "median": 2322.6375,
+        "min": 1997.304,
+        "max": 2542.35,
+        "count": 4
+      },
+      "peak_job_memory_bytes": {
+        "median": 1349617664.0,
+        "min": 1312215040,
+        "max": 1371680768,
+        "count": 4
+      }
+    },
+    "wall_improvement_percent": 14.294247168051333
+  }
+}

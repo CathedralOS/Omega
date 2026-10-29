@@ -1,0 +1,28 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs
+index 6801c3b4840..2e7dece63be 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs
+@@ -28,0 +29 @@ pub(super) fn refine_dependent_product(
++    let _profile = phase_profile::guard("05.next.dependent_product");
+@@ -280,0 +282 @@ pub(super) fn refine_dependent_product_factor(
++    let _profile = phase_profile::guard("05.next.dependent_factor");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_relations.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_relations.rs
+index 8190ec8a9f5..a90d934abf0 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_relations.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_relations.rs
+@@ -22,0 +23 @@ pub(super) fn refine_dependent_subtract(
++    let _profile = phase_profile::guard("05.next.dependent_subtract");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+index 5a042a7c95b..bbe9da5fee3 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+@@ -712,0 +713 @@ impl Operation<'_, '_> {
++    let _profile = phase_profile::guard("05.next.math_interval");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs
+index d27cfee9c3d..527a06e8750 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs
+@@ -1097,0 +1098 @@ pub(super) fn subtract_floor_limited(
++    let _profile = phase_profile::guard("05.next.subtract_floor");
+@@ -1232,0 +1234 @@ pub(super) fn refine_place_interval(
++    let _profile = phase_profile::guard("05.next.refine_place");

@@ -1,0 +1,54 @@
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs
+@@ -545,0 +546 @@
++        let _profile = phase_profile::guard("05.integer_query.refresh_opaque_intervals");
+@@ -961,0 +963 @@
++        let _profile = phase_profile::guard("05.integer_query.install_hypotheses");
+@@ -1052,0 +1055 @@
++        let _profile = phase_profile::guard("05.integer_query.integer_comparisons_unsatisfiable");
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/difference_matrix.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/difference_matrix.rs
+@@ -67,0 +68 @@
++        let _profile = phase_profile::guard("05.integer_query.bounds_are_inconsistent");
+@@ -165,0 +167 @@
++        let _profile = phase_profile::guard("05.integer_query.refresh_difference_bounds");
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/lower_bound_queries.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/lower_bound_queries.rs
+@@ -186,0 +187 @@
++        let _profile = phase_profile::guard("05.integer_query.prove_at_least");
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/refuted_requires.rs
+@@ -25,0 +26 @@
++    let profile = phase_profile::guard("05.refute.arguments");
+@@ -35,0 +37,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.refute.judge");
+@@ -43,0 +47,2 @@
++    drop(profile);
++    let profile = phase_profile::guard("05.refute.spellings");
+@@ -45,0 +51,2 @@
++    drop(profile);
++    let _profile = phase_profile::guard("05.refute.judgments");
+@@ -188,0 +196 @@
++        let profile = phase_profile::guard("05.argument_terms.identity");
+@@ -197,0 +206,2 @@
++        drop(profile);
++        let _profile = phase_profile::guard("05.argument_terms.term");
+@@ -302,0 +313 @@
++        let _profile = phase_profile::guard("05.judgment.instantiated_selected_fact_judgment");
+@@ -603,0 +615 @@
++        let _profile = phase_profile::guard("05.judgment.instantiated_operands");
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs
+@@ -3677,0 +3678 @@
++        let _profile = phase_profile::guard("05.judgment.judge_equation");
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs
+@@ -580,0 +581 @@
++        let _profile = phase_profile::guard("05.judgment.judge_observed_predicate");
+@@ -634,0 +636 @@
++        let _profile = phase_profile::guard("05.judgment.proves_observed_integer_boolean");
+@@ -1459,0 +1462 @@
++        let _profile = phase_profile::guard("05.judgment.integer_predicate_observations");
+@@ -1496,0 +1500 @@
++        let _profile = phase_profile::guard("05.judgment.observed_integer_premises");
