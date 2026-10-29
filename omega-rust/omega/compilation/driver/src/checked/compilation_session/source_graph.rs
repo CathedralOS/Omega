@@ -72,9 +72,20 @@ impl SourceGraphCache {
             Err(reason) if reason.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(reason) => return Err(format!("open retained source graph: {reason}")),
         };
+        let read_limit = (MAX_BYTES + HEADER_BYTES + 1) as u64;
+        let capacity = file
+            .metadata()
+            .map_err(|reason| format!("inspect retained source graph: {reason}"))?
+            .len()
+            .saturating_add(1)
+            .min(read_limit) as usize;
         let mut bytes = Vec::new();
+        // Keep one spare byte for the EOF probe without growing the buffer.
+        bytes
+            .try_reserve_exact(capacity)
+            .map_err(|reason| format!("reserve retained source graph: {reason}"))?;
         phase_profile::scope("source.graph.load.read", || {
-            file.take((MAX_BYTES + HEADER_BYTES + 1) as u64)
+            file.take(read_limit)
                 .read_to_end(&mut bytes)
                 .map_err(|reason| format!("read retained source graph: {reason}"))
         })?;
