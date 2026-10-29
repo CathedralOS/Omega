@@ -33,6 +33,12 @@ pub(crate) fn settle(
     if declarations.is_empty() {
         return Ok(());
     }
+    // Form calls on the declaration that owns the recipe. Private evaluation
+    // may specialize a copy, but receiving replay must retain these exact
+    // authored targets and occurrence identities on the original graph.
+    while !validation::resolve_named_result_overloads(typed)?.is_empty() {}
+    typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(typed)
+        .map_err(|diagnostic| vec![diagnostic])?;
     while !declarations.is_empty() {
         let mut ready = None;
         for (ordinal, (declaration, _)) in declarations.iter().enumerate() {
@@ -51,12 +57,6 @@ pub(crate) fn settle(
                 declaration.materialized_initializer,
                 declaration.declared_type,
             );
-            // The appended recipe needs the same source-call formation as
-            // receiving replay, before dependency discovery or custody reads.
-            // Keep authored targets here; private specialization comes later.
-            while !validation::resolve_named_result_overloads(&mut probes)?.is_empty() {}
-            typed_trees_to_typed_trees::bind_pre_specialization_authored_selections(&mut probes)
-                .map_err(|diagnostic| vec![diagnostic])?;
             let mut work = domain.clone();
             work.include(owner);
             let work = work.demanded_roots(&probes, &[owner]);
@@ -138,33 +138,6 @@ pub(crate) fn settle(
             eprintln!("{warning}");
         }
         let completed = value.declaration_value();
-        // Preserve the source-owned roster, not private specialization symbols.
-        // The receiving replay specializes and checks that exact inventory.
-        for root in [
-            declaration.authored_initializer,
-            declaration.materialized_initializer,
-        ] {
-            if root.is_valid() {
-                let occurrences = probes
-                    .expression_table
-                    .authored_selection_occurrences(root)
-                    .collect::<Vec<_>>();
-                for occurrence in occurrences {
-                    let selection = probes
-                        .authored_declaration_selections()
-                        .get(occurrence)
-                        .ok_or_else(|| {
-                            failure("pending initializer lost retained call custody".into())
-                        })?;
-                    if selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call {
-                        let selected = selection.target().as_resolved().ok_or_else(|| failure("pending initializer call lost its source target".into()))?.selected_symbol();
-                        let retained = typed.record_resolved_authored_declaration_selection_once(selection.source_span(), selection.exposure(), selection.kind(), selected)
-                            .map_err(|reason| failure(format!("pending initializer call custody cannot return: {reason:?}")))?;
-                        typed.expression_table.attach_authored_selection_occurrences(root, [retained]);
-                    }
-                }
-            }
-        }
         let materialized = match &value {
             value::ScalarValue::UndeterminedNaN(format) => {
                 typed_trees::expression::ExpressionNode::UndeterminedNaN(*format)

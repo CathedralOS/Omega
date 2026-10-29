@@ -155,16 +155,20 @@ pub(crate) fn prepare_selected_execution(
                 .map(|row| (row.expression, row.requirement)),
         )
     {
-        for occurrence in program
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
+        if let Some(occurrence) = direct_operator_occurrence(&program, expression, requirement)? {
             use language_semantics::declaration_selection::{
                 AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
             };
             let selection = selections.get(occurrence).ok_or_else(|| {
                 "selected build-time expression lost its authored selection".to_owned()
             })?;
+            if let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target()
+                && !selects_requirement(&program, target.selected_symbol(), requirement)
+            {
+                return Err(
+                    "selected build-time operation has competing occurrence targets".into(),
+                );
+            }
             if let AuthoredDeclarationSelectionTarget::LateBound(
                 binding @ (AuthoredDeclarationSelectionLateBinding::CheckedOperator
                 | AuthoredDeclarationSelectionLateBinding::CheckedCall),
@@ -178,6 +182,11 @@ pub(crate) fn prepare_selected_execution(
                         if binding == AuthoredDeclarationSelectionLateBinding::CheckedCall
                             && call.target_symbol.is_valid() =>
                     {
+                        if !selects_requirement(&program, call.target_symbol, requirement) {
+                            return Err(
+                                "selected build-time call changed its requirement target".into()
+                            );
+                        }
                         call.target_symbol
                     }
                     _ => requirement,
@@ -874,11 +883,11 @@ pub(crate) fn retain_specialized_operators(
                 continue;
             }
             let Some(occurrence) =
-                direct_operator_occurrence(program, source.expression, requirement)
+                direct_operator_occurrence(program, source.expression, requirement)?
             else {
                 continue;
             };
-            if direct_operator_occurrence(program, expression, requirement) != Some(occurrence) {
+            if direct_operator_occurrence(program, expression, requirement)? != Some(occurrence) {
                 continue;
             }
             // The copy's checked operation owns its actual substituted operands.
@@ -916,53 +925,78 @@ fn direct_operator_occurrence(
     program: &TypedTrees,
     expression: ExpressionHandle,
     requirement: symbols::SymbolHandle,
-) -> Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
-    let mut children = Vec::new();
-    validation::expression_traversal::children(
+) -> Result<Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId>, String> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as LateBinding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let mut descendants = Vec::new();
+    validation::expression_traversal::collect_expression_tree(
         program,
-        program.expression_table.expression(expression),
-        |child| children.push(child),
+        expression,
+        &mut descendants,
     );
+    let authored_call = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => call.authored_call_selection,
+        _ => None,
+    };
     let mut selected = None;
     for occurrence in program
         .expression_table
         .authored_selection_occurrences(expression)
     {
-        // An enclosing expression may retain a child's history. Only this
-        // operation's own occurrence can authorize its specialized copy.
-        if children.iter().any(|child| {
-            program
-                .expression_table
-                .authored_selection_occurrences(*child)
-                .any(|inherited| inherited == occurrence)
+        if authored_call.is_some_and(|own| own != occurrence) {
+            continue;
+        }
+        // Publication and copy transport share the same ownership boundary.
+        // An ancestor's retained history cannot resolve a descendant's call.
+        if descendants.iter().any(|child| {
+            *child != expression
+                && program
+                    .expression_table
+                    .authored_selection_occurrences(*child)
+                    .any(|inherited| inherited == occurrence)
         }) {
             continue;
         }
-        let selection = program.authored_declaration_selections().get(occurrence)?;
-        if !matches!(
-            selection.kind(),
-            AuthoredDeclarationSelectionKind::Operator | AuthoredDeclarationSelectionKind::Call
-        ) {
+        let selection = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .ok_or("selected build-time operation lost its own selection")?;
+        if !matches!(selection.kind(), Kind::Operator | Kind::Call) {
             continue;
         }
-        let target = selection.target();
-        let Some(target) = target.as_resolved().map(|target| target.selected_symbol()) else {
-            continue;
-        };
-        if target != requirement
-            && !program
-                .machine_holding_state(target)
-                .is_some_and(|machine| machine.symbol == requirement)
-        {
-            continue;
+        if authored_call.is_some() && selection.kind() != Kind::Call {
+            return Err("selected build-time call lost its own call occurrence".into());
+        }
+        match (selection.kind(), selection.target()) {
+            (Kind::Operator, Target::LateBound(LateBinding::CheckedOperator))
+            | (Kind::Call, Target::LateBound(LateBinding::CheckedCall)) => {}
+            (_, Target::Resolved(target))
+                if selects_requirement(program, target.selected_symbol(), requirement) => {}
+            _ => return Err("selected build-time operation has conflicting own selection".into()),
         }
         if selected.is_some_and(|previous| previous != occurrence) {
-            return None;
+            return Err("selected build-time operation has ambiguous own selection".into());
         }
         selected = Some(occurrence);
     }
-    selected
+    if authored_call.is_some() && selected != authored_call {
+        return Err("selected build-time call lost its attached own occurrence".into());
+    }
+    Ok(selected)
+}
+
+fn selects_requirement(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+    requirement: symbols::SymbolHandle,
+) -> bool {
+    target == requirement
+        || program
+            .machine_holding_state(target)
+            .is_some_and(|machine| machine.symbol == requirement)
 }
 
 fn specialization_copies_template(
