@@ -4,10 +4,16 @@
 //! rereading a dead descriptor. Its source retains normalized storage and the
 //! exact immediate occurrence obligations. Retired occurrences supply ancestry
 //! only; any later inner descriptor read still rejoins current resident storage.
+//! After explicit edge cleanup, `restoration` closes completed temporary grants
+//! only against independently retained entry authority; live/dependent grants
+//! continue to retain their exact ancestry.
 use super::*;
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit_semantics::StructuralStorageProjection;
 use terminal_psi::StructuralParameterDeclaration;
+
+mod restoration;
+pub(super) use restoration::complete_cleanup;
 
 // Fixed-point propagation retains unknown predecessors explicitly. Consuming
 // an unknown arrival refuses; it never becomes an activation-local owning root.
