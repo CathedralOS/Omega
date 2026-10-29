@@ -47,7 +47,7 @@ enum ReceiverProvenance {
 /// source checking quadratic even when no capability could propagate.
 struct CapabilityFlows {
     facts: Arena<CapabilityFlowFact>,
-    by_state: symbols::SymbolKeyMap<Vec<arena::Handle<CapabilityFlowFact>>>,
+    by_state: symbols::SymbolKeyMap<SymbolHandle, Vec<arena::Handle<CapabilityFlowFact>>>,
 }
 
 impl CapabilityFlows {
