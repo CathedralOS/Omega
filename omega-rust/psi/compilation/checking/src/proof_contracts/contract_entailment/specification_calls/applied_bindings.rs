@@ -643,9 +643,9 @@ impl AppliedProofBindings {
         let application = program.expression_table.static_machine_application(handle);
         if super::super::struct_trace() {
             eprintln!(
-                "STRUCT application intake handle={handle:?} expected={declaration:?} actual={:?} state={:?} parameters={} bounds={} retained={}",
+                "STRUCT application intake handle={handle:?} expected={declaration:?} actual={:?} registration={:?} parameters={} bounds={} retained={}",
                 application.binding_declaration,
-                application.state,
+                application.registration_operation,
                 parameters.len(),
                 conformance_bounds.len(),
                 program
