@@ -9,6 +9,7 @@
 //! observation exactly once in order.
 
 use facts::{PlaceRoot, PlaceSegment};
+use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use symbols::{SymbolHasher, SymbolKeyMap};
@@ -62,8 +63,16 @@ impl CaseExclusions {
     }
 
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        let fingerprint = Self::observation_fingerprint(place);
-        if self.identity_position(fingerprint, place).is_some() {
+        self.insert_place(Cow::Borrowed(place));
+    }
+
+    pub(super) fn insert_owned(&mut self, place: CanonicalPlace) {
+        self.insert_place(Cow::Owned(place));
+    }
+
+    fn insert_place(&mut self, place: Cow<'_, CanonicalPlace>) {
+        let fingerprint = Self::observation_fingerprint(&place);
+        if self.identity_position(fingerprint, &place).is_some() {
             diagnostics::insert(true, &self.table);
             return;
         }
@@ -74,7 +83,7 @@ impl CaseExclusions {
             .entry(fingerprint)
             .or_insert(table.observations.len());
         table.observations.push(CaseObservation {
-            place: Arc::new(place.clone()),
+            place: Arc::new(place.into_owned()),
             fingerprint,
         });
     }
@@ -292,18 +301,39 @@ mod tests {
                 let mut digits = sequence;
                 let mut exclusions = CaseExclusions::default();
                 let mut expected = Vec::new();
-                for _ in 0..length {
+                let mut mixed = CaseExclusions::default();
+                for position in 0..length {
                     let place = &places[digits % places.len()];
                     digits /= places.len();
                     exclusions.insert(place);
+                    if position % 2 == 0 {
+                        mixed.insert_owned(place.clone());
+                    } else {
+                        mixed.insert(place);
+                    }
                     if !expected.contains(place) {
                         expected.push(place.clone());
                     }
                 }
                 assert_eq!(exclusions.iter().cloned().collect::<Vec<_>>(), expected);
+                assert_eq!(mixed.iter().cloned().collect::<Vec<_>>(), expected);
+                let mut branch = mixed.clone();
                 for place in &places {
                     assert_eq!(exclusions.contains(place), expected.contains(place));
+                    assert_eq!(mixed.contains(place), expected.contains(place));
                 }
+                for place in &expected {
+                    branch.insert_owned(place.clone());
+                    assert!(Arc::ptr_eq(&mixed.table, &branch.table));
+                }
+                let added = place(9, 9, 99);
+                let allocation = added.segments.as_ptr();
+                branch.insert_owned(added.clone());
+                assert!(!Arc::ptr_eq(&mixed.table, &branch.table));
+                assert_eq!(mixed.iter().cloned().collect::<Vec<_>>(), expected);
+                let mut moved = CaseExclusions::default();
+                moved.insert_owned(added);
+                assert_eq!(moved.iter().next().unwrap().segments.as_ptr(), allocation);
             }
         }
     }

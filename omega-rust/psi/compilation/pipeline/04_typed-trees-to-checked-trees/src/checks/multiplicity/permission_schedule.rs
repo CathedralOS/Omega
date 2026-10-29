@@ -200,14 +200,14 @@ fn target_has_no_normal_completion(
 /// Case exclusions at one evaluation cut. Flow already authenticated the saved
 /// guard receiver, selected polarity and intervening writes. Custody consumes
 /// those exact observations instead of resolving the guard's descriptor again.
-pub(super) struct SelectedCases {
-    inactive: Vec<validation::CanonicalPlace>,
+pub(super) struct SelectedCases<'program> {
+    evidence: crate::flow::CaseEvidence<'program>,
 }
 
-impl SelectedCases {
+impl<'program> SelectedCases<'program> {
     pub(super) fn at_step(
-        program: &dyn validation::CheckingInput,
-        facts: &checked_trees::CheckFacts,
+        program: &'program dyn validation::CheckingInput,
+        facts: &'program checked_trees::CheckFacts,
         flow: &checked_trees::FlowStateFact,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
@@ -298,30 +298,36 @@ impl SelectedCases {
             state.symbol,
             statement,
         )?;
-        let inactive = evidence.inactive_owned_cases();
-        if inactive.is_empty() {
-            return None;
-        }
-        Some(Self { inactive })
+        // An empty emission is an inert prepared batch. All three private
+        // callers only apply it and continue; no producer failure follows
+        // consumer effects, and no materialized negative roster is retained.
+        Some(Self { evidence })
     }
 
-    pub(super) fn apply_claims(&self, places: &mut [super::linear_obligations::LinearPlace]) {
-        for excluded in &self.inactive {
+    pub(super) fn apply_claims(self, places: &mut [super::linear_obligations::LinearPlace]) {
+        self.apply(places, None);
+    }
+
+    pub(super) fn apply(
+        self,
+        places: &mut [super::linear_obligations::LinearPlace],
+        mut remaining: Option<&mut super::cleanup_dispositions::RemainingCustody>,
+    ) {
+        // No consumer exists for this pure prepared batch. Cleanup, when
+        // present, must still receive every exclusion even with no claims.
+        if places.is_empty() && remaining.is_none() {
+            return;
+        }
+        self.evidence.for_each_inactive_owned_case(|excluded| {
             for place in places.iter_mut().filter(|place| {
                 place.root == excluded.root && place.path.starts_with(&excluded.segments)
             }) {
                 place.live = false;
                 place.case_excluded = true;
             }
-        }
-    }
-
-    pub(super) fn apply_cleanup(
-        &self,
-        remaining: &mut super::cleanup_dispositions::RemainingCustody,
-    ) {
-        for excluded in &self.inactive {
-            remaining.exclude_absent_case(excluded);
-        }
+            if let Some(remaining) = remaining.as_deref_mut() {
+                remaining.exclude_absent_case_owned(excluded);
+            }
+        });
     }
 }

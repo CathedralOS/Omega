@@ -808,6 +808,15 @@ impl RemainingCustody {
         self.inactive_cases.insert(place);
     }
 
+    /// The streaming evidence producer transfers this exact path allocation.
+    pub(super) fn exclude_absent_case_owned(&mut self, place: validation::CanonicalPlace) {
+        debug_assert!(matches!(
+            place.segments.last(),
+            Some(PlaceSegment::Case { .. })
+        ));
+        self.inactive_cases.insert_owned(place);
+    }
+
     fn definitely_absent(&self, root: PlaceRoot, path: &[PlaceSegment]) -> bool {
         self.definitely_transferred(root, path)
             || self.inactive_cases.contains_prefix_of(root, path)

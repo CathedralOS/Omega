@@ -417,8 +417,7 @@ pub(crate) fn prepare_permission_events(
                         step,
                     )
                 {
-                    selected.apply_claims(places);
-                    selected.apply_cleanup(remaining);
+                    selected.apply(places, Some(remaining));
                 }
                 match step {
                     super::permission_schedule::PermissionStep::Evaluate {
