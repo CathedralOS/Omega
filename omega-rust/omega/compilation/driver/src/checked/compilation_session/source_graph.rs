@@ -64,16 +64,20 @@ impl SourceGraphCache {
         Ok(())
     }
     pub fn load(&self) -> Result<Option<SourceGraph>, String> {
-        self.require_current()?;
+        phase_profile::scope("source.graph.load.require_before", || {
+            self.require_current()
+        })?;
         let file = match self.storage.directory().open(&self.name) {
             Ok(file) => file,
             Err(reason) if reason.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(reason) => return Err(format!("open retained source graph: {reason}")),
         };
         let mut bytes = Vec::new();
-        file.take((MAX_BYTES + HEADER_BYTES + 1) as u64)
-            .read_to_end(&mut bytes)
-            .map_err(|reason| format!("read retained source graph: {reason}"))?;
+        phase_profile::scope("source.graph.load.read", || {
+            file.take((MAX_BYTES + HEADER_BYTES + 1) as u64)
+                .read_to_end(&mut bytes)
+                .map_err(|reason| format!("read retained source graph: {reason}"))
+        })?;
         if bytes.len() < HEADER_BYTES
             || bytes.len() > MAX_BYTES + HEADER_BYTES
             || &bytes[..8] != MAGIC
@@ -89,15 +93,20 @@ impl SourceGraphCache {
                 .map_err(|reason| format!("retained source graph length: {reason}"))?,
         );
         if length != (bytes.len() - HEADER_BYTES) as u64
-            || bytes[40..72] != content_identity(&bytes[HEADER_BYTES..])
+            || bytes[40..72]
+                != phase_profile::scope("source.graph.load.digest", || {
+                    content_identity(&bytes[HEADER_BYTES..])
+                })
         {
             return Err(
                 "retained source graph is truncated or has a different payload digest".to_owned(),
             );
         }
-        let graph = compiler_storage::decode(&bytes[HEADER_BYTES..], limits())
-            .map_err(|reason| format!("decode retained source graph: {reason}"))?;
-        self.require_current()?;
+        let graph = phase_profile::scope("source.graph.load.decode", || {
+            compiler_storage::decode(&bytes[HEADER_BYTES..], limits())
+                .map_err(|reason| format!("decode retained source graph: {reason}"))
+        })?;
+        phase_profile::scope("source.graph.load.require_after", || self.require_current())?;
         Ok(Some(graph))
     }
     fn prune(&self) -> Result<(), String> {

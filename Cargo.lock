@@ -1437,6 +1437,7 @@ dependencies = [
  "diagnostics",
  "package-compilation",
  "package-manager",
+ "phase-profile",
  "platform-custody",
  "semantic-vocabulary",
  "target",
