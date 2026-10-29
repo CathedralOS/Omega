@@ -11,6 +11,8 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 use validation::{ScopedArithmeticValue, ValidatedRuntimeNaturalComponent};
 
+mod ranges;
+
 struct Coordinate {
     parameter: SymbolHandle,
     position: usize,
@@ -22,14 +24,16 @@ struct Edge<'program> {
     source: usize,
     destination: usize,
     statement: usize,
-    arguments: Vec<ExpressionHandle>,
+    arguments: &'program [ExpressionHandle],
     values: CurrentScalarValues<'program>,
 }
 
 /// Select a natural observation, then judge its exact actual at every call.
 /// An integer and a descriptor extent use the same component/edge owner; only
-/// reading the carrier differs. Ranged and declared views keep their complete
-/// measure/endpoint admission. Private inference supplies no ambient entry facts.
+/// reading the carrier differs. Authored ranges additionally owe independent
+/// entry formation. Ordinary call checking supplies their exact premises at
+/// every invocation; interval endpoints do not parameterize this Nat₀ relation.
+/// Private inference supplies no ambient entry facts.
 pub(super) fn select(
     program: &dyn validation::CheckingInput,
     component: &[usize],
@@ -39,6 +43,16 @@ pub(super) fn select(
         .iter()
         .map(|position| &program.machines()[*position])
         .collect::<Vec<_>>();
+    // This owner infers private coordinates missing from the declarations.
+    // A complete authored component goes directly to the full view owner,
+    // which retains its richer result-equation and arithmetic evidence.
+    // This is selection by proof obligation, never fallback after a failed proof.
+    if machines
+        .iter()
+        .all(|machine| machine.termination_plan.implementation_witness.is_some())
+    {
+        return None;
+    }
     let mut candidates = Vec::new();
     let mut selected_observation = None;
     for machine in &machines {
@@ -51,9 +65,6 @@ pub(super) fn select(
             candidates.push(Vec::new());
             continue;
         };
-        if witness.rank_range.is_some() {
-            return None;
-        }
         let subjects = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)?;
         let arguments =
             typed_trees::ranking::resolve_machine_witness_view_arguments(program, machine)?;
@@ -90,6 +101,9 @@ pub(super) fn select(
             return None;
         }
         selected_observation = Some((observation, carrier));
+        if let Err(reason) = ranges::entry(program, machine, *subject, observation) {
+            return Some(Err(reason));
+        }
         candidates.push(vec![Coordinate {
             parameter,
             position,
@@ -183,7 +197,7 @@ pub(super) fn select(
                     source,
                     destination,
                     statement,
-                    arguments: arguments.to_vec(),
+                    arguments,
                     values,
                 });
             }
@@ -202,6 +216,32 @@ pub(super) fn select(
     Some(
         result.ok_or("no exact private-coordinate assignment proves every edge and complete cycle"),
     )
+}
+
+impl Coordinate {
+    fn initial(&self, values: &CurrentScalarValues<'_>) -> Option<ScopedArithmeticValue> {
+        match self.observation {
+            validation::RankPremiseObservation::Value => values.initial_symbol(self.parameter),
+            validation::RankPremiseObservation::Length => {
+                values.initial_collection_length(self.parameter)
+            }
+        }
+    }
+
+    fn current(
+        &self,
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        values: &CurrentScalarValues<'_>,
+        actual: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        match self.observation {
+            validation::RankPremiseObservation::Value => {
+                super::arrival_value(program, machine, values, actual)
+            }
+            validation::RankPremiseObservation::Length => values.current_collection_length(actual),
+        }
+    }
 }
 
 fn observation_carrier(
@@ -238,16 +278,8 @@ fn compare(
     destination: &Coordinate,
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.position)?;
-    let (initial, next) = match source.observation {
-        validation::RankPremiseObservation::Value => (
-            edge.values.initial_symbol(source.parameter)?,
-            super::arrival_value(program, machine, &edge.values, actual)?,
-        ),
-        validation::RankPremiseObservation::Length => (
-            edge.values.initial_collection_length(source.parameter)?,
-            edge.values.current_collection_length(actual)?,
-        ),
-    };
+    let initial = source.initial(&edge.values)?;
+    let next = destination.current(program, machine, &edge.values, actual)?;
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left, right| {
         edge.values

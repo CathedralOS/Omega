@@ -12045,6 +12045,42 @@ fail/facts/nested_machine_joint_rank_preserving_subcycle_rejected rejected 1784m
 fail/facts/nested_machine_joint_rank_private_promise_rejected rejected 1024ms expected @34e571f3d5a1
 	terminating machine forward contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_carried_bound_rejected rejected 730ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_missing_entry_rejected rejected 799ms expected @15a66acf6a30
+	cannot prove requires contract for call forward from count: remaining > 0 && remaining <= 7 (needs fact `pending > 0 && pending <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_partial_floor_rejected rejected 714ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_rebound_ceiling_rejected rejected 749ms expected @15a66acf6a30
+	cannot prove requires contract for call forward from count: remaining > 0 && remaining <= 0 && remaining <= 7 (needs fact `pending > 0 && pending <= limit && pending <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_joint_rank_ranged_rebound_floor_rejected rejected 347ms expected @15a66acf6a30
+	machine `forward` state `entry` value call to `count` violates required fact `remaining <= 7 && floor <= 0`: the instantiated fact is structurally false (`pending - 1 <= 7 && 8 <= 0`)
+fail/facts/nested_machine_joint_rank_ranged_self_justifying_floor_rejected rejected 383ms expected @15a66acf6a30
+	exact arithmetic in machine `count` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_joint_rank_ranged_sequence_length_rejected rejected 721ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_static_bound_rejected rejected 815ms expected @15a66acf6a30
+	machine call cycle: `count$specialized$3a2995170ac36516$0`, `forward$specialized$3e1b7aec6f86087c$0` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_call_result_rejected rejected 743ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_const_name_rejected rejected 702ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_field_rejected rejected 779ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_local_rejected rejected 736ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_match_join_rejected rejected 715ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_other_machine_rejected rejected 726ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_other_state_rejected rejected 717ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_parameter_rejected rejected 748ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_ranged_value_target_body_rejected rejected 751ms expected @15a66acf6a30
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structural_missing_bound_rejected rejected 657ms expected @f2892370f2fa
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structural_restored_descriptor_rejected rejected 695ms expected @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
@@ -22870,8 +22906,8 @@ fail/termination/bitwise_payload_overflow rejected 654ms expected @a92f16431042
 fail/termination/bounded_distance_inverted rejected 2057ms expected @a92f16431042
 	cannot prove the `terminates by` ranking for machine Main::walk: `terminates by (limit, index)` inverts the named bounded distance -- `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the lower value climbs; write `terminates by (index, limit) -> Nat::BoundedDistance`
 	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/bounded_distance_moving_call_bound rejected 2044ms expected @a92f16431042
-	machine call cycle: `first`, `second` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/bounded_distance_moving_call_bound rejected 547ms expected @15a66acf6a30
+	machine call cycle: `first`, `second` -- rank range membership, selected view bounds, or nonincrease is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/bounded_distance_stalled_cursor_exit_state rejected 1786ms expected @a92f16431042
 	terminating machine fill: cannot prove strict rank decrease on a recurrent arrival: the transition from `fill` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `fill` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -22978,14 +23014,8 @@ fail/termination/measure_field_arrival_contract rejected 2707ms expected @a92f16
 fail/termination/measure_field_computed_limit_overflow rejected 1528ms expected @a92f16431042
 	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/measure_field_limit_changed rejected 1873ms expected @a92f16431042
-	terminating machine walk: cannot prove rank range `0..=countdown.limit` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/mixed_call_member_endpoint_foreign rejected 1761ms expected @a92f16431042
-	cannot prove requires contract for call inner from outer: remaining <= limits.cap && remaining <= constructor:80:package:07149a1bc37311ee43c48eec64aa5f9b3735ae35f543e496d63c3695daaa42a7::Limits6:record15:common:name:cap1:5.cap (needs fact `n <= bounds.cap && n <= spare.cap` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	machine call cycle: `outer`, `inner` -- dependent rank endpoints are not conserved through every mixed-component call; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/mixed_endpoint_stored_length_write rejected 2643ms expected @a92f16431042
-	machine call cycle: `ranged`, `unranged` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/mixed_call_member_endpoint_foreign rejected 564ms expected @15a66acf6a30
+	cannot prove requires contract for call inner from outer: remaining <= limits.cap && remaining <= constructor:80:package:9cc67c24861fb9c98a666f9130458aa0fcd8169ab65a7a532cb4c6a8750fe9a6::Limits6:record15:common:name:cap1:5.cap (needs fact `n <= bounds.cap && n <= spare.cap` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/nat_descending_lookalike_grants_no_primitive rejected 52ms expected @a92f16431042
 	`Nat::Descending` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Nat::Descending` grants no primitive implementation or proof authority
 fail/termination/native_layout_family_circular rejected 902ms expected @a92f16431042
@@ -23130,9 +23160,6 @@ fail/termination/self_call_rank_reset_before_descent rejected 1391ms expected @a
 fail/termination/shift_result_rank_mask_preserves rejected 1424ms expected @a92f16431042
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/shift_result_rank_replaced_count rejected 1384ms expected @a92f16431042
-	terminating machine countdown: cannot prove rank range `0..=16 >> count` for the rank produced by the selected view
-	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/shift_result_rank_zero_count rejected 1392ms expected @a92f16431042
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -23143,9 +23170,6 @@ fail/termination/signed_rank_without_nonnegative_premise rejected 1338ms expecte
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stale_state_rank_premise_rejected rejected 1202ms expected @a92f16431042
 	machine call cycle: `Main::count`, `Main::next` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/stored_reference_endpoint_referent_write rejected 1330ms expected @a92f16431042
-	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
-	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stored_reference_endpoint_reseat rejected 1856ms expected @a92f16431042
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/subordinate_state_cycle_weak_edge rejected 1469ms expected @a92f16431042
@@ -28524,6 +28548,21 @@ pass/facts/nested_machine_joint_rank_other_machine_exit checked 8698ms check-tar
 pass/facts/nested_machine_joint_rank_other_state_exit checked 8602ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_parameter_exit checked 7972ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_private_promise_exit checked 2240ms check-target:macos_arm64 @34e571f3d5a1
+pass/facts/nested_machine_joint_rank_ranged_carried_bound_exit checked 1095ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_partial_floor_exit checked 1095ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_rebound_ceiling_exit checked 1222ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_rebound_floor_exit checked 1225ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_sequence_length_exit checked 1029ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_static_bound_exit checked 1026ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_call_result_exit checked 1012ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_const_name_exit checked 972ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_field_exit checked 1025ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_local_exit checked 985ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_match_join_exit checked 973ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_other_machine_exit checked 1019ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_other_state_exit checked 1009ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_parameter_exit checked 965ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_target_body_exit checked 960ms check-target:macos_arm64 @15a66acf6a30
 pass/facts/nested_machine_joint_rank_structural_view_call_result_exit checked 945ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_const_name_exit checked 1138ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_field_exit checked 953ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e

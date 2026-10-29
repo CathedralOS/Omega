@@ -8,6 +8,10 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit built 1614ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @1746a501acac
 pass/borrows/nested_machine_unit_output_completed_operand_exit built 6686ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_local_destination_exit built 6582ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
@@ -18,7 +22,6 @@ pass/build/provider_nested_type_application_exit built 2392ms exit:0 interpreter
 pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @b86bab8d85ef
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
-pass/contracts/static_type_requires_prior_call_exit built 966ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
 pass/domains/semicolon_predicate_presence_exit built 1150ms exit:0 interpreter-exit:0 interpreter:agrees @4599cdf306fb
 pass/facts/live_across_five_calls_preservation_bound_through_target_body_exit built 2192ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @4163cd4dfa95
 pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit built 1592ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @5b0614dfcd5e
@@ -55,6 +58,21 @@ pass/facts/borrowed_result_field_domains_other_machine built 1071ms exit:0 inter
 pass/facts/borrowed_result_field_domains_other_state built 1073ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 pass/facts/borrowed_result_field_domains_parameter built 1081ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 pass/facts/borrowed_result_field_domains_target_body built 1083ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
+pass/facts/nested_machine_joint_rank_ranged_carried_bound_exit built 1088ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_partial_floor_exit built 1121ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_rebound_ceiling_exit built 1078ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_rebound_floor_exit built 1111ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_sequence_length_exit built 1075ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_static_bound_exit built 1117ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_call_result_exit built 1100ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_const_name_exit built 1070ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_field_exit built 1104ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_local_exit built 1088ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_match_join_exit built 1069ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_other_machine_exit built 1093ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_other_state_exit built 1124ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_parameter_exit built 1097ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
+pass/facts/nested_machine_joint_rank_ranged_value_target_body_exit built 1073ms exit:0 interpreter-exit:0 interpreter:agrees @15a66acf6a30
 pass/facts/nested_machine_joint_rank_structural_view_call_result_exit built 1089ms exit:0 interpreter-exit:0 interpreter:agrees @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_const_name_exit built 1065ms exit:0 interpreter-exit:0 interpreter:agrees @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_field_exit built 1094ms exit:0 interpreter-exit:0 interpreter:agrees @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
@@ -64,9 +82,7 @@ pass/facts/nested_machine_joint_rank_structural_view_other_machine_exit built 11
 pass/facts/nested_machine_joint_rank_structural_view_other_state_exit built 1208ms exit:0 interpreter-exit:0 interpreter:agrees @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_parameter_exit built 1187ms exit:0 interpreter-exit:0 interpreter:agrees @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_target_body_exit built 1091ms exit:0 interpreter-exit:0 interpreter:agrees @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
-pass/host/process_exit_retains_linear_frontier built 3817ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
-pass/providers/canonical_inherited_provider_instances_exit built 928ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
-pass/providers/uncalled_boundary_provider_exit built 894ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
+pass/termination/runtime_rank_range_state_call_exit built 4584ms exit:70 interpreter-exit:70 interpreter:agrees @15a66acf6a30
 pass/text/byte_content_store_continuation_exit built 4488ms exit:70 interpreter-exit:70 interpreter:agrees @90c334a2c095
 pass/text/owned_record_byte_field_read_exit built 4513ms exit:70 interpreter-exit:70 interpreter:agrees @90c334a2c095
 pass/text/runtime_borrowed_byte_snapshot_exit built 4533ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
@@ -90,7 +106,6 @@ run/calls/returned_reference_case_write_then_view_exit built 1049ms exit:0 inter
 run/contained_health_loop_command_branch built 4485ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @90c334a2c095
 run/domains/qualified_explicit_byte_buffer_append_exit built 1079ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 run/domains/qualified_explicit_byte_buffer_field_source_exit built 1076ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
-
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/field built 1031ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/local built 1027ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/match_join built 1038ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
@@ -4880,7 +4895,6 @@ pass/slices/runtime_predicate_qualified_scalar_copy_exit built 3934ms exit:0 int
 pass/slices/runtime_qualified_record_copy_local_exit built 4643ms exit:70 interpreter-exit:70 interpreter:agrees @d732c6499355
 pass/slices/runtime_range_qualified_scalar_copy_exit built 3958ms exit:0 interpreter-exit:0 interpreter:agrees @d732c6499355
 pass/slices/runtime_range_qualified_scalar_copy_local_exit built 3959ms exit:0 interpreter-exit:0 interpreter:agrees @d732c6499355
-# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/generics/contextual_static_machine_conformance_application_exit built 3544ms exit:0 interpreter-exit:0 interpreter:agrees @fb4bf4786bb2+wt
 pass/generics/contextual_static_machine_evidence_scopes_exit built 3621ms exit:0 interpreter-exit:0 interpreter:agrees @fb4bf4786bb2+wt
 pass/borrows/disjoint_branch_closure_with_grandchild built 3946ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
@@ -4907,12 +4921,10 @@ pass/borrows/runtime_copied_range_record_domains_exit built 3884ms exit:0 interp
 pass/borrows/runtime_nested_array_range_record_domains_exit built 3884ms exit:0 interpreter-exit:0 interpreter:agrees @97bca654182d
 pass/operators/runtime_declared_index_collection_loans_exit built 3920ms exit:0 interpreter-exit:0 interpreter:agrees @809b88c4b692
 pass/operators/runtime_declared_range_guarded_collection_exit built 3840ms exit:0 interpreter-exit:0 interpreter:agrees @65af6dcedabd
-# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/targets/target_machine_gating_exit built 3646ms exit:70 interpreter-exit:70 interpreter:agrees @678203d30209+wt
 pass/operators/runtime_declared_open_range_evaluates_collection_once_exit built 3984ms exit:0 interpreter-exit:0 interpreter:agrees @ebe013852fbf
 pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit built 3996ms exit:0 interpreter-exit:0 interpreter:agrees @ebe013852fbf
 pass/modules/runtime_public_generic_dependency_exit built 3651ms exit:0 interpreter-exit:0 interpreter:agrees @92558d90488a+wt
-# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/targets/portable_family_entry_installations_exit built 3110ms exit:0 interpreter-exit:0 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:trap terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8d22fd65fdd6+wt
 pass/targets/selected_family_exclusion_closure_exit built 3024ms exit:0 interpreter-exit:0 interpreter:agrees @8d22fd65fdd6+wt
 pass/borrows/runtime_boundary_range_view_exit built 4390ms exit:0 interpreter-exit:0 interpreter:agrees @88115f7f7964
@@ -4934,7 +4946,6 @@ pass/traits/runtime_dyn_linear_result_exit built 2736ms exit:0 interpreter-exit:
 pass/traits/runtime_dyn_nested_result_exit built 2701ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
 pass/traits/runtime_dyn_structural_result_exit built 2661ms exit:0 interpreter-exit:0 interpreter:agrees @1a78955bfb8c
 pass/ownership/runtime_owned_parameter_restoration_exit built 2843ms exit:0 interpreter-exit:0 interpreter:agrees @b296be94ff95
-# context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrows/runtime_computed_backing_reference_copy_exit built 3045ms exit:0 interpreter-exit:0 interpreter:agrees @c01ece463989+wt
 pass/providers/inherited_applied_binding_dispatch_exit built 2699ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_finite_family_exit built 2780ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
@@ -5397,6 +5408,10 @@ pass/facts/signed_64bit_saturating_multiplication_bound_through_target_body_exit
 pass/facts/unsigned_32bit_bitwise_or_bound_through_target_body_exit built 1373ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @5b0614dfcd5e
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit built 1405ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @5b0614dfcd5e
 pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit built 1424ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @5b0614dfcd5e
+pass/contracts/static_type_requires_prior_call_exit built 966ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
+pass/host/process_exit_retains_linear_frontier built 3817ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
+pass/providers/canonical_inherited_provider_instances_exit built 928ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
+pass/providers/uncalled_boundary_provider_exit built 894ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
 pass/compile_time/const_overload_nested_dependency_exit built 1157ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
 pass/compile_time/const_overload_selected_dependency_exit built 982ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa
 pass/contracts/generic_effective_result_comparison_exit built 943ms exit:0 interpreter-exit:0 interpreter:agrees @f2892370f2fa

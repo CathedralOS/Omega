@@ -55,8 +55,8 @@ pub use identity_views::{
 };
 
 pub(crate) use calls::{
-    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
+    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_ranking_range_call,
 };
 
 /// A collection descriptor's closed extent, using the same checked geometry
@@ -479,6 +479,8 @@ enum EdgeContext<'program> {
 /// Separate results prevent a range-membership proof from authorizing descent.
 #[derive(Clone, Copy)]
 pub struct RankingRangeEdgeProof {
+    /// Formed membership at both ends and any bound owned by the selected
+    /// view. Optional interval endpoints are instantiated per arrival.
     pub membership_and_pinning: bool,
     pub strictly_decreases: bool,
     pub non_increasing: bool,
@@ -1045,7 +1047,7 @@ fn prove_edge(
         // atom, so the subject names no natural coordinate here. The range
         // endpoints and the rest of the read surface still spell authored
         // member projections (`limits.cap`): the installed set binds exactly
-        // those projections so entry membership and endpoint pinning read
+        // those projections so entry formation and membership read
         // real atoms instead of failing to normalize.
         RankingRangeMeasure::SliceLength(subject) => Some(subject_field_coordinates(
             program,
@@ -1138,10 +1140,22 @@ fn prove_edge(
     }
     let required_symbols =
         state_aliases::required_symbols(program, machine, range, measure, premises)?;
-    let bindings = match entry_parameters {
+    let mut bindings = match entry_parameters {
         Some(entries) => calls::telescoped_bindings(program, machine, state, entries)?,
         None => integer_bindings(program, state)?,
     };
+    // One invocation's immutable Value/Const bindings do not move between
+    // its body states. These exact immutable binders are not runtime arrival
+    // slots. Cross-invocation judgments still owe explicit actual substitution.
+    for (symbol, reference) in invocation_value_parameters(program, machine, state) {
+        if let Some(primitive) = integer_parameter(program, reference) {
+            bindings.push(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                symbol,
+                format!("\0ranking:invocation:{:?}:value:{symbol:?}", machine.symbol),
+                primitive,
+            ));
+        }
+    }
     if required_symbols.iter().any(|symbol| {
         !bindings.iter().any(|binding| binding.symbol == *symbol)
             || destination.is_some_and(|destination| {
@@ -1263,7 +1277,7 @@ fn prove_edge(
     // Endpoint arithmetic uses the same exact entry aliases and field
     // coordinates as the rank. Bind non-polynomial term meaning after those
     // coordinates exist; declaration/flow formation and every arrival's
-    // pinning remain independent obligations below.
+    // membership remain independent obligations below.
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         meanings::install_nonpolynomial_terms(program, machine, root, &mut engine, endpoint, 0)?;
     }
@@ -1546,8 +1560,8 @@ fn prove_edge(
             non_increasing: true,
         });
     }
-    // Normalization may cancel an undefined destination operation. Endpoint
-    // equality alone cannot transport its formation, so replay every node
+    // Normalization may cancel an undefined destination operation. A proved
+    // interval alone cannot supply formation, so replay every node
     // with the same simultaneous mapping used by the arrival's value proof.
     for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         if !fields::endpoint_operations_land_after_arrival(
@@ -1569,22 +1583,16 @@ fn prove_edge(
     {
         return None;
     }
-    // Prove equality to the old endpoints, not merely membership in a newly
-    // moved interval. Simultaneous substitution cannot telescope n -> n - 1.
-    if !prove(next_floor.sub(&floor), 0)
-        || !prove(floor.sub(&next_floor), 0)
-        || !prove(next_ceiling.sub(&ceiling), 0)
-        || !prove(ceiling.sub(&next_ceiling), 0)
-    {
-        return None;
-    }
+    // Optional range endpoints follow the exact arriving actuals. The
+    // selected relation stays fixed; only its produced value's interval
+    // constraint is instantiated again. View-bound equality above is separate.
     let next_membership = if let Some(range) = range {
         calls::membership(
             &engine,
             measure,
             &next_rank,
-            &floor,
-            &ceiling,
+            &next_floor,
+            &next_ceiling,
             range.end_inclusive,
         )
     } else {
@@ -1742,8 +1750,9 @@ fn contract_comparisons(
     Some(comparisons)
 }
 
-/// Constrained-type hypotheses for a state's own formals. They hold on every
-/// arrival and remain valid at any call site inside that state.
+/// Carrier and declared-domain facts for the supplied frame bindings. Runtime
+/// formals belong to this state; explicit immutable indices belong to its one
+/// invocation. Cross-call actuals require their own substitution.
 fn parameter_comparisons(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1753,8 +1762,19 @@ fn parameter_comparisons(
 ) -> Option<Vec<Comparison>> {
     let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
-    for parameter in program.state_parameters(root).iter() {
-        let Some(primitive) = integer_parameter(program, parameter.type_reference) else {
+    for (symbol, reference) in program
+        .state_parameters(root)
+        .iter()
+        .map(|parameter| (parameter.symbol, parameter.type_reference))
+        .chain(
+            invocation_value_parameters(program, machine, root).filter(|(symbol, _)| {
+                // Only an explicitly supplied invocation index contributes facts.
+                // A cross-call template cannot invent an actual from its name.
+                bindings.iter().any(|binding| binding.symbol == *symbol)
+            }),
+        )
+    {
+        let Some(primitive) = integer_parameter(program, reference) else {
             continue;
         };
         // A bound fixed-integer formal holds a value of its carrier at every
@@ -1763,7 +1783,7 @@ fn parameter_comparisons(
         // update's no-wrap proof reads the upper one beside the edge guard.
         if let Some(StrictArithmeticBindingValue::Atom { identity, .. }) = bindings
             .iter()
-            .find(|binding| binding.symbol == parameter.symbol)
+            .find(|binding| binding.symbol == symbol)
             .map(|binding| &binding.value)
             && let Some((minimum, maximum)) = integer_carrier_bounds(primitive)
         {
@@ -1779,13 +1799,11 @@ fn parameter_comparisons(
             ));
         }
         for (minimum, maximum, end_inclusive) in
-            crate::value_custody::type_shapes::range_constraints(program, parameter.type_reference)
+            crate::value_custody::type_shapes::range_constraints(program, reference)
         {
             // Missing or ambiguous aliases cannot contribute an auxiliary
             // invariant, even when another premise makes the edge dead.
-            let binding = bindings
-                .iter()
-                .find(|binding| binding.symbol == parameter.symbol)?;
+            let binding = bindings.iter().find(|binding| binding.symbol == symbol)?;
             let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
                 return None;
             };
@@ -1869,6 +1887,35 @@ fn validate_mapping(
         }
     }
     Some(())
+}
+
+/// Immutable declaration indices beside one invocation's runtime formal roster.
+/// Exact symbols establish identity; lexical names and carrier matches do not.
+fn invocation_value_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    state: &'program State,
+) -> impl Iterator<
+    Item = (
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    ),
+> + 'program {
+    program
+        .machine_type_parameters(machine)
+        .iter()
+        .filter_map(move |parameter| {
+            let reference = match parameter.kind {
+                typed_trees::data::TypeParameterKind::Value { type_reference }
+                | typed_trees::data::TypeParameterKind::Const { type_reference } => type_reference,
+                _ => return None,
+            };
+            (!program
+                .state_parameters(state)
+                .iter()
+                .any(|formal| formal.symbol == parameter.symbol))
+            .then_some((parameter.symbol, reference))
+        })
 }
 
 fn integer_bindings(

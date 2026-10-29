@@ -1,0 +1,1 @@
+violates required fact `remaining <= 7 && floor <= 0`

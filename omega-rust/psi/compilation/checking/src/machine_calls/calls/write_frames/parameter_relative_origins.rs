@@ -426,9 +426,29 @@ fn parameter_relative_call_result_origins(
         return None;
     }
     let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
-    if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
+    // A receiver is owed only when the attachment names a data definition:
+    // boundary-attached operations such as `Slice::range` bind the collection
+    // as an ordinary positional operand and record no call receiver.
+    if call.receiver.is_valid() != program.attached_data_definition(callee_machine).is_some() {
         return None;
     }
+    // A requirement target has no body of its own. Its single checked
+    // satisfier supplies the result relation the operand substitution below
+    // instantiates; the call's own receiver topology is already judged above.
+    let (callee_machine, callee_state) = if !callee_machine.body_is_present {
+        let satisfiers = crate::requirement_satisfiers(
+            program,
+            program.symbols.authored_origin(callee_machine.symbol),
+        );
+        let [satisfier] = satisfiers.as_slice() else {
+            return None;
+        };
+        let satisfier_machine = program.machine_by_symbol(*satisfier)?;
+        let satisfier_state = program.machine_states(satisfier_machine).first()?;
+        (satisfier_machine, satisfier_state)
+    } else {
+        (callee_machine, callee_state)
+    };
     let callee_origins = transparent_callee_result_origins(
         program,
         callee_machine,
