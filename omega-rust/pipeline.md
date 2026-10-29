@@ -123,8 +123,15 @@ selected providers cannot inject completion roles into checked source.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
-selected provider rows. Synchronous provider-cycle checks consume Psi's checked
-invocation facts rather than a second coordinator-owned inference sidecar.
+selected provider rows. Source-only synchronous provider-cycle checks consume
+Psi's checked invocation facts. Receiving provider admission independently
+checks every installed canonical instance, including uncalled closed tuples,
+using the same whole-plan graph rule. Opaque rows contribute their declared
+ceilings; uninstantiated source templates grant no executable instance.
+`terminal-installation` owns the retained synchronous call closure (ordinary,
+no-normal, cleanup, invoked dynamic slots and selected target members). Native
+authority review borrows that closure and classifies physical operations; it
+does not maintain another call traversal or trust an earlier source check.
 Psi also owns exact provider-selection declarations and the shared decoder for
 static defaults and executed Build choices. Checked Product selection returns
 all authored defaults before root pruning; Omega only selects retained rows.

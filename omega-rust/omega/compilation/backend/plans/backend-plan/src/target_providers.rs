@@ -5,6 +5,7 @@
 //! association. Publication and receiving policy use that same roster projection:
 //! a supplied subset cannot omit an uncalled instance or merge choosing owners.
 
+mod synchronous_calls;
 #[cfg(test)]
 mod tests;
 
@@ -81,7 +82,7 @@ impl TerminalTargetProviderSelection {
                 .collect(),
         )?
         .with_assumed_bindings(self.assumed_bindings.clone());
-        admit_checked_roster(artifact, target, &selected, &supplied)
+        admit_checked_roster(artifact, target, &selected, &supplied, &self.plans)
     }
 }
 
@@ -102,7 +103,7 @@ pub fn admit_selected_checked_providers(
     }
     supplied.sort();
     supplied.dedup();
-    admit_checked_roster(artifact, target, selected, &supplied)
+    admit_checked_roster(artifact, target, selected, &supplied, declarations)
 }
 
 fn admit_checked_roster(
@@ -110,6 +111,7 @@ fn admit_checked_roster(
     target: &str,
     selected: &effects::SelectedProviderPlanFacts,
     supplied: &[terminal_installation::ProviderInstallationSelection],
+    declarations: &[TerminalTargetProviderPlan],
 ) -> Result<terminal_installation::AdmittedProviderSelections, String> {
     if selected
         .plans()
@@ -155,6 +157,7 @@ fn admit_checked_roster(
             .collect::<Vec<_>>(),
     )
     .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
+    synchronous_calls::validate(artifact, target, selected, declarations)?;
     if artifact.module().folded_constants.target.is_some() {
         installation.admit_folded_constant_closure(artifact, target, &dependencies)
     } else {
