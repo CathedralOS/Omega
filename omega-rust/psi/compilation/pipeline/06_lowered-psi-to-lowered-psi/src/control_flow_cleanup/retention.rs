@@ -206,13 +206,29 @@ pub(super) fn retained_machines_with_roots(
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
+    // Evaluation entries need executable bodies. Proof-condition owners live
+    // in the independent declaration catalog and do not root executable code.
+    for application in module.scalar_applications.declarations() {
+        if let terminal_psi::ScalarApplication::Evaluate {
+            entry: terminal_psi::TargetMachineCallable::Machine(machine),
+            ..
+        } = application
+        {
+            roots.insert(*machine);
+        }
+    }
+    for observation in module.scalar_applications.conditions.observations() {
+        if let terminal_psi::ScalarRangeObservation::EntryResult { machine, .. } = observation {
+            roots.insert(*machine);
+        }
+    }
     for operation in &module.quotients.operations {
         roots.insert(operation.public_machine);
         roots.insert(operation.representative_machine);
     }
     roots.extend(module.quotients.adaptations.iter().map(|row| row.machine));
 
-    if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
+    if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
         roots.insert(entry);
     }
     // Published dispatch tables retain their callees without a direct call edge.

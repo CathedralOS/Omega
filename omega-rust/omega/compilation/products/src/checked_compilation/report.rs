@@ -213,6 +213,14 @@ impl ProductReportPlan {
 }
 
 impl CompileReportSettlement {
+    /// Completion attempts append their actual charges directly to the report
+    /// owner, including partial evaluation before a refusal.
+    pub fn source_completion_accounting_mut(
+        &mut self,
+    ) -> &mut build_time_evaluation::SourceCompletionAccounting {
+        &mut self.source_completion_accounting
+    }
+
     /// Production legs that extend the checked record's ladder after this
     /// settlement's snapshot replace it, so the finished report carries the
     /// post-production row set.

@@ -395,6 +395,7 @@ pub(crate) fn evaluate(
     // aliases and helper bodies. Keep whole expressions symbolic, rather than
     // trying to evaluate a nested observation as an ordinary machine call.
     propagate_target_observations(&mut declarations, &mut syntax, &mut target_observations);
+    reject_dependency_cycles(&declarations)?;
     // Evaluation roots demand their complete declaration graph. A leafless
     // literal is not ready merely because it has nothing to execute: its
     // declared geometry may still depend on a pending computation. Keep that
@@ -623,6 +624,7 @@ pub(crate) fn evaluate(
             }
         }
         propagate_target_observations(&mut declarations, &mut syntax, &mut target_observations);
+        reject_dependency_cycles(&declarations)?;
         for (ordinal, target_observation) in target_observations.iter().enumerate() {
             if *target_observation {
                 demanded[ordinal] = false;
@@ -1033,6 +1035,63 @@ pub(crate) fn evaluate(
         }
     }
     Ok(syntax)
+}
+
+/// Target readiness may defer a value, never a known cycle in its selected
+/// dependency graph. Diagnose that graph before pending initializer entries
+/// enter ordinary checking, where recursive substitution would otherwise
+/// leave an unbound name and obscure the actual dependency failure. Retained
+/// completed values are leaves; no body or source expression is replayed here.
+fn reject_dependency_cycles(declarations: &[Declaration<'_>]) -> Result<(), Vec<Diagnostic>> {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Visit {
+        Unseen,
+        Active,
+        Complete,
+    }
+    let mut visits = vec![Visit::Unseen; declarations.len()];
+    let mut path = Vec::new();
+    for root in 0..declarations.len() {
+        if visits[root] != Visit::Unseen || declarations[root].evaluated_value.is_some() {
+            continue;
+        }
+        visits[root] = Visit::Active;
+        path.push((root, 0usize));
+        while let Some((owner, next_dependency)) = path.last_mut() {
+            let Some((_, dependency)) = declarations[*owner].dependencies.get(*next_dependency)
+            else {
+                visits[*owner] = Visit::Complete;
+                path.pop();
+                continue;
+            };
+            *next_dependency += 1;
+            let Some(dependency) = dependency.current() else {
+                continue;
+            };
+            if declarations[dependency].evaluated_value.is_some() {
+                continue;
+            }
+            match visits[dependency] {
+                Visit::Complete => {}
+                Visit::Unseen => {
+                    visits[dependency] = Visit::Active;
+                    path.push((dependency, 0));
+                }
+                Visit::Active => {
+                    let declaration = &declarations[dependency].definition;
+                    return Err(failure(
+                        declaration.name.source_span(),
+                        if declaration.pending_target_observation {
+                            "target constant dependency cycle or unavailable canonical input"
+                        } else {
+                            "constant initializer dependency cycle"
+                        },
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn dependency_origins(

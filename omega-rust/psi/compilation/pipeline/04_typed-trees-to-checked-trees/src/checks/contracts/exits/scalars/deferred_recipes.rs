@@ -199,13 +199,17 @@ fn congruent(
             return false;
         }
         if left != right {
-            conditions.push(ConstantRecipeObligation::retain(
-                evaluator.machine.symbol,
-                left,
-                ConstantRecipeRequirement::EqualRecipe(right),
-                expressions.source_span(goal),
-                "normal return preserves its requires predicate under exact scalar identity".into(),
-            ));
+            conditions.push(
+                ConstantRecipeObligation::retain(
+                    evaluator.machine.symbol,
+                    left,
+                    ConstantRecipeRequirement::EqualRecipe(right),
+                    expressions.source_span(goal),
+                    "normal return preserves its requires predicate under exact scalar identity"
+                        .into(),
+                )
+                .with_recipe_owner(evaluator.machine.symbol),
+            );
         }
         return true;
     }

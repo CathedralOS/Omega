@@ -41,7 +41,6 @@ impl ModuleInvocationArguments {
         checked: &CheckedTrees,
         operations: &mut OperationBuffer,
         coordinate: SourceCallCoordinate,
-        source_site: Option<checked_trees::NominalMachineUseSite>,
         record: crate::direct_calls::CallRecord<'_>,
         result: OperationResult,
         callee: MachineId,
@@ -50,6 +49,7 @@ impl ModuleInvocationArguments {
         // Unit, scalar and structural routes supply the same checked occurrence,
         // not whichever machine/state symbol their local emission happens to use.
         let target = crate::call_sites::checked_source_call(checked, coordinate)?;
+        let source_site = crate::call_sites::source_site(checked, coordinate, target)?;
         crate::direct_calls::emit_direct_call(
             operations,
             coordinate,
@@ -76,6 +76,7 @@ impl ModuleInvocationArguments {
 pub(super) fn prepare(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    scalar_applications: &super::scalar_applications::SourceScalarApplications,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
@@ -153,8 +154,13 @@ pub(super) fn prepare(
                 expression,
                 caller_scalar_values,
                 caller_erased_scalar_parameters,
-                caller_observation_parameters,
-                structural_types,
+                &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    scalar_applications,
+                    constant_values: &checked.typed.constant_recipe_closure.values,
+                    parameters: caller_observation_parameters,
+                    structural_types,
+                    ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
+                },
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -536,7 +542,6 @@ pub(super) fn emit_structural(
             statement_index: coordinate.statement_index as usize,
             call_ordinal: coordinate.call_ordinal as usize,
         },
-        call.source_site().flatten(),
         crate::direct_calls::CallRecord::Frontier(frontier_before_call),
         OperationResult::Structural(returned.clone()),
         callee,

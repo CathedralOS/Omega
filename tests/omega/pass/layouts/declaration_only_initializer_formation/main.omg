@@ -1,0 +1,11 @@
+// Check-only: an unused initializer still owes normal constant evaluation.
+data Cell { first: u64; second: u64; }
+machine extent() -> u64 crashes Trap {
+    transition size_of<Cell>() == 16u64 {
+        true -> accepted()
+        false -> rejected()
+    }
+    machine accepted() -> u64 { 16u64 }
+    machine rejected() -> u64 { crash Trap; }
+}
+const UNUSED: u64 = extent();

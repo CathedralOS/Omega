@@ -6,6 +6,7 @@
 //! across Terminal production. Permission and trust admission stay after selected
 //! execution installation; planning is not authority to execute or publish.
 
+mod checking;
 mod component;
 mod native_inputs;
 
@@ -94,6 +95,10 @@ impl CompilationOutput {
 pub enum CompilationProductError {
     TrustAdmission(Vec<Diagnostic>),
     Production(Vec<Diagnostic>),
+    ProductionAttempt {
+        diagnostics: Vec<Diagnostic>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
 }
 
 impl From<Vec<Diagnostic>> for CompilationProductError {
@@ -106,6 +111,21 @@ impl CompilationProductError {
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
+            Self::ProductionAttempt { diagnostics, .. } => diagnostics,
+        }
+    }
+
+    pub(crate) fn into_target_outcome(
+        self,
+        target: Option<target::TargetProfile>,
+    ) -> crate::CompileTargetOutcome {
+        match self {
+            Self::ProductionAttempt {
+                diagnostics,
+                accounting,
+            } => crate::CompileTargetOutcome::new(target, Err(diagnostics))
+                .with_failed_source_completion_accounting(accounting),
+            error => crate::CompileTargetOutcome::new(target, Err(error.into_diagnostics())),
         }
     }
 }
@@ -136,6 +156,7 @@ pub(crate) enum CompilationWork {
 /// there is no independent requested-mode/report-mode pair to reconcile later.
 pub(crate) enum TerminalCompilation {
     Requested(RequestedTerminalCompilation),
+    Checking(checking::CheckingCompilation),
     Component(ComponentPublication),
 }
 
@@ -186,6 +207,18 @@ impl ProductRequest {
                 },
             )))
         } else {
+            if realization
+                .custody
+                .execution
+                .program
+                .facts
+                .proof_applications
+                .has_obligations
+            {
+                return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
+                    checking::CheckingCompilation::new(realization, report, permissions),
+                )));
+            }
             let checked = realization.finish_check()?;
             admit_permissions(&checked, permissions.as_ref(), false)?;
             checked
@@ -208,18 +241,20 @@ impl TerminalCompilation {
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
             Self::Requested(product) => product.terminal_request(),
+            Self::Checking(product) => product.terminal_request(),
             Self::Component(product) => product.terminal_request(),
         }
     }
 
     pub(crate) fn finish(
         self,
-        produced: TerminalApplication,
+        produced: crate::terminal::ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         match self {
-            Self::Requested(product) => product.finish(produced),
+            Self::Requested(product) => product.finish(produced.into_application()?),
+            Self::Checking(product) => product.finish(produced),
             Self::Component(product) => product
-                .finish(produced)
+                .finish(produced.into_application()?)
                 .map(CompilationOutput::Component)
                 .map_err(CompilationProductError::Production),
         }
@@ -236,6 +271,7 @@ impl RequestedTerminalCompilation {
                     .then_some(self.realization.independent_component_products.as_slice()),
             ),
             selections: self.report.optimizations(),
+            use_kind: crate::terminal::TerminalProductUse::Application,
         }
     }
 
@@ -276,7 +312,7 @@ impl RequestedTerminalCompilation {
                     .finish_terminal(terminal, rollback.into_receipt())?
             }
             CheckedProductReport::Native {
-                settlement,
+                mut settlement,
                 request,
                 rollback,
             } => {
@@ -303,9 +339,37 @@ impl RequestedTerminalCompilation {
                         imports: &[],
                         components: &components,
                     };
-                    native_production::compile(terminal, request)
-                        .map_err(|(_, diagnostics)| diagnostics)
-                })?;
+                    let mut prepared = native_production::prepare(&terminal, request)
+                        .map_err(|(_, diagnostics)| diagnostics)?;
+                    for completion in prepared.scalar_completions() {
+                        let completed = crate::terminal::scalar_completion::complete(
+                            completion.artifact(),
+                            completion.target(),
+                            completion.demand(),
+                            completion.provider_proposals(),
+                            settlement.source_completion_accounting_mut(),
+                        )
+                        .map_err(|reason| {
+                            vec![Diagnostic::error(format!("constant checking: {reason}"))]
+                        })?;
+                        completion
+                            .complete(completed)
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    }
+                    native_production::compile(prepared).map_err(|(_, diagnostics)| diagnostics)
+                });
+                let produced = match produced {
+                    Ok(produced) => produced,
+                    Err(diagnostics) => {
+                        return Err(CompilationProductError::ProductionAttempt {
+                            diagnostics,
+                            accounting: std::mem::take(
+                                settlement.source_completion_accounting_mut(),
+                            ),
+                        });
+                    }
+                };
+                let accounting = settlement.source_completion_accounting_mut().clone();
                 phase_profile::scope(
                     "06.0.f_settlement_finish_native",
                     || -> Result<_, CompilationProductError> {
@@ -315,7 +379,11 @@ impl RequestedTerminalCompilation {
                             .with_runtime_provisions(produced.runtime_provisions)
                             .map_err(|message| vec![Diagnostic::error(message)])?)
                     },
-                )?
+                )
+                .map_err(|error| CompilationProductError::ProductionAttempt {
+                    diagnostics: error.into_diagnostics(),
+                    accounting,
+                })?
             }
         };
         Ok(CompilationOutput::Report(report))

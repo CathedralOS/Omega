@@ -223,8 +223,10 @@ fn descriptor_candidates(
             segment,
             terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
         ) {
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                types.get(&current)?.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = types.get(&current)?.shape
             else {
                 // A runtime view's type does not enumerate owned descriptors.
                 return None;

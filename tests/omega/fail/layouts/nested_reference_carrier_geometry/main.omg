@@ -1,0 +1,17 @@
+// The same layout obligation must reject when a stored reference is replaced
+// by its larger referent. Only the carrier of Views.pair differs from the positive.
+data Pair { first: u64; second: u64; }
+data Views { pair: Pair; bytes: &[u8]; }
+data Envelope { views: Views; }
+const ENVELOPE_BYTES: u64 = size_of<Envelope>();
+machine require_geometry() requires ENVELOPE_BYTES == 24u64 {}
+machine main() crashes Trap {
+    require_geometry();
+    transition ENVELOPE_BYTES == 24u64 && align_of<Envelope>() == 8u64
+        && size_of<&Envelope>() == 8u64 && size_of<&[u64]>() == 16u64
+        && size_of<&[u8; 32]>() == 8u64 && size_of<Pair>() == 16u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
+}

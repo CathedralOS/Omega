@@ -14,6 +14,9 @@
 //! descriptions and semantic validity only: Omega consumers derive, lower,
 //! validate, and execute their own writer programs from the same vocabulary,
 //! and the interpreter consumes the portable operations through its own path.
+//! `aggregate_geometry.rs` owns numeric default sum packing shared by canonical
+//! layout observations and native ABI placement; callers retain their carrier
+//! classes and supply tag geometry explicitly.
 
 /// Generates one `*_numbered` constructor from its positional sibling. The
 /// positional constructor always runs first, complete with its own
@@ -51,12 +54,16 @@ macro_rules! numbered_variant {
     };
 }
 
+mod aggregate_geometry;
 mod layout_reports;
 mod materialization;
 mod placement;
 mod symbolic_materialization;
 mod symbolic_values;
 
+pub use aggregate_geometry::{
+    AggregateGeometryError, ConventionalSumGeometry, StorageGeometry, conventional_sum_geometry,
+};
 pub use layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalNestedRecordSumOccurrenceLayoutReport,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,

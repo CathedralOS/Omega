@@ -14,6 +14,7 @@ cap-std = "4.0.3"
 package-source = { path = "../../packages/source-acquisition" }
 compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 task-plans = { path = "../backend/runtime/task-plans" }
+runtime-abi = { path = "../backend/runtime/runtime-abi" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/provider-evidence" }
@@ -47,6 +48,7 @@ target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
@@ -58,6 +60,7 @@ phase-profile = { path = "../../../psi/foundation/phase-profile" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
@@ -65,11 +68,8 @@ bounded-process = { path = "../../foundation/bounded-process" }
 
 omega-build = { path = "../../application/build" }
 terminal-runtime = { path = "../../application/terminal-runtime" }
-terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
-runtime-abi = { path = "../backend/runtime/runtime-abi" }
 numerics = { path = "../../../psi/foundation/numerics" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }

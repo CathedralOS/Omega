@@ -202,7 +202,7 @@ fn zeroed_declaration_graph(
                 // Empty arrays retain their declared element schema but
                 // instantiate no payload. Requiring its zero validity would
                 // manufacture an element that neither consumer materializes.
-                if *length != 0 {
+                if length.literal() != Some(0) {
                     pending.push((*element, false));
                 } else if !declarations
                     .iter()
@@ -404,23 +404,28 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     structural_type: current,
                 });
             }
-            StructuralTypeShape::FixedArray { element, length }
-                if *length != 0
-                    && declarations.iter().any(|declaration| {
-                        declaration.id == *element
-                            && matches!(declaration.shape,
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } if *length != 0
+                && declarations.iter().any(|declaration| {
+                    declaration.id == *element
+                        && matches!(declaration.shape,
                                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                                     if integer.sign() == IntegerSign::Unsigned
                                         && integer.bits() == 8
                                         && !integer.is_address())
-                    }) =>
+                }) =>
             {
                 leaves.push(ZeroedStructuralLeaf::ByteArray {
                     path,
                     length: *length,
                 });
             }
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 let extent = usize::try_from(*length).ok()?;
                 if leaves
                     .len()
@@ -500,7 +505,7 @@ pub fn zeroed_projected_byte_qualifications_hold<'a>(
             }
         }
         let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
-        let StructuralTypeShape::FixedArray { element, length } = carrier.shape else { return false; };
+        let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
         if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                 if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address())) {

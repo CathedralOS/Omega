@@ -233,6 +233,7 @@ impl StorageRecipes<'_> {
                 }
             }
             StructuralTypeShape::FixedArray { element, length } => {
+                let length = length.literal()?;
                 let (_, stride) = structural_layout::root_array_projection_metadata(
                     root,
                     self.declarations,
@@ -242,7 +243,7 @@ impl StorageRecipes<'_> {
                 .ok()?;
                 repetitions.push(NativeStorageRepetition {
                     path_position: path.len(),
-                    length: *length,
+                    length,
                     byte_stride: occurrence_stride.or(stride)?,
                 });
                 path.push(Path::FixedIndex(0));

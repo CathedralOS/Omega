@@ -373,7 +373,8 @@ pub(super) fn leaf_paths(
                 if !contains_reference(types, *element) {
                     continue;
                 }
-                let count = usize::try_from(*length).ok()?;
+                let length = length.literal()?;
+                let count = usize::try_from(length).ok()?;
                 if pending
                     .len()
                     .checked_add(output.len())?
@@ -382,7 +383,7 @@ pub(super) fn leaf_paths(
                 {
                     return None;
                 }
-                for index in (0..*length).rev() {
+                for index in (0..length).rev() {
                     let mut child_path = path.clone();
                     child_path.push(StructuralPathSegment::FixedIndex(index));
                     pending.push((*element, child_path));

@@ -16,6 +16,36 @@ fn zero_is_default_and_signless() {
 }
 
 #[test]
+fn canonical_words_round_trip_unbounded_signed_values() {
+    let wide = BigInt::from_u64(7).shl_bits(260).add(&BigInt::from_u64(19));
+    for value in [BigInt::zero(), big(1), big(-1), wide.clone(), wide.negate()] {
+        let decoded =
+            BigInt::from_canonical_words(value.is_negative(), value.magnitude_words().to_vec())
+                .expect("canonical magnitude");
+        assert_eq!(decoded, value);
+    }
+}
+
+#[test]
+fn canonical_words_reject_alternate_zero_and_high_zero_encodings() {
+    for (negative, words) in [
+        (true, vec![]),
+        (false, vec![0]),
+        (true, vec![0]),
+        (false, vec![7, 0]),
+    ] {
+        assert_eq!(
+            BigInt::from_canonical_words(negative, words),
+            Err("integer magnitude is not canonical"),
+        );
+    }
+    assert_eq!(
+        BigInt::from_canonical_words(false, vec![]),
+        Ok(BigInt::zero())
+    );
+}
+
+#[test]
 fn ring_ops_match_i128_on_a_grid() {
     let samples: &[i128] = &[
         0,

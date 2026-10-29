@@ -58,15 +58,22 @@ pub(super) fn prepare<'host, 'artifact>(
             entry: Some(terminal_psi::TargetMachineCallable::Machine(
                 runtime.entry(),
             )),
-            installation: runtime.host_provisions().installation(),
+            installation: runtime
+                .scalar_applications()
+                .map(|completed| completed.primary().providers())
+                .or_else(|| runtime.host_provisions().installation()),
             host_imports: &imports,
             target_machines: Some(&target_machines),
             target_layouts: Some(&target_layouts),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
-    let mut binding =
-        TerminalComponentBinding::new(component.selection().clone(), program.clone(), supplies)
-            .map_err(TerminalRuntimeError::ComponentBinding)?;
+    let mut binding = TerminalComponentBinding::new(
+        component.selection().clone(),
+        program.clone(),
+        supplies,
+        runtime.scalar_applications(),
+    )
+    .map_err(TerminalRuntimeError::ComponentBinding)?;
     let imports = binding.unbound_imports().collect::<Vec<_>>();
     host_imports::bind(
         &program,

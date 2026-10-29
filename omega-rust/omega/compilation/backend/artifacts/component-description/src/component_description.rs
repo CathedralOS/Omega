@@ -629,7 +629,8 @@ pub(crate) fn derive_component_inventory(
                 // callee's operations are scanned by this same enumeration and
                 // they carry no authority past the component closure.
                 match &operation.kind {
-                    OperationKind::EstablishNativeCodeLayout { .. } => {},
+                    OperationKind::EstablishNativeCodeLayout { .. }
+                    | OperationKind::ReadScalarApplication { .. } => {},
                     OperationKind::BoundaryCall {
                         boundary,
                         completion_receipts,
@@ -824,11 +825,13 @@ pub(crate) fn derive_component_inventory(
     }
 
     let mut entries = Vec::new();
-    entries.push(ComponentEntry {
-        kind: ComponentEntryKind::Canonical,
-        identity: format!("canonical-entry:{}", canonical_entry_label(module.entry)),
-        evidence: EntryEvidence::ModuleDerived,
-    });
+    if let Some(entry) = module.entry {
+        entries.push(ComponentEntry {
+            kind: ComponentEntryKind::Canonical,
+            identity: format!("canonical-entry:{}", canonical_entry_label(entry)),
+            evidence: EntryEvidence::ModuleDerived,
+        });
+    }
     for site in &module.suspension_call_sites {
         entries.push(ComponentEntry {
             kind: ComponentEntryKind::SuspensionResumption,
@@ -875,10 +878,13 @@ pub(crate) fn derive_component_inventory(
     service_bounds.sort();
     service_bounds.dedup();
 
-    let mut export_contracts = vec![ExportContract {
-        identity: format!("export:canonical:{}", canonical_entry_label(module.entry)),
-        contract_identity: canonical_entry_contract_identity(module.entry),
-    }];
+    let mut export_contracts = Vec::new();
+    if let Some(entry) = module.entry {
+        export_contracts.push(ExportContract {
+            identity: format!("export:canonical:{}", canonical_entry_label(entry)),
+            contract_identity: canonical_entry_contract_identity(entry),
+        });
+    }
     // Every checked provider candidate the module retains is an exported
     // realization: a consumer's `Independent` selection joins its selected
     // plan rows to exactly these coordinates, and a demanded import joins

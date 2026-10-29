@@ -74,6 +74,7 @@ fn for_parameter(
             }
         }
         if let StructuralTypeShape::FixedArray { element, length } = declaration.shape {
+            let length = length.literal()?;
             if length > remaining as u64 {
                 return None;
             }

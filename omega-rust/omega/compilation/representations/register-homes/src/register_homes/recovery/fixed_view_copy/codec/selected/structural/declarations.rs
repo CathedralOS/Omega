@@ -132,7 +132,16 @@ pub(super) fn encode_type(
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.push(0);
+                    crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, application.get().to_le_bytes());
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);
@@ -221,7 +230,14 @@ pub(super) fn decode_type(
         }
         3 => StructuralTypeShape::FixedArray {
             element: decode_id(cursor, StructuralTypeId::new)?,
-            length: cursor.u64()?,
+            length: match cursor.byte()? {
+                0 => terminal_psi::ArrayExtent::Literal(cursor.u64()?),
+                1 => terminal_psi::ArrayExtent::Application(decode_id(
+                    cursor,
+                    semantic_vocabulary::ScalarApplicationId::new,
+                )?),
+                tag => return Err(FixedViewCopyDecodeError::UnknownArrayExtent(tag)),
+            },
         },
         4 => StructuralTypeShape::Sum {
             cases: decode_cases(cursor)?,

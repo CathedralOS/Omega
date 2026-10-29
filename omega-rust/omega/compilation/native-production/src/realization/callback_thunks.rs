@@ -85,12 +85,33 @@ fn lower_callback_thunk(
     request: &NativeRealizationRequest<'_>,
     settlement: &NativeCallbackThunkSettlement<'_>,
 ) -> Result<PrivateFunctionObject, Vec<Diagnostic>> {
+    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+        private_entry_ram: &[],
+        entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
+        ..request.admission
+    };
+    let input = request.execution.lower_callable(
+        settlement.artifact,
+        request.proposal,
+        admission.entry,
+        request.scalar_applications.as_ref().map(|scalars| {
+            terminal_psi_to_abstract_operations::NativeScalarApplications {
+                completed: scalars.completed,
+                provider_declarations: scalars.provider_declarations,
+            }
+        }),
+    )?;
+    let admitted = terminal_psi_to_abstract_operations::admit_prepared_native_realization(
+        input,
+        settlement.artifact,
+        &admission,
+    )?;
     let projection = super::callable_objects::emit_callable_object(
-        request.admission,
+        admitted,
+        admission,
         request.optimization_selections,
         request.optimization_budget(),
         settlement.artifact,
-        terminal_psi::TargetMachineCallable::Machine(settlement.entry),
     )?
     .projection;
     let emitted = projection.entry_call_plan()?;

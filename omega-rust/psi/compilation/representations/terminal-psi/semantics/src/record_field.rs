@@ -339,7 +339,10 @@ fn walk_record_fields<'types>(
                 .clone()
                 .find(|declaration| declaration.id == structural_type)?;
             let element = match &declaration.shape {
-                StructuralTypeShape::FixedArray { element, length } => {
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } => {
                     if *element_index >= *length {
                         return None;
                     }

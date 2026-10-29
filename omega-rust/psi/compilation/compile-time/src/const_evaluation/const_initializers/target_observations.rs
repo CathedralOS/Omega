@@ -6,13 +6,97 @@
 //! checks the declared carrier, every authored operator and admitted helper.
 //! Only completed declaration values return from the private evaluation forest.
 
-use super::invocations::{CheckedInitializers, create_probe};
+use super::invocations::CheckedInitializers;
 use crate::build_time_evaluation::EvaluationDomain;
 use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_entries_separate_initializer_reads_from_their_value_job() {
+        let tokens = source_files_to_tokens::Lexer::new(
+            "data Cell { code: u64; } machine bytes() -> u64 { size_of<Cell>() }",
+        )
+        .tokenize()
+        .expect("lex");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
+        )
+        .expect("resolve");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type");
+        let machine = typed
+            .realized_machine_named("bytes")
+            .expect("query source")
+            .clone();
+        let declared_type = typed.machine_states(&machine)[0].return_type;
+        let expression = typed.expression_table.iter_expressions().find_map(|(handle, expression)| {
+            matches!(expression, typed_trees::expression::ExpressionNode::Call(call) if call.layout_query.is_some()).then_some(handle)
+        }).expect("layout query");
+        let symbol = typed.symbols.insert_generated_root_from(
+            machine.symbol,
+            symbols::SymbolKind::Const,
+            "BYTES",
+        );
+        typed.push_const_declaration(typed_trees::constant::ConstDeclaration {
+            symbol,
+            declared_type,
+            authored_initializer: expression,
+            materialized_initializer: expression,
+            pending_target_observation: true,
+            ..Default::default()
+        });
+        retain_entries(&mut typed, &EvaluationDomain::all());
+        let declaration = typed
+            .const_declarations()
+            .iter()
+            .find(|declaration| declaration.evaluation_entry.is_valid())
+            .expect("retained initializer");
+        assert_ne!(
+            declaration.materialized_initializer,
+            declaration.evaluation_expression
+        );
+        let references = typed_trees::references::collect_selected_program_references(
+            &typed,
+            &typed_trees::references::DeclarationSelection::from_symbols([declaration.symbol]),
+        );
+        assert!(
+            references
+                .expressions
+                .contains(&declaration.evaluation_expression),
+            "the declaration owns the detached entry's query occurrences"
+        );
+        let entry = typed
+            .constant_evaluation_for_expression(
+                declaration.materialized_initializer,
+                declaration.symbol,
+            )
+            .expect("exact source context")
+            .expect("source names the value job");
+        assert_eq!(
+            entry.evaluation_expression,
+            declaration.evaluation_expression
+        );
+        assert!(
+            typed
+                .constant_evaluation_for_expression(
+                    declaration.evaluation_expression,
+                    symbols::SymbolHandle::invalid()
+                )
+                .expect("body is a distinct occurrence")
+                .is_none(),
+            "entry body must not read its own value job"
+        );
+    }
+}
+use typed_trees::constant_recipes::create_evaluation_entry;
 /// Each deferred declaration owns one complete expression entry before target
 /// selection. Detached entries are not ordinary checked/runtime machines; the
 /// exact evaluator still establishes their arithmetic and call obligations.
@@ -31,19 +115,20 @@ pub(crate) fn retain_entries(typed: &mut TypedTrees, domain: &EvaluationDomain) 
         })
         .collect::<Vec<_>>();
     for (handle, declaration) in declarations {
-        let entry = create_probe(
+        let expression = typed
+            .expression_table
+            .insert_copy(declaration.materialized_initializer);
+        let entry = create_evaluation_entry(
             typed,
             declaration.symbol,
             format!("@constant-{}", typed.symbols.name(declaration.symbol)),
-            declaration.materialized_initializer,
+            expression,
             declaration.declared_type,
         );
         let entry = typed.tables.machines.insert(entry);
-        typed
-            .tables
-            .const_declarations
-            .get_mut(handle)
-            .evaluation_entry = entry;
+        let declaration = typed.tables.const_declarations.get_mut(handle);
+        declaration.evaluation_entry = entry;
+        declaration.evaluation_expression = expression;
     }
 }
 
@@ -138,6 +223,7 @@ pub(crate) fn settle(
         for root in [
             declaration.authored_initializer,
             declaration.materialized_initializer,
+            declaration.evaluation_expression,
         ] {
             if root.is_valid() {
                 crate::const_evaluation::const_generic_expressions::retain_current_initializer_calls(
@@ -151,6 +237,7 @@ pub(crate) fn settle(
         for root in [
             declaration.authored_initializer,
             declaration.materialized_initializer,
+            declaration.evaluation_expression,
         ] {
             if !root.is_valid() {
                 continue;
@@ -212,7 +299,7 @@ pub(crate) fn settle(
             execution,
             machine,
             state,
-            declaration.materialized_initializer,
+            declaration.evaluation_expression,
             destination,
             execution.arithmetic_domain_for_type_reference(declaration.declared_type),
             Some(&calls),

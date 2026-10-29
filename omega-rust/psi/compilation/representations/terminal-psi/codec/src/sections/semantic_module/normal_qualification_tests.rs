@@ -37,7 +37,7 @@ fn module() -> TerminalModule {
         },
         StructuralTypeShape::FixedArray {
             element: type_id(1),
-            length: 3,
+            length: terminal_psi::ArrayExtent::Literal(3),
         },
         StructuralTypeShape::Reference {
             referent: type_id(2),

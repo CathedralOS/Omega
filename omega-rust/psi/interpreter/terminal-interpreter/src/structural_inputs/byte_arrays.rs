@@ -44,7 +44,11 @@ pub(crate) fn byte_array_length(
     {
         return Some(capacity);
     }
-    let StructuralTypeShape::FixedArray { element, length } = types.get(&array)?.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = types.get(&array)?.shape
+    else {
         return None;
     };
     let StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(element)) =

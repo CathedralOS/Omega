@@ -321,6 +321,49 @@ impl TypedTrees {
         self.tables.machines.span_mut_or_empty(self.roots.machines)
     }
 
+    /// The static telescope owned by this declaration. Enclosing declarations
+    /// are separate scopes; an executable instance carries its substituted one.
+    pub fn declaration_type_parameters(&self, symbol: SymbolHandle) -> &[data::TypeParameter] {
+        use symbols::SymbolKind;
+        match self.symbols.get(symbol).kind {
+            SymbolKind::Data => self
+                .data_definition_by_symbol(symbol)
+                .map(|declaration| self.data_type_parameters(declaration)),
+            SymbolKind::Domain => crate::domain::domain_by_symbol(self, symbol)
+                .map(|declaration| self.domain_type_parameters(declaration)),
+            SymbolKind::Trait => self
+                .trait_definition_by_symbol(symbol)
+                .map(|declaration| self.trait_type_parameters(declaration)),
+            SymbolKind::Conformance => self
+                .conformance_by_symbol(symbol)
+                .map(|declaration| self.conformance_type_parameters(declaration)),
+            SymbolKind::Machine | SymbolKind::State => self
+                .machine_by_own_or_state_symbol(symbol)
+                .map(|declaration| self.machine_type_parameters(declaration))
+                .or_else(|| {
+                    self.trait_machine_signature(symbol)
+                        .map(|(_, signature)| self.state_signature_type_parameters(signature))
+                })
+                .or_else(|| {
+                    self.retained_static_machine_contract(symbol)
+                        .map(|contract| self.state_signature_type_parameters(contract.signature()))
+                })
+                .or_else(|| {
+                    self.prepared_callable_signatures()
+                        .find(|signature| signature.symbol == symbol)
+                        .map(|signature| self.state_signature_type_parameters(signature))
+                }),
+            SymbolKind::Operator => self
+                .operator_definition_by_symbol(symbol)
+                .map(|declaration| {
+                    self.data_type_parameters
+                        .span_or_empty(declaration.type_parameters)
+                }),
+            _ => None,
+        }
+        .unwrap_or_default()
+    }
+
     /// The `Machine`-kind entries within `machine`'s type parameters — the
     /// positional trait binders that select implementations, never stored
     /// types.

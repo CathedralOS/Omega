@@ -22,7 +22,11 @@ pub(super) fn elements(
     let declaration = types
         .iter()
         .find(|entry| entry.id == result.structural_type)?;
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = declaration.shape
+    else {
         return None;
     };
     let geometry = crate::structural_inputs::structural_reference_input::shape;

@@ -53,6 +53,12 @@ pub struct TerminalExecutionRequirements {
     /// Closed terminal invocations demand host-delegated domain authority,
     /// independently of normal import adapters and provider selection.
     pub external_completions: Vec<TerminalExternalCompletionDemand>,
+    /// Scalar jobs read by the selected executable closure. Merely retaining a
+    /// catalog row or a disconnected block does not demand its evaluation.
+    pub scalar_applications: Vec<semantic_vocabulary::ScalarApplicationId>,
+    /// Conditions owned by evaluation entries actually invoked by this closure.
+    /// These create checking demand, not prerequisite reads or self-dependencies.
+    pub scalar_entry_conditions: Vec<semantic_vocabulary::ScalarApplicationId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -98,6 +104,7 @@ pub(crate) fn check_with_private_entry_ram(
     let mut selected_calls = Vec::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
+    let mut scalar_applications = BTreeSet::new();
     let mut pending = vec![entry];
     let mut visited = BTreeSet::new();
     while let Some(machine_id) = pending.pop() {
@@ -133,6 +140,9 @@ pub(crate) fn check_with_private_entry_ram(
                 .block(&block_id)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             for (operation_index, operation) in block.operations.iter().enumerate() {
+                if let OperationKind::ReadScalarApplication { application } = operation.kind {
+                    scalar_applications.insert(application);
+                }
                 let callee = match &operation.kind {
                     OperationKind::EstablishNativeCodeLayout { machine } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
@@ -368,10 +378,46 @@ pub(crate) fn check_with_private_entry_ram(
             TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary, kind },
         ));
     }
+    let catalog = &program.catalogs.scalar_applications;
+    let mut scalar_entry_conditions = Vec::new();
+    for (position, declaration) in catalog.declarations().iter().enumerate() {
+        let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
+            continue;
+        };
+        let callable = match entry {
+            terminal_psi::TargetMachineCallable::Machine(_) => Some(*entry),
+            terminal_psi::TargetMachineCallable::Boundary(_) => installation
+                .and_then(|installation| installation.target_machines.as_ref())
+                .and_then(|targets| {
+                    targets
+                        .selections()
+                        .iter()
+                        .find(|selection| selection.head() == *entry)
+                })
+                .map(|selection| selection.callable()),
+        };
+        let Some(terminal_psi::TargetMachineCallable::Machine(machine)) = callable else {
+            continue;
+        };
+        if !visited.contains(&machine) {
+            continue;
+        }
+        let application = u64::try_from(position)
+            .ok()
+            .and_then(|position| position.checked_add(1))
+            .and_then(semantic_vocabulary::ScalarApplicationId::new)
+            .ok_or_else(crate::errors::malformed)?;
+        let subject = terminal_psi::ScalarConditionSubject::Application(application);
+        if catalog.conditions.contains_subject(subject) {
+            scalar_entry_conditions.push(application);
+        }
+    }
     Ok(TerminalExecutionRequirements {
         imports: imports.into_iter().collect(),
         missing_providers: missing_providers.into_iter().collect(),
         external_completions: external_demands.into_iter().collect(),
+        scalar_applications: scalar_applications.into_iter().collect(),
+        scalar_entry_conditions,
     })
 }
 
@@ -480,6 +526,7 @@ mod tests {
             identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
             catalogs: std::sync::Arc::new(crate::program::ProgramStorage::Owned(module)),
             target_layouts: None,
+            scalar_geometry: None,
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();
@@ -744,6 +791,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn capability_graph_collects_scalar_jobs_only_from_reached_execution() {
+        use semantic_vocabulary::ScalarApplicationId;
+        let read = |value| OperationKind::ReadScalarApplication {
+            application: ScalarApplicationId::new(value).unwrap(),
+        };
+        let mut program = program();
+        let mut root = machine(0, vec![read(1), unit_call(MachineId::new(2).unwrap())]);
+        let mut disconnected = machine(0, vec![read(4)]).blocks.remove(0);
+        disconnected.id = BlockId::new(2).unwrap();
+        root.blocks.push(disconnected);
+        set_machine(&mut program, MachineId::new(1).unwrap(), root);
+        set_machine(
+            &mut program,
+            MachineId::new(2).unwrap(),
+            machine(0, vec![read(3), read(1)]),
+        );
+        set_machine(
+            &mut program,
+            MachineId::new(3).unwrap(),
+            machine(0, vec![read(5)]),
+        );
+        assert_eq!(
+            check(&program, None).unwrap().scalar_applications,
+            vec![
+                ScalarApplicationId::new(1).unwrap(),
+                ScalarApplicationId::new(3).unwrap()
+            ]
+        );
+    }
+
     fn dynamic_call(interface: u32, slot: u32) -> OperationKind {
         OperationKind::CallDynamic {
             selector: semantic_vocabulary::ValueId::new(1).unwrap(),
@@ -849,6 +927,7 @@ mod tests {
             machine(0, vec![boundary_call(provider_import)]),
         );
         let installation = TerminalRuntimeSupplies {
+            provider_selections: None,
             x86_flags: None,
             memory_ordering: None,
             code_identity: program.identity.clone(),
@@ -868,6 +947,8 @@ mod tests {
                 imports: vec![provider_import],
                 missing_providers: Vec::new(),
                 external_completions: Vec::new(),
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             })
         );
     }
@@ -918,6 +999,8 @@ mod tests {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
                 external_completions: vec![TerminalExternalCompletionDemand { boundary, kind }],
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             })
         );
     }
@@ -931,6 +1014,8 @@ mod tests {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
                 external_completions: Vec::new(),
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             })
         );
     }
@@ -1075,6 +1160,7 @@ mod tests {
         assert_eq!(requirements.missing_providers, vec![boundary]);
         set_machine(&mut program, target, machine(2, Vec::new()));
         let mut installation = TerminalRuntimeSupplies {
+            provider_selections: None,
             x86_flags: None,
             memory_ordering: None,
             code_identity: program.identity.clone(),
@@ -1094,6 +1180,8 @@ mod tests {
                 imports: Vec::new(),
                 missing_providers: Vec::new(),
                 external_completions: Vec::new(),
+                scalar_applications: Vec::new(),
+                scalar_entry_conditions: Vec::new(),
             }
         );
         let mut wrong_identity = installation.code_identity.semantic();

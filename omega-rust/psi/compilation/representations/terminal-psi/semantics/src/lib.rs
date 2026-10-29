@@ -84,7 +84,8 @@ pub use reference_origins::{
     validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{
-    ReferenceStorageProjection, ReferenceStorageRegion, reference_storage_layout,
+    ReferenceStorageGeometry, ReferenceStorageProjection, ReferenceStorageRegion,
+    StorageGeometryError, reference_storage_dependencies, reference_storage_layout,
     reference_storage_projection, reference_storage_region, reference_storage_size,
 };
 mod invocation_inputs;
@@ -160,8 +161,9 @@ pub use primitive_place::{
     canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
     primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
-    primitive_read_requirement, projection_stays_in_inline_storage, runtime_structural_copy_type,
-    runtime_structural_path_tip, stored_descriptor_paths,
+    primitive_read_requirement, projection_stays_in_inline_storage,
+    projection_storage_dependencies, runtime_structural_copy_type, runtime_structural_path_tip,
+    stored_descriptor_paths,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,
@@ -212,10 +214,11 @@ pub use semantic_rows::{
 pub use service_binding::{fused_service_field_carrier, fused_service_field_matches};
 pub use shared_mutation::{SharedMutation, shared_mutation};
 pub use static_path::{
-    canonical_case_leaf_type, canonical_structural_path_tip, canonical_structural_storage_path,
-    constant_runtime_index, interior_member_borrow, qualification_path_carrier,
-    runtime_index_bound, runtime_index_selects, structural_memberships_disjoint_from_write,
-    structural_paths_may_overlap, structural_paths_select_same_location,
+    canonical_case_leaf_type, canonical_storage_dependencies, canonical_structural_path_tip,
+    canonical_structural_storage_path, constant_runtime_index, interior_member_borrow,
+    qualification_path_carrier, runtime_index_bound, runtime_index_selects,
+    structural_memberships_disjoint_from_write, structural_paths_may_overlap,
+    structural_paths_select_same_location,
 };
 pub use storage_regions::{
     StorageRegion, canonical_field_storage_region, crosses_unaliased_reference,

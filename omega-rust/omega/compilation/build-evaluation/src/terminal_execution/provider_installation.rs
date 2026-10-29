@@ -98,6 +98,7 @@ pub(super) fn prepare<'host, 'code>(
             admitted,
             program.clone(),
             supplies,
+            None,
         )?);
     }
     Ok(bindings)

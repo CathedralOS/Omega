@@ -15,6 +15,10 @@ use typed_trees::TypedTrees;
 
 use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody};
 
+mod canonical_scalar;
+pub use canonical_scalar::CanonicalScalarEvaluationReceipt;
+pub(crate) use canonical_scalar::CanonicalScalarScope;
+
 /// The actual executable input of a successful pure invocation. Checked inputs
 /// retain their facts and separate Product declaration frontier unchanged.
 #[derive(Debug, Clone, compiler_storage::Record)]
@@ -170,12 +174,14 @@ impl PureEvaluationReceipt {
 pub enum PureEvaluationRecord {
     Checked(PureEvaluationReceipt),
     Terminal(PureTerminalEvaluationReceipt),
+    CanonicalScalar(CanonicalScalarEvaluationReceipt),
 }
 
 impl PureEvaluationRecord {
     fn has_complete_usage(&self) -> bool {
         match self {
             Self::Checked(receipt) => receipt.usage().is_some(),
+            Self::CanonicalScalar(receipt) => receipt.returned(),
             Self::Terminal(receipt) => {
                 receipt.program.is_some()
                     && matches!(
@@ -190,13 +196,14 @@ impl PureEvaluationRecord {
         match self {
             Self::Checked(receipt) => receipt.validate_charge(),
             Self::Terminal(receipt) => receipt.validate_charge(),
+            Self::CanonicalScalar(receipt) => receipt.validate_charge(),
         }
     }
 }
 
 /// The ordinary constant route's fixed Terminal semantic allowance. This is
 /// deliberately separate from the checked interpreter's step schedule.
-const PURE_TERMINAL_FUEL_CEILING: u64 = 100_000;
+pub(crate) const PURE_TERMINAL_FUEL_CEILING: u64 = 100_000;
 
 /// One Terminal execution with the exact checked source, produced artifact,
 /// selected numeric imports, result and meter actually used by that execution.
@@ -521,6 +528,23 @@ pub struct RecordedPreCheck {
 }
 
 impl SourceCompletionAccounting {
+    pub(crate) fn append_scalar_evaluations(
+        &mut self,
+        records: Vec<CanonicalScalarEvaluationReceipt>,
+    ) {
+        if records.is_empty() {
+            return;
+        }
+        self.append(Self {
+            receipts: records
+                .into_iter()
+                .map(PureEvaluationRecord::CanonicalScalar)
+                .collect::<Vec<_>>()
+                .into(),
+            reused: false,
+        });
+    }
+
     pub fn append(&mut self, other: Self) {
         if self.receipts.is_empty() {
             *self = other;

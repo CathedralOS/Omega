@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 extents = { path = "../../../../foundation/extents" }
+layout-plans = { path = "../../../../foundation/layout-plans" }
 access-plans = { path = "../../../../foundation/access-plans" }
 optimization = { path = "../../../../foundation/optimization-selections" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }

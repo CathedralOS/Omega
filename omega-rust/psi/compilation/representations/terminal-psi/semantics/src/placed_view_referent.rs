@@ -106,7 +106,10 @@ fn resolve_referent_place(
             }
             (
                 StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => *element,
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent

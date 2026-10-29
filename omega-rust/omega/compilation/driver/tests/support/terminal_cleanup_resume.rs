@@ -43,7 +43,7 @@ fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<
 fn exercise(artifact: &CanonicalTerminalArtifact) {
     let program = TerminalProgram::borrow(artifact.view());
     let module = artifact.semantic_module();
-    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         panic!("cleanup helper has an ordinary entry");
     };
     let cleanup_edges = module

@@ -130,6 +130,65 @@ pub enum CrashCause {
 }
 
 impl Terminator {
+    /// Runtime storage operands in edge order, including ordered cleanup.
+    /// Returned claim paths describe evidence, not additional physical reads.
+    pub fn storage_uses(&self) -> Vec<crate::OperationProjection<'_>> {
+        let mut projections = Vec::new();
+        fn argument(argument: &StructuralArgument) -> crate::OperationProjection<'_> {
+            crate::OperationProjection {
+                root: argument.place,
+                path: &argument.path,
+            }
+        }
+        match self {
+            Self::Jump {
+                structural_arguments,
+                ..
+            }
+            | Self::InvokeNoNormal {
+                structural_arguments,
+                ..
+            }
+            | Self::ExternalCompletion {
+                structural_arguments,
+                ..
+            } => {
+                projections.extend(structural_arguments.iter().map(argument));
+            }
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for edge in [when_true, when_false] {
+                    projections.extend(edge.structural_arguments.iter().map(argument));
+                }
+            }
+            Self::StructuralCase { source, path, .. } => {
+                projections.push(crate::OperationProjection {
+                    root: *source,
+                    path,
+                });
+            }
+            Self::ReturnStructural { source, .. } => {
+                projections.push(crate::OperationProjection {
+                    root: *source,
+                    path: &[],
+                });
+            }
+            Self::Return { .. } | Self::ReturnUnit { .. } | Self::Crash { .. } => {}
+        }
+        for (_, actions) in self.cleanup_rosters() {
+            for action in actions {
+                projections.push(crate::OperationProjection {
+                    root: action.place(),
+                    path: action.path(),
+                });
+            }
+        }
+        projections
+    }
+
     /// Rewrite runtime structural root operands, excluding cleanup and proof
     /// identities. This inventory describes uses, not authority to consume them.
     pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {

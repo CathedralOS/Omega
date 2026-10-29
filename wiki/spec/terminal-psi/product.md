@@ -29,13 +29,19 @@ or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
 and instructions are later realization facts.
 
-The portable root names either one concrete machine or an independent
+The optional portable default root names either one concrete machine or an independent
 target-family contract. A family contract has no executable body: the receiving
 installation resolves its exact tagged member from the retained catalog before
 creating execution state or a native plan. The root, every member, and the
 canonical semantic identity remain unchanged across installations. Selection
 establishes catalog membership only; entry backing, provider authority and
 checked source-entry correspondence remain separate admission obligations.
+
+A declaration-only checking product has no default root or root-service reach.
+It can retain real scalar-evaluation machines and supplied callable declarations;
+it does not invent an executable entry. Execution requires an explicitly admitted
+callable or an existing default root. Native emission likewise requires its
+selected executable application.
 
 Selected boundary-operator applications belong to these portable semantics.
 Each demand names its Terminal operation, exact-owner requirement identity,

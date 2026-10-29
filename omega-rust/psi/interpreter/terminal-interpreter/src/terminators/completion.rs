@@ -174,7 +174,10 @@ impl TerminalExecution<'_> {
                 });
                 return Err(malformed());
             }
-            if let Err(error) = self.charge_completed_result(&completed) {
+            if let Err(error) = self
+                .require_entry_results_complete()
+                .and_then(|()| self.charge_completed_result(&completed))
+            {
                 self.failed_return = Some(FailedReturn {
                     _completed: completed,
                     _expected: None,
@@ -286,7 +289,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 };
                 self.values.insert(*destination, *value)?;
-                Ok(())
+                self.observe_completed_entry_result(*destination)
             }
             SuspendedCallResult::Structural {
                 result,

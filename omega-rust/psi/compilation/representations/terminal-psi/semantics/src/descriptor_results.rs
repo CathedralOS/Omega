@@ -706,33 +706,6 @@ fn external_backing(
     })
 }
 
-fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
-    machine
-        .signature_structural_parameter(place)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| {
-            machine
-                .block_structural_parameters()
-                .find(|parameter| parameter.place == place)
-                .map(|parameter| parameter.structural_type)
-        })
-        .or_else(|| {
-            machine.structural_places.iter().find_map(|row| {
-                if row.id != place {
-                    return None;
-                }
-                match row.kind {
-                    StructuralPlaceKind::Result => machine
-                        .result
-                        .structural()
-                        .filter(|result| result.place == place)
-                        .map(|result| result.structural_type),
-                    _ => row.kind.produced_structural_type(),
-                }
-            })
-        })
-}
-
 /// Return custody applies to nested descriptor slots of an owned aggregate,
 /// regardless of which operation constructed it. Direct references and views
 /// retain their separate return contracts. Missing or ambiguous types fail closed.

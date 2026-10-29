@@ -11,29 +11,18 @@
 use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
+use numerics::integer_bounds::{self, IntegerBoundStep};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
-enum RangeStep {
-    #[default]
-    Missing,
-    Bounds {
-        low: BigInt,
-        high: BigInt,
-    },
-    Observation {
-        expression: ExpressionHandle,
-        owner: SymbolHandle,
-    },
-    Add,
-    Subtract,
-    Multiply,
-    Union,
-    Interval,
-    Intersect,
+struct SourceObservation {
+    expression: ExpressionHandle,
+    owner: SymbolHandle,
 }
+
+type RangeStep = IntegerBoundStep<SourceObservation>;
 
 /// Invocation-owned construction storage. Equal snapshots compare by value,
 /// not allocation identity, so flow fixed points do not manufacture changes.
@@ -55,7 +44,10 @@ impl IntegerRangeRecipe {
     /// is not permission to defer arbitrary calls or runtime place reads.
     pub fn observation(expression: ExpressionHandle, owner: SymbolHandle) -> Self {
         Self {
-            steps: vec![RangeStep::Observation { expression, owner }],
+            steps: vec![RangeStep::Observation(SourceObservation {
+                expression,
+                owner,
+            })],
             target_dependent: true,
         }
     }
@@ -207,6 +199,34 @@ impl IntegerRangeObligation {
         self.discharged_target.is_none()
     }
 
+    /// Translate the captured bound expression to a consumer-owned namespace.
+    /// A consumer must join every exact observation; it cannot rebuild the
+    /// expression from the current source or silently omit an unavailable leaf.
+    pub fn map_steps<Observation>(
+        &self,
+        observe: &mut impl FnMut(ExpressionHandle, SymbolHandle) -> Result<Observation, String>,
+    ) -> Result<Vec<IntegerBoundStep<Observation>>, String> {
+        self.steps
+            .span(self.recipe)
+            .ok_or_else(|| "retained integer range has no recipe storage".to_owned())?
+            .iter()
+            .map(|step| {
+                step.map_observation(&mut |observation| {
+                    observe(observation.expression, observation.owner)
+                })
+            })
+            .collect()
+    }
+
+    /// Fixed representability bounds; an address-model requirement instead
+    /// obtains its ceiling from the admitted target model.
+    pub fn fixed_limits(&self) -> Option<(&BigInt, &BigInt)> {
+        match &self.requirement {
+            RangeRequirement::Fixed { minimum, maximum } => Some((minimum, maximum)),
+            RangeRequirement::AddressModel => None,
+        }
+    }
+
     pub fn discharge(
         &mut self,
         program: &TypedTrees,
@@ -232,7 +252,16 @@ impl IntegerRangeObligation {
             .steps
             .span(self.recipe)
             .ok_or_else(|| "retained integer range has no recipe storage".to_owned())
-            .and_then(|steps| evaluate(steps, program))
+            .and_then(|steps| {
+                integer_bounds::evaluate(steps, &mut |observation| {
+                    program
+                        .closed_integer_expression_value_in(
+                            observation.expression,
+                            observation.owner,
+                        )
+                        .ok_or_else(|| "target observation has no closed integer value".to_owned())
+                })
+            })
             .and_then(|(low, high)| {
                 let (minimum, maximum) = limits
                     .as_ref()
@@ -260,78 +289,4 @@ impl IntegerRangeObligation {
             .with_source_span(program.expression_table.source_span(self.expression))),
         }
     }
-}
-
-fn evaluate(steps: &[RangeStep], program: &TypedTrees) -> Result<(BigInt, BigInt), String> {
-    let mut values: Vec<(BigInt, BigInt)> = Vec::new();
-    for step in steps {
-        match step {
-            RangeStep::Missing => return Err("missing integer bound step".to_owned()),
-            RangeStep::Bounds { low, high } => {
-                if low > high {
-                    return Err("inverted captured integer bounds".to_owned());
-                }
-                values.push((low.clone(), high.clone()));
-            }
-            RangeStep::Observation { expression, owner } => {
-                let value = program
-                    .closed_integer_expression_value_in(*expression, *owner)
-                    .ok_or_else(|| "target observation has no closed integer value".to_owned())?;
-                values.push((value.clone(), value));
-            }
-            operation => {
-                let (right_low, right_high) = values
-                    .pop()
-                    .ok_or_else(|| "missing right integer bounds".to_owned())?;
-                let (left_low, left_high) = values
-                    .pop()
-                    .ok_or_else(|| "missing left integer bounds".to_owned())?;
-                values.push(match operation {
-                    RangeStep::Add => (left_low.add(&right_low), left_high.add(&right_high)),
-                    RangeStep::Subtract => (left_low.sub(&right_high), left_high.sub(&right_low)),
-                    RangeStep::Interval => {
-                        if left_low > right_high {
-                            return Err("inverted contract bounds".to_owned());
-                        }
-                        (left_low, right_high)
-                    }
-                    RangeStep::Intersect => {
-                        let low = left_low.max(right_low);
-                        let high = left_high.min(right_high);
-                        if low > high {
-                            return Err("inconsistent captured contract bounds".to_owned());
-                        }
-                        (low, high)
-                    }
-                    RangeStep::Multiply => {
-                        let corners = [
-                            left_low.mul(&right_low),
-                            left_low.mul(&right_high),
-                            left_high.mul(&right_low),
-                            left_high.mul(&right_high),
-                        ];
-                        let low = corners
-                            .iter()
-                            .min()
-                            .cloned()
-                            .ok_or_else(|| "missing product corners".to_owned())?;
-                        let high = corners
-                            .iter()
-                            .max()
-                            .cloned()
-                            .ok_or_else(|| "missing product corners".to_owned())?;
-                        (low, high)
-                    }
-                    RangeStep::Union => (left_low.min(right_low), left_high.max(right_high)),
-                    _ => return Err("invalid integer range operation".to_owned()),
-                });
-            }
-        }
-    }
-    if values.len() != 1 {
-        return Err("integer range recipe does not produce one value".to_owned());
-    }
-    values
-        .pop()
-        .ok_or_else(|| "integer range recipe has no result".to_owned())
 }

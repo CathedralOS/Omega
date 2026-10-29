@@ -115,8 +115,10 @@ impl TerminalExecution<'_> {
             let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment else {
                 return Err(malformed());
             };
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                types.get(&selected).ok_or_else(malformed)?.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = types.get(&selected).ok_or_else(malformed)?.shape
             else {
                 return Err(malformed());
             };

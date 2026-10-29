@@ -24,6 +24,7 @@ pub(crate) fn retain_deferred_constant_recipes(
     {
         recipes.push(RetainedConstantRecipe {
             position: RetainedConstantPosition::ArrayLength(type_reference),
+            contexts: Default::default(),
             invocations: Default::default(),
             machine,
             name: Identifier::generated(name),
@@ -38,6 +39,7 @@ pub(crate) fn retain_deferred_constant_recipes(
     {
         recipes.push(RetainedConstantRecipe {
             position: RetainedConstantPosition::RangeEndpoint(endpoint.expression),
+            contexts: Default::default(),
             invocations: Default::default(),
             machine: endpoint.machine,
             name: Identifier::generated(typed.symbols.name(endpoint.machine)),
@@ -47,17 +49,19 @@ pub(crate) fn retain_deferred_constant_recipes(
     // A constant root exists independently of its helper-call roster. Layout
     // observations have no authored callee, but the same target closure owns
     // their value and the contracts that depend on it.
-    for root in integers
-        .roots
-        .iter()
-        .filter(|root| root.constrained_type.is_none())
-    {
+    for root in &integers.roots {
+        let range_endpoints::IntegerRootPosition::Contract(context) = root.position else {
+            continue;
+        };
         let position = RetainedConstantPosition::ContractExpression(root.expression);
-        if typed
-            .constant_recipes
-            .iter()
-            .any(|(_, recipe)| recipe.position == position)
-        {
+        if typed.constant_recipes.iter().any(|(_, recipe)| {
+            recipe.position == position
+                && typed
+                    .constant_expression_contexts
+                    .span_or_empty(recipe.contexts)
+                    .iter()
+                    .any(|retained| retained.same_scope(&context))
+        }) {
             continue;
         }
         let calls: Vec<_> = integers
@@ -68,6 +72,7 @@ pub(crate) fn retain_deferred_constant_recipes(
         let machine = calls.first().map(|call| call.machine).unwrap_or_default();
         recipes.push(RetainedConstantRecipe {
             position,
+            contexts: typed.constant_expression_contexts.insert_many([context]),
             invocations: typed
                 .expression_table
                 .insert_expression_handles(calls.iter().map(|call| call.expression)),
@@ -92,6 +97,7 @@ pub(crate) fn retain_deferred_constant_recipes(
                 site: application.site,
                 root: application.root,
             },
+            contexts: Default::default(),
             machine,
             invocations: Default::default(),
             name: Identifier::generated(if machine.is_valid() {
@@ -102,6 +108,6 @@ pub(crate) fn retain_deferred_constant_recipes(
             source_span: typed.expression_table.source_span(application.root),
         });
     }
-    retain_constant_recipes(&mut typed.constant_recipes, recipes);
+    retain_constant_recipes(typed, recipes);
     Ok(())
 }

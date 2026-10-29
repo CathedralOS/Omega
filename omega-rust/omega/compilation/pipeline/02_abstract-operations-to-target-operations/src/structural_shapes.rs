@@ -150,7 +150,10 @@ fn collect_scalar_leaves(
                     .ok_or(InvalidStructuralShape)?;
             }
         }
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } => {
             let element_shape = shape(*element, declarations, cache, active)?;
             for index in 0..*length {
                 let offset = u64::from(element_shape.byte_size)
@@ -383,14 +386,14 @@ fn shape(
             byte_size = align(byte_size, u32::from(alignment))?;
             ValueShape::integer(byte_size, alignment)
         }
-        StructuralTypeShape::FixedArray { length: 0, .. } => {
+        StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(0), .. } => {
             // Zero-byte calling plans retain a canonical shape. Reconstruct
             // the complete element declaration even though no element bytes
             // are transported; unknown and recursive shells still reject.
             validate_empty_array_element(structural_type, declarations, cache, active)?;
             ValueShape::integer(0, 1)
         }
-        StructuralTypeShape::FixedArray { element, length } => {
+        StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } => {
             let element = shape(*element, declarations, cache, active)?;
             let stride = align(element.byte_size, u32::from(element.alignment))?;
             let bytes = u64::from(stride)

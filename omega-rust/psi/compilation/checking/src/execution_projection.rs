@@ -349,6 +349,28 @@ fn project_declarations(
                 synthesized.insert(child);
             }
         }
+        // An evaluation entry is owned by one retained constant declaration.
+        // Its generated symbol is not lexically nested, and its owner can have
+        // an authored source location excluded by the ordinary reference rule.
+        // Preserve this exact association from the original live roster rather
+        // than granting arbitrary generated-from provenance executable reach.
+        for declaration in original.const_declarations() {
+            if !original
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+            {
+                continue;
+            }
+            let entry = original
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .symbol;
+            if selected_root(entry) || synthesized.contains(&entry) {
+                synthesized.insert(declaration.symbol);
+            }
+        }
         if synthesized.len() == before {
             break;
         }
