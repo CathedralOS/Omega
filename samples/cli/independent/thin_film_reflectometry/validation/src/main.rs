@@ -1,18 +1,19 @@
 //! Capture actual numerical native and Terminal output from the same product.
 //! This uses normal package preparation and preserves its admission checks.
 //! Review modes use this exact executable identity; run never accepts decisions.
-use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{LocalProjectPreparationOptions};
-use omega_build::{PreparedLocalProjectNativeRequest};
+use omega_build::{
+    BuildRequest, BuildSession, BuildTargets, NativeDestination, ProjectProduct,
+    execute_package_command,
+};
 use package_manager::{
-    PackageBuildSession, PackageCommand, PackageCommandKind, PackageCommandOptions,
-    PackageCommandStatus, execute_package_command,
+    PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
 };
 use std::{
     fs,
     path::PathBuf,
     process::{Command, Stdio},
 };
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 
 fn main() {
     std::thread::Builder::new()
@@ -44,33 +45,44 @@ fn run() {
     let directory = PathBuf::from(&arguments[2]);
     fs::create_dir_all(&directory).unwrap();
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
-    let prepared = package_manager::operations::prepare_local_project(
-        &root,
-        LocalProjectPreparationOptions {
-            target: profile,
-            offline: false,
+    let product_directory = directory.join("product");
+    let outcomes = omega_build::build(BuildRequest {
+        root_path: root,
+        build_directory: Some(product_directory.clone()),
+        targets: BuildTargets::Single(profile),
+        product: ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
         },
-    )
-    .unwrap()
+        timings: false,
+        offline: false,
+        verify: false,
+        // Preparation previously unwrapped its optional package project.
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
     .unwrap();
-    let report = omega_build::compile_prepared_local_project_for_native(
-        PreparedLocalProjectNativeRequest::new(prepared, directory.join("product"), profile),
-    )
-    .unwrap();
+    let [outcome] = outcomes
+        .try_into()
+        .map_err(|_| "one named target produces exactly one Build outcome")
+        .unwrap();
+    let report = outcome.result.unwrap().into_report().unwrap().report;
     let artifact = report
-        .retained_native_artifact()
-        .map(|artifact| artifact.psi_artifact())
-        .or_else(|| {
-            report
-                .retained_dynamic_elf_artifact()
-                .map(|artifact| artifact.psi_artifact())
-        })
+        .retained_native_program()
+        .map(|program| program.psi_artifact())
         .unwrap();
     for input_path in arguments.iter().skip(3).map(PathBuf::from) {
         let case_directory = input_path.parent().unwrap();
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            entry: None,
             native_provider: None,
-            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
+                .expect("host flags capture"),
+            memory_ordering:
+                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
+                    "linux_x86_64",
+                ),
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
@@ -94,11 +106,8 @@ fn run() {
             observation.status
         );
     }
-    let (_, executable) = omega_build::publication::publish_native_artifact(
-        report,
-        &directory.join("product"),
-    )
-    .unwrap();
+    let (_, executable) =
+        omega_build::publication::publish_native_artifact(report, &product_directory).unwrap();
     for input_path in arguments.iter().skip(3).map(PathBuf::from) {
         let case_directory = input_path.parent().unwrap();
         let native = Command::new(&executable)
@@ -137,8 +146,8 @@ fn review(directory: &str, resume: bool) {
         offline: true,
         build_inputs: None,
     };
-    let mut session = PackageBuildSession::create(&root.join("build/package-manager")).unwrap();
-    let result = execute_package_command(command, options, None, &mut session);
+    let mut session = BuildSession::create(&root.join("build/package-manager")).unwrap();
+    let result = execute_package_command(command, options, &mut session);
     let outcome = session.dispose(result).unwrap();
     print!("{}", outcome.report);
     for path in outcome.review_paths {
