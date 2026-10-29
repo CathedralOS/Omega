@@ -228,9 +228,9 @@ pub struct MachineContractPlan {
     pub commitment: MachineContractCommitment,
 }
 
-/// Domain-separated commitment to one machine's complete canonical public
-/// contract, declared through `typed_trees`'s shared digest carrier.
 typed_trees::digest_commitment! {
+    /// Domain-separated commitment to one machine's complete canonical public
+    /// contract, declared through `typed_trees`'s shared digest carrier.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     MachineContractCommitment
 }
