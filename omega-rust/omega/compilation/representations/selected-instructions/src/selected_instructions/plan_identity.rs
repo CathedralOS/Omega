@@ -169,6 +169,12 @@ pub(crate) struct CachedFunctionPrefix {
     slot_bytes: std::sync::Arc<Vec<u8>>,
 }
 
+macro_rules! ids {
+    ($bytes:expr => $items:expr) => {
+        encode_ids($bytes, $items.iter().map(|item| item.get()))
+    };
+}
+
 fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v2\0");
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
@@ -182,18 +188,8 @@ fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
             .nominal_cleanup_subject
             .map(|attachment| attachment.get()),
     );
-    encode_ids(
-        bytes,
-        function
-            .provenance
-            .operations
-            .iter()
-            .map(|operation| operation.get()),
-    );
-    encode_ids(
-        bytes,
-        function.provenance.edges.iter().map(|edge| edge.get()),
-    );
+    ids!(bytes => function.provenance.operations);
+    ids!(bytes => function.provenance.edges);
     contracts::encode_static(bytes, function);
     crate::codec_bytes::push_encoded(bytes, function.entry_block.0.to_le_bytes());
 }
@@ -549,34 +545,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     encode_u16s(bytes, instruction.implicit_uses.iter().map(|unit| unit.0));
     encode_u16s(bytes, instruction.implicit_defs.iter().map(|unit| unit.0));
     encode_u16s(bytes, instruction.clobbers.iter().map(|unit| unit.0));
-    encode_ids(
-        bytes,
-        instruction
-            .provenance
-            .operations
-            .iter()
-            .map(|operation| operation.get()),
-    );
-    encode_ids(
-        bytes,
-        instruction
-            .provenance
-            .values
-            .iter()
-            .map(|value| value.get()),
-    );
-    encode_ids(
-        bytes,
-        instruction.provenance.edges.iter().map(|edge| edge.get()),
-    );
-    encode_ids(
-        bytes,
-        instruction
-            .provenance
-            .obligations
-            .iter()
-            .map(|obligation| obligation.get()),
-    );
+    ids!(bytes => instruction.provenance.operations);
+    ids!(bytes => instruction.provenance.values);
+    ids!(bytes => instruction.provenance.edges);
+    ids!(bytes => instruction.provenance.obligations);
     encode_fuel(bytes, &instruction.provenance.fuel);
 }
 
