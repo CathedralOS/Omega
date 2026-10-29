@@ -169,7 +169,7 @@ pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
         "host":{"os":std::env::consts::OS, "architecture":std::env::consts::ARCH,
             "logical_cpus":std::thread::available_parallelism().ok().map(usize::from),
             "processor":std::env::var("PROCESSOR_IDENTIFIER").ok().or_else(||std::fs::read_to_string("/proc/cpuinfo").ok().and_then(|text|text.lines().find_map(|line|line.strip_prefix("model name").and_then(|line|line.split_once(':')).map(|(_,name)|name.trim().to_owned())))),
-            "host_id_sha256":std::env::var("COMPUTERNAME").ok().or_else(||std::env::var("HOSTNAME").ok()).or_else(||std::fs::read_to_string("/etc/machine-id").ok()).map(|name|digest(name.as_bytes()))},
+            "host_id_sha256":host_identifier()},
         "inherited_settings":(["OMEGA_PHASE_PROFILE","OMEGA_REVIEW_TIMINGS","OMEGA_ALLOCATION_PROFILE","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
         "resource_limits":{"address_space_bytes":17179869184_u64, "process_memory_bytes":8589934592_u64,
             "aggregate_memory_bytes":8589934592_u64, "active_processes":64, "capture_bytes_per_stream":1048576},
@@ -669,9 +669,54 @@ fn host_target() -> Result<&'static str, String> {
     }
 }
 
+fn host_identifier() -> Option<String> {
+    std::env::var("COMPUTERNAME")
+        .ok()
+        .filter(|name| !name.trim().is_empty())
+        .or_else(|| {
+            std::env::var("HOSTNAME")
+                .ok()
+                .filter(|name| !name.trim().is_empty())
+        })
+        .or_else(|| {
+            std::fs::read_to_string("/etc/machine-id")
+                .ok()
+                .filter(|name| !name.trim().is_empty())
+        })
+        .map(|name| digest(name.as_bytes()))
+        .or_else(native_host_identifier)
+}
+
+#[cfg(unix)]
+fn native_host_identifier() -> Option<String> {
+    // macOS need not export HOSTNAME and has no /etc/machine-id. Read the
+    // kernel's hostname without launching another process or mutating settings.
+    let mut hostname = [0_u8; 256];
+    // SAFETY: hostname is writable for the supplied length. Do not read beyond
+    // the buffer or accept a truncated name without a terminating NUL.
+    if unsafe { libc::gethostname(hostname.as_mut_ptr().cast(), hostname.len()) } != 0 {
+        return None;
+    }
+    let length = hostname.iter().position(|byte| *byte == 0)?;
+    (length != 0).then(|| digest(&hostname[..length]))
+}
+
+#[cfg(not(unix))]
+fn native_host_identifier() -> Option<String> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::stage_timings;
+
+    #[cfg(unix)]
+    #[test]
+    fn native_host_identification_does_not_require_shell_environment() {
+        let first = super::native_host_identifier().expect("kernel hostname");
+        assert_eq!(first.len(), 64);
+        assert_eq!(Some(first), super::native_host_identifier());
+    }
 
     #[test]
     fn keeps_each_samples_stage_values_and_accumulates_repeated_labels() {

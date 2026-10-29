@@ -1436,6 +1436,7 @@ version = "0.1.0"
 dependencies = [
  "allocation-observation",
  "bounded-process",
+ "libc",
  "serde",
  "serde_json",
  "sha2",
