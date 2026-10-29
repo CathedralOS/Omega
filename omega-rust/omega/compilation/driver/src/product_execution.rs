@@ -271,7 +271,7 @@ impl RequestedTerminalCompilation {
                 &mut self.realization.custody,
                 self.report
                     .is_native()
-                    .then_some(self.realization.independent_component_products.as_slice()),
+                    .then_some(&self.realization.independent_components),
             ),
             selections: self.report.optimizations(),
             use_kind: crate::terminal::TerminalProductUse::Application,
@@ -327,7 +327,8 @@ impl RequestedTerminalCompilation {
                 let produced = phase_profile::scope("06.0.e_produce_native_product", || {
                     let accepted_package_terminal_authority_permission_policy =
                         native_inputs::accepted_terminal_authority_permission_policy(&checked)?;
-                    let components = native_inputs::independent_components(&checked, &terminal)?;
+                    let components =
+                        native_inputs::independent_components(checked.independent_components())?;
                     let post_terminal = rollback.effective().project_post_terminal();
                     let request = native_production::NativeCompileRequest {
                         private_entry_ram: &request.private_entry_ram,

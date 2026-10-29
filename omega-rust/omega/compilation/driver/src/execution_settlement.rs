@@ -40,8 +40,8 @@ pub(crate) struct SelectedProviderCustody {
 pub(crate) struct SelectedProductTarget {
     pub(crate) custody: SelectedProviderCustody,
     pub(crate) retained_checks: RetainedCompilationChecks,
-    pub(crate) independent_component_products:
-        Vec<Arc<compilation_products::IndependentComponentProduct>>,
+    pub(crate) independent_components:
+        Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
 }
 
 impl SelectedProductTarget {
@@ -80,10 +80,26 @@ impl SelectedProductTarget {
                     })?,
             );
         }
+        let custody = select_product_providers(source, target, package_inputs.as_ref())?;
+        // Direct source consumers do not attach a package session's products.
+        // Unprepared Independent demands must not look like a complete empty set.
+        let mut independent_components = Ok(Vec::new());
+        for selected in &custody.execution.selected_provider_provenance {
+            if selected
+                .selected_by
+                .composition_mode()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                == provider_planning::CompositionMode::Independent
+            {
+                independent_components = Err(
+                    "independent native production requires exactly one complete retained producing product".to_owned(),
+                );
+            }
+        }
         Ok(Self {
-            custody: select_product_providers(source, target, package_inputs.as_ref())?,
+            custody,
             retained_checks: source.retained_checks.clone(),
-            independent_component_products: Vec::new(),
+            independent_components,
         })
     }
 
@@ -133,30 +149,87 @@ impl SelectedProductTarget {
                     "independent component verdict belongs to another description subject",
                 )]);
             }
-            for selection in &self.custody.execution.selected_provider_provenance {
-                if selection
-                    .selected_by
-                    .composition_mode()
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?
-                    == provider_planning::CompositionMode::Independent
-                    && component.realizes_selected_plan(&selection.plan).is_ok()
-                {
-                    native_production::ComponentNativeInputs::join(
-                        component,
-                        product.retained(),
-                        &selection.plan,
-                        &applications,
-                    )
-                    .map_err(|reason| {
-                        vec![Diagnostic::error(format!(
-                            "independent component native inputs: {reason}",
-                        ))]
-                    })?;
-                }
-            }
             retained.push(Arc::clone(product));
         }
-        self.independent_component_products = retained;
+
+        let execution = &self.custody.execution;
+        let facts = &execution.selected_provider_plan_facts;
+        let mut receiving_identities = None;
+        let mut selected_components = Vec::new();
+        let mut unavailable = None;
+        for selected in &execution.selected_provider_provenance {
+            if selected
+                .selected_by
+                .composition_mode()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                != provider_planning::CompositionMode::Independent
+            {
+                continue;
+            }
+            // Descriptive stops need not have an executable product. Retain a
+            // native-only refusal, but still check every available producing
+            // join now: a bad ABI is not hidden by another missing product.
+            let selected_inputs = (|| {
+                let mut components = verified
+                    .iter()
+                    .filter(|component| component.realizes_selected_plan(&selected.plan).is_ok());
+                let component = components
+                    .next()
+                    .ok_or("independent native production has no exact verified component")?;
+                if components.next().is_some() {
+                    return Err("independent native production has competing component verdicts");
+                }
+                let mut products = retained.iter().filter(|product| {
+                    product.description().expected_subject() == component.subject()
+                });
+                let product = products.next()
+                    .ok_or("independent native production requires exactly one complete retained producing product")?;
+                if products.next().is_some() {
+                    return Err(
+                        "independent native production requires exactly one complete retained producing product",
+                    );
+                }
+                let digest = selected.plan.identity_digest();
+                let mut plans = facts
+                    .plans()
+                    .iter()
+                    .filter(|plan| plan.identity_digest() == digest);
+                let plan = plans
+                    .next()
+                    .ok_or("component call lost its complete selected provider plan")?;
+                if plans.next().is_some() {
+                    return Err("component call has competing complete provider plans");
+                }
+                Ok((component, product, plan))
+            })();
+            let (component, product, plan) = match selected_inputs {
+                Ok(inputs) => inputs,
+                Err(reason) => {
+                    unavailable.get_or_insert_with(|| reason.to_owned());
+                    continue;
+                }
+            };
+            let component = compilation_products::SelectedIndependentComponent::join(
+                Arc::clone(component),
+                product,
+                plan.clone(),
+                Arc::clone(
+                    receiving_identities
+                        .get_or_insert_with(|| Arc::new(facts.identities().clone())),
+                ),
+                &applications,
+            )
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "independent component native inputs: {reason}"
+                ))]
+            })?;
+            selected_components.push(component);
+        }
+        self.independent_components = match unavailable {
+            Some(reason) => Err(reason),
+            None => Ok(selected_components),
+        };
         Ok(())
     }
 
@@ -212,7 +285,7 @@ impl SelectedProductTarget {
         checked_compilation(
             self.custody,
             self.retained_checks,
-            self.independent_component_products,
+            self.independent_components,
         )
     }
 }
@@ -403,7 +476,7 @@ pub(crate) fn select_product_providers(
 fn checked_compilation(
     selection: SelectedProviderCustody,
     retained_checks: RetainedCompilationChecks,
-    independent_components: Vec<Arc<compilation_products::IndependentComponentProduct>>,
+    independent_components: Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
 ) -> CheckedCompilation {
     let SelectedProviderCustody {
         source_completion_accounting,

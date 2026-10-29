@@ -469,6 +469,43 @@ fn components_use_the_shared_product_sequence() {
 }
 
 #[test]
+fn component_handoff_retains_the_producing_join() {
+    let handoff = include_str!("product_execution/native_inputs.rs");
+    let components = handoff.split("/// Project and validate").next().unwrap();
+    for forbidden in [
+        "checked: &",
+        ".providers()",
+        ".execution()",
+        "realizes_selected_plan(",
+        "ComponentNativeInputs::join(",
+        "identity_digest(",
+        ".filter(",
+    ] {
+        assert!(
+            !components.contains(forbidden),
+            "native handoff reconstructs {forbidden}"
+        );
+    }
+    assert!(
+        components
+            .split_whitespace()
+            .collect::<String>()
+            .contains("component.input()")
+    );
+    let terminal = include_str!("terminal/terminal_artifact.rs");
+    assert!(!terminal.contains("realizes_selected_plan("));
+    let selection = include_str!("execution_settlement.rs");
+    let initialization = selection
+        .split("pub(crate) fn retain_independent_component_products")
+        .next()
+        .unwrap();
+    assert!(initialization.contains("independent_components = Err("));
+    assert!(selection.contains("SelectedIndependentComponent::join("));
+    let native = include_str!("../../native-production/src/components.rs");
+    assert!(native.contains(".admit_native_calls(receiver)"));
+}
+
+#[test]
 fn terminal_production_owns_the_build_provider_companion() {
     let production = include_str!("terminal/terminal_artifact.rs");
     let completion = include_str!("../../native-production/src/application.rs");

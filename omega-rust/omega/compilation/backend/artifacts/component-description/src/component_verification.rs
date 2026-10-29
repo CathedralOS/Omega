@@ -392,18 +392,17 @@ impl VerifiedComponent {
         &self,
         plan: &ProviderPlan,
     ) -> Result<(), IndependentRealizationMismatch> {
-        self.selected_plan_exports(plan).map(|_| ())
+        self.selected_plan_export_positions(plan).map(|_| ())
     }
 
-    /// Join the complete plan once and retain its exact artifact-local export
-    /// candidates. A caller must keep this component's subject beside those
-    /// handles; a dense machine identity alone never names another artifact.
+    /// Join the complete plan and return positions in this component's immutable
+    /// provider candidate catalog. A caller must retain this component beside
+    /// those positions; they never name candidates in another artifact.
     /// These are verified export descriptions, not installed entry capabilities.
-    pub fn selected_plan_exports(
+    pub fn selected_plan_export_positions(
         &self,
         plan: &ProviderPlan,
-    ) -> Result<Vec<&terminal_psi::ProviderCandidateConformance>, IndependentRealizationMismatch>
-    {
+    ) -> Result<Vec<usize>, IndependentRealizationMismatch> {
         if plan.provider_type.is_empty() {
             return Err(IndependentRealizationMismatch::EmptyProviderType {
                 plan: plan.name.clone(),
@@ -434,7 +433,8 @@ impl VerifiedComponent {
                 .module()
                 .provider_candidates
                 .iter()
-                .filter(|candidate| {
+                .enumerate()
+                .filter(|(_, candidate)| {
                     self.module()
                         .identities
                         .text(candidate.requirement_identity)
@@ -449,7 +449,7 @@ impl VerifiedComponent {
             let for_provider = for_requirement
                 .iter()
                 .copied()
-                .filter(|candidate| {
+                .filter(|(_, candidate)| {
                     self.module().identities.text(candidate.provider_identity)
                         == Some(plan.provider_type.as_str())
                 })
@@ -464,7 +464,7 @@ impl VerifiedComponent {
             let exact = for_provider
                 .iter()
                 .copied()
-                .filter(|candidate| {
+                .filter(|(_, candidate)| {
                     self.module().identities.text(candidate.candidate_identity)
                         == Some(machine_identity)
                 })
@@ -479,7 +479,7 @@ impl VerifiedComponent {
                         selected_machine: machine_identity.to_owned(),
                     });
                 }
-                [candidate] => exports.push(*candidate),
+                [(position, _)] => exports.push(*position),
                 _ => {
                     return Err(IndependentRealizationMismatch::DuplicateRealization {
                         requirement_identity: plan
