@@ -8,12 +8,39 @@
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use super::{Machine, StatementNode};
 
+/// Compare one complete descriptor observation at the two sides of operand
+/// evaluation. Singleton identity preserves correlation; equality of two sets
+/// of possible origins cannot prove that an individual address stayed fixed.
+pub(super) fn binding_preserved(
+    before: &[super::StoredLocalOrigins],
+    after: &[super::StoredLocalOrigins],
+    root: symbols::SymbolHandle,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    let sources = |stored: &[super::StoredLocalOrigins]| {
+        let record = stored.iter().find(|record| record.local_symbol == root)?;
+        let sources = super::stored_origins::selected_slot_sources(record, path, None)?;
+        let [source] = sources.as_slice() else {
+            return None;
+        };
+        (source.lifetime_access.is_none()
+            && source.origin.precision == super::FramePathPrecision::Exact
+            && source.origin.source.root.is_valid()
+            && source.origin.source.builtin_coordinates
+            && source.origin.source.output_identity().is_none()
+            && !source.origin.source.is_static())
+        .then(|| source.clone())
+    };
+    sources(before).is_some_and(|before| sources(after).as_ref() == Some(&before))
+}
+
 pub(super) fn destination_remains_current(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     statement: &StatementNode,
     writes: Option<&[String]>,
     captured: Option<&crate::CanonicalPlace>,
+    binding_preserved: impl Fn(symbols::SymbolHandle, &[facts::PlaceSegment]) -> bool,
 ) -> Option<()> {
     let assignment = statement.as_assignment()?;
     let (state, _, ordinal) =
@@ -107,20 +134,20 @@ pub(super) fn destination_remains_current(
                     program.symbols.name(root),
                     &place.segments[..depth],
                 );
-                writes
-                    .is_some_and(|writes| {
-                        writes.iter().all(|written| {
-                            // A strict descendant changes the referent, not
-                            // this reference slot. Collection-coarse paths
-                            // cannot make that distinction and stay coarse.
-                            if precision == super::FramePathPrecision::Exact {
-                                super::stored_origins::place_suffix(written, &path).is_none()
-                            } else {
-                                !super::demand::frame_paths_overlap(&path, written)
-                            }
-                        })
+                (writes.is_some_and(|writes| {
+                    writes.iter().all(|written| {
+                        // A strict descendant changes the referent, not
+                        // this reference slot. Collection-coarse paths
+                        // cannot make that distinction and stay coarse.
+                        if precision == super::FramePathPrecision::Exact {
+                            super::stored_origins::place_suffix(written, &path).is_none()
+                        } else {
+                            !super::demand::frame_paths_overlap(&path, written)
+                        }
                     })
-                    .then_some(())?;
+                }) || (crate::reference_shell(program, shell.referee).is_none()
+                    && binding_preserved(root, &place.segments[..depth])))
+                .then_some(())?;
             }
             incoming_address = false;
             reference = shell.referee;
