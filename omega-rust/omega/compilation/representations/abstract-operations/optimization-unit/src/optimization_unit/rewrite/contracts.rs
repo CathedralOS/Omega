@@ -108,10 +108,4 @@ pub enum PsiRewriteCandidateError {
     ProofWitnessSafetyMismatch,
 }
 
-impl std::fmt::Display for PsiRewriteCandidateError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid Psi rewrite candidate: {self:?}")
-    }
-}
-
-impl std::error::Error for PsiRewriteCandidateError {}
+optimization_core::invalid_error_display!(PsiRewriteCandidateError, "Psi rewrite candidate");

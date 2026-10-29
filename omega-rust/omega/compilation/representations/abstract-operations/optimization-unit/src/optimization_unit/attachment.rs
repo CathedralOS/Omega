@@ -47,13 +47,10 @@ pub enum OwnershipFrontierFactIndexError {
     NonCanonicalSnapshot,
 }
 
-impl std::fmt::Display for OwnershipFrontierFactIndexError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid ownership frontier fact index: {self:?}")
-    }
-}
-
-impl std::error::Error for OwnershipFrontierFactIndexError {}
+optimization_core::invalid_error_display!(
+    OwnershipFrontierFactIndexError,
+    "ownership frontier fact index"
+);
 
 /// Attach the complete verifier projection exactly once and bind it into unit
 /// identity. Construction is intentionally separate from the bare seed API.
@@ -109,16 +106,10 @@ pub enum AcceptedObligationFactIndexError {
     DuplicateOwner,
 }
 
-impl std::fmt::Display for AcceptedObligationFactIndexError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid accepted obligation fact index: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for AcceptedObligationFactIndexError {}
+optimization_core::invalid_error_display!(
+    AcceptedObligationFactIndexError,
+    "accepted obligation fact index"
+);
 
 /// Attach the canonical verifier projection exactly once and bind it into the
 /// optimization-unit identity. Bare units intentionally retain an empty index.
@@ -155,10 +146,4 @@ pub enum ProofQuestionIndexError {
     DuplicateQuestion,
 }
 
-impl std::fmt::Display for ProofQuestionIndexError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid proof-question index: {self:?}")
-    }
-}
-
-impl std::error::Error for ProofQuestionIndexError {}
+optimization_core::invalid_error_display!(ProofQuestionIndexError, "proof-question index");
