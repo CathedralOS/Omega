@@ -1796,7 +1796,12 @@ fn structurally_substitutable_fact(
     }
     matches!(
         binary.operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
     ) && [binary.left, binary.right].iter().all(|operand| {
         term(*operand).is_some_and(|term| term_has_complete_substitution(program, &term))
     })
