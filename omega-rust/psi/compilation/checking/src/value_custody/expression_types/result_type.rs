@@ -7,6 +7,7 @@
 //! input refinements. Guard candidate lookup remains separate: its conservative
 //! operand shells are selection inputs, not computed-result evidence.
 
+use crate::proof_contracts::bound_expression_meaning::builtin_type_reference;
 use language_core::OperatorSpelling;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::BuiltinTypeAtom;
@@ -274,10 +275,7 @@ fn result_type(
             // compiler-owned carrier visible to every result consumer without
             // granting authority or equations about the observed address.
             if crate::compiler_operations::storage_address_operand(program, call).is_some() {
-                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    BuiltinTypeAtom::Address,
-                );
+                return builtin_type_reference(program, BuiltinTypeAtom::Address);
             }
             // The sealed embedding has an unbounded Int result, not an
             // unresolved runtime call. Its operand still owes the independent
@@ -296,10 +294,7 @@ fn result_type(
                 return Some(reference);
             }
             if typed_trees::byte_predicates::byte_predicate_call(program, expression).is_some() {
-                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    BuiltinTypeAtom::Bool,
-                );
+                return builtin_type_reference(program, BuiltinTypeAtom::Bool);
             }
             if let Some(reference) =
                 crate::value_custody::content_conservation::intrinsic_result_type_reference(
@@ -511,10 +506,7 @@ fn result_type(
                 )
                 .is_some()
                 {
-                    return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                        program,
-                        BuiltinTypeAtom::U64,
-                    );
+                    return builtin_type_reference(program, BuiltinTypeAtom::U64);
                 }
                 let field = crate::value_custody::places::applied_data_member_field(
                     program, receiver, member,
@@ -609,23 +601,16 @@ fn result_type(
                 }
             })
         }
-        ExpressionNode::Boolean(_) => {
-            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                program,
-                BuiltinTypeAtom::Bool,
-            )
-        }
-        ExpressionNode::UndeterminedNaN(format) => {
-            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                program,
-                match format {
-                    numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
-                    numerics::literals::FloatFormat::F64 => BuiltinTypeAtom::F64,
-                },
-            )
-        }
+        ExpressionNode::Boolean(_) => builtin_type_reference(program, BuiltinTypeAtom::Bool),
+        ExpressionNode::UndeterminedNaN(format) => builtin_type_reference(
+            program,
+            match format {
+                numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
+                numerics::literals::FloatFormat::F64 => BuiltinTypeAtom::F64,
+            },
+        ),
         ExpressionNode::Float(literal) => literal.landing().and_then(|format| {
-            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+            builtin_type_reference(
                 program,
                 match format {
                     numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
@@ -635,10 +620,7 @@ fn result_type(
         }),
         ExpressionNode::Binary(binary) => {
             if program.static_type_predicate_operands(expression).is_some() {
-                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    BuiltinTypeAtom::Bool,
-                )
+                builtin_type_reference(program, BuiltinTypeAtom::Bool)
             } else {
                 let operands = [binary.left, binary.right]
                     .map(|operand| result_type(program, owner, operand, active));
@@ -653,12 +635,7 @@ fn result_type(
                     .filter(|reference| integer(program, *reference)),
                 UnaryOperator::LogicalNot => operand
                     .filter(|reference| primitive(program, *reference) == Some(PrimitiveType::Bool))
-                    .and_then(|_| {
-                        crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                            program,
-                            BuiltinTypeAtom::Bool,
-                        )
-                    }),
+                    .and_then(|_| builtin_type_reference(program, BuiltinTypeAtom::Bool)),
             }
         }
         _ => match owner {
@@ -959,10 +936,7 @@ fn binary_result(
             operands[0],
         )
     {
-        return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-            program,
-            BuiltinTypeAtom::Bool,
-        );
+        return builtin_type_reference(program, BuiltinTypeAtom::Bool);
     }
     let spelling = match binary.operator {
         Add => Some(OperatorSpelling::Add),
@@ -1069,20 +1043,12 @@ pub(crate) fn builtin_binary_result_type_reference(
     expression_type: &mut dyn FnMut(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<TypeReferenceHandle> {
     match builtin_binary_result(program, binary, operands, expression_type)? {
-        BuiltinBinaryResult::Boolean => {
-            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                program,
-                BuiltinTypeAtom::Bool,
-            )
-        }
+        BuiltinBinaryResult::Boolean => builtin_type_reference(program, BuiltinTypeAtom::Bool),
         BuiltinBinaryResult::ProofInteger => {
             crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)
         }
         BuiltinBinaryResult::AddressDistance => {
-            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                program,
-                BuiltinTypeAtom::U64,
-            )
+            builtin_type_reference(program, BuiltinTypeAtom::U64)
         }
         BuiltinBinaryResult::Arithmetic { symbol, policy } => program
             .type_reference_table
