@@ -14,9 +14,8 @@ use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-mod prepared;
-pub use prepared::PreparedTargetProviderPublication;
-use prepared::{PreparedCandidate, PreparedTarget};
+pub use provider_selection::PreparedTargetProviderPublication;
+use provider_selection::{PreparedProviderCandidate, PreparedTargetChoices};
 
 /// Complete interface roster for selections, including inherited methods.
 /// Retaining only called coordinates would turn a whole-provider selection
@@ -104,7 +103,7 @@ impl TargetProviderPreparationRequest<'_> {
         &self,
         target: &str,
         inventory: &super::AuthoredTargetProviders,
-    ) -> Result<PreparedTarget, Vec<Diagnostic>> {
+    ) -> Result<PreparedTargetChoices, Vec<Diagnostic>> {
         let profile = inventory.target().ok_or_else(|| {
             vec![Diagnostic::error(
                 "provider publication requires a target inventory",
@@ -143,25 +142,109 @@ impl TargetProviderPreparationRequest<'_> {
                 &candidate.plan,
                 &candidate.provenance,
             );
-            prepared.push(PreparedCandidate {
-                derived: candidate.clone(),
+            prepared.push(PreparedProviderCandidate {
+                choice: provider_selection::ProviderCandidate {
+                    plan: candidate.plan.clone(),
+                    declarations: provider_selection::CandidateDeclarations {
+                        schema: self.canonical_declaration(schema),
+                        provider: candidate
+                            .provenance
+                            .provider_type
+                            .map(|symbol| self.canonical_declaration(symbol)),
+                    },
+                    native_build: candidate
+                        .provenance
+                        .row_realizations
+                        .iter()
+                        .all(|row| row.native().is_some()),
+                    owner: closed_declarations.map(|closed| {
+                        provider_selection::PreparedProviderRealizations {
+                            provider_declaration: closed.provider_declaration,
+                            row_numeric_realizations: closed.row_numeric_realizations,
+                        }
+                    }),
+                },
                 schema_owner,
-                closed_declarations,
                 explicitly_selected,
             });
         }
-        let selection_declarations =
-            crate::provider_planning::PreparedSelectionDeclarations::prepare(
-                self.context,
-                inventory.defaults().iter().chain(self.overrides),
-            );
-        Ok(PreparedTarget {
+        Ok(PreparedTargetChoices {
             profile,
             candidates: prepared,
-            defaults: inventory.defaults().to_vec(),
-            overrides: self.overrides.to_vec(),
-            selection_declarations,
+            defaults: inventory
+                .defaults()
+                .iter()
+                .map(|choice| self.canonical_choice(choice))
+                .collect(),
+            overrides: self
+                .overrides
+                .iter()
+                .map(|choice| self.canonical_choice(choice))
+                .collect(),
         })
+    }
+
+    fn canonical_choice(
+        &self,
+        source: &ProviderSelection,
+    ) -> provider_selection::ProviderDeclaration<provider_selection::CanonicalProviderDeclaration>
+    {
+        let mut choice = crate::provider_planning::selection_declarations::project_declaration(
+            source,
+            &|symbol| self.canonical_declaration(symbol),
+            (),
+        );
+        crate::provider_planning::selection_declarations::retain_family_replay(
+            self.context,
+            source,
+            &mut choice,
+        );
+        choice
+    }
+
+    fn canonical_declaration(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<provider_selection::CanonicalProviderDeclaration, String> {
+        use provider_selection::CanonicalProviderDeclaration as Declaration;
+        let typed = self.context.typed;
+        let owner = self.declaration_identity(symbol).map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?;
+        match typed.symbols.get(symbol).kind {
+            symbols::SymbolKind::Trait => Ok(Declaration::Trait(owner)),
+            symbols::SymbolKind::Conformance => Ok(Declaration::Implementation(owner)),
+            symbols::SymbolKind::Data => Ok(Declaration::Data(owner)),
+            symbols::SymbolKind::Domain => Ok(Declaration::Domain(owner)),
+            symbols::SymbolKind::BuiltinType => Ok(Declaration::Builtin(owner)),
+            symbols::SymbolKind::Machine => {
+                let machine = typed
+                    .machine_by_symbol(symbol)
+                    .ok_or("provider declaration has no exact machine")?;
+                let callable = typed
+                    .machine_callable_identity_text(machine)
+                    .ok_or("provider declaration has no exact machine overload")?;
+                Ok(Declaration::Machine { owner, callable })
+            }
+            symbols::SymbolKind::Operator => {
+                let operator =
+                    checked_trees::typed_trees::operator::declaration_by_symbol(typed, symbol)
+                        .ok_or("provider declaration has no exact operator")?;
+                let identity = typed.boundary_operator_requirement_callable_identity(operator);
+                if !identity.is_valid() {
+                    return Err("provider declaration has no exact operator overload".into());
+                }
+                Ok(Declaration::Operator {
+                    owner,
+                    callable: typed.callable_identity_text(identity),
+                })
+            }
+            _ => Err("provider declaration has an unsupported nominal role".into()),
+        }
     }
 
     fn declaration_identity(&self, symbol: SymbolHandle) -> Result<String, Vec<Diagnostic>> {
