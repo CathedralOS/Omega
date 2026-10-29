@@ -462,6 +462,11 @@ pub fn convertible_retaining(
     budget: &mut Budget,
     retained: &impl Fn(u32) -> bool,
 ) -> Result<bool, CoreError> {
+    macro_rules! head {
+        ($term:expr) => {
+            weak_head_normalize_retaining(arena, context.signature(), $term, budget, retained)
+        };
+    }
     let shared_sort = infer_sort(arena, context, shared_type, budget)?;
     if shared_sort.is_strict() {
         return Ok(true);
@@ -636,13 +641,7 @@ pub fn convertible_retaining(
             // Neutral spines: the heads must convert and the arguments must
             // convert at the function's inferred Π domain.
             let function_type = infer_type(arena, context, left_function, budget)?;
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                function_type,
-                budget,
-                retained,
-            )?;
+            let type_head = head!(function_type)?;
             match arena.get(type_head) {
                 Term::Pi { domain, .. } => {
                     if !convertible_retaining(
@@ -674,13 +673,7 @@ pub fn convertible_retaining(
             // Neutral projections: the projected pairs must convert at
             // their inferred `Sigma`.
             let pair_type = infer_type(arena, context, left_pair, budget)?;
-            let pair_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                pair_type,
-                budget,
-                retained,
-            )?;
+            let pair_head = head!(pair_type)?;
             match arena.get(pair_head) {
                 Term::Sigma { .. } => convertible_retaining(
                     arena, context, left_pair, right_pair, pair_head, budget, retained,
@@ -836,13 +829,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let proof_type = infer_type(arena, context, left_proof, budget)?;
-            let proof_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                proof_type,
-                budget,
-                retained,
-            )?;
+            let proof_head = head!(proof_type)?;
             let (ty, fixed) = match arena.get(proof_head) {
                 Term::Id { ty, left, .. } => (ty, left),
                 _ => return Ok(false),
@@ -1004,13 +991,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let tree_type = infer_type(arena, context, left_tree, budget)?;
-            let tree_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                tree_type,
-                budget,
-                retained,
-            )?;
+            let tree_head = head!(tree_type)?;
             let (carrier, children) = match arena.get(tree_head) {
                 Term::W { carrier, children } => (carrier, children),
                 _ => return Ok(false),
@@ -1161,13 +1142,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
-            let scrutinee_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                scrutinee_type,
-                budget,
-                retained,
-            )?;
+            let scrutinee_head = head!(scrutinee_type)?;
             let carrier = match arena.get(scrutinee_head) {
                 Term::Squash { ty } => ty,
                 _ => return Ok(false),
@@ -1220,13 +1195,7 @@ pub fn convertible_retaining(
                 return Ok(false);
             }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
-            let scrutinee_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                scrutinee_type,
-                budget,
-                retained,
-            )?;
+            let scrutinee_head = head!(scrutinee_type)?;
             let payload = match arena.get(scrutinee_head) {
                 Term::Box { ty } => ty,
                 _ => return Ok(false),
