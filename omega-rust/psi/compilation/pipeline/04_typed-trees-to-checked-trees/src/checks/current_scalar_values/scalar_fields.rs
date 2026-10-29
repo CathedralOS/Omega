@@ -296,24 +296,34 @@ impl CurrentScalarValues<'_> {
                     self.captured_scalar_fields(borrow.target, depth + 1)
                 }
             }
-            ExpressionNode::Call(_) => validation::scoped_call_result_observations(
-                self.program,
-                self.machine,
-                self.state,
-                expression,
-            )
-            .into_iter()
-            .filter_map(|observation| {
-                let path = capture_path(&observation.path, |_| None)?;
-                Some(CapturedScalarField {
-                    path,
-                    carrier: observation.primitive_type,
-                    value: observation.value,
-                    read_dependencies: Vec::new(),
-                    source: None,
-                })
-            })
-            .collect(),
+            ExpressionNode::Call(_) => {
+                let mut fields: Vec<CapturedScalarField> = Vec::new();
+                for observation in validation::scoped_call_result_observations(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                ) {
+                    let Some(path) = capture_path(&observation.path, |_| None) else {
+                        continue;
+                    };
+                    // All source occurrences remain bound on the guarantee;
+                    // its one result coordinate appears once in the roster.
+                    if !fields
+                        .iter()
+                        .any(|field| same_projection(self.occurrence(), &field.path, &path))
+                    {
+                        fields.push(CapturedScalarField {
+                            path,
+                            carrier: observation.primitive_type,
+                            value: observation.value,
+                            read_dependencies: Vec::new(),
+                            source: None,
+                        });
+                    }
+                }
+                fields
+            }
             ExpressionNode::Match(dispatch) => {
                 self.capture_join_fields(expression, dispatch, depth)
             }

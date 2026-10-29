@@ -91,6 +91,9 @@ pub fn structural_scalar_coordinate(
     )
 }
 
+/// Typed geometry under an already selected producer declaration. The root
+/// keeps observation identity; the query grants neither backing availability,
+/// reference-load custody nor scalar bounds from the declared carrier.
 pub fn structural_scalar_coordinate_in_type(
     program: &dyn crate::CheckingInput,
     root: facts::PlaceRoot,

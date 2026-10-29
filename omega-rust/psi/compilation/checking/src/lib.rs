@@ -35,6 +35,7 @@ pub use proof_contracts::qualification_evidence::{
 pub use proof_contracts::{
     contract_argument_root, contract_structure, expression_owners, mathematical_applications,
 };
+pub use value_custody::field_domains::readable_fixed_array_elements;
 pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
     reconstruct_case_selected_regions,

@@ -4,7 +4,7 @@
 use super::super::ScopedCallResultObservation;
 use super::*;
 
-pub(super) fn result_observations(
+pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result_observations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -25,7 +25,12 @@ pub(super) fn result_observations(
     }
     let reference =
         crate::proof_contracts::contract_entailment::specification_calls::owner_return_type(&owner);
-    if program.primitive_type_reference(reference).is_some() {
+    // Only inline owned result bits are independent snapshots. A returned
+    // reference needs its own exact binding/load dependencies before its live
+    // referent can enter this roster; return type alone supplies none.
+    if crate::reference_shell(program, reference).is_some()
+        || program.primitive_type_reference(reference).is_some()
+    {
         return Vec::new();
     }
     let mut pending = owner_contracts(program, &owner)
