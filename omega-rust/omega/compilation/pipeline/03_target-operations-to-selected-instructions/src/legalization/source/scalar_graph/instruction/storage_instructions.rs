@@ -4,10 +4,17 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::accepted_fact;
+use crate::legalization::runtime_indices::operands;
 use crate::legalization::scalar_graph_input;
 use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::ScalarType;
+
+macro_rules! o {
+    ($a:expr => $b:expr => $c:expr => $d:expr) => {
+        operands($a, $b, $c, $d)
+    };
+}
 
 pub(super) fn project_structural_case_membership(
     node: &optimization_unit::OptimizationNode,
@@ -35,12 +42,7 @@ pub(super) fn project_structural_case_membership(
             )?;
         // A runtime element joins its selector and certificate, as a
         // primitive read's does.
-        let indices = crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            *psi_operation,
-            &elements,
-        )?;
+        let indices = o!(optimized => unit => *psi_operation => &elements)?;
         LegalizedScalarInstructionKind::StructuralCaseMembership {
             source: *source,
             path: path.clone(),
@@ -93,12 +95,7 @@ pub(super) fn project_structural_leaf_copy(
                 result,
                 plan,
             )?;
-        let indices = crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            psi_operation,
-            &elements,
-        )?;
+        let indices = o!(optimized => unit => psi_operation => &elements)?;
         LegalizedScalarInstructionKind::StructuralLeafCopy {
             result: result.clone(),
             source,
@@ -225,12 +222,7 @@ pub(super) fn project_primitive_scalar_read(
                 &unit.structural_types,
             )
             .ok_or(Error::custody())?;
-        crate::legalization::runtime_indices::operands(
-            optimized,
-            unit,
-            *psi_operation,
-            &geometry.elements,
-        )?
+        o!(optimized => unit => *psi_operation => &geometry.elements)?
     };
     Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
         source: *source,
@@ -268,12 +260,7 @@ pub(super) fn project_write_only_primitive_store(
             value: *value,
             byte_offset: geometry.byte_offset,
             byte_size: u8::try_from(geometry.byte_size).map_err(|_| Error::custody())?,
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &geometry.elements,
-            )?,
+            indices: o!(optimized => unit => *psi_operation => &geometry.elements)?,
         }
     };
     Ok(kind)
@@ -319,12 +306,7 @@ pub(super) fn project_structural_scalar_field_store(
             value: *value,
             byte_offset: *field_byte_offset,
             byte_size,
-            indices: crate::legalization::runtime_indices::operands(
-                optimized,
-                unit,
-                *psi_operation,
-                &elements,
-            )?,
+            indices: o!(optimized => unit => *psi_operation => &elements)?,
         }
     };
     Ok(kind)
@@ -660,12 +642,7 @@ pub(super) fn project_element_view_read(
                         &unit.structural_types,
                     )
                     .ok_or(Error::custody())?;
-                crate::legalization::runtime_indices::operands(
-                    optimized,
-                    unit,
-                    *psi_operation,
-                    &elements,
-                )?
+                o!(optimized => unit => *psi_operation => &elements)?
             },
         }
     };
@@ -754,12 +731,7 @@ pub(super) fn project_storage_address(
         &unit.structural_types,
     )
     .ok_or(Error::custody())?;
-    let indices = crate::legalization::runtime_indices::operands(
-        optimized,
-        unit,
-        *psi_operation,
-        &geometry.elements,
-    )?;
+    let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
     Ok(LegalizedScalarInstructionKind::StorageAddress {
         source: *source,
         path: path.clone(),
