@@ -511,10 +511,11 @@ def settle_package_review(omega, project_dir, target):
          "--target", target], cwd=str(project_dir))
     review_path = select_review_document(text, project_dir, target)
     if review_path is not None:
-        document = review_path.read_text()
+        document = review_path.read_text(encoding="utf-8")
         settled, accepted = accept_pending_decisions(document)
         if accepted:
-            review_path.write_text(settled)
+            # Review recovery accepts only canonical LF framing, also on Windows.
+            review_path.write_text(settled, encoding="utf-8", newline="\n")
         # Resume publishes omega.lock even when the document carried no
         # pending tokens; skipping it on accepted == 0 left the gate
         # unsettled whenever the chosen document was already decided.

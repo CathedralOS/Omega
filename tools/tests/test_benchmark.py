@@ -431,6 +431,31 @@ class Applicability(unittest.TestCase):
 
 
 class ReviewSettlement(unittest.TestCase):
+    def test_review_keeps_utf8_lf_framing_when_decisions_are_edited(self):
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            reviews = project / "build" / "package-manager"
+            reviews.mkdir(parents=True)
+            review = reviews / "review-windows_x86_64.txt"
+            original = "finding café\ndecision row 0123 pending\n".encode("utf-8")
+
+            def fake_run(argv, cwd):
+                if "--resume" in argv:
+                    self.assertEqual(
+                        review.read_bytes(),
+                        original.replace(b" pending\n", b" accept\n"))
+                    (project / "omega.lock").write_bytes(b"lock\n")
+                    return 0, "published\n"
+                review.write_bytes(original)
+                return 0, f"review: {review}\n"
+
+            with patch.object(benchmark, "run_plain", fake_run):
+                benchmark.settle_package_review(
+                    Path("/fake/omega"), project, "windows_x86_64")
+
     def test_pending_decisions_become_accept(self):
         document = (
             "comparison abc\n"

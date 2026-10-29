@@ -1,0 +1,11 @@
+test_non_decision_pending_text_is_untouched (__main__.ReviewSettlement.test_non_decision_pending_text_is_untouched) ... ok
+test_pending_decisions_become_accept (__main__.ReviewSettlement.test_pending_decisions_become_accept) ... ok
+test_published_lock_survives_an_empty_resume (__main__.ReviewSettlement.test_published_lock_survives_an_empty_resume) ... ok
+test_review_document_falls_back_to_the_conventional_path (__main__.ReviewSettlement.test_review_document_falls_back_to_the_conventional_path) ... ok
+test_review_document_prefers_the_requested_target (__main__.ReviewSettlement.test_review_document_prefers_the_requested_target) ... ok
+test_review_keeps_utf8_lf_framing_when_decisions_are_edited (__main__.ReviewSettlement.test_review_keeps_utf8_lf_framing_when_decisions_are_edited) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.196s
+
+OK

@@ -1233,7 +1233,8 @@ pub(super) fn refine_place_interval(
     else {
         return interval;
     };
-    let mut comparison: Option<ValueComparison<'_>> = None;
+    // Every candidate is a relation endpoint, already in this subject's closure.
+    let mut comparison: Option<congruence::EqualityQuery<'_>> = None;
     for exact_only in [true, false] {
         for relation in &environment.ordered_values {
             let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
@@ -1273,7 +1274,11 @@ pub(super) fn refine_place_interval(
                     &subject != candidate
                         && comparison
                             .get_or_insert_with(|| {
-                                ValueComparison::new(&environment.ordered_values)
+                                congruence::EqualityQuery::new(
+                                    &environment.ordered_values,
+                                    &subject,
+                                    &subject,
+                                )
                             })
                             .same_value(&subject, candidate)
                 };

@@ -1,0 +1,296 @@
+[
+  {
+    "place": "root",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\main.omg"
+    ],
+    "exit": 200,
+    "main_sha256": "d21361b9316ddeee3c61ed018de667c239a2c740159e4a126dc656bb94c401db",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": false,
+    "output": "native compile FAILED:\n  error: project source discovery failed: \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\build\\package-manager\\transaction.lock: The process cannot access the file because another process has locked a portion of the file. (os error 33)\n"
+  },
+  {
+    "place": "local",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\local\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "d21361b9316ddeee3c61ed018de667c239a2c740159e4a126dc656bb94c401db",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "local",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\local\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "9b7dba4167dad35ee0523a9ae10cfce530eb3fcf56b0804e5907e12845f28aa7",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\local\\invalid\\main.omg:19:27\n"
+  },
+  {
+    "place": "field",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\field\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "43161f18194145b0998c1213083e39c0897c8473f085d80acf5efcbf3fd586b1",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "field",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\field\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "98ee0d98e3541a34addeb94d653b0eff397ee131be0e4fde305e2ea5d1c06899",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\field\\invalid\\main.omg:23:27\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\parameter\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "62bcdc5caa0d58ce0248299b52b2ae98946b540429955c6b05bbca5a267ac95b",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "parameter",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\parameter\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "01ed7ed53d8fb8d71a147a7834873bdb657b622f549c336de936b32b7bc91f07",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\parameter\\invalid\\main.omg:22:27\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\call_result\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "3f90811ab0db8ef39b8767d5a7d10fab1d3fd3d22c36931ca1cc722118204349",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "call_result",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\call_result\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "07c0c532174672e445c298da611591bda1025c6b6bfa892c091c6b38ff8f54cb",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\call_result\\invalid\\main.omg:23:27\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\match_join\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "match_join",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\match_join\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "6cf1d3669b627c52bcda0f09e6ff162b9735d93d6fac41522d10d352185f031c",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\match_join\\invalid\\main.omg:26:11\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\const_name\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "db496621cfd452921bfa6bb4c1afc9e20ecf910604a1374178c1bebf2c047842",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "const_name",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\const_name\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "df7f139ee6cef91372dec385675c3ede9e852679a53698ad23067a334f41e7ec",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\const_name\\invalid\\main.omg:21:27\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\other_state\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "9a867196d519e9ac299c1abe84ed49e8bf5f57cf9369252160f73b4eabf07ff4",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_state",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\other_state\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "8cd5617b09a7878c99b2334e39e933df32e83c3c51ccc4a89b147fbc787b7a7f",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\other_state\\invalid\\main.omg:21:31\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\other_machine\\main.omg"
+    ],
+    "exit": 0,
+    "main_sha256": "f008bfcc4b021e134e5710561dde77806b2061772bfedbe21491637e3ef32de7",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "native exit 0\ninterp exit: 0\n"
+  },
+  {
+    "place": "other_machine",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\other_machine\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "d29f529563bf299dc1338a6f8ac861ff580a3fb33ea11daf95250e889debca8a",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\other_machine\\invalid\\main.omg:18:11\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": false,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\main.omg"
+    ],
+    "exit": 200,
+    "main_sha256": "40d9bbe0fa75201d076126b4b5ddad01824f98d3749cd3db8d2d93f0c9e8a492",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": false,
+    "output": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 1 diagnostic(s)\n  error: accepted package `dyn_dispatch_selector_payload_bound` source identity changed; run `omega update` for fresh review before compiling\n"
+  },
+  {
+    "place": "target_body",
+    "invalid": true,
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\invalid\\main.omg"
+    ],
+    "exit": 1,
+    "main_sha256": "0150264f2b8a4535f7b6b2dbe1d4efb906eb03334ef1099e3dddc38e24e86945",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "passed": true,
+    "output": "cannot compile admitted project: checked compilation failed for package `dyn_dispatch_selector_payload_bound` with 4 diagnostic(s)\n  error: exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\invalid\\main.omg:18:11\n  error: exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\invalid\\main.omg:23:11\n  error: exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\invalid\\main.omg:28:11\n  error: exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\n    in package `dyn_dispatch_selector_payload_bound`, \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\target_body\\invalid\\main.omg:33:11\n"
+  }
+]
