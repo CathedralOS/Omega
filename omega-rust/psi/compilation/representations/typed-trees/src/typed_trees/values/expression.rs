@@ -30,6 +30,8 @@ mod shape;
 mod table_copies;
 mod tree_conversion;
 
+pub use table_copies::ExpressionCopy;
+
 pub use display::{display_call_label, display_match_pattern, display_name_path};
 pub use index_authority::{
     IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,

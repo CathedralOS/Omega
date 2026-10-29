@@ -1,4 +1,6 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
+mod constant_roots;
+
 use symbols::JoinedPath;
 use validation::collect_statement_expression_trees;
 
@@ -586,7 +588,7 @@ pub(super) fn clone_single_specialized_machine(
         .machine_contracts(&source_machine)
         .to_vec()
     {
-        let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
+        let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map)?;
         // A machine-level contract reads entry-state parameters, so a
         // runtime-bound `Value` binder inside its fact expressions denotes the
         // entry state's realized trailing parameter.
@@ -717,7 +719,7 @@ pub(super) fn clone_single_specialized_machine(
             .state_contracts(source_state)
             .to_vec()
         {
-            let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
+            let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map)?;
             // A state-level contract reads this state's parameters; a
             // runtime-bound `Value` binder inside its fact expressions denotes
             // this state's realized trailing parameter.
@@ -1060,14 +1062,11 @@ pub(super) fn copy_expression(
     if !expression.is_valid() {
         return ExpressionHandle::invalid();
     }
-    let copied = if let Some(source) = source {
-        program
+    let copied = match source {
+        Some(source) => program
             .expression_table
-            .copy_from(&source.expression_table, expression)
-    } else {
-        let mut staging = typed_trees::expression::ExpressionTable::default();
-        let staged = staging.copy_from(&program.expression_table, expression);
-        program.expression_table.copy_from(&staging, staged)
+            .copy_from(&source.expression_table, expression),
+        None => program.expression_table.insert_copy(expression),
     };
     program.expression_table.remap_symbols_in(copied, symbols);
     copied
@@ -1387,7 +1386,7 @@ pub(super) fn copy_signature_contract(
     program: &mut TypedTrees,
     contract: typed_trees::signature::SignatureContract,
     symbols: &[(SymbolHandle, SymbolHandle)],
-) -> typed_trees::signature::SignatureContract {
+) -> Result<typed_trees::signature::SignatureContract, Vec<Diagnostic>> {
     let original_facts = contract.facts;
     let mut copied = contract;
     copied.facts = HandleSpan::empty();
@@ -1412,12 +1411,12 @@ pub(super) fn copy_signature_contract(
             .proof_fact_source_span(source_fact);
         let fact = match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                typed_trees::domain::ProofFact::Expression(copy_expression(
+                typed_trees::domain::ProofFact::Expression(constant_roots::copy_expression(
                     source,
                     program,
                     *expression,
                     symbols,
-                ))
+                )?)
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
                 let source_arguments = source
@@ -1445,7 +1444,12 @@ pub(super) fn copy_signature_contract(
                 };
                 typed_trees::domain::ProofFact::Membership(
                     typed_trees::domain::ProofMembershipFact {
-                        value: copy_expression(source, program, membership.value, symbols),
+                        value: constant_roots::copy_expression(
+                            source,
+                            program,
+                            membership.value,
+                            symbols,
+                        )?,
                         domain: {
                             let members = source
                                 .unwrap_or(program)
@@ -1467,8 +1471,10 @@ pub(super) fn copy_signature_contract(
                     .expression_handles(application.arguments)
                     .to_vec()
                     .into_iter()
-                    .map(|argument| copy_expression(source, program, argument, symbols))
-                    .collect::<Vec<_>>();
+                    .map(|argument| {
+                        constant_roots::copy_expression(source, program, argument, symbols)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let arguments = program
                     .expression_table
                     .insert_expression_handles(arguments);
@@ -1500,7 +1506,7 @@ pub(super) fn copy_signature_contract(
             program.set_proof_fact_source_span(copied_fact, source_span);
         }
     }
-    copied
+    Ok(copied)
 }
 
 /// Retarget a copied contract's fact value expressions from each runtime-bound
