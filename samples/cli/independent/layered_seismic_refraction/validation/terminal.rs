@@ -6,7 +6,7 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "layered-seismic-refraction-validation",
     review: true,
-    evidence: Evidence::Adjacent,
+    evidence: Evidence::Captured,
 };
 
 fn main() {

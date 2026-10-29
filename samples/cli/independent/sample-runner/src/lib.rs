@@ -49,6 +49,15 @@ pub enum Evidence {
     /// One directory holding the `--captured` bundle: a `case exit` row in
     /// `records.tsv` beside each case's captured stdout and stderr.
     Captured,
+    /// One directory holding the numbered bundle: a headerless `case exit` row
+    /// in `records.tsv` beside each case's `NN.stdout` and `NN.stderr`, where
+    /// `NN` is the case's position in the declared input directory rather than
+    /// its file name. `validate.py --route terminal` reads this.
+    Numbered,
+    /// One directory holding the named bundle: a `NAME.stdout`, `NAME.stderr`
+    /// and `NAME.exit` for every case a names file lists, one per line.
+    /// `validate.py --captures` reads this.
+    Named,
 }
 
 impl Evidence {
@@ -56,6 +65,101 @@ impl Evidence {
     /// beside each named input.
     const fn bundled(self) -> bool {
         !matches!(self, Self::Adjacent)
+    }
+
+    /// Whether the bundle tabulates its cases in one `records.tsv`.
+    const fn tabulated(self) -> bool {
+        matches!(
+            self,
+            Self::Terminal { .. } | Self::Captured | Self::Numbered
+        )
+    }
+
+    /// The `records.tsv` header, absent when the reading validator expects the
+    /// rows alone.
+    const fn header(self) -> &'static str {
+        match self {
+            Self::Terminal { .. } => "case\texit\tinput_sha256\tstdout_sha256\tstderr_sha256\n",
+            Self::Captured => "case\texit\n",
+            Self::Adjacent | Self::Numbered | Self::Named => "",
+        }
+    }
+}
+
+/// One resolved producer invocation: the sample directory, the entry source to
+/// build, where the bundle lands and which cases the layout names.
+struct Invocation {
+    sample_directory: PathBuf,
+    root: PathBuf,
+    directory: PathBuf,
+    inputs: Vec<PathBuf>,
+}
+
+/// Resolve one sample's producer arguments into the cases its layout reads.
+fn invocation(evidence: Evidence, arguments: &[String]) -> Invocation {
+    match evidence {
+        Evidence::Adjacent => {
+            assert!(
+                arguments.len() >= 4,
+                "usage: runner ROOT.omg OUTPUT_DIRECTORY INPUT_FILE..."
+            );
+            let root = PathBuf::from(&arguments[1]);
+            Invocation {
+                sample_directory: sample_directory(&root),
+                root,
+                directory: PathBuf::from(&arguments[2]),
+                inputs: arguments.iter().skip(3).map(PathBuf::from).collect(),
+            }
+        }
+        Evidence::Terminal { .. } | Evidence::Captured => {
+            assert_eq!(
+                arguments.len(),
+                3,
+                "usage: runner ROOT.omg|SAMPLE_DIRECTORY OUTPUT_DIRECTORY (a bundle names its cases by data/*.stdin)"
+            );
+            let (root, sample_directory) = source(&PathBuf::from(&arguments[1]));
+            Invocation {
+                inputs: stdin_files(&sample_directory.join("data")),
+                sample_directory,
+                root,
+                directory: PathBuf::from(&arguments[2]),
+            }
+        }
+        Evidence::Numbered => {
+            assert_eq!(
+                arguments.len(),
+                4,
+                "usage: runner SAMPLE_DIRECTORY INPUT_DIRECTORY OUTPUT_DIRECTORY"
+            );
+            let sample_directory = PathBuf::from(&arguments[1]);
+            let inputs = stdin_files(&PathBuf::from(&arguments[2]));
+            assert!(
+                !inputs.is_empty(),
+                "a numbered bundle names at least one case"
+            );
+            Invocation {
+                root: sample_directory.join("main.omg"),
+                directory: PathBuf::from(&arguments[3]),
+                inputs,
+                sample_directory,
+            }
+        }
+        Evidence::Named => {
+            assert_eq!(
+                arguments.len(),
+                4,
+                "usage: runner SAMPLE_DIRECTORY NAMES_FILE OUTPUT_DIRECTORY"
+            );
+            let sample_directory = PathBuf::from(&arguments[1]);
+            let inputs = named(&sample_directory, &PathBuf::from(&arguments[2]));
+            assert!(!inputs.is_empty(), "a named bundle names at least one case");
+            Invocation {
+                root: sample_directory.join("main.omg"),
+                directory: PathBuf::from(&arguments[3]),
+                inputs,
+                sample_directory,
+            }
+        }
     }
 }
 
@@ -76,8 +180,12 @@ pub struct Sample {
 ///
 /// `runner ROOT.omg OUTPUT_DIRECTORY INPUT_FILE...` builds the product from
 /// the sample's source root and captures actual output for every input.
-/// A bundled sample instead takes `runner ROOT.omg OUTPUT_DIRECTORY` alone and
-/// names its cases by `data/*.stdin`, the matrix its validation froze.
+/// A bundled sample instead takes `runner ROOT.omg OUTPUT_DIRECTORY` alone, or
+/// the sample directory holding that `main.omg`, and names its cases by
+/// `data/*.stdin`, the matrix its validation froze. A numbered bundle takes
+/// `runner SAMPLE_DIRECTORY INPUT_DIRECTORY OUTPUT_DIRECTORY` and names its
+/// cases by position; a named bundle takes `runner SAMPLE_DIRECTORY NAMES_FILE
+/// OUTPUT_DIRECTORY` and names its cases from that file.
 /// `runner --review DIRECTORY` and `runner --resume-review DIRECTORY` refresh
 /// normal package review for samples that declare [`Sample::review`].
 pub fn main(sample: Sample) {
@@ -104,29 +212,12 @@ fn run(sample: Sample) {
         review(&arguments[2], arguments[1] == "--resume-review");
         return;
     }
-    if sample.evidence.bundled() {
-        assert_eq!(
-            arguments.len(),
-            3,
-            "usage: runner ROOT.omg OUTPUT_DIRECTORY (a bundle names its cases by data/*.stdin)"
-        );
-    } else {
-        assert!(
-            arguments.len() >= 4,
-            "usage: runner ROOT.omg OUTPUT_DIRECTORY INPUT_FILE..."
-        );
-    }
-    let root = PathBuf::from(&arguments[1]);
-    let directory = PathBuf::from(&arguments[2]);
-    let sample_directory = root
-        .parent()
-        .expect("the source root names a directory")
-        .to_path_buf();
-    let inputs: Vec<PathBuf> = if sample.evidence.bundled() {
-        matrix(&sample_directory)
-    } else {
-        arguments.iter().skip(3).map(PathBuf::from).collect()
-    };
+    let Invocation {
+        sample_directory,
+        root,
+        directory,
+        inputs,
+    } = invocation(sample.evidence, &arguments);
     fs::create_dir_all(&directory).unwrap();
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let product_directory = directory.join("product");
@@ -156,14 +247,8 @@ fn run(sample: Sample) {
         .retained_native_program()
         .map(|program| program.psi_artifact())
         .unwrap();
-    let mut records = match sample.evidence {
-        Evidence::Adjacent => String::new(),
-        Evidence::Terminal { .. } => {
-            "case\texit\tinput_sha256\tstdout_sha256\tstderr_sha256\n".to_owned()
-        }
-        Evidence::Captured => "case\texit\n".to_owned(),
-    };
-    for input_path in &inputs {
+    let mut records = sample.evidence.header().to_owned();
+    for (ordinal, input_path) in inputs.iter().enumerate() {
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
             native_provider: None,
@@ -184,8 +269,11 @@ fn run(sample: Sample) {
         })
         .unwrap();
         if sample.evidence.bundled() {
-            let name = case_name(input_path);
-            let exit = exit_code(&observation.status, name);
+            let name = match sample.evidence {
+                Evidence::Numbered => format!("{ordinal:02}"),
+                _ => case_name(input_path).to_owned(),
+            };
+            let exit = exit_code(&observation.status, &name);
             fs::write(
                 directory.join(format!("{name}.stdout")),
                 &observation.stdout,
@@ -196,16 +284,20 @@ fn run(sample: Sample) {
                 &observation.stderr,
             )
             .unwrap();
-            records.push_str(&format!("{name}\t{exit}"));
-            if let Evidence::Terminal { .. } = sample.evidence {
-                records.push_str(&format!(
-                    "\t{}\t{}\t{}",
-                    digest(&fs::read(input_path).unwrap()),
-                    digest(&observation.stdout),
-                    digest(&observation.stderr),
-                ));
+            if let Evidence::Named = sample.evidence {
+                fs::write(directory.join(format!("{name}.exit")), exit.to_string()).unwrap();
+            } else {
+                records.push_str(&format!("{name}\t{exit}"));
+                if let Evidence::Terminal { .. } = sample.evidence {
+                    records.push_str(&format!(
+                        "\t{}\t{}\t{}",
+                        digest(&fs::read(input_path).unwrap()),
+                        digest(&observation.stdout),
+                        digest(&observation.stderr),
+                    ));
+                }
+                records.push('\n');
             }
-            records.push('\n');
             println!("observed Terminal {name} exit {exit}");
         } else {
             let case_directory = input_path.parent().unwrap();
@@ -223,11 +315,11 @@ fn run(sample: Sample) {
             );
         }
     }
-    if sample.evidence.bundled() {
+    if sample.evidence.tabulated() {
         fs::write(directory.join("records.tsv"), &records).unwrap();
     }
     match sample.evidence {
-        Evidence::Captured => {}
+        Evidence::Captured | Evidence::Numbered | Evidence::Named => {}
         Evidence::Adjacent => {
             let (_, executable) =
                 omega_build::publication::publish_native_artifact(report, &product_directory)
@@ -283,10 +375,10 @@ fn run(sample: Sample) {
     }
 }
 
-/// Every `data/*.stdin` case in name order, which is the matrix a captured
+/// Every `*.stdin` case in name order, which is the matrix a captured
 /// validation froze and reads back.
-fn matrix(sample_directory: &Path) -> Vec<PathBuf> {
-    let mut inputs: Vec<PathBuf> = fs::read_dir(sample_directory.join("data"))
+fn stdin_files(data_directory: &Path) -> Vec<PathBuf> {
+    let mut inputs: Vec<PathBuf> = fs::read_dir(data_directory)
         .unwrap()
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -297,6 +389,34 @@ fn matrix(sample_directory: &Path) -> Vec<PathBuf> {
         .collect();
     inputs.sort();
     inputs
+}
+
+/// Every case a names file lists, one name per line, as its own `data`
+/// fixture.
+fn named(sample_directory: &Path, names: &Path) -> Vec<PathBuf> {
+    fs::read_to_string(names)
+        .unwrap()
+        .lines()
+        .filter(|name| !name.is_empty())
+        .map(|name| sample_directory.join("data").join(format!("{name}.stdin")))
+        .collect()
+}
+
+/// The sample directory a source root belongs to.
+fn sample_directory(root: &Path) -> PathBuf {
+    root.parent()
+        .expect("the source root names a directory")
+        .to_path_buf()
+}
+
+/// The entry source to build and the sample directory holding it, from either
+/// the entry `main.omg` or the sample directory an observer names.
+fn source(declared: &Path) -> (PathBuf, PathBuf) {
+    if declared.is_dir() {
+        (declared.join("main.omg"), declared.to_path_buf())
+    } else {
+        (declared.to_path_buf(), sample_directory(declared))
+    }
 }
 
 /// A case's name, which also names its captures inside a bundle.
