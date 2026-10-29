@@ -1,0 +1,56 @@
+[
+  {
+    "variant": "A",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 39.49089999514399,
+    "sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-02-A-measured\\build\\omega-program.exe"
+  },
+  {
+    "variant": "B",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 41.93870000017341,
+    "sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-03-B-measured\\build\\omega-program.exe"
+  },
+  {
+    "variant": "B",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 34.086799998476636,
+    "sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-03-B-measured\\build\\omega-program.exe"
+  },
+  {
+    "variant": "A",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 32.29060000012396,
+    "sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-02-A-measured\\build\\omega-program.exe"
+  },
+  {
+    "variant": "A",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 35.63650000432972,
+    "sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-02-A-measured\\build\\omega-program.exe"
+  },
+  {
+    "variant": "B",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 32.45469999819761,
+    "sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\comparison\\dispatch-03-B-measured\\build\\omega-program.exe"
+  }
+]

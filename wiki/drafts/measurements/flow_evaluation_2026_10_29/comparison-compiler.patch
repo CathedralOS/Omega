@@ -1,0 +1,92 @@
+diff --git a/omega-rust/psi/foundation/phase-profile/src/lib.rs b/omega-rust/psi/foundation/phase-profile/src/lib.rs
+index f51f7d29719..44dc723fdcf 100644
+--- a/omega-rust/psi/foundation/phase-profile/src/lib.rs
++++ b/omega-rust/psi/foundation/phase-profile/src/lib.rs
+@@ -12,6 +12,9 @@
+ //! nested scopes overlap their parents, and concurrent compilations in one
+ //! process add together. This is measurement, never semantic input: no
+ //! compiler decision may read these values.
++//! Keep rows sorted as names first appear: frequent updates then search only
++//! logarithmically. A linear name scan charged profiler bookkeeping to parent
++//! scopes, obscuring the cost of small, frequently observed compiler operations.
+ 
+ use std::sync::Mutex;
+ use std::sync::atomic::{AtomicU8, Ordering};
+@@ -102,25 +105,21 @@ fn add(name: &'static str, count: u64, nanos: u64) {
+     let mut rows = ROWS
+         .lock()
+         .unwrap_or_else(std::sync::PoisonError::into_inner);
+-    if let Some(row) = rows
+-        .iter_mut()
+-        .find(|row| std::ptr::eq(row.name, name) || row.name == name)
+-    {
+-        row.count = row.count.saturating_add(count);
+-        row.nanos = row.nanos.saturating_add(nanos);
+-    } else {
+-        rows.push(Row { name, count, nanos });
++    match rows.binary_search_by(|row| row.name.cmp(name)) {
++        Ok(position) => {
++            let row = &mut rows[position];
++            row.count = row.count.saturating_add(count);
++            row.nanos = row.nanos.saturating_add(nanos);
++        }
++        Err(position) => rows.insert(position, Row { name, count, nanos }),
+     }
+ }
+ 
+ /// Snapshot of every row, sorted by name so nested names group together.
+ pub fn snapshot() -> Vec<Row> {
+-    let mut rows = ROWS
+-        .lock()
++    ROWS.lock()
+         .unwrap_or_else(std::sync::PoisonError::into_inner)
+-        .clone();
+-    rows.sort_by(|left, right| left.name.cmp(right.name));
+-    rows
++        .clone()
+ }
+ 
+ /// Render the snapshot as aligned text, one row per line.
+@@ -161,5 +160,42 @@ mod tests {
+                 .count,
+             1
+         );
++
++        // Names are content identities even when separate callers own them.
++        let first: &'static str = Box::leak(String::from("test.equal").into_boxed_str());
++        let second: &'static str = Box::leak(String::from("test.equal").into_boxed_str());
++        assert!(!std::ptr::eq(first, second));
++        super::count(first, 7);
++        super::count(second, 11);
++        super::add("test.saturated", u64::MAX, u64::MAX);
++        super::add("test.saturated", 1, 1);
++        let workers = (0..4)
++            .map(|_| {
++                std::thread::spawn(|| {
++                    for _ in 0..1000 {
++                        super::count("test.concurrent", 1);
++                    }
++                })
++            })
++            .collect::<Vec<_>>();
++        for worker in workers {
++            worker.join().unwrap();
++        }
++        let rows = super::snapshot();
++        assert!(rows.windows(2).all(|pair| pair[0].name < pair[1].name));
++        assert_eq!(rows.iter().find(|row| row.name == first).unwrap().count, 18);
++        assert_eq!(
++            rows.iter()
++                .find(|row| row.name == "test.concurrent")
++                .unwrap()
++                .count,
++            4000
++        );
++        let saturated = rows
++            .iter()
++            .find(|row| row.name == "test.saturated")
++            .unwrap();
++        assert_eq!(saturated.count, u64::MAX);
++        assert_eq!(saturated.nanos, u64::MAX);
+     }
+ }
