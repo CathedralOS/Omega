@@ -1393,7 +1393,7 @@ impl<'program> StructuralJudge<'program> {
                 None
             },
         )?;
-        let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
+        let outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
                 let call_inputs = if let Some(call) = program.expression_table.call_node(expression)

@@ -218,8 +218,7 @@ fn type_may_carry_write_walk(
         // initializer effects and exact origins are checked by the callers.
         TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => {
+        | TypeReferenceNode::FixedArray { .. } => {
             !type_is_reference_free_value(program, handle, bindings)
         }
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => true,
