@@ -79,3 +79,4 @@ addition; the latter is under `cfg(test)` and does not affect the executable.
 Exact production patch: [candidate.patch](candidate.patch); the committed test
 module supplies the unit-test source. Next: profile remaining statement checking
 on this candidate, without attributing older measurements to the new baseline.
+Follow-up: [remaining statement arithmetic](../statement_remainder_2026_10_28/README.md).
