@@ -529,6 +529,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             };
             let mut requirement_parameters = predicate_parameters.to_vec();
             let mut static_substitution = Vec::new();
+            let mut type_substitution = Vec::new();
             if let Some(site) = self.call_site {
                 let Some(owner) = super::specification_calls::selected_call_site_contract(
                     program,
@@ -556,6 +557,18 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.proven = false;
                     return;
                 };
+                let Some(application) =
+                    super::specification_calls::AppliedProofBindings::for_call_site(
+                        program,
+                        machine.symbol,
+                        &owner,
+                        site,
+                    )
+                else {
+                    self.proven = false;
+                    return;
+                };
+                type_substitution = application.types;
                 for (parameter, value) in bindings {
                     static_substitution.push((parameter.name.to_string(), value));
                     requirement_parameters.push(parameter);
@@ -660,7 +673,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.inherited
                         .as_ref()
                         .map_or(&[], |predicate| predicate.selections.as_slice()),
-                    &[],
+                    &type_substitution,
                     Some((machine, state)),
                 ),
                 StructuralJudgment::Proven,

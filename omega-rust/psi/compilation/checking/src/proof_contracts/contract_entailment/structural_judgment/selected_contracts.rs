@@ -1086,12 +1086,13 @@ pub(super) fn selected_requirement_judgment(
     }
     let program = judge.program;
     if let Some(binary) = program.expression_table.binary_node(expression)
-        && binary.operator == BinaryOperator::And
+        && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     {
         // The retained conjunction is not overloadable. Its operands keep
         // their own selected predicate meanings; a nominal leaf must not
         // prevent a neighboring scalar leaf from reaching its judge.
-        return match (
+        return StructuralJudgment::connective(
+            binary.operator,
             selected_requirement_judgment(
                 judge,
                 binary.left,
@@ -1110,13 +1111,7 @@ pub(super) fn selected_requirement_judgment(
                 type_bindings,
                 depth + 1,
             ),
-        ) {
-            (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
-                StructuralJudgment::Refuted
-            }
-            (StructuralJudgment::Proven, StructuralJudgment::Proven) => StructuralJudgment::Proven,
-            _ => StructuralJudgment::Unknown,
-        };
+        );
     }
     if super::super::structural_terms::is_case_observation(program, expression) {
         let Some(map) = parameters
