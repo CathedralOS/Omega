@@ -13,13 +13,13 @@ The current live slice contains
 source/span and token representations, a UTF-8-framed lexer that stores only
 semantic tokens, and a fail-closed whole-file parser for ordinary
 `use path::member;` roots,
-`[pub] data Name [<generic parameters>] [properties] [where facts] { ... }`
+`[public] data Name [<generic parameters>] [properties] [where facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `[#N] case Name;` or structured
 `[#N] case Name([#N] field: Type, ...);` members that may carry their own
 `where` facts (`#N` is a stable schema identity), and
-`[pub] [target] [boundary] machine [token] [Owner::]name [<generic
+`[public] [target] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
 declarations, where a target name before `machine` scopes one body of a
 family keyed by target, `boundary` marks a crossing, and a fixed operator
@@ -38,8 +38,9 @@ satisfaction is a named conformance), and `terminates [by subjects [->
 View]];`, whose subjects are one expression or a parenthesized list and whose
 view is a path or an argumented view call; a bare `terminates` may end at
 the body's `{`. A machine's return type may follow its clauses, further
-clauses continuing the same run. Bodies hold entry statements and
-then `state name [(parameters)] [-> Type] [requires fact]* { ... }` members. A
+clauses continuing the same run. Bodies hold their own executable statements
+followed by nested `machine` declarations with the same full signature, static
+contracts and clauses. Each has its own table ranges and exact lexical parent. A
 bodyless machine ends at `;`; a `;` that ends a contract fact, a
 satisfaction, a termination or an operational clause belongs to the clause
 only while the declaration continues after it with `{`, another clause or
@@ -87,25 +88,25 @@ and case-payload fields retain separate bounded custody while mixed
 declarations preserve exact authored field/case order and shared named
 type-reference identity. Empty payload lists and trailing payload commas are
 accepted. The remaining root kinds share those grammars:
-`[pub] boundary data Name [<generic parameters>] [properties];` leaves its
+`[public] boundary data Name [<generic parameters>] [properties];` leaves its
 representation to a crossing, with no members or facts;
-`[pub] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
+`[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
 {where proposition Name(parameters);} { ... }` holds machine requirements and
 body parents `requires Parent;`, and a transparent refinement `trait Name =
 Base { machine (* | [Base::]requirement) clauses }` narrows its base's
 `reaches`, `suspends`, `blocks` and `terminates`, each clause ending at its
 own `;`; a
-named conformance `[pub] Name [<generic parameters>] satisfies Trait<arguments>
+named conformance `[public] Name [<generic parameters>] satisfies Trait<arguments>
 { ... }` holds checked machines and reference rows `Trait::requirement = Path;`
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
-`[pub] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
+`[public] domain [<generic parameters>] Carrier::Name [<indices>] [(subject)]`
 is a transparent alias `= A & B;` or takes `requires` facts and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
-([`parse/domain.omg`](parse/domain.omg)); `[pub] const [Owner::]NAME: Type =
+([`parse/domain.omg`](parse/domain.omg)); `[public] const [Owner::]NAME: Type =
 value;` names a compile-time value ([`parse/constant.omg`](parse/constant.omg));
-`[pub] proposition Name [<generic parameters>] [(parameters)]` ends with
+`[public] proposition Name [<generic parameters>] [(parameters)]` ends with
 `;`, `evidence Type;` or `= fact;` ([`parse/proposition.omg`](parse/proposition.omg));
-and a named mathematical definition `[pub] let Name [<generic parameters>]
+and a named mathematical definition `[public] let Name [<generic parameters>]
 [(parameters)]: Type = term;`, or an admitted assumption `boundary let ...:
 Type;` without a term ([`parse/definition.omg`](parse/definition.omg)).
 Generic parameter lists also take `proposition Name` binders, whose
@@ -114,8 +115,10 @@ binders `Name satisfies Trait<arguments>`. The current parser's legacy name-led
 target prefix path recognizes a machine when `machine` or `boundary` follows
 the name and a conformance when `satisfies` or `<` does; after a bodyless
 declaration's `;`, `Name<...> satisfies` likewise begins a conformance. Trait and conformance
-members are machine rows marked with their container, held as one contiguous
-range per declaration; a trait member without a body is a requirement, and a
+members are machine rows marked with their container. A container's preorder
+span can include nested descendants; direct-member selection excludes rows
+with a lexical parent so helpers do not become requirements. A trait member
+without a body is a requirement, and a
 conformance member must have one. Target-prefixed machines are retired language
 syntax; `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeline-route)
 tracks removing that parser path and using ordinary implementations selected by
@@ -135,7 +138,8 @@ becoming a private bridge tree.
 Canonical nested `machine` declarations share the ordinary machine syntax
 rows, including their own generic signature, complete clauses, static contracts
 and executable body. Preorder identities retain an explicit optional lexical
-parent, independently from a code/data namespace owner. Own statement,
+parent, independently from its declared code namespace or trait/implementation
+container. Own statement,
 expression and contract ranges end before child declarations; child rows are
 not root exports or extra trait/conformance requirements. Parsing uses a bounded
 stack of declaration indices, with no recursive invocation stack or implicit
@@ -149,9 +153,10 @@ requester-local dependency edges and 128 units, each unit belonging to a
 package and to the module its path names there (`a::b`), parsed into the
 shared syntax tables, with its position as its source id. Those tables are
 whole-program, sized above what the psi package fills: 4,096 roots, 1,024
-uses, 2,048 machines, 1,024 fields, 1,536 cases and 2,048 data members,
+uses, 1,024 fields, 1,536 cases and 2,048 data members,
 2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
-statements, 10,240 ordinary/nested machine identities, 8,192 legacy states and transition arms, 65,536 type references and
+statements, 10,240 ordinary/nested machine identities, 8,192 transition arms,
+65,536 type references and
 call arguments, and 131,072 expressions; resolution's and
 typing's rows indexed by machine, type-reference and expression handles share
 those bounds. A `use` path's first member selects a package
@@ -253,8 +258,8 @@ parameters standing for any type; two such domains reject as ambiguous. A
 path qualifier `in Owner::Name` names what a membership's path names, a case
 of data `Owner` or the domain `Name` over the type `Owner` names, and that
 domain must qualify the qualified type. Last,
-it rejects duplicate parameter names within a signature, duplicate state names
-within a machine, and a machine that repeats an earlier one of its module's
+it rejects duplicate parameter names within a signature and a machine that
+repeats an earlier declaration in the same exact lexical scope and module
 path (owner and name, a member's owner being its container), generic parameter
 kinds and parameter types, compared run by run with generic parameters by
 position (machines may otherwise overload). Legacy target-prefixed bodies still
@@ -269,16 +274,17 @@ a requirement or machine, and an alias's constituents to domains, bare ones
 over the alias's own carrier. Then every name and path in a machine body or a
 constant's value binds ([`resolve/names.omg`](resolve/names.omg)) in the
 language's resolution order: an earlier `let` of the same body, the enclosing
-arm's pattern binders, the body's own parameters (a state never sees the
-entry's), then the machine's value binders (`Count: u32`, `const N: u64`), a
-member's own before its container's, then a constant. A callee names a machine
-binder (`machine F`), then a fellow member of the enclosing trait or
+arm's pattern binders, the body's own parameters, then its generic/static
+declaration context and a constant. Exact ancestor type, static value, machine
+and lifetime binder identities remain available; enclosing runtime values and
+invocation facts are not captured. A callee names a machine binder (`machine F`),
+then the nearest lexical declaration family, then a fellow member of the enclosing trait or
 conformance, then a machine or a proposition (both of one spelling are
 ambiguous); a callee path `Owner::name` names the machine of
 that path, so `Trait::requirement` and `Conformance::member`, or, for a
 conformance declaring no such member, the machine its reference row or its
 trait supplies for that requirement. A call-shaped transition target names a
-state of its machine before any callee, a construction or case pattern a data
+lexically visible machine by the same exact declaration identity; a construction or case pattern names a data
 declaration or `Type::Case`, and a value path a case, an owned constant or an
 owned machine; a terminal value target binds as any value, as do a
 value-position match's subject, value patterns and values, and an unknown name
@@ -288,8 +294,8 @@ whose implied domain it names; `value in Carrier::Name` binds the domain the
 carrier type selects, and a bare `value in Name` the one visible domain of
 that name, in the path bindings (a case and a domain of one path, or several
 bare candidates, or several domains at once reject). These value bindings are
-indexed by expression handle. A machine's `requires` and `ensures` facts and
-a state's `requires` facts bind in their body's parameter scope, `result` in
+indexed by expression handle. Each machine's own `requires` and `ensures` facts
+bind in its own parameter and static declaration scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
 a data declaration's `where` facts bind its fields bare, and a case's own
 `where` facts that case's payload fields first, then the declaration's

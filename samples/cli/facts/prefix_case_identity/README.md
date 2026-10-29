@@ -2,7 +2,7 @@
 
 Numbered mixed data preserves the active payload bound, common field and neighbor canaries; schema case 90 is authored first and remains the ordinary zero case.
 
-This row belongs to **PREFIX-CASE-IDENTITIES** in [TASKS.md](../../../../TASKS.md).
+This row retains regression evidence for the ratified prefix case spelling.
 It follows [construction and case identity](../../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
 and [layout identity scopes](../../../../wiki/spec/layouts/plans.md).
 
@@ -60,21 +60,36 @@ The nine positives and twins are pinned under
 tests/omega/{pass,fail}/facts/prefix_case_identity_<place>. Controls are pinned
 under tests/omega/{pass,fail}/data/prefix_case_*.
 
-## Verification frontier
+## Verification
 
-Optimized Rust producer `22662ce1c2593ab013a93819659a2fb125beaa48` checks all
-nine places and the three positive controls, rejects all nine twins and five
-negative controls for their authored reasons, and runs all twelve positive
-programs with native exit 0 and Terminal exit 0 on macOS arm64. This repairs the
-initial empty zero-payload home and named mixed-constant failures. The four
-Build bindings do not claim execution on the other hosts.
+On macOS arm64, the nine positives and three positive controls run with native
+exit 0 and Terminal exit 0. All nine twins and five syntax/identity controls
+reject for their authored reasons. These retained observations use optimized
+Rust producer 55a5fd4e07f818d7e6a49d4d4ad31357f89a8772; the current 908 producer has
+identical executable bytes and unchanged Rust, library and witness inputs.
 
-The parent remains open until the Omega-written parser/resolver gates run.
-Their current harness clears source checking but native lowering refuses the
-structural result of `Console::read_byte`; that compiler prerequisite is under
-repair. No product-parser runtime acceptance is claimed yet.
+The Omega-written product parser and resolver execute as native programs built
+by optimized producer 908ef844151b4388e48ca51d3705274826773462. Their reviewed
+observation drivers pass 516 parser cases and 320 resolver cases. The resolver
+also resolves all 82 Psi source units together, retaining 38,326 type references
+and 100,830 expressions. The original failed observation runs are preserved;
+the corrected drivers retain the exact compiled product binaries.
 
-| Requirement | Witness and remaining verification |
+The scoped preservation cohort has 19 successful native/Terminal pairs and 17
+intended negative checks. Two existing expected-zero fixtures remain rejected:
+installed_entry_ram_two_occurrences_exit stops at unsupported placed scalar
+execution, and domain_selected_cleanup_indexed_inherited_computed_exit cannot
+prove its cleanup requirements. Both refusals reproduce at fixed base 1770367;
+neither is a runtime success or an oracle waiver. The separate 29-source
+comparison likewise retains its two known rejected-pass outcomes. This is
+scoped acceptance, not a green whole-corpus claim.
+
+Runtime evidence is macOS arm64 only. Four authored Build bindings do not claim
+execution on Linux or Windows. The observed source evidence bundles remain
+published at commit 1564f4a26d8853498bf02a8b9c3fc2802a10be75 under
+evidence/prefix-case-identities-20261028, preserving replay inputs through squash.
+
+| Requirement | Witness and verification |
 | --- | --- |
 | Establishment | Ordinary payload domain and complete mixed construction; twin widens only that domain. |
 | Identity and lifetime | Independent common/case/payload scopes and exact active case; no extra lifetime claim. |
@@ -83,4 +98,4 @@ repair. No product-parser runtime acceptance is claimed yet.
 | Psi lowering and Terminal | Retain common field, active payload and zero's authored case; all nine Terminal executions pass. |
 | Layout and ABI | Mixed carrier and canaries pass through calls/results; stable IDs must not become runtime ordinals. |
 | Instruction selection | All nine native executions meet their authored branch/common/payload oracles. |
-| Encoding and emission | Actual native/Terminal agreement on matching hosts is required; four Build bindings alone are not execution evidence. |
+| Encoding and emission | All nine agree on macOS arm64; the other authored targets remain unmeasured. |

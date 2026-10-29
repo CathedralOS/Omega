@@ -33,8 +33,6 @@ present record fields. Payload fields retain their own identity scopes, so the
 payload's `#1` does not identify a common field. Existing numbering,
 retirement, declaration-order and stable-identity rules are unchanged by this
 prefix migration. There is no extra case-group field, number or discriminator.
-`PREFIX-CASE-IDENTITIES` in [TASKS.md](../../../TASKS.md) retains parser and
-repository source migration; updated documentation is not implementation evidence.
 
 Fields have no declaration-site default initializers. Construction may omit an
 ordinary runtime field only when its zero value satisfies the complete default-domain obligations.
