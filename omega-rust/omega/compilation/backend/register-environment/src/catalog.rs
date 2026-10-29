@@ -3,18 +3,17 @@
 //! selected constraint-key roster is not re-declared here: its ISA owner
 //! carries the one roster per target (see `selected_constraint_keys`).
 
-use isa_aarch64::{
-    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog,
-};
-use isa_x86_64::{
-    X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL, x86_64_physical_register_model,
-    x86_64_register_constraint_catalog,
-};
+#[cfg(test)]
+use isa_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
+use isa_aarch64::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
+#[cfg(test)]
+use isa_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
+use isa_x86_64::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
+#[cfg(test)]
+use register_model::RegisterConstraintKey;
 use register_model::{
-    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterConstraintKey,
-    RegisterReservationProfile, TargetRegisterEnvironmentConstraintKeys,
-    ValidatedPhysicalRegisterModel,
+    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterReservationProfile,
+    TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -204,6 +203,10 @@ fn float_result_policy_keys_survive_the_hosted_environment_projection() {
 /// Exact scalar-call ABI row selected by one native target. General selected
 /// call lowering is not implemented yet; this mapping makes the future entry
 /// explicit without adding call authority to the current selected CFG.
+///
+/// Only the call-clobber tests read the mapping, so it stays test-gated until a
+/// lowering path can select the row.
+#[cfg(test)]
 pub(super) const fn scalar_call_constraint_key(
     target: NativeTarget,
 ) -> Option<RegisterConstraintKey> {
