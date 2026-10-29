@@ -36,7 +36,7 @@ The output is one self-contained HTML file: no dependencies, remote fonts, API
 keys or external data requests. Open it directly or serve it on static hosting.
 Its button explains snapshot age; it does not imply a connection to the repo.
 The source revision, tracked-tree dirty state, collection time, row revision
-stamps, native golden update dates and registry revision remain visible.
+stamps, native golden update dates and registry revision remain in Evidence details.
 
 The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
@@ -50,6 +50,15 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 ## Meaning of the views
 
+- **Overview:** charts first; Facts and Work open separate panels. Evidence
+  details holds provenance, native receipts, warnings and comparison methods.
+- **Fixed cohort:** the pinned September 30 baseline for each host keeps its
+  original fixture-ID denominator. Compare its recorded runs then and now
+  against the current full corpus. Missing old IDs stay in the denominator;
+  retained losses and removed previously running IDs are reported separately.
+  Growth splits recovered old IDs from new IDs running now. New does not mean
+  first-recording success, and source changes mean recovery is not a causal
+  measurement of compiler improvement. An unavailable baseline stays unknown.
 - **Native history chart:** the last recorded golden per UTC day across the
   30 days before the inspected HEAD, at its real commit timestamp. The blue area counts valid programs
   with recorded exits. All available hosts share count and date axes by default;
