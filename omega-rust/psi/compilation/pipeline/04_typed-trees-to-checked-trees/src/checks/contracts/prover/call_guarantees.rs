@@ -166,8 +166,8 @@ pub(crate) fn current_predicates(
                 expression,
             )?;
             let arguments = validation::call_site_argument_expressions(program, &invocation.site);
-            let mut copied_values = Vec::new();
-            for binding in &mut predicate.bindings {
+            let mut captures = Vec::new();
+            for (binding_position, binding) in predicate.bindings.iter_mut().enumerate() {
                 // The normal result is already in the caller's completed-value
                 // namespace. Only this exact invocation root bypasses substitution;
                 // a parameter or another call must still establish its own capture.
@@ -180,42 +180,7 @@ pub(crate) fn current_predicates(
                 let position = parameters.iter().position(|parameter| {
                     binding.place.root == PlaceRoot::Symbol(parameter.symbol)
                 })?;
-                // An owned actual is its completed input value, not storage
-                // to reread at normal return. Its captured producer contexts
-                // already retain any proved scalar observation (including a
-                // predicate on the element copied before another call wrote).
-                // Referents remain on the current-storage substitution below.
-                if crate::flow::operand_binds_stable_copy(
-                    program,
-                    parameters[position].type_reference,
-                ) && let Some(call) = invocation_fact(facts, caller, invocation)
-                    && let Some(actual) = super::super::call_values::actual_at(
-                        program,
-                        caller,
-                        call,
-                        position,
-                        binding.place.segments.clone(),
-                    )
-                    && let Some(capture) = super::super::call_values::captured_operand(
-                        program, facts, caller, call, &actual,
-                    )
-                    && let Some(value) = super::captured_values::recorded_scalar_at_path(
-                        program,
-                        facts,
-                        caller,
-                        capture.row(),
-                        &actual.path,
-                        invocation.statement.checked_add(1)?,
-                        call.entry_constraints,
-                    )
-                    && let Some(literal) = super::super::call_values::observed_literal(
-                        value,
-                        binding.operand.primitive_type()?,
-                    )
-                {
-                    copied_values.push((binding.operand.clone(), literal));
-                    continue;
-                }
+                let projection = binding.place.segments.clone();
                 let actual = *arguments.get(position)?;
                 let place = crate::semantic::facts::projected_argument_place(
                     program,
@@ -223,7 +188,7 @@ pub(crate) fn current_predicates(
                     invocation.statement,
                     actual,
                     parameters[position].type_reference,
-                    &binding.place.segments,
+                    &projection,
                 )?;
                 binding.place = crate::flow::rebase_exact_local_place(
                     program,
@@ -232,21 +197,52 @@ pub(crate) fn current_predicates(
                     place,
                     Some(frames),
                 )?;
-            }
-            boolean_predicates::map_observations(&mut predicate.expression, &mut |operand| {
-                if let Some((_, value)) = copied_values.iter().find(|(source, _)| source == operand)
+                // A detached actual owns its captured predicates. Rebind them
+                // at that exact read epoch, independently of current referents.
+                // Retain every alternative; the transport owner decides coverage.
+                if crate::flow::operand_binds_stable_copy(
+                    program,
+                    parameters[position].type_reference,
+                ) && let Some(call) = invocation_fact(facts, caller, invocation)
+                    && let Some(actual) = super::super::call_values::actual_at(
+                        program, caller, call, position, projection,
+                    )
+                    && let Some(capture) = super::super::call_values::captured_operand(
+                        program, facts, caller, call, &actual,
+                    )
+                    && let Some(values) = super::super::call_values::captured_values(
+                        program, facts, caller, call, &actual,
+                    )
                 {
-                    *operand = value.clone();
+                    for value in &values {
+                        super::super::captured_predicates::retain_bindings(
+                            program,
+                            facts,
+                            value,
+                            capture.row(),
+                            std::slice::from_ref(binding),
+                            binding_position,
+                            &mut captures,
+                        );
+                    }
                 }
-                Some(())
-            })?;
-            predicate.bindings.retain(|binding| {
-                !copied_values
-                    .iter()
-                    .any(|(source, _)| *source == binding.operand)
-            });
-            Some(predicate)
+            }
+            // Binding a guarantee cannot recursively enumerate guarantees. Its
+            // owned inputs transport only facts already recorded at capture.
+            let transported = super::super::captured_predicates::transport(
+                program,
+                facts,
+                caller,
+                &mut predicate,
+                &captures,
+                &[],
+                None,
+            );
+            let mut predicates = transported.predicates;
+            predicates.push(predicate);
+            Some(predicates)
         })
+        .flatten()
         .collect()
 }
 
