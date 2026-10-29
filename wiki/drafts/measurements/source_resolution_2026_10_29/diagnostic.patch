@@ -1,0 +1,61 @@
+diff --git a/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs b/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs
+index 74c4904dc14..6b12b515b77 100644
+--- a/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs
++++ b/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs
+@@ -90,6 +90,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         self,
+         resolved: &ResolvedBuildSources,
+     ) -> Result<Vec<ResolvedPackageBuild>, ProjectSourceResolutionError> {
++        let _detail_guard = phase_profile::guard("source.detail.join_sources");
+         let mut builds = Vec::with_capacity(self.sources.len());
+         for mut source in self.sources {
+             let identity = source.declared.identity();
+@@ -129,6 +130,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         entry: &Path,
+         execution: package_compilation::BuildExecutionInputs,
+     ) -> Result<usize, ProjectSourceResolutionError> {
++        let _detail_guard = phase_profile::guard("source.detail.execute_source");
+         self.run_work(Work::Source {
+             acquired,
+             entry: entry.to_path_buf(),
+@@ -141,6 +143,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         &mut self,
+         root: usize,
+     ) -> Result<ResolvedBuildSources, ProjectSourceResolutionError> {
++        let _detail_guard = phase_profile::guard("source.detail.resolve_graph");
+         let resolution = self.sources[root]
+             .declared
+             .clone()
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
+index bbaeba5b741..8409cac4575 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session/source_graph.rs
+@@ -18,13 +18,27 @@ const MAX_BYTES: usize = 512 * 1024 * 1024;
+ const HEADER_BYTES: usize = 80;
+ static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
+ 
+-#[derive(compiler_storage::Record)]
+ pub(super) struct SourceGraph {
+     pub preparation: SourcePreparation,
+     pub sources: Vec<PreparedSource>,
+     pub checks: RetainedCompilationChecks,
+ }
+ 
++impl Record for SourceGraph {
++    fn write(&self, output: &mut RecordWriter) -> Result<(), compiler_storage::RecordError> {
++        output.record(|output| { self.preparation.write(output)?; self.sources.write(output)?; self.checks.write(output) })
++    }
++    fn read<Context>(input: &mut compiler_storage::RecordReader<'_, Context>) -> Result<Self, compiler_storage::RecordError> {
++        input.record(|input| {
++            Ok(Self {
++                preparation: phase_profile::scope("source.detail.decode_preparation", || Record::read(input))?,
++                sources: phase_profile::scope("source.detail.decode_sources", || Record::read(input))?,
++                checks: phase_profile::scope("source.detail.decode_checks", || Record::read(input))?,
++            })
++        })
++    }
++}
++
+ pub(super) struct SourceGraphCache {
+     storage: RetainedStorageLane,
+     compiler: [u8; 32],
