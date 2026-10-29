@@ -234,6 +234,9 @@ pub(crate) fn build_synchronous_invocation_facts(
                 machine: machine.symbol,
                 published_targets,
                 checked_inferred_targets,
+                realized_targets: invocation_summary
+                    .map(|summary| summary.realized.clone())
+                    .unwrap_or_default(),
                 plan: language_semantics::SynchronousInvocationPlan {
                     interface: if publishes_invocations {
                         language_semantics::SynchronousInvocationInterface::PublishedCeiling

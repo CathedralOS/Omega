@@ -6,11 +6,21 @@ use crate::provider_planning::provenance_replay::{
 use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
+/// A complete checked application, or an explicitly abstract external ceiling.
+/// Declaration names are canonical package-qualified export coordinates here,
+/// not source spelling used to rediscover a call.
+pub(crate) struct SynchronousBoundaryTarget {
+    pub declaration: String,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub application: Option<String>,
+}
+
 /// Reject a cycle in the direct synchronous graph realized by the concrete
-/// provider selection. Reach closure is intentionally irrelevant: only a
-/// selected method's authored `invokes` edges participate, and a missing
-/// selected target cannot manufacture an edge. Adapter summaries come from
-/// Psi's checked facts, never from a second inference over realized source.
+/// provider selection. Reach closure is intentionally irrelevant. Checked
+/// adapters contribute actual requirement applications; opaque supplies retain
+/// their authored invocation ceilings. A missing selected target cannot
+/// manufacture an edge. Adapter summaries come from Psi's checked facts, never
+/// from a second inference over realized source.
 pub(crate) fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
     invocations: &checked_trees::SynchronousInvocationFacts,
@@ -33,10 +43,18 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                     crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
                     invocations,
                     source,
-                    method,
                     row,
                 ),
-                _ => exact_authored_invocations(source, method),
+                _ => exact_authored_invocations(source, method).map(|targets| {
+                    targets
+                        .into_iter()
+                        .map(|declaration| SynchronousBoundaryTarget {
+                            declaration,
+                            package: None,
+                            application: None,
+                        })
+                        .collect()
+                }),
             };
             let target_names = match target_names {
                 Ok(target_names) => target_names,
@@ -45,12 +63,27 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                     continue;
                 }
             };
-            for target_name in target_names {
+            for invoked in target_names {
                 let matching_targets = selected
                     .iter()
                     .enumerate()
                     .filter(|(_, target)| {
-                        target.schema.identity_text(target.schema.trait_name) == target_name
+                        let schema = &target.schema;
+                        if let Some(application) = &invoked.application {
+                            schema.receiver_applications.iter().any(|receiver| {
+                                schema.identity_text(receiver.application) == application
+                                    && receiver.trait_package_identity == invoked.package
+                            })
+                        } else {
+                            let matches = |name, package| {
+                                schema.identity_text(name) == invoked.declaration
+                                    && (invoked.package.is_none() || package == invoked.package)
+                            };
+                            matches(schema.trait_name, schema.trait_package_identity)
+                                || schema.receiver_applications.iter().any(|receiver| {
+                                    matches(receiver.trait_name, receiver.trait_package_identity)
+                                })
+                        }
                     })
                     .collect::<Vec<_>>();
                 match matching_targets.as_slice() {
@@ -60,7 +93,8 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                     }
                     [_] => {}
                     _ => diagnostics.push(diagnostics::Diagnostic::error(format!(
-                        "selected synchronous invocation `{target_name}` from `{}::{}` is ambiguous across {} package-qualified boundary slots",
+                        "selected synchronous invocation `{}` from `{}::{}` is ambiguous across {} package-qualified boundary slots",
+                        invoked.application.as_deref().unwrap_or(&invoked.declaration),
                         source.schema.identity_text(source.schema.trait_name),
                         method.name,
                         matching_targets.len(),
@@ -134,10 +168,7 @@ fn exact_selected_synchronous_plans(
             )));
             continue;
         }
-        let schema_identity = (
-            plan.schema.trait_package_identity,
-            plan.schema.identity_text(plan.schema.trait_name),
-        );
+        let schema_identity = plan.schema.selection_slot_identity();
         if seen_schemas.contains(&schema_identity) {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected synchronous-invocation schema `{}` is realized by more than one selected ProviderPlan",
