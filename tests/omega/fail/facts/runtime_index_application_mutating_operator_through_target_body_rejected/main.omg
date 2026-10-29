@@ -13,7 +13,7 @@ machine construct<Operations satisfies Arithmetic>(total: u32)->Observation requ
  Observation{payload:indexed.value,limit:indexed.Limit,after:flag}
 }
 
-boundary trait IndexProbe { machine probe(total: u32) -> Observation requires total >= 8 && total <= 9; }
+boundary trait IndexProbe { machine probe(total: u32) -> Observation requires total >= 8 && total <= 9 reaches; }
 WindowsIndexProbe satisfies IndexProbe { machine probe(total: u32) -> Observation requires total >= 8 && total <= 9 { construct<Toggle>(total) } }
 LinuxX86IndexProbe satisfies IndexProbe { machine probe(total: u32) -> Observation requires total >= 8 && total <= 9 { construct<Toggle>(total) } }
 MacIndexProbe satisfies IndexProbe { machine probe(total: u32) -> Observation requires total >= 8 && total <= 9 { construct<Toggle>(total) } }

@@ -4,6 +4,15 @@ A runtime limit from 9 to 10 binds `Index<limit>`, retaining payload 8 below the
 
 Parent: `RUNTIME-VALUE-GENERICS` in [TASKS.md](../../../../../TASKS.md). This is another production of the same runtime-index application fact. The constructor directly returns `Index<(total + 1u32)>` for an independently admitted `total: u32[8..=9]`. The receiving local independently checks the returned index application. The constructor must establish its own domain; its result annotation supplies no premise.
 
+
+The scalar-contract migration belongs to `CANONICALIZE-SCALAR-RANGE-CONTRACTS`.
+Inputs use bare carriers with complete `requires` bounds, data fields use
+owner `requires`, results publish `ensures`, and locals consume established
+initializer facts. The [declaration audit](../../../../../wiki/drafts/designs/range_suffix_migration.md#audited-runtime-index-application-productions)
+retains the original positions and endpoints. The target-body place selects
+four explicit pure implementations through Build. The source/native/Terminal
+oracle and payload-only reject difference are unchanged.
+
 | Place | Positive | Reject twin |
 | --- | --- | --- |
 | local | [local/main.omg](local/main.omg) | [invalid](local/invalid/main.omg) |

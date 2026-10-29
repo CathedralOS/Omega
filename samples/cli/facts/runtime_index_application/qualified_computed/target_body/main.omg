@@ -10,7 +10,7 @@ machine construct(total: u64)->Observation requires total >= 8 && total <= 9 {
  Observation{payload:indexed.value,limit:(indexed.Limit as u64)}
 }
 
-boundary trait IndexProbe { machine probe(total: u64) -> Observation requires total >= 8 && total <= 9; }
+boundary trait IndexProbe { machine probe(total: u64) -> Observation requires total >= 8 && total <= 9 reaches; }
 WindowsIndexProbe satisfies IndexProbe { machine probe(total: u64) -> Observation requires total >= 8 && total <= 9 { construct(total) } }
 LinuxX86IndexProbe satisfies IndexProbe { machine probe(total: u64) -> Observation requires total >= 8 && total <= 9 { construct(total) } }
 MacIndexProbe satisfies IndexProbe { machine probe(total: u64) -> Observation requires total >= 8 && total <= 9 { construct(total) } }
