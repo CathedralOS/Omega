@@ -38,8 +38,8 @@ all source inputs, contracts and runtime checks. It must reject install's OWN
 Ensures with `cannot prove ensures contract for exit from install`. A formation,
 access, incoming Requires or consumer failure is not the required falsifier.
 Positive samples and pins expect exit 0 with native/Terminal agreement via
-omega run --both. All four hosted Build entries are authored; actual execution
-and diagnostic qualification remain with the implementation owner.
+omega run --both. All four hosted Build entries are authored; execution records identify the
+actual host and producer below.
 
 ## Places
 
@@ -100,18 +100,25 @@ are byte-identical to the initial-source-snapshot.json retained under
 build/owned-array-field-handback-20261029/. That existing snapshot and the
 fact-selection/carrier-review records remain unchanged.
 
-Before authoritative integration or baseline observation of the eight added
-places, fixture authoring removed their redundant marker proof clauses. The
-consumer still requires the same four value facts; marker construction, both
-match paths and every runtime canary are unchanged. The seven frozen local
-inputs are untouched. The earlier sidecar draft is retained as a non-integration
-authoring snapshot beside its manifest.
+The optimized B0 producer from 2c9b82ced44aaf878f0ae9cbd72eea5201f53386
+has the same compiler/library inputs as the fixed discovery base. All nine
+positives and nine twins refused install's own Ensures before implementation.
+The sources and oracles stayed unchanged during the repair.
 
-This is a source-only sidecar draft. The frozen-local exact-source baseline
-build/observation is owned by the main session and was pending at dispatch;
-no baseline refusal or candidate success is claimed here. All eight added
-places, nine corpus pairs and all runtime outcomes remain unverified. Freeze
-and observe the full authored sources before counting a compiler defect or
-acceptance; retain exact source/producer hashes and own-obligation diagnostics.
-The implementation owner completes all checking, execution, review and landing
-within this same outcome. A drafted row does not close the parent task.
+The trace-free R4 producer is 4ef0dddd51289cb9e821e5f0804708627c895fa0.
+All nine positives check and all nine twins retain that exact own-obligation
+refusal. Runtime and corpus records live under
+build/owned-array-field-handback-20261029/ and are bound to retained optimized
+producer profiles, source hashes and execution artifacts.
+
+On macos_arm64, all nine positives execute with native/Terminal exit 0/0 and
+all nine twins reject install's own Ensures. The focused corpus checks pass:
+26 source fixtures (12 positives and 14 controls) and 12 native/Terminal
+fixtures. Each new place is pinned under tests/omega/{pass,fail}/facts.
+Retained PSITERM and native images accompany the execution records. The other
+three hosted targets have authored entries but were not executed here.
+
+The broader parent remains open: other proposition productions, mutable
+recasts, customer migration and removal of range-suffix support retain their
+existing TASKS acceptance. This row establishes whole owned-array field
+replacement and complete current/previous Packet handback only.

@@ -1558,7 +1558,7 @@ fail/borrows/plain_read_during_live_exclusive_loan rejected 1695ms expected @a92
 	statement 2 reads `cell.value` while local borrow `selection` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/predicate_named_call_keeps_installed_loan rejected 561ms unexpected @a92f16431042
 	call `exercise` has an invalid argument correspondence: call has no retained parameter telescope
-fail/borrows/predicate_reference_retarget_requires_membership rejected 3082ms expected @a92f16431042
+fail/borrows/predicate_reference_retarget_requires_membership rejected 743ms expected @4ef0dddd5128
 	cannot prove the value assigned to `protected.cell` in observed_exit is in domain `Cell::Controlled`; a place declared `in Cell::Controlled` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/borrows/primitive_aggregate_live_owner_read rejected 3049ms expected @a92f16431042
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -2883,7 +2883,7 @@ fail/contracts/contract_declaration_boundary_comparison rejected 392ms expected 
 	machine `probe` state `entry` value call to `limited` violates required fact `value < 100`: the instantiated fact is structurally false (`100 < 100`)
 fail/contracts/contract_declaration_boundary_operator rejected 1007ms expected @a92f16431042
 	machine `probe` state `entry` value call to `limited` violates required fact `operator < value`: the instantiated fact is structurally false (`5 < 5`)
-fail/contracts/copied_field_guarantee_after_overwrite rejected 7450ms expected @a92f16431042
+fail/contracts/copied_field_guarantee_after_overwrite rejected 1241ms expected @4ef0dddd5128
 	cannot prove requires contract for call equal_float from float_copies: saved.value == value (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call equal from scalar_inputs: initial == replacement (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from scalar_exit at statement 2: initial == replacement
@@ -3032,7 +3032,7 @@ fail/contracts/opaque_call_retires_mutable_argument rejected 2139ms expected @a9
 	cannot prove requires contract for call exact_seven from after_call: output.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/opaque_call_retires_reference_contents rejected 2099ms expected @a92f16431042
 	cannot prove requires contract for call exact_seven from after_call: view.value.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/projected_result_guarantee_after_overwrite rejected 2071ms expected @a92f16431042
+fail/contracts/projected_result_guarantee_after_overwrite rejected 517ms expected @4ef0dddd5128
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1796ms expected @a92f16431042
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
@@ -12711,7 +12711,7 @@ fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 1496ms exp
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 1479ms expected @a92f16431042
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
-fail/facts/nested_result_extent_replaced_descriptor_rejected rejected 1470ms expected @a92f16431042
+fail/facts/nested_result_extent_replaced_descriptor_rejected rejected 1306ms expected @4ef0dddd5128
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `current` in trial::entry
 fail/facts/nested_result_extent_through_call_result_rejected rejected 1716ms expected @a92f16431042
 	cannot prove subslice range end bound `0..minimum(minimum(count, other.len), 2147483647)` is within unknown slice length of `buffer` in trial::entry
@@ -13701,6 +13701,24 @@ fail/facts/outcome_structural_evidence_through_parameter_rejected rejected 1464m
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
 fail/facts/outcome_structural_evidence_through_target_body_rejected rejected 1451ms expected @a92f16431042
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/owned_array_field_replacement_call_result_rejected rejected 1365ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_const_name_rejected rejected 744ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_field_rejected rejected 758ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_local_rejected rejected 737ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_match_join_rejected rejected 813ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_other_machine_rejected rejected 822ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_other_state_rejected rejected 744ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_parameter_rejected rejected 724ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
+fail/facts/owned_array_field_replacement_target_body_rejected rejected 767ms expected @4ef0dddd5128
+	cannot prove ensures contract for exit from install at statement 1: installed(&holder.items) == true
 fail/facts/owned_qualified_reference_carrier_reuse rejected 1145ms expected @a92f16431042
 	cannot use `carrier.reference` in machine `inspect` state `entry` (statement 1) after `carrier` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `carrier` first
 fail/facts/owned_qualified_reference_field_reuse rejected 1345ms expected @a92f16431042
@@ -14537,9 +14555,8 @@ fail/facts/saved_observation_snapshot_after_call_uncovered_join_rejected rejecte
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/saved_observation_snapshot_after_call_unknown_after_join_rejected rejected 2138ms expected @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_predicate_handback_call_result_rejected rejected 746ms expected @5c5c178f82c7
+fail/facts/saved_observation_snapshot_predicate_handback_call_result_rejected rejected 689ms expected @4ef0dddd5128
 	cannot prove ensures contract for exit from preserve at statement 3: kept(&holder.items) == true
-	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/saved_observation_snapshot_predicate_handback_const_name_rejected rejected 752ms expected @5c5c178f82c7
 	cannot prove ensures contract for exit from preserve at statement 3: kept(&holder.items) == true
 	cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -24321,7 +24338,7 @@ pass/borrows/owned_reference_arrival_projection_exit rejected 1914ms check-targe
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "selection transport requires a typed frontier entry for every live owned local", gap: None })
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 6265ms check-target:macos_arm64 @a92f16431042
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 2484ms check-target:macos_arm64 @a92f16431042
-pass/borrows/predicate_reference_field_retarget_exit checked 2022ms check-target:macos_arm64 @a92f16431042
+pass/borrows/predicate_reference_field_retarget_exit checked 1284ms check-target:macos_arm64 @4ef0dddd5128
 pass/borrows/projected_claim_owner_shared_observation_exit checked 6344ms check-target:macos_arm64 @a92f16431042
 pass/borrows/projected_copy_parent_custody_exit checked 2099ms check-target:macos_arm64 @a92f16431042
 pass/borrows/projected_indexed_member_loan checked 6304ms check-target:macos_arm64 @a92f16431042
@@ -24350,7 +24367,7 @@ pass/borrows/returned_record_field_read_exit checked 6864ms check-target:macos_a
 pass/borrows/returned_record_method_receiver_exit checked 6861ms check-target:macos_arm64 @a92f16431042
 pass/borrows/returned_record_projected_call_exit checked 6352ms check-target:macos_arm64 @a92f16431042
 pass/borrows/returned_record_scalar_call_exit checked 2224ms check-target:macos_arm64 @a92f16431042
-pass/borrows/returned_reference_source_guarantee_exit checked 2179ms check-target:macos_arm64 @a92f16431042
+pass/borrows/returned_reference_source_guarantee_exit checked 1286ms check-target:macos_arm64 @4ef0dddd5128
 pass/borrows/returned_slice_record_reference_custody_exit checked 3283ms check-target:macos_arm64 @a92f16431042
 pass/borrows/routed_field_boundary_handback_exit checked 2505ms check-target:macos_arm64 @a92f16431042
 pass/borrows/routed_membership_reference_contract checked 2346ms @a92f16431042
@@ -29561,6 +29578,15 @@ pass/facts/outcome_structural_evidence_through_other_machine_exit checked 3174ms
 pass/facts/outcome_structural_evidence_through_other_state_exit checked 3970ms check-target:macos_arm64 @a92f16431042
 pass/facts/outcome_structural_evidence_through_parameter_exit checked 2890ms check-target:macos_arm64 @a92f16431042
 pass/facts/outcome_structural_evidence_through_target_body_exit checked 2885ms check-target:macos_arm64 @a92f16431042
+pass/facts/owned_array_field_replacement_call_result_exit checked 1029ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_const_name_exit checked 1060ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_field_exit checked 1041ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_local_exit checked 965ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_match_join_exit checked 1083ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_other_machine_exit checked 1017ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_other_state_exit checked 1041ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_parameter_exit checked 970ms check-target:macos_arm64 @4ef0dddd5128
+pass/facts/owned_array_field_replacement_target_body_exit checked 1061ms check-target:macos_arm64 @4ef0dddd5128
 pass/facts/owned_qualified_reference_carrier_exit checked 2824ms check-target:macos_arm64 @a92f16431042
 pass/facts/owned_qualified_reference_field_exit checked 2762ms check-target:macos_arm64 @a92f16431042
 pass/facts/owned_qualified_reference_result_exit checked 3162ms check-target:macos_arm64 @a92f16431042
@@ -29904,7 +29930,7 @@ pass/facts/saved_observation_snapshot_after_call_through_other_machine_exit chec
 pass/facts/saved_observation_snapshot_after_call_through_other_state_exit checked 2857ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_observation_snapshot_after_call_through_parameter_exit checked 2909ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
 pass/facts/saved_observation_snapshot_after_call_through_target_body_exit checked 2723ms check-target:macos_arm64 @b011da5f273a04a924bc79cfa9df3bef5bcd6674
-pass/facts/saved_observation_snapshot_predicate_handback_call_result_exit checked 979ms check-target:macos_arm64 @5c5c178f82c7
+pass/facts/saved_observation_snapshot_predicate_handback_call_result_exit checked 998ms check-target:macos_arm64 @4ef0dddd5128
 pass/facts/saved_observation_snapshot_predicate_handback_const_name_exit checked 966ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_field_exit checked 988ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/saved_observation_snapshot_predicate_handback_local_exit checked 967ms check-target:macos_arm64 @5c5c178f82c7
