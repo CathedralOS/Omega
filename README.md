@@ -228,17 +228,17 @@ machine execute<T>(
     command: &Command<T>
 ) -> Result<T, DatabaseError>
 {
-    transition command {
-        (_, _, _, operation) -> match operation {
-            Command::GetUser { user_id } -> database::get_user(connection, user_id)
-            Command::CountUsers -> database::count_users(connection)
-            Command::DeleteUser { user_id } -> database::delete_user(connection, user_id)
-        }
+    let (_, _, _, operation) = command;
+
+    transition operation {
+        Command::GetUser { user_id } -> database::get_user(connection, user_id)
+        Command::CountUsers -> database::count_users(connection)
+        Command::DeleteUser { user_id } -> database::delete_user(connection, user_id)
     }
 }
 ```
 
-The positional outer pattern follows authored order: request_id, requested_at_ms, sequence, then one case-only view. `_` ignores each metadata binding. The inner match retains the original Command's domain facts, so selecting a case establishes the corresponding equality for T.
+The positional binding follows authored order: request_id, requested_at_ms, sequence, then one case-only view. `_` ignores each metadata binding. The transition retains the original Command's domain facts, so selecting a case establishes the corresponding equality for T.
 
 `Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
 
