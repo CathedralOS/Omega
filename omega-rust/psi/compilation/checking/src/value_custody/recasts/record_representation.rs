@@ -1092,4 +1092,50 @@ pub(super) fn record_representation_implies(
     target: &MutableRecordRepresentation,
 ) -> bool {
     record_layouts_match(program, source, target, scalar_representation_facts_imply)
+        || shared_initialized_byte_projection(source, target)
+}
+
+/// A read-only byte observation may weaken scalar validity, but may not expose
+/// padding, fragmented bits, or an atomic storage protocol. The complete
+/// occupied roster proves every observed byte belongs to an initialized leaf.
+/// Mutable aliases continue to require the two-way leaf relation above.
+fn shared_initialized_byte_projection(
+    source: &MutableRecordRepresentation,
+    target: &MutableRecordRepresentation,
+) -> bool {
+    use super::scalar_representation::{ScalarRepresentationSet, full_scalar_bit_patterns};
+    use typed_trees::types::PrimitiveType;
+    if source.size != target.size || target.align != 1 || source.align == 0 {
+        return false;
+    }
+    if target.leaves.iter().any(|leaf| {
+        leaf.primitive != PrimitiveType::U8
+            || leaf.size != 1
+            || !leaf.byte_projection
+            || leaf.facts.atomic
+            || !leaf.facts.domains.is_empty()
+            || leaf.facts.values
+                != ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(
+                    PrimitiveType::U8,
+                ))
+    }) {
+        return false;
+    }
+    let covers = |representation: &MutableRecordRepresentation| {
+        let mut leaves = representation.leaves.iter().collect::<Vec<_>>();
+        leaves.sort_unstable_by_key(|leaf| leaf.offset);
+        let mut cursor = 0usize;
+        for leaf in leaves {
+            if leaf.offset != cursor || leaf.size == 0 || !leaf.byte_projection || leaf.facts.atomic
+            {
+                return false;
+            }
+            let Some(next) = cursor.checked_add(leaf.size) else {
+                return false;
+            };
+            cursor = next;
+        }
+        cursor == representation.size
+    };
+    covers(source) && covers(target)
 }

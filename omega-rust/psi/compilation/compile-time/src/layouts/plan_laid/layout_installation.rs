@@ -18,7 +18,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     let mut requests = Vec::new();
-    for (reference, _) in typed.type_reference_table.type_reference_rows() {
+    for reference in domain.references(typed).type_references {
         let Some(storage) = typed.layout_storage_arguments(reference) else {
             continue;
         };
@@ -65,17 +65,23 @@ pub(crate) fn compute_plan_laid_layouts_in(
     let mut target_layouts = arena::Arena::new();
     let mut captured_schema_fields = arena::Arena::new();
     for storage in requests {
-        let semantic = execution
+        // Schema reflection consumes the exact checked declaration, independently
+        // of the narrower roster of bodies permitted to execute. Describing T
+        // never promotes T or any Product machine into the execution domain.
+        let semantic = typed
             .closed_data_definition(storage.semantic_type)
             .ok_or_else(|| {
-                fail("fixed representation lost its exact closed semantic application".into())
+                fail(format!(
+                    "fixed representation lost its exact declared semantic application `{}`",
+                    typed.display_type_reference(storage.semantic_type)
+                ))
             })?;
         if semantic.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
             return Err(fail(
                 "fixed representation cannot reflect opaque semantic storage".into(),
             ));
         }
-        if execution
+        if typed
             .data_members(semantic)
             .iter()
             .any(|member| member.as_field().is_none())
@@ -137,12 +143,10 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 .map_err(|reason| fail(reason.to_string()))?;
         }
         let (fields, fingerprint) =
-            super::super::schema_reflection::schema_fields_for(&execution, semantic)
+            super::super::schema_reflection::schema_fields_for(typed, semantic).map_err(fail)?;
+        let schema_value =
+            super::super::schema_reflection::build_selected_schema_value(typed, semantic, &fields)
                 .map_err(fail)?;
-        let schema_value = super::super::schema_reflection::build_selected_schema_value(
-            &execution, semantic, &fields,
-        )
-        .map_err(fail)?;
         let retained = fields.iter().map(|field| Ok(PlanLaidSchemaField {
             schema_field: field.schema_field, key: field.key, identity: field.identity,
             byte_size: field.size, byte_alignment: field.align,
@@ -154,8 +158,8 @@ pub(crate) fn compute_plan_laid_layouts_in(
             abi_version: 1,
             fields: captured_schema_fields.insert_many(retained),
         });
-        let schema_fields = execution
-            .live_data_fields(execution.data_members(semantic))
+        let schema_fields = typed
+            .live_data_fields(typed.data_members(semantic))
             .map(|field| (field.name.as_str().to_owned(), field.type_reference))
             .collect::<Vec<_>>();
         let field_symbols = fields
@@ -163,7 +167,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             .map(|field| field.schema_field)
             .collect::<Vec<_>>();
         let record = FixedRepresentationRequest {
-            application_name: execution.display_type_reference(storage.application),
+            application_name: typed.display_type_reference(storage.application),
             policy_machine: machine.name.as_str().to_owned(),
         };
         let mut alternatives = Vec::new();
@@ -225,7 +229,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 )
                 .map_err(fail)?;
             let geometry = install_geometry(
-                &execution,
+                typed,
                 &record,
                 &schema_fields,
                 crate::layouts::layout_plans::NativeLayoutPlanReport {
