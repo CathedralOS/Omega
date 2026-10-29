@@ -1007,7 +1007,6 @@ impl BuildTimeAdmissionPlan {
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
                 BuildMachineEvaluationRequest {
-                    product_entry_compatibility: None,
                     operators: &self.selected_operators,
                     machine_bodies: &self.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
@@ -1138,7 +1137,6 @@ impl BuildTimeAdmissionPlan {
                     .evaluate(
                         checked_interpreter::BuildMachineProgram::Checked(checked),
                         BuildMachineEvaluationRequest {
-                            product_entry_compatibility: None,
                             operators: &self.selected_operators,
                             machine_bodies: &self.selected_machine_bodies,
                             ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
@@ -1186,7 +1184,6 @@ impl BuildTimeAdmissionPlan {
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Checked(checked),
                 BuildMachineEvaluationRequest {
-                    product_entry_compatibility: None,
                     operators: &self.selected_operators,
                     machine_bodies: &self.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
