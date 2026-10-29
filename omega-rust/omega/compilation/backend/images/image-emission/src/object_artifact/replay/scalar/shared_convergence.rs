@@ -22,7 +22,7 @@ use super::super::structural::condition_read::{
 use super::conditional_regions::collect_conditional_tree_regions;
 use super::conditional_stack::replay_scalar_conditional_region;
 use super::division_stack::decode_exact_x86_instruction;
-use super::stack_mutation::claimed_mutations_and_call_sites;
+use super::stack_mutation::ScalarReplay;
 use crate::order::strictly_increasing;
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
@@ -222,9 +222,7 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
             structural_identity = Some(identity);
         }
     }
-    let (mut claimed, mut call_sites) =
-        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
-    let mut validated_calls = Vec::with_capacity(calls.len());
+    let mut walk = ScalarReplay::new(architecture, machine, bytes, evidence, calls)?;
     let mut peak = 0;
     for (start, end, condition) in prefixes {
         let prefix_peak = replay_scalar_conditional_region(
@@ -234,11 +232,8 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
             start,
             end,
             false,
-            &mut claimed,
-            &mut call_sites,
+            &mut walk,
             condition == ScalarConditionalCondition::Expression,
-            evidence,
-            &mut validated_calls,
             None,
         )?;
         if condition == ScalarConditionalCondition::Parameter && prefix_peak != 0 {
@@ -305,11 +300,8 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
             start,
             value_end,
             false,
-            &mut claimed,
-            &mut call_sites,
+            &mut walk,
             false,
-            evidence,
-            &mut validated_calls,
             None,
         )?);
     }
@@ -320,20 +312,9 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
         merge_offset,
         bytes.len(),
         true,
-        &mut claimed,
-        &mut call_sites,
+        &mut walk,
         true,
-        evidence,
-        &mut validated_calls,
         cleanup,
     )?);
-    super::stack_mutation::scalar_stack_result(
-        &claimed,
-        &call_sites,
-        machine,
-        peak,
-        evidence.stack_alignment,
-        validated_calls,
-        None,
-    )
+    walk.finish(peak, None)
 }

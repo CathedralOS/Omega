@@ -970,6 +970,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -993,6 +994,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -1349,6 +1351,22 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
+]
+
+[[package]]
+name = "normalized-foreign-call-plan"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "legalized-operations",
+ "optimization-unit",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
 ]
 
 [[package]]

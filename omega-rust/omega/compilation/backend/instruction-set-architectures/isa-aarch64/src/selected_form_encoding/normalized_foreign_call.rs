@@ -8,7 +8,13 @@
 //! scratch register for a record-field destination. The field stays
 //! unresolved until object construction binds it to the declared import
 //! symbol; raw locator bytes never enter this encoding contract.
+//!
+//! The admission both instruction sets run, the fixup record, and the validated
+//! template record live in `normalized_foreign_call_plan`; this module keeps the
+//! AArch64 callback materialization words, the `BL #0` emission, and the fixup
+//! vocabulary that names them.
 
+use normalized_foreign_call_plan::{Fixup, Template};
 use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
@@ -66,79 +72,20 @@ pub struct Aarch64CallbackAddressMaterialization {
 /// call. `{boundary, ordinal}` names the selected roster row owning the
 /// evaluated locator; `callbacks` carries every private-callback
 /// materialization in the call's roster order.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Aarch64NormalizedForeignCallFixup {
-    pub kind: Aarch64NormalizedForeignCallFixupKind,
-    pub state: Aarch64NormalizedForeignCallFixupState,
-    pub boundary: BoundaryMachineId,
-    pub ordinal: u32,
-    pub opcode_byte_offset: u16,
-    pub patch_byte_offset: u16,
-    pub reference_byte_offset: u16,
-    pub patch_byte_width: u8,
-    pub callbacks: Vec<Aarch64CallbackAddressMaterialization>,
-}
+pub type Aarch64NormalizedForeignCallFixup = Fixup<
+    Aarch64NormalizedForeignCallFixupKind,
+    Aarch64NormalizedForeignCallFixupState,
+    Aarch64CallbackAddressMaterialization,
+>;
 
 /// Exact selected inputs and canonical bytes for one unresolved normalized
 /// foreign call.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedAarch64SelectedNormalizedForeignCallTemplate {
-    kind: SelectedInstructionKind,
-    alternative: MachineAlternativeKey,
-    operand_views: Vec<RegisterViewId>,
-    effects: MachineEncodedEffects,
-    bytes: Vec<u8>,
-    fixup: Aarch64NormalizedForeignCallFixup,
-}
+pub type ValidatedAarch64SelectedNormalizedForeignCallTemplate =
+    Template<Aarch64NormalizedForeignCallFixup>;
 
-impl ValidatedAarch64SelectedNormalizedForeignCallTemplate {
-    pub const fn kind(&self) -> SelectedInstructionKind {
-        self.kind
-    }
-
-    pub const fn alternative(&self) -> MachineAlternativeKey {
-        self.alternative
-    }
-
-    pub fn operand_views(&self) -> &[RegisterViewId] {
-        &self.operand_views
-    }
-
-    pub const fn effects(&self) -> &MachineEncodedEffects {
-        &self.effects
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub const fn fixup(&self) -> &Aarch64NormalizedForeignCallFixup {
-        &self.fixup
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Aarch64NormalizedForeignCallTemplateError {
-    UnsupportedTarget,
-    NonCanonicalPhysicalModel,
-    InstructionKindMismatch,
-    AlternativeMismatch,
-    OperandViewMismatch,
-    EffectMismatch,
-    MalformedTemplate,
-    FixupMismatch,
-}
-
-impl std::fmt::Display for Aarch64NormalizedForeignCallTemplateError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid AArch64 normalized-foreign-call template: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for Aarch64NormalizedForeignCallTemplateError {}
+/// Every way an AArch64 normalized-foreign-call template can disagree with the
+/// selected record it claims to encode.
+pub type Aarch64NormalizedForeignCallTemplateError = normalized_foreign_call_plan::Error;
 
 /// Produce the canonical `BL #0` word, preceded by one materialization
 /// group per callback destination in roster order, with an unresolved
@@ -197,46 +144,20 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
     ValidatedAarch64SelectedNormalizedForeignCallTemplate,
     Aarch64NormalizedForeignCallTemplateError,
 > {
-    aarch64_selected_abi(target)
-        .map_err(|_| Aarch64NormalizedForeignCallTemplateError::UnsupportedTarget)?;
-    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-        return Err(Aarch64NormalizedForeignCallTemplateError::NonCanonicalPhysicalModel);
-    }
-    let (boundary, ordinal) = match kind {
-        SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => (boundary, ordinal),
-        _ => return Err(Aarch64NormalizedForeignCallTemplateError::InstructionKindMismatch),
-    };
-    if record.call.boundary != boundary
-        || record.call.binding.native_target() != Some(target)
-        || record.call.binding.symbolic_import().is_none()
-    {
-        return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
-    }
-    let row = crate::machine_effects::normalized_foreign_constraint(record)
-        .ok_or(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)?;
-    if row.operands.len() != operand_views.len()
-        || row.operands.len() != operand_accesses.len()
-        || row
-            .operands
-            .iter()
-            .zip(operand_views.iter().zip(operand_accesses))
-            .any(|(operand, (view, access))| {
-                operand.fixed_view != Some(*view) || operand.access != *access
-            })
-    {
-        return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
-    }
-    let declaration = crate::aarch64_normalized_foreign_call_declaration(record, &row)
-        .ok_or(Aarch64NormalizedForeignCallTemplateError::EffectMismatch)?;
-    let [expected] = declaration.alternatives.as_slice() else {
-        return Err(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch);
-    };
-    if alternative != expected.key {
-        return Err(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch);
-    }
-    if effects != &expected.encoded {
-        return Err(Aarch64NormalizedForeignCallTemplateError::EffectMismatch);
-    }
+    let (boundary, ordinal) = normalized_foreign_call_plan::admit(
+        target,
+        physical,
+        kind,
+        alternative,
+        operand_views,
+        operand_accesses,
+        effects,
+        record,
+        |native| aarch64_selected_abi(native).is_ok(),
+        crate::canonical_aarch64_physical_register_model_identity,
+        crate::machine_effects::normalized_foreign_constraint,
+        crate::aarch64_normalized_foreign_call_declaration,
+    )?;
     let destinations = record
         .call
         .callbacks
@@ -274,14 +195,14 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
     if fixup != expected_fixup {
         return Err(Aarch64NormalizedForeignCallTemplateError::FixupMismatch);
     }
-    Ok(ValidatedAarch64SelectedNormalizedForeignCallTemplate {
+    Ok(Template::new(
         kind,
         alternative,
-        operand_views: operand_views.to_vec(),
-        effects: effects.clone(),
-        bytes: bytes.to_vec(),
+        operand_views,
+        effects,
+        bytes,
         fixup,
-    })
+    ))
 }
 
 /// The canonical unresolved word stream: one materialization group per
@@ -380,6 +301,7 @@ mod tests {
         encode_aarch64_selected_normalized_foreign_call_template,
         validate_aarch64_selected_normalized_foreign_call_template,
     };
+    use normalized_foreign_call_plan::fixture;
     use register_model::{
         RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel,
         validate_physical_register_model,
@@ -457,179 +379,25 @@ mod tests {
     /// These records carry physical call inputs only; source ownership and
     /// declarations remain the selection tests' independent responsibility.
     fn record(darwin: bool, input_layout: usize, result: usize) -> SelectedNormalizedForeignCall {
-        use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
-        use semantic_vocabulary::{
-            IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
-            StructuralTypeId, ValueId,
-        };
-        use target_operations::{
-            TargetBoundaryResult, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
-            TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
-        };
-        let target = if darwin {
-            NativeTarget::macos_arm64()
-        } else {
-            NativeTarget::linux_arm64()
-        };
-        let (general, floating) = if input_layout < 9 {
-            (input_layout, 0)
-        } else {
-            ((input_layout - 9) / 8, (input_layout - 9) % 8 + 1)
-        };
-        let parameters = std::iter::repeat_n(ValueShape::integer(8, 8), general)
-            .chain(std::iter::repeat_n(ValueShape::float(8), floating))
-            .collect::<Vec<_>>();
-        let result_shape = match result {
-            0 => None,
-            1 => Some(ValueShape::integer(8, 8)),
-            2 => Some(ValueShape::float(8)),
-            3 => Some(ValueShape::integer(16, 8)),
-            4 => Some(ValueShape::homogeneous_float_aggregate(8, 2)),
-            5 => Some(ValueShape::integer(24, 8)),
-            _ => panic!("test result"),
-        };
-        let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
-            CallingPolicy::native_for_target(target),
-            &CallSignature {
-                parameters,
-                result: result_shape,
-            },
-        )
-        .unwrap()
-        .plan()
-        .clone();
-        let locator = if darwin {
-            target::normalize_foreign_locator(
-                target::ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                    symbol: b"_leaf".to_vec(),
-                },
-                target::TargetProfile::MacosArm64,
-            )
-        } else {
-            target::normalize_foreign_locator(
-                target::ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libc.so.6".to_vec(),
-                    symbol: b"leaf".to_vec(),
-                    version: b"GLIBC_2.0".to_vec(),
-                },
-                target::TargetProfile::LinuxArm64,
-            )
-        }
-        .unwrap();
-        let commitment = task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
-        let identities = terminal_psi::TerminalIdentityTable::from(vec![
-            String::new(),
-            "Foreign::leaf".to_owned(),
-        ]);
-        let requirement_index = identities
-            .index_of("Foreign::leaf")
-            .expect("test requirement identity must intern");
-        let same_stack_contribution = task_plans::admit_same_stack_contribution(
-            task_plans::SameStackContributionAdmissionCandidate {
-                provider_plan_report_identity: 0xA1,
-                provider_plan_commitment: commitment,
-                requirement_identity: requirement_index,
-                receipt:
-                    task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
-                        0xA2,
-                    )
-                    .unwrap(),
-                bytes: 64,
-                alignment: 16,
-            },
-            0xA1,
-            commitment,
-            requirement_index,
-        )
-        .unwrap();
-        let operation = OperationId::new(7).unwrap();
-        let scalar_type = |floating| {
-            if floating {
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+        use calling_conventions::ValueShape;
+        use target::TargetProfile;
+
+        fixture::record(
+            if darwin {
+                NativeTarget::macos_arm64()
             } else {
-                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
-            }
-        };
-        let scalar_arguments = boundary_entry_plan
-            .call
-            .parameters
-            .iter()
-            .enumerate()
-            .map(
-                |(position, placement)| target_operations::TargetUnitScalarCallArgument {
-                    parameter_index: position as u32,
-                    source: target_operations::TargetUnitScalarArgumentSource::Parameter {
-                        parameter_index: position as u32,
-                        source_value: ValueId::new(100 + position as u64).unwrap(),
-                        scalar_type: scalar_type(position >= general),
-                    },
-                    placement: placement.clone(),
-                },
-            )
-            .collect();
-        let completion = match result_shape {
-            None => TargetBoundaryResult::Unit,
-            Some(shape) if result <= 2 => {
-                TargetBoundaryResult::Scalar(TargetUnitScalarHomeRequirement {
-                    defining_operation: operation,
-                    source_value: ValueId::new(8).unwrap(),
-                    scalar_type: scalar_type(result == 2),
-                    shape,
-                })
-            }
-            Some(shape) => TargetBoundaryResult::Structural(TargetStructuralHomeRequirement {
-                origin: TargetStructuralHomeOrigin::OperationResult {
-                    operation,
-                    result: terminal_psi::StructuralOperationResult {
-                        place: PlaceId::new(9).unwrap(),
-                        structural_type: StructuralTypeId::new(2).unwrap(),
-                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        qualification_establishments: Vec::new(),
-                        claims: Vec::new(),
-                    },
-                },
-                layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(
-                    shape.byte_size,
-                    shape.alignment,
-                )),
-            }),
-        };
-        SelectedNormalizedForeignCall {
-            instruction: selected_instructions::SelectedInstructionId(4),
-            invocation_site: operation.into(),
-            call: legalized_operations::LegalizedNormalizedForeignCall {
-                boundary: BoundaryMachineId::new(3).unwrap(),
-                provider_execution:
-                    target_operations::ProviderExecutionBinding::from_execution_record(
-                        target_operations::ProviderPlanReportIdentity::new(0xA1).unwrap(),
-                        1,
-                        2,
-                        3,
-                        4,
-                    )
-                    .unwrap(),
-                binding: target_operations::NormalizedForeignCallBinding {
-                    boundary_entry_plan,
-                    mechanism: target_operations::NormalizedForeignCallMechanism::Import {
-                        locator,
-                        same_stack_contribution,
-                    },
-                },
-                scalar_arguments,
-                structural_arguments: Vec::new(),
-                structural_indices: Vec::new(),
-                result: completion,
-                callbacks: Vec::new(),
+                NativeTarget::linux_arm64()
             },
-            effect: optimization_unit::EffectLink {
-                input: 1,
-                output: 2,
+            9,
+            ValueShape::homogeneous_float_aggregate(8, 2),
+            if darwin {
+                fixture::mach_o_locator()
+            } else {
+                fixture::elf_locator(TargetProfile::LinuxArm64)
             },
-            ownership: Vec::new(),
-        }
+            input_layout,
+            result,
+        )
     }
 
     #[test]
