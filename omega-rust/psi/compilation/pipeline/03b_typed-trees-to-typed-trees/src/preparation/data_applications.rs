@@ -27,6 +27,7 @@
 //! `Nest<[T; 2]>` in a growing recursive family.
 
 use arena::HandleSpan;
+use std::collections::HashSet;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
@@ -41,17 +42,22 @@ use typed_trees::types::TypeReferenceNode;
 mod field_scopes;
 pub(super) use field_scopes::retain as retain_declared_field_scopes;
 
+// Completed plain declarations for this invocation only; never Generic views.
+type CompletedNamed = HashSet<SymbolHandle, symbols::BuildSymbolHasher>;
+
 pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let type_start = program.type_reference_table.type_reference_count();
+    let mut completed_named = CompletedNamed::default();
     let applications = program
         .type_reference_table
         .type_reference_rows()
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     for reference in applications {
-        elaborate_value_fields(program, reference, &mut Vec::new());
+        elaborate_value_fields(program, reference, &mut Vec::new(), &mut completed_named);
     }
-    elaborate_projected_fields(program);
+    elaborate_projected_fields(program, &mut completed_named);
+    drop(completed_named);
     finalize_produced_types(program, type_start)
 }
 
@@ -64,14 +70,16 @@ pub(super) fn elaborate_new_types(
     first_type: usize,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let type_start = program.type_reference_table.type_reference_count();
+    let mut completed_named = CompletedNamed::default();
     let applications = program
         .type_reference_table
         .references_from(first_type.saturating_add(1))
         .map(|(reference, _)| reference)
         .collect::<Vec<_>>();
     for reference in applications {
-        elaborate_value_fields(program, reference, &mut Vec::new());
+        elaborate_value_fields(program, reference, &mut Vec::new(), &mut completed_named);
     }
+    drop(completed_named);
     finalize_produced_types(program, type_start)
 }
 
@@ -85,7 +93,9 @@ pub(crate) fn elaborate_projected_receivers(
     program: &mut TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let type_start = program.type_reference_table.type_reference_count();
-    elaborate_projected_fields(program);
+    let mut completed_named = CompletedNamed::default();
+    elaborate_projected_fields(program, &mut completed_named);
+    drop(completed_named);
     finalize_produced_types(program, type_start)
 }
 
@@ -105,7 +115,7 @@ fn finalize_produced_types(
 /// A reference is not a storage-expansion edge. A source member occurrence is
 /// a finite demand for its receiver's fields, including symbolic applications.
 /// Complete children first so the next receiver reads their applied types.
-fn elaborate_projected_fields(program: &mut TypedTrees) {
+fn elaborate_projected_fields(program: &mut TypedTrees, completed_named: &mut CompletedNamed) {
     let mut projections = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -147,7 +157,7 @@ fn elaborate_projected_fields(program: &mut TypedTrees) {
         let reference = program
             .type_reference_table
             .peeled_type_reference(reference);
-        elaborate_value_fields(program, reference, &mut Vec::new());
+        elaborate_value_fields(program, reference, &mut Vec::new(), completed_named);
     }
 }
 
@@ -158,17 +168,18 @@ fn elaborate_value_fields(
     program: &mut TypedTrees,
     reference: TypeReferenceHandle,
     active: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    completed_named: &mut CompletedNamed,
 ) {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return,
         TypeReferenceNode::Constrained { base_type, .. } => {
             let base_type = *base_type;
-            elaborate_value_fields(program, base_type, active);
+            elaborate_value_fields(program, base_type, active, completed_named);
             return;
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
             let element_type = *element_type;
-            elaborate_value_fields(program, element_type, active);
+            elaborate_value_fields(program, element_type, active, completed_named);
             return;
         }
         _ => {}
@@ -178,6 +189,13 @@ fn elaborate_value_fields(
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         _ => return,
     };
+    let was_plain_named = matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Named { .. }
+    );
+    // Record actual entry ancestry before supplied-actual filtering can make
+    // a nested walk look like a root. Only roots publish completion.
+    let incoming_active_is_empty = active.is_empty();
     // A supplied actual starts its own expansion, even when reached through
     // another declaration. Retain unrelated origins so wrappers cannot conceal
     // a growing application of an ancestor's nominal owner.
@@ -200,6 +218,13 @@ fn elaborate_value_fields(
         *active = ancestors;
         return;
     }
+    // The original active-owner guard above still owns cycle/growth refusal.
+    // A completed Named declaration walked every finite child from an empty
+    // root. Generic applications keep their exact occurrence protocol.
+    if was_plain_named && completed_named.contains(&owner) {
+        *active = ancestors;
+        return;
+    }
     if program.data_application_definition(reference).is_some() {
         *active = ancestors;
         return;
@@ -212,6 +237,8 @@ fn elaborate_value_fields(
         *active = ancestors;
         return;
     };
+    let completes_named_root =
+        was_plain_named && incoming_active_is_empty && data.generic_instance.is_none();
     let mut children = Vec::new();
     for member in program.data_members(data) {
         match member {
@@ -226,7 +253,10 @@ fn elaborate_value_fields(
     }
     active.push((owner, reference));
     for child in children {
-        elaborate_value_fields(program, child, active);
+        elaborate_value_fields(program, child, active, completed_named);
+    }
+    if completes_named_root {
+        completed_named.insert(owner);
     }
     *active = ancestors;
 }
