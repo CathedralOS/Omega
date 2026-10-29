@@ -8,6 +8,7 @@
 
 mod checking;
 mod component;
+mod inspection;
 mod native_inputs;
 
 use crate::execution_settlement::SelectedProductTarget;
@@ -45,7 +46,7 @@ impl CompilationProduct {
 /// Finished output; checked source and continuation state stay in the compiler.
 pub enum CompilationOutput {
     Report(CompileReport),
-    Inspection(psi_compiler::ProducedTerminalProgram),
+    Inspection(std::sync::Arc<psi_compiler::PortableTerminalProgram>),
     Component(compilation_products::IndependentComponentProduct),
 }
 
@@ -65,7 +66,8 @@ impl CompilationOutput {
 
     pub fn into_inspection(
         self,
-    ) -> Result<psi_compiler::ProducedTerminalProgram, CompilationProductError> {
+    ) -> Result<std::sync::Arc<psi_compiler::PortableTerminalProgram>, CompilationProductError>
+    {
         match self {
             Self::Inspection(artifact) => Ok(artifact),
             Self::Report(_) => Err(CompilationProductError::Production(vec![
@@ -138,8 +140,9 @@ pub(crate) enum ProductRequest {
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
     },
-    /// Review and dependency demands already own installed checked custody.
-    /// They publish a component without selecting or installing it again.
+    /// Review and dependency demands own Psi-checked, target-selected custody.
+    /// Declaration obligations complete against the shared produced artifact,
+    /// before publishing a component description or admitting it to the cache.
     Component {
         checked: CheckedCompilation,
         retain_native_inputs: bool,
@@ -158,6 +161,7 @@ pub(crate) enum TerminalCompilation {
     Requested(RequestedTerminalCompilation),
     Checking(checking::CheckingCompilation),
     Component(ComponentPublication),
+    Inspection(inspection::InspectionCompilation),
 }
 
 pub(crate) struct RequestedTerminalCompilation {
@@ -187,11 +191,9 @@ impl ProductRequest {
         };
         let requested = match product {
             CompilationProduct::Inspection(machine) => {
-                let checked = realization.finish_check()?;
-                return crate::inspection::inspect_terminal(checked, &machine)
-                    .map(CompilationOutput::Inspection)
-                    .map(CompilationWork::Complete)
-                    .map_err(CompilationProductError::Production);
+                return Ok(CompilationWork::Terminal(TerminalCompilation::Inspection(
+                    inspection::InspectionCompilation::new(realization, machine),
+                )));
             }
             CompilationProduct::Check => ProductReportRequest::Check,
             CompilationProduct::Terminal(rollback) => ProductReportRequest::Terminal(rollback),
@@ -243,6 +245,7 @@ impl TerminalCompilation {
             Self::Requested(product) => product.terminal_request(),
             Self::Checking(product) => product.terminal_request(),
             Self::Component(product) => product.terminal_request(),
+            Self::Inspection(product) => product.terminal_request(),
         }
     }
 
@@ -253,10 +256,10 @@ impl TerminalCompilation {
         match self {
             Self::Requested(product) => product.finish(produced.into_application()?),
             Self::Checking(product) => product.finish(produced),
+            Self::Inspection(product) => product.finish(produced),
             Self::Component(product) => product
                 .finish(produced.into_application()?)
-                .map(CompilationOutput::Component)
-                .map_err(CompilationProductError::Production),
+                .map(CompilationOutput::Component),
         }
     }
 }

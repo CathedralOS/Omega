@@ -1,7 +1,7 @@
 //! Executed scalar-field transfers retain exact place and carrier identities.
 //! A stored value is captured before invalidation. Later reads use that value,
 //! never the field initializer or a new observation of overwritten storage.
-use super::{CurrentScalarValues, field_storage_path, integer_carrier, unsigned};
+use super::{CurrentScalarValues, field_storage_path, integer_carrier};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
@@ -11,15 +11,17 @@ use validation::ScopedArithmeticValue;
 pub(super) struct ScalarField {
     pub(super) owner: SymbolHandle,
     pub(super) path: Vec<SymbolHandle>,
-    carrier: PrimitiveType,
+    pub(super) carrier: PrimitiveType,
     pub(super) name: String,
     pub(super) value: Option<ScopedArithmeticValue>,
+    pub(super) read_dependencies: Vec<String>,
 }
 
 pub(super) struct CapturedScalarField {
     pub(super) path: Vec<SymbolHandle>,
     pub(super) carrier: PrimitiveType,
     pub(super) value: ScopedArithmeticValue,
+    pub(super) read_dependencies: Vec<String>,
 }
 
 impl ScalarField {
@@ -39,6 +41,7 @@ impl ScalarField {
             carrier: field.carrier,
             name,
             value: Some(field.value),
+            read_dependencies: field.read_dependencies,
         }
     }
 }
@@ -101,39 +104,6 @@ impl CurrentScalarValues<'_> {
             .map(|field| field.value)
     }
 
-    /// Capture a scalar store's completed value before its target write retires
-    /// associations. An opaque result gets one fresh store identity, no bits.
-    pub(super) fn captured_scalar_store(
-        &self,
-        target: ExpressionHandle,
-        value: Option<ScopedArithmeticValue>,
-        ordinal: usize,
-    ) -> Option<CapturedScalarField> {
-        let (owner, path) = field_storage_path(self.program, target)?;
-        if path.is_empty() {
-            return None;
-        }
-        let reference = validation::expression_result_type_reference(
-            self.program,
-            self.machine,
-            self.state,
-            target,
-        )?;
-        let carrier = integer_carrier(self.program, reference)?;
-        let value = value.unwrap_or_else(|| ScopedArithmeticValue::Atom {
-            identity: format!(
-                "state:{:?}:store:{ordinal}:field:{owner:?}:{path:?}:{carrier:?}",
-                self.state.symbol
-            ),
-            unsigned: unsigned(carrier),
-        });
-        Some(CapturedScalarField {
-            path: Vec::new(),
-            carrier,
-            value,
-        })
-    }
-
     /// Transfer only values from this executed expression or the live roster.
     /// Unmodeled producers and unequal joins supply no field equality.
     pub(super) fn captured_scalar_fields(
@@ -171,6 +141,7 @@ impl CurrentScalarValues<'_> {
                             path: vec![field.field_symbol],
                             carrier,
                             value,
+                            read_dependencies: Vec::new(),
                         });
                     }
                 }
@@ -193,6 +164,7 @@ impl CurrentScalarValues<'_> {
                             path: field.path[prefix.len()..].to_vec(),
                             carrier: field.carrier,
                             value: field.value.clone()?,
+                            read_dependencies: field.read_dependencies.clone(),
                         })
                     })
                     .collect()

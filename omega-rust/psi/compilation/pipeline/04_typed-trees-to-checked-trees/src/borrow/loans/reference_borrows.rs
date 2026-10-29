@@ -61,7 +61,7 @@ pub(super) fn reference_local_borrow_loans(
         && reference_borrow_access_kind(program, contract.return_type_reference(program)).is_some()
     {
         return vec![StatementBorrowLoan {
-            formation_owner_path: None,
+            formation_owner_path: Some(Vec::new()),
             incoming_origin: Some(super::PendingIncomingReference {
                 identity: checked_trees::IncomingReferenceIdentity {
                     machine_symbol,
@@ -251,7 +251,7 @@ pub(super) fn reference_local_borrow_loans(
     rebased
         .iter()
         .map(|source| StatementBorrowLoan {
-            formation_owner_path: None,
+            formation_owner_path: Some(Vec::new()),
             incoming_origin: None,
             formation_expression: local_data.initial_value,
             representation_address: source.representation_address.clone(),

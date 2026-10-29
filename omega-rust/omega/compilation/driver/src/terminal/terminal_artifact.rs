@@ -90,18 +90,19 @@ impl<'a> TerminalProductionView<'a> {
 pub(crate) struct TerminalProductRequest<'a> {
     pub view: TerminalProductionView<'a>,
     pub selections: &'a OptimizationSelections,
-    pub use_kind: TerminalProductUse,
+    pub use_kind: TerminalProductUse<'a>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TerminalProductUse {
+pub(crate) enum TerminalProductUse<'a> {
     Declarations,
+    Inspection(&'a str),
     Application,
 }
 
 pub(crate) enum ProducedTerminalProduct {
-    Declarations {
-        artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    Descriptive {
+        program: Arc<psi_compiler::PortableTerminalProgram>,
         proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
     },
     Application(TerminalApplication),
@@ -111,34 +112,33 @@ impl ProducedTerminalProduct {
     pub(crate) fn into_application(self) -> Result<TerminalApplication, Vec<Diagnostic>> {
         match self {
             Self::Application(application) => Ok(application),
-            Self::Declarations { .. } => Err(vec![Diagnostic::error(
+            Self::Descriptive { .. } => Err(vec![Diagnostic::error(
                 "declaration checking produced no executable application",
             )]),
         }
     }
 
     pub(crate) fn check_conditions(
-        self,
+        &self,
         selection: &mut SelectedProviderCustody,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Self::Declarations {
-            artifact,
-            proposals,
-        } = self
-        else {
-            return Err(vec![Diagnostic::error(
-                "declaration checking received an executable application",
-            )]);
+        let (artifact, proposals) = match self {
+            Self::Descriptive { program, proposals } => (program.artifact(), proposals),
+            Self::Application(_) => {
+                return Err(vec![Diagnostic::error(
+                    "declaration checking received an executable application",
+                )]);
+            }
         };
         let target = selection
             .execution
             .selected_target_profile
             .unwrap_or_else(target::TargetProfile::host);
         super::scalar_completion::complete(
-            &artifact,
+            artifact,
             target.target_name(),
             &[],
-            &proposals,
+            proposals,
             &mut selection.source_completion_accounting,
         )
         .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
@@ -165,7 +165,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
         request: TerminalProductRequest<'a>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
-        if request.use_kind == TerminalProductUse::Declarations {
+        if request.use_kind != TerminalProductUse::Application {
             let provider_publication = prepare_target_provider_publication(view);
             return Ok(Self {
                 position,
@@ -276,6 +276,36 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 .timings
                 .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         }
+        // Descriptive consumers borrow one portable owner. Inspection also
+        // consumes its exact source-issued Build companions; checking borrows
+        // only the artifact. Neither creates an application receipt.
+        if cohort[0].request.use_kind != TerminalProductUse::Application {
+            match produced.and_then(|program| {
+                program
+                    .into_shared_portable()
+                    .map_err(|error| vec![Diagnostic::error(error.to_string())])
+            }) {
+                Err(diagnostics) => {
+                    for application in cohort {
+                        outcomes.push((application.position, Err(diagnostics.clone())));
+                    }
+                }
+                Ok(program) => {
+                    let program = Arc::new(program);
+                    for application in cohort {
+                        let outcome = Ok(ProducedTerminalProduct::Descriptive {
+                            proposals: application.provider_publication.publish(
+                                program.artifact().view(),
+                                application.request.selections.identity(),
+                            ),
+                            program: Arc::clone(&program),
+                        });
+                        outcomes.push((application.position, outcome));
+                    }
+                }
+            }
+            continue;
+        }
         match produced.and_then(|produced| {
             produced
                 .into_parts()
@@ -290,19 +320,6 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 let artifact = Arc::new(artifact);
                 let mut applications = applications.into_iter();
                 for application in cohort {
-                    if application.request.use_kind == TerminalProductUse::Declarations {
-                        outcomes.push((
-                            application.position,
-                            Ok(ProducedTerminalProduct::Declarations {
-                                proposals: application.provider_publication.publish(
-                                    artifact.view(),
-                                    application.request.selections.identity(),
-                                ),
-                                artifact: Arc::clone(&artifact),
-                            }),
-                        ));
-                        continue;
-                    }
                     let outcome = match applications.next() {
                         Some(receipt) => receipt.and_then(|receipt| {
                             let receipt = receipt.ok_or_else(|| {
@@ -351,11 +368,17 @@ fn produce_shared_terminal(
     let checked_program = view.program;
     let typed = &checked_program.typed;
     let boundary_roots = retained_boundary_roots(view)?;
-    if first.request.use_kind == TerminalProductUse::Declarations {
+    if first.request.use_kind != TerminalProductUse::Application {
+        let machine = match first.request.use_kind {
+            TerminalProductUse::Inspection(name) => {
+                psi_compiler::TerminalMachineSelection::Name(name)
+            }
+            _ => psi_compiler::TerminalMachineSelection::Declarations,
+        };
         return produce_terminal(
             view,
             first.request.selections,
-            psi_compiler::TerminalMachineSelection::Declarations,
+            machine,
             psi_compiler::TerminalProgramRoots {
                 machines: &[],
                 boundaries: &boundary_roots,

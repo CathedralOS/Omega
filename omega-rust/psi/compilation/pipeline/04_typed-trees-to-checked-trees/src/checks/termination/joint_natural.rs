@@ -91,6 +91,18 @@ pub(super) fn select(
     {
         return None;
     }
+    let mut field_paths = Vec::new();
+    for machine in &machines {
+        for state in program.machine_states(machine) {
+            for path in
+                crate::checks::current_scalar_values::parameter_field_paths(program, machine, state)
+            {
+                if !field_paths.contains(&path) {
+                    field_paths.push(path);
+                }
+            }
+        }
+    }
     let mut candidates = Vec::new();
     let mut selected_order = None;
     let mut available = Vec::new();
@@ -105,8 +117,15 @@ pub(super) fn select(
             .statement_table
             .admitted_execution_order(entry.statement_nodes);
         let first = *execution.indices().first()?;
-        let values =
-            CurrentScalarValues::at(program, machine, entry, first, Default::default(), frames)?;
+        let values = CurrentScalarValues::at_observing_fields(
+            program,
+            machine,
+            entry,
+            first,
+            Default::default(),
+            frames,
+            &field_paths,
+        )?;
         available.push(coordinates(program, entry, &values));
         entry_values.push(values);
         let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
@@ -317,9 +336,15 @@ pub(super) fn select(
                         "natural rank operands have an unpreserved evaluation prefix",
                     ));
                 }
-                let Some(values) =
-                    CurrentScalarValues::at(program, machine, entry, statement, arrival, frames)
-                else {
+                let Some(values) = CurrentScalarValues::at_observing_fields(
+                    program,
+                    machine,
+                    entry,
+                    statement,
+                    arrival,
+                    frames,
+                    &field_paths,
+                ) else {
                     return Some(Err(
                         "a natural call has no complete current-value observation",
                     ));
