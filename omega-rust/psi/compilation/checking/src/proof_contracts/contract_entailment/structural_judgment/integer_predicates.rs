@@ -82,6 +82,8 @@ struct IntegerObservations<'program> {
     carrier_bounds: Vec<ObservedCarrierBounds>,
     installed_carrier_bounds: usize,
     next_operation_id: usize,
+    // Only one immutable judge's goal batch may share resolved operand payloads.
+    operand_resolutions: Option<Vec<(StructuralTerm, StructuralTerm)>>,
 }
 
 /// Every retained comparison and operation has been independently admitted.
@@ -143,6 +145,7 @@ impl<'program> PreparedIntegerPremises<'program> {
 
     fn put_goal_work(&self, mut work: IntegerObservations<'program>) {
         self.reset_goal_work(&mut work);
+        work.operand_resolutions = None;
         if let Ok(mut guard) = self.goal_work.lock() {
             *guard = Some(work);
         }
@@ -414,6 +417,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         self.independent_integer_premises(observations).is_some()
     }
@@ -505,6 +509,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
             return CarrierFit::Unknown;
@@ -620,6 +625,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         let mut remaining = 64usize;
         let alternatives =
@@ -1022,6 +1028,7 @@ impl<'program> StructuralJudge<'program> {
         let has_premises = prepared.observations.engine.requires_unsatisfiable
             || !prepared.observations.engine.bounds.is_empty();
         let mut work = prepared.take_goal_work();
+        work.operand_resolutions = Some(Vec::new());
         let results = unresolved
             .iter()
             .map(|position| {
@@ -1381,6 +1388,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         let mut premises = self.project_observed_integer_premises(&mut observations);
         if !premises.complete {
@@ -1441,6 +1449,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
@@ -1621,6 +1630,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
+            operand_resolutions: None,
         };
         for capture in view
             .applications
@@ -1781,6 +1791,25 @@ impl<'program> StructuralJudge<'program> {
         ))
     }
 
+    fn resolve_integer_operand(
+        &self,
+        value: StructuralTerm,
+        observations: &mut IntegerObservations<'_>,
+    ) -> StructuralTerm {
+        let Some(answers) = &mut observations.operand_resolutions else {
+            return self.resolve(value);
+        };
+        if let Some((_, resolved)) = answers
+            .iter()
+            .find(|(input, _)| input.same_resolution_payload(&value))
+        {
+            return resolved.clone();
+        }
+        let resolved = self.resolve(value.clone());
+        answers.push((value, resolved.clone()));
+        resolved
+    }
+
     fn integer_value(
         &self,
         value: &StructuralTerm,
@@ -1808,7 +1837,7 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::ScalarBinary { .. } | StructuralTerm::MathematicalBinary { .. } => {
                 description
             }
-            _ => self.resolve(description),
+            _ => self.resolve_integer_operand(description, observations),
         };
         let value = value.semantic_value();
         if let Some((identity, policy)) = completed.as_ref()
@@ -1974,4 +2003,61 @@ impl<'program> StructuralJudge<'program> {
 
 fn atom_name(position: usize) -> String {
     format!("\0captured-integer:{position}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operand_resolutions_preserve_payload_and_end_with_batch() {
+        let mut program = typed_trees::TypedTrees::default();
+        let first = program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let second = program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let prepared = judge.prepare_integer_premises().unwrap();
+        let mut work = prepared.take_goal_work();
+        work.operand_resolutions = Some(Vec::new());
+        let observation = |observed_type| StructuralTerm::ObservedValue {
+            observed_type,
+            value: Box::new(StructuralTerm::Integer(BigInt::from_i64(1))),
+            descriptor: None,
+        };
+        assert_eq!(observation(first), observation(second));
+        for input in [observation(first), observation(second), observation(first)] {
+            let resolved = judge.resolve_integer_operand(input.clone(), &mut work);
+            assert!(resolved.same_resolution_payload(&input));
+        }
+        assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 2);
+        let variable = StructuralTerm::Variable("value".into());
+        // Reuse the scratch in two different contexts; the second must see its own substitution.
+        for expected in [1, 2] {
+            prepared.put_goal_work(work);
+            work = prepared.take_goal_work();
+            assert!(work.operand_resolutions.is_none());
+            judge.substitutions = std::sync::Arc::new(vec![(
+                "value".into(),
+                StructuralTerm::Integer(BigInt::from_i64(expected)),
+            )]);
+            work.operand_resolutions = Some(Vec::new());
+            for _ in 0..2 {
+                assert_eq!(
+                    judge.resolve_integer_operand(variable.clone(), &mut work),
+                    StructuralTerm::Integer(BigInt::from_i64(expected)),
+                );
+                prepared.reset_goal_work(&mut work);
+            }
+            assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 1);
+        }
+    }
 }

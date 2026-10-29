@@ -1,0 +1,1 @@
+error: cannot prove requires contract for call take_ascii from capture: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
