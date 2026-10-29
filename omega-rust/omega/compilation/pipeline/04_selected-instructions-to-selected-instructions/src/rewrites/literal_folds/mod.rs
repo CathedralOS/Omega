@@ -205,30 +205,12 @@ impl StagedSelectedLoweringOptimizationCustodyReceipt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedLiteralFoldAttemptReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    source_ranges: selected_instructions::LiveRangeIdentity,
-    source_legality: register_homes::AllocationLegalityIdentity,
-    choices: register_homes::SpillChoiceIdentity,
-    choice_policy: SpillChoicePolicy,
-    choice_usage: OptimizationWorkUsage,
-    recovery: register_homes::RecoveryClassificationIdentity,
-    recovery_policy: RecoveryClassificationPolicy,
-    recovery_usage: OptimizationWorkUsage,
-    fold: LiteralFoldIdentity,
-    fold_policy: LiteralFoldPolicy,
-    fold_usage: OptimizationWorkUsage,
-    applied_count: usize,
-    transformed_selected: SelectedInstructionPlanIdentity,
-}
-
-impl StagedOptimizedLiteralFoldAttemptReceipt {
-    receipt_accessor_rows!(StagedOptimizedLiteralFoldAttemptReceipt {
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedLiteralFoldAttemptReceipt {
         source_selected: SelectedInstructionPlanIdentity,
         source_ranges: selected_instructions::LiveRangeIdentity,
         source_legality: register_homes::AllocationLegalityIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
         choices: register_homes::SpillChoiceIdentity,
         choice_policy: SpillChoicePolicy,
         choice_usage: OptimizationWorkUsage,
@@ -239,7 +221,8 @@ impl StagedOptimizedLiteralFoldAttemptReceipt {
         fold_policy: LiteralFoldPolicy,
         fold_usage: OptimizationWorkUsage,
         applied_count: usize,
-    });
+        transformed_selected: SelectedInstructionPlanIdentity,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,35 +256,12 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedLiteralFoldIterationReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    source_ranges: selected_instructions::LiveRangeIdentity,
-    source_legality: register_homes::AllocationLegalityIdentity,
-    choices: register_homes::SpillChoiceIdentity,
-    choice_policy: SpillChoicePolicy,
-    choice_usage: OptimizationWorkUsage,
-    recovery: register_homes::RecoveryClassificationIdentity,
-    recovery_policy: RecoveryClassificationPolicy,
-    recovery_usage: OptimizationWorkUsage,
-    fold: LiteralFoldIdentity,
-    fold_policy: LiteralFoldPolicy,
-    fold_usage: OptimizationWorkUsage,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    fresh_liveness: selected_instructions::LivenessIdentity,
-    fresh_ranges: selected_instructions::LiveRangeIdentity,
-    fresh_legality: register_homes::AllocationLegalityIdentity,
-}
-
-impl StagedOptimizedLiteralFoldIterationReceipt {
-    receipt_accessor_rows!(StagedOptimizedLiteralFoldIterationReceipt {
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedLiteralFoldIterationReceipt {
         source_selected: SelectedInstructionPlanIdentity,
         source_ranges: selected_instructions::LiveRangeIdentity,
         source_legality: register_homes::AllocationLegalityIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
-        fresh_liveness: selected_instructions::LivenessIdentity,
-        fresh_ranges: selected_instructions::LiveRangeIdentity,
-        fresh_legality: register_homes::AllocationLegalityIdentity,
         choices: register_homes::SpillChoiceIdentity,
         choice_policy: SpillChoicePolicy,
         choice_usage: OptimizationWorkUsage,
@@ -311,7 +271,11 @@ impl StagedOptimizedLiteralFoldIterationReceipt {
         fold: LiteralFoldIdentity,
         fold_policy: LiteralFoldPolicy,
         fold_usage: OptimizationWorkUsage,
-    });
+        transformed_selected: SelectedInstructionPlanIdentity,
+        fresh_liveness: selected_instructions::LivenessIdentity,
+        fresh_ranges: selected_instructions::LiveRangeIdentity,
+        fresh_legality: register_homes::AllocationLegalityIdentity,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

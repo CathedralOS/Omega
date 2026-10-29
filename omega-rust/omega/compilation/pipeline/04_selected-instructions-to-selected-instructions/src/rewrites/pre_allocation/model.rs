@@ -515,34 +515,21 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedPreAllocationIterationReceipt {
-    pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) transformation: PreAllocationTransformationIdentity,
-    pub(super) function_index: usize,
-    pub(super) instruction: SelectedInstructionId,
-    pub(super) transformed_selected: SelectedInstructionPlanIdentity,
-    pub(super) fresh_liveness: LivenessIdentity,
-    pub(super) fresh_ranges: LiveRangeIdentity,
-    pub(super) fresh_legality: register_homes::AllocationLegalityIdentity,
-    pub(super) declined: usize,
-    pub(super) evaluated: usize,
-}
-
-impl StagedOptimizedPreAllocationIterationReceipt {
-    receipt_accessor_rows!(StagedOptimizedPreAllocationIterationReceipt {
-        source_selected: SelectedInstructionPlanIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
-        fresh_liveness: LivenessIdentity,
-        fresh_ranges: LiveRangeIdentity,
-        fresh_legality: register_homes::AllocationLegalityIdentity,
-        transformation: PreAllocationTransformationIdentity,
-        function_index: usize,
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedPreAllocationIterationReceipt {
+        pub(super) source_selected: SelectedInstructionPlanIdentity,
+        pub(super) transformation: PreAllocationTransformationIdentity,
+        pub(super) function_index: usize,
         /// The source-side identity of the instruction the step rewrote.
-        instruction: SelectedInstructionId,
-        declined: usize,
-        evaluated: usize,
-    });
+        pub(super) instruction: SelectedInstructionId,
+        pub(super) transformed_selected: SelectedInstructionPlanIdentity,
+        pub(super) fresh_liveness: LivenessIdentity,
+        pub(super) fresh_ranges: LiveRangeIdentity,
+        pub(super) fresh_legality: register_homes::AllocationLegalityIdentity,
+        pub(super) declined: usize,
+        pub(super) evaluated: usize,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

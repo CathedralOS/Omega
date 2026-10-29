@@ -60,6 +60,34 @@ macro_rules! receipt_accessor_rows {
     };
 }
 
+/// A by-value receipt whose accessor rows are exactly its fields. The struct
+/// and `receipt_accessor_rows!` stay one roster.
+macro_rules! copy_receipt {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            $(
+                $(#[$fmeta:meta])*
+                $fvis:vis $field:ident : $ty:ty
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        $vis struct $name {
+            $(
+                $(#[$fmeta])*
+                $fvis $field: $ty
+            ),*
+        }
+
+        impl $name {
+            receipt_accessor_rows!($name {
+                $($(#[$fmeta])* $field: $ty),*
+            });
+        }
+    };
+}
+
 /// The producer rows a staged shell re-serves unchanged: one internal rule per
 /// accessor, so a shell names its producer field and the rows it re-serves
 /// instead of restating each delegation body and its doc. `$producer` is the

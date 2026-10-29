@@ -65,23 +65,15 @@ impl StagedOptimizedSelectedReanalysis {
     });
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
-    source: StagedOptimizedFixedViewCopyCustodyReceipt,
-    transformed_liveness: selected_instructions::LivenessIdentity,
-    transformed_ranges: selected_instructions::LiveRangeIdentity,
-    transformed_legality: register_homes::AllocationLegalityIdentity,
-    allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-}
-
-impl StagedOptimizedSelectedReanalysisCustodyReceipt {
-    receipt_accessor_rows!(StagedOptimizedSelectedReanalysisCustodyReceipt {
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
         source: StagedOptimizedFixedViewCopyCustodyReceipt,
         transformed_liveness: selected_instructions::LivenessIdentity,
         transformed_ranges: selected_instructions::LiveRangeIdentity,
         transformed_legality: register_homes::AllocationLegalityIdentity,
         allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-    });
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
