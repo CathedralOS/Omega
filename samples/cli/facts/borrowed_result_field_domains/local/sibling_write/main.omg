@@ -14,7 +14,7 @@ machine inspect(cell: &Cell) -> u8 { cell.storage[0] }
 machine observe(table: &mut Table, index: u64) -> u8
 requires index < 2 {
     let selected: &mut Cell = relay(table, index);
-    selected.stamp = 91;
+    selected.stamp = 0xF1;
     inspect(selected)
 }
 machine main() crashes Trap {
@@ -23,8 +23,8 @@ machine main() crashes Trap {
     let first_written: u64 = table.cells[0].stamp;
     let first_neighbor: u64 = table.cells[1].stamp;
     let second: u8 = observe(&mut table, 1);
-    transition first == 65 && second == 66 && first_written == 91 && first_neighbor == 13
-        && table.cells[0].stamp == 91 && table.cells[1].stamp == 91
+    transition first == 65 && second == 66 && first_written == 0xF1 && first_neighbor == 13
+        && table.cells[0].stamp == 0xF1 && table.cells[1].stamp == 0xF1
         && table.cells[0].storage[0] == 65 && table.cells[1].storage[0] == 66
         && table.cells[0].storage[1] == 0 && table.cells[0].storage[2] == 0 && table.cells[0].storage[3] == 0
         && table.cells[1].storage[1] == 0 && table.cells[1].storage[2] == 0 && table.cells[1].storage[3] == 0 {
