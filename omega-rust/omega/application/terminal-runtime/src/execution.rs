@@ -110,6 +110,7 @@ pub enum TerminalRuntimeError {
         reason: String,
     },
     InvalidProvision(&'static str),
+    InvalidProviderSelection(String),
     Artifact(TerminalArtifactInterpretError),
     Requirements(TerminalInterpretError),
     Binding(TerminalBindingRejection),
@@ -153,6 +154,7 @@ impl std::fmt::Display for TerminalRuntimeError {
                 write!(formatter, "{capability}: {reason}")
             }
             Self::InvalidProvision(reason) => formatter.write_str(reason),
+            Self::InvalidProviderSelection(reason) => formatter.write_str(reason),
             Self::Artifact(error) => std::fmt::Display::fmt(error, formatter),
             Self::Requirements(error) => std::fmt::Display::fmt(error, formatter),
             Self::Binding(error) => write!(formatter, "runtime binding rejected: {error:?}"),
@@ -237,11 +239,14 @@ pub fn execute_sliced(
         .transpose()?;
     if let (Some(retained), Some(proposed)) =
         (retained_installation, proposed_installation.as_ref())
-        && retained != proposed
     {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "runtime provisions and explicit provider proposal disagree",
-        ));
+        retained
+            .validate_projection_of(proposed)
+            .map_err(|reason| {
+                TerminalRuntimeError::InvalidProviderSelection(format!(
+                    "runtime provisions and explicit provider proposal disagree: {reason}"
+                ))
+            })?;
     }
     let checked_installation = proposed_installation.as_ref().or(retained_installation);
     let execution_target = request.target.or_else(|| {

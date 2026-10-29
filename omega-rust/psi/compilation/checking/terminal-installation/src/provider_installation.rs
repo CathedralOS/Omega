@@ -174,6 +174,37 @@ impl AdmittedProviderSelections {
     pub fn folded_constant_target(&self) -> Option<&str> {
         self.folded_constant_target.as_deref()
     }
+
+    /// Check agreement between a native execution closure and the complete
+    /// portable selection. Native lowering retains only reached candidates;
+    /// that work-domain projection must preserve every exact selected row.
+    /// Both inputs have already undergone independent catalog admission.
+    pub fn validate_projection_of(&self, complete: &Self) -> Result<(), String> {
+        if self.terminal_psi != complete.terminal_psi {
+            return Err("provider selections name different Terminal artifacts".to_owned());
+        }
+        if self.assumed_bindings != complete.assumed_bindings {
+            return Err(
+                "provider selections carry different assumed binding relationships".to_owned(),
+            );
+        }
+        if self.folded_constant_target != complete.folded_constant_target {
+            return Err("provider selections carry different folded constant closures".to_owned());
+        }
+        for (boundary, retained) in &self.providers {
+            let Some(proposed) = complete.providers.get(boundary) else {
+                return Err(format!(
+                    "complete provider selection omits retained boundary {boundary:?}"
+                ));
+            };
+            if retained != proposed {
+                return Err(format!(
+                    "provider selections disagree on exact candidate, declaration or receiving application for {boundary:?}"
+                ));
+            }
+        }
+        Ok(())
+    }
     /// Observe whether this exact artifact-scoped candidate is the installed
     /// row, including the choosing declaration and complete receiving tuple.
     pub fn contains_candidate(
@@ -343,10 +374,8 @@ fn admit_provider_selections(
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     if !selections.is_empty() {
-        let mut candidates_by_boundary = BTreeMap::<
-            BoundaryMachineId,
-            Vec<&terminal_psi::ProviderCandidateConformance>,
-        >::new();
+        let mut candidates_by_boundary =
+            BTreeMap::<BoundaryMachineId, Vec<&terminal_psi::ProviderCandidateConformance>>::new();
         for candidate in &module.provider_candidates {
             candidates_by_boundary
                 .entry(candidate.boundary)

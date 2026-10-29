@@ -1,0 +1,13 @@
+use omega::language::core::float_operations;
+
+// A same-shaped user claim cannot acquire immutable catalogue execution.
+boundary machine equal64(left: f32, right: f64) -> bool
+    satisfies FloatEqual::equal
+reaches
+ensures result == FloatSemantics::equal(F32::meaning(left), F64::meaning(right));
+
+machine main() crashes Trap {
+    transition equal64(0.125, 0.125) { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
