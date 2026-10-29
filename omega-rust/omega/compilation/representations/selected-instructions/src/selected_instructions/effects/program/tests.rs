@@ -36,6 +36,15 @@ macro_rules! round_trip {
     };
 }
 
+macro_rules! differs {
+    ($plan:expr, $source:expr) => {
+        assert_ne!(
+            pre_allocation_machine_effect_identity(&$plan),
+            $source.identity
+        );
+    };
+}
+
 #[test]
 fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects() {
     let mut source = plan();
@@ -73,10 +82,7 @@ fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects(
         MachineCallEffect::ExternalNormalReturnV1 {
             pre_call_stack_alignment: 16,
         };
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&forged),
-        source.identity
-    );
+    differs!(forged, source);
     // The same family tag must round-trip ordinary imports as well. Its
     // producer already wrote tag 87; a missing alternative decoder arm
     // previously rejected both mechanisms before reaching their effects.
@@ -92,10 +98,7 @@ fn system_call_effect_envelope_retains_supervisor_control_without_stack_effects(
     forged.functions[0].blocks[0].instructions[0].alternatives[0]
         .encoded
         .control = MachineEncodedControlEffect::DirectRelativeCallV1;
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&forged),
-        source.identity
-    );
+    differs!(forged, source);
 }
 
 #[test]
@@ -210,10 +213,7 @@ fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
                     .external_operand_reads
                     .clear(),
             }
-            assert_ne!(
-                pre_allocation_machine_effect_identity(&changed),
-                source.identity
-            );
+            differs!(changed, source);
             assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
         }
     }
@@ -266,10 +266,7 @@ fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
                 .external_operand_writes
                 .clear(),
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -363,10 +360,7 @@ fn zero_fill_effect_codec_binds_dynamic_span_and_cursor_effect() {
                 .external_operand_writes
                 .clear(),
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -394,10 +388,7 @@ fn wrapping_add_codec_is_proof_free_and_distinct_from_exact_add() {
     changed.functions[0].blocks[0].instructions[0].alternatives[0]
         .key
         .family = MachineAlternativeFamily::ExactAddI64;
-    assert_ne!(
-        source.identity,
-        pre_allocation_machine_effect_identity(&changed)
-    );
+    differs!(changed, source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&changed.encode()),
         Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -437,10 +428,7 @@ fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division(
     ] {
         let mut changed = source.clone();
         changed.functions[0].blocks[0].instructions[0].kind = replacement;
-        assert_ne!(
-            source.identity,
-            pre_allocation_machine_effect_identity(&changed)
-        );
+        differs!(changed, source);
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&changed.encode()),
             Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -450,10 +438,7 @@ fn wrapping_remainder_codec_preserves_proof_and_distinguishes_unsigned_division(
     changed.functions[0].blocks[0].instructions[0].alternatives[0]
         .key
         .family = MachineAlternativeFamily::ExactDivideU64;
-    assert_ne!(
-        source.identity,
-        pre_allocation_machine_effect_identity(&changed)
-    );
+    differs!(changed, source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&changed.encode()),
         Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -509,10 +494,7 @@ fn outgoing_frame_roles_round_trip_and_cannot_substitute_under_a_retained_identi
                 }
                 _ => unreachable!(),
             };
-            assert_ne!(
-                source.identity,
-                pre_allocation_machine_effect_identity(&source)
-            );
+            differs!(source, source);
             assert_eq!(
                 PreAllocationMachineEffectPlan::decode(&source.encode()),
                 Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -885,10 +867,7 @@ fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
             2 => row.trap = MachineTrapBehavior::NeverV1,
             _ => row.barrier = MachineBarrier::None,
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -942,10 +921,7 @@ fn narrow_load_effect_codec_binds_width_offset_and_pointer_footprint() {
                         }
                 }
             }
-            assert_ne!(
-                source.identity,
-                pre_allocation_machine_effect_identity(&changed)
-            );
+            differs!(changed, source);
             assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
         }
     }
@@ -993,10 +969,7 @@ fn linux_byte_input_codec_binds_structural_home_and_distinct_effects() {
             3 => row.kind = SelectedInstructionKind::HostedWriteByteI32 { slot },
             _ => row.barrier = MachineBarrier::None,
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -1018,18 +991,12 @@ fn byte_view_address_codec_retains_distinct_family_and_source_provenance() {
     changed.functions[0].blocks[0].instructions[0]
         .provenance
         .operations[0] = OperationId::new(317).unwrap();
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&changed),
-        source.identity
-    );
+    differs!(changed, source);
     changed = source.clone();
     changed.functions[0].blocks[0].instructions[0].alternatives[0]
         .key
         .family = MachineAlternativeFamily::ExactAddI64;
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&changed),
-        source.identity
-    );
+    differs!(changed, source);
 }
 
 #[test]
@@ -1316,10 +1283,7 @@ fn structural_call_content_is_authenticated_and_closed() {
     substituted.functions[1].blocks[0].instructions[0].kind = SelectedInstructionKind::CallUnit {
         target: crate::SelectedCallTarget::Machine(MachineId::new(99).unwrap()),
     };
-    assert_ne!(
-        pre_allocation_machine_effect_identity(&substituted),
-        source.identity
-    );
+    differs!(substituted, source);
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&substituted.encode()),
         Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
@@ -1365,10 +1329,7 @@ fn hosted_exit_codec_retains_nonreturning_effect_without_scratch() {
             2 => row.barrier = MachineBarrier::None,
             _ => row.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1,
         }
-        assert_ne!(
-            pre_allocation_machine_effect_identity(&changed),
-            source.identity
-        );
+        differs!(changed, source);
         assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
     }
 }
@@ -1396,10 +1357,7 @@ fn scalar_result_buffer_identity_cannot_alias_saved_boundary_controls() {
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             };
-        assert_ne!(
-            source.identity,
-            pre_allocation_machine_effect_identity(&changed)
-        );
+        differs!(changed, source);
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&changed.encode()),
             Err(PreAllocationMachineEffectDecodeError::InvalidIdentity)
