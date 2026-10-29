@@ -80,7 +80,7 @@ fn captured_row<'program>(
     template: symbols::SymbolHandle,
 ) -> Option<symbols::SymbolHandle> {
     let identity = application.identity.as_deref()?;
-    let matching = program
+    let mut matching = program
         .captured_machine_applications
         .iter()
         .filter(|(_, capture)| {
@@ -95,13 +95,9 @@ fn captured_row<'program>(
                     .as_deref()
                     == Some(identity)
         })
-        .map(|(_, capture)| capture.instance)
-        .collect::<Vec<_>>();
-    if std::env::var_os("OMEGA_TRACE_STRUCTURAL_CAPTURE").is_some() {
-        eprintln!("capture-body-candidates template={template:?} count={} instances={matching:?} tuple={identity}", matching.len());
-    }
-    let [selected] = matching.as_slice() else { return None; };
-    Some(*selected)
+        .map(|(_, capture)| capture.instance);
+    let selected = matching.next()?;
+    matching.next().is_none().then_some(selected)
 }
 
 pub(super) fn derive(

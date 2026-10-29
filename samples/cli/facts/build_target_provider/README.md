@@ -6,7 +6,7 @@ A target-keyed provider call establishes `total >= 1000`, so exact subtraction
 Owner: [BUILD-OWNED-TARGET-SELECTION](../../../../TASKS.md). This row establishes
 that a dependency’s executed target keys select its private ordinary named
 implementations, while the application imports only the public boundary and
-retains its contract. Each private implementation has a complete type/const application: its private `Holder<u64>` or `Holder<u32>` type actual remains distinct while an ordinary Build helper forwards const tag 17. Dependency defaults remain below explicit root overrides.
+retains its contract. Each private implementation has a complete type/const application: its private `[Holder<u64>; 2]` or `[Holder<u32>; 2]` type actual remains distinct while an ordinary Build helper forwards const tag 17. Dependency defaults remain below explicit root overrides.
 The same complete Build handoff carries generated source and these choices; it does not close the
 remaining target-family retirement or native-binding migration.
 
@@ -26,8 +26,8 @@ and [proof contracts](../../../../wiki/spec/proofs/contracts.md).
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
-At tag 17, `FirstReading<Holder<u64>, 17>` returns 1100 and
-`SecondReading<Holder<u32>, 17>` returns 2100. The same portable
+At tag 17, `FirstReading<[Holder<u64>; 2], 17>` returns 1100 and
+`SecondReading<[Holder<u32>; 2], 17>` returns 2100. The same portable
 `Reading<17u64>::total()` call has explicit Build rows selecting the first implementation
 for Windows, Linux x86-64 and macOS x86-64, and the second for macOS ARM64
 and Linux ARM64. Every owning package records those rows through an ordinary generic Build
@@ -81,7 +81,7 @@ Additional corpus controls distinguish tag 29 from tag 17, retain a nested
 with different nested type actuals, and check a zero divisor in an unexecuted
 Build helper. A Product-only method remains unavailable as a Build descriptor
 computation: designated selection grants no execution or host nameability.
-These are compositions of this row, not additional transport places.
+Repeated equal structural array types from distinct Build rows share capture code only under the same exact supplying owner and complete checked scope. Every original selection keeps its independent formation and source occurrence receipt; different array extents remain distinct provider applications. These are compositions of this row, not additional transport places.
 
 ## Requirements and evidence
 
@@ -91,7 +91,7 @@ These are compositions of this row, not additional transport places.
   each transport place. Each Build row retains the exact complete requirement and implementation
   applications, original type/value input occurrences and evaluated catalog
   target under the original Build activation. Phantom type actuals, nested
-  generic arguments and const values participate in identity; compact
+  generic arguments, structural array element/extent identities and const values participate in identity; compact
   conformance commitments and outer declaration names cannot replace them.
   The activation and lexical helper author remain separate retained declarations;
   neither acquires a runtime declaration in a receiving application.
@@ -120,7 +120,7 @@ is not execution evidence. Windows/Linux Native execution remains unverified.
 
 Remaining parent acceptance: retire source prefixes and all family IR/codec/runtime
 paths; migrate their callers, layouts, callbacks, entry and audio witnesses;
-complete remaining structural type applications, evaluated const-call arguments
+complete other structural type applications, evaluated const-call arguments
 in ordinary Build helpers, lifetime/evidence/callback applications, selected-closure
 refusal controls and matching-host observations for the other targets. Build-owned native locators
 are the paired BUILD-OWNED-NATIVE-BINDINGS outcome and remain separate acceptance.
