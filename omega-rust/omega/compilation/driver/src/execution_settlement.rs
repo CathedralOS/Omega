@@ -161,12 +161,15 @@ impl SelectedProductTarget {
     }
 
     pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        crate::terminal::check_terminal_conditions(&mut self.custody)?;
-        self.check_declaration_requirements()?;
+        let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
+        self.check_declaration_requirements(terminal.as_ref().map(|product| product.module()))?;
         Ok(self.into_checked_compilation())
     }
 
-    pub(crate) fn check_declaration_requirements(&self) -> Result<(), Vec<Diagnostic>> {
+    pub(crate) fn check_declaration_requirements(
+        &self,
+        terminal: Option<&terminal_psi::TerminalModule>,
+    ) -> Result<(), Vec<Diagnostic>> {
         // A source-only stop owes selected-instance coverage without native
         // realization. Executable products obtain it from Terminal instead.
         let execution = &self.custody.execution;
@@ -175,7 +178,32 @@ impl SelectedProductTarget {
             &execution.program.facts,
             &execution.selected_provider_plan_facts,
         )?;
-        check_task_activations(&self.custody.execution)
+        match terminal {
+            Some(module) => check_terminal_task_activations(
+                module,
+                &execution.selected_provider_plan_facts,
+                execution.selected_target_profile,
+            ),
+            None => {
+                // A declaration-only stop may deliberately avoid publication.
+                // Project only there; every published product already carries
+                // this complete source obligation bundle, including inert uses.
+                let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+                let demands = psi_compiler::lower_task_activation_demands(
+                    &execution.program,
+                    &mut identities,
+                )?;
+                task_plans::realize_task_activations(
+                    &demands,
+                    &identities.build(),
+                    &execution.selected_provider_plan_facts,
+                    execution
+                        .selected_target_profile
+                        .unwrap_or_else(target::TargetProfile::host),
+                )?;
+                Ok(())
+            }
+        }
     }
 
     /// Assemble the already-prepared result. Executable products discharge task
@@ -189,18 +217,19 @@ impl SelectedProductTarget {
     }
 }
 
-/// Nonexecuting publication still owes every selected task activation contract.
-/// Source selection and component completion consume the same retained input.
-pub(crate) fn check_task_activations(execution: &SelectedExecution) -> Result<(), Vec<Diagnostic>> {
-    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    let demands = psi_compiler::lower_task_activation_demands(&execution.program, &mut identities)?;
+/// Publication retains all declaration task obligations, not just executable
+/// reach. Check them against the same canonical identities used by native
+/// admission instead of reopening and lowering the checked source again.
+pub(crate) fn check_terminal_task_activations(
+    module: &terminal_psi::TerminalModule,
+    providers: &effects::SelectedProviderPlanFacts,
+    profile: Option<target::TargetProfile>,
+) -> Result<(), Vec<Diagnostic>> {
     task_plans::realize_task_activations(
-        &demands,
-        &identities.build(),
-        &execution.selected_provider_plan_facts,
-        execution
-            .selected_target_profile
-            .unwrap_or_else(target::TargetProfile::host),
+        &module.task_activation_demands,
+        &module.identities,
+        providers,
+        profile.unwrap_or_else(target::TargetProfile::host),
     )?;
     Ok(())
 }

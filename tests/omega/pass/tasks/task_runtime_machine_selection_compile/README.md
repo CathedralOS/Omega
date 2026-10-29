@@ -9,8 +9,11 @@ from Terminal Psi and joins the exact selected runtime and target geometry.
 executable entry: native and Terminal execution both exit zero. This proves
 publication/admission, **not execution of a task runtime**.
 
-The inspection oracle transports the artifact through its public codec and
-compares complete activation plans. Both plans retain a 64-byte stack bound:
+The inspection oracle compares source-only checking with published activation
+plans, then transports the artifact through its public codec and compares those
+plans again. A second ordinary named-inspection request exercises the product
+completion route; the inert probe's obligations must still be admitted from its
+published bundle. Both plans retain a 64-byte stack bound:
 the root's resume word, Token parameter/local and predicate occupy 25 bytes;
 the largest staged call makes 48 aligned bytes; the nested finish activation
 adds 16. Summing the two staged calls would give 72, and summing the two mutually

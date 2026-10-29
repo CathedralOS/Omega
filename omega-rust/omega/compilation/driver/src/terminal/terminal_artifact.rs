@@ -112,6 +112,13 @@ pub(crate) enum ProducedTerminalProduct {
 }
 
 impl ProducedTerminalProduct {
+    pub(crate) fn module(&self) -> &terminal_psi::TerminalModule {
+        match self {
+            Self::Descriptive { program, .. } => program.artifact().view().module(),
+            Self::Application(application) => application.artifact.view().module(),
+        }
+    }
+
     pub(crate) fn into_application(self) -> Result<TerminalApplication, Vec<Diagnostic>> {
         match self {
             Self::Application(application) => Ok(application),
@@ -629,7 +636,7 @@ fn prepare_target_provider_publication(
 /// an executable product entry. Only the retained conditions demand evaluation.
 pub(crate) fn check_terminal_conditions(
     selection: &mut SelectedProviderCustody,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Option<ProducedTerminalProduct>, Vec<Diagnostic>> {
     if !selection
         .execution
         .program
@@ -637,7 +644,7 @@ pub(crate) fn check_terminal_conditions(
         .proof_applications
         .has_obligations
     {
-        return Ok(());
+        return Ok(None);
     }
     let selections = OptimizationSelections::default();
     let request = TerminalProductRequest {
@@ -652,5 +659,6 @@ pub(crate) fn check_terminal_conditions(
                 "declaration checking lost its production",
             )]
         })??;
-    produced.check_conditions(selection)
+    produced.check_conditions(selection)?;
+    Ok(Some(produced))
 }
