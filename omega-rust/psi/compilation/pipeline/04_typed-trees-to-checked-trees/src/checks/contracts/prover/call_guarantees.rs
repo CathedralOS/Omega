@@ -166,6 +166,7 @@ pub(crate) fn current_predicates(
                 expression,
             )?;
             let arguments = validation::call_site_argument_expressions(program, &invocation.site);
+            let mut copied_values = Vec::new();
             for binding in &mut predicate.bindings {
                 // The normal result is already in the caller's completed-value
                 // namespace. Only this exact invocation root bypasses substitution;
@@ -179,6 +180,43 @@ pub(crate) fn current_predicates(
                 let position = parameters.iter().position(|parameter| {
                     binding.place.root == PlaceRoot::Symbol(parameter.symbol)
                 })?;
+                // An owned actual is its completed input value, not storage
+                // to reread at normal return. Its captured producer contexts
+                // already retain any proved scalar observation (including a
+                // predicate on the element copied before another call wrote).
+                // Referents remain on the current-storage substitution below.
+                if crate::flow::operand_binds_stable_copy(
+                    program,
+                    parameters[position].type_reference,
+                ) && let Some(call) = invocation_fact(facts, caller, invocation)
+                    && let Some(actual) = super::super::call_values::actual_at(
+                        program,
+                        caller,
+                        call,
+                        position,
+                        binding.place.segments.clone(),
+                    )
+                    && let Some(capture) = super::super::call_values::captured_operand(
+                        program, facts, caller, call, &actual,
+                    )
+                    && let Some(value) = super::captured_scalar_at_path(
+                        program,
+                        facts,
+                        caller,
+                        capture.row(),
+                        &actual.path,
+                        invocation.statement.checked_add(1)?,
+                        call.entry_constraints,
+                        frames,
+                    )
+                    && let Some(literal) = super::super::call_values::observed_literal(
+                        value,
+                        binding.operand.primitive_type()?,
+                    )
+                {
+                    copied_values.push((binding.operand.clone(), literal));
+                    continue;
+                }
                 let actual = *arguments.get(position)?;
                 let place = crate::semantic::facts::projected_argument_place(
                     program,
@@ -196,6 +234,18 @@ pub(crate) fn current_predicates(
                     Some(frames),
                 )?;
             }
+            boolean_predicates::map_observations(&mut predicate.expression, &mut |operand| {
+                if let Some((_, value)) = copied_values.iter().find(|(source, _)| source == operand)
+                {
+                    *operand = value.clone();
+                }
+                Some(())
+            })?;
+            predicate.bindings.retain(|binding| {
+                !copied_values
+                    .iter()
+                    .any(|(source, _)| *source == binding.operand)
+            });
             Some(predicate)
         })
         .collect()
