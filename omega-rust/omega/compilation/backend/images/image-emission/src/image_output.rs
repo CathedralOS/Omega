@@ -399,11 +399,12 @@ pub fn validate_direct_executable_image(
     if let Some(shim) = prepared.entry_shim.as_ref()
         && shim.surface == super::hosted_unit_entry::EntrySurface::ProvisionedUnit
     {
-        super::hosted_receiver::validate_unit_image(
+        super::hosted_unit_entry::validate_unit_shim(
+            shim.clone(),
             artifact,
             prepared.object,
             prepared.text_bytes,
-            shim,
+            prepared.relocations,
             image.output(),
         )?;
     }

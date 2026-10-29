@@ -205,3 +205,12 @@ receivers remain explicit implementation limits.
 [Evaluated build work](../../../../wiki/spec/build/declarations.md#evaluated-build-work)
 defines the accepted language; the remaining restricted product-description and
 lexical selection handoff is tracked by `BUILD-PRODUCT-REFERENCES` in `TASKS.md`.
+
+Build-owned native imports use the same original-activation prepare/commit
+protocol in [terminal_bindings/native_bindings.rs](src/terminal_bindings/native_bindings.rs).
+The checked, owned `ForeignBinding` value is decoded through Psi's common core
+vocabulary; this host records inert requirement/target/locator intent and its
+actual accounting. It neither selects a provider nor calls the foreign code.
+Checked source formations travel beside their exact Terminal artifact before
+Build bodies are erased. Normal completion retains those formations, reached
+effects, code identity and observations for the package-output owner.

@@ -781,7 +781,9 @@ fn collect_dynamic_expression_call_updates(
             }
         }
         ExpressionNode::Unary(unary) => visit!(unary.operand),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => {}
     }
 }
 

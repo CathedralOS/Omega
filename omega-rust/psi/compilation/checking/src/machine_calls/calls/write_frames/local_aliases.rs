@@ -332,6 +332,7 @@ pub(super) fn expression_may_rebind_mutable_alias(
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::String(_)
         | ExpressionNode::Unary(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }

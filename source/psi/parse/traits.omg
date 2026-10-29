@@ -489,8 +489,6 @@ crashes Trap
         let clause_count: u64 in Trapping = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
         let end: u64 in Trapping = Parser::refinement_end(parser, clause_count, name_end);
         parser.output.machines[parser.output.machine_count] = MachineItem {
-            has_lexical_parent: false,
-            lexical_parent: 0,
             has_owner: parser.machine_has_owner,
             owner: Parser::identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
             name: Parser::identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
@@ -504,8 +502,7 @@ crashes Trap
             clause_count: clause_count,
             first_statement: parser.output.statement_count as u64 in Trapping,
             statement_count: 0,
-            first_state: parser.output.state_count as u64 in Trapping,
-            state_count: 0,
+            parent: 0,
             has_body: false,
             first_expression: parser.machine_first_expression,
             expression_count: (parser.output.expression_count as u64 in Trapping) - parser.machine_first_expression,

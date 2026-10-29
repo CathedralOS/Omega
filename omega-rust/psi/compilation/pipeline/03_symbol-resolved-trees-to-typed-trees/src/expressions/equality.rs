@@ -54,7 +54,11 @@ pub(crate) fn validate_equality_operands_in(
         }
     }
 
-    for domain in program.domain_definitions.iter().skip(cohort.domain_definitions) {
+    for domain in program
+        .domain_definitions
+        .iter()
+        .skip(cohort.domain_definitions)
+    {
         scan_proof_facts(program, domain.facts)?;
     }
 
@@ -263,6 +267,7 @@ fn scan_expression(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => Ok(()),
     }
 }

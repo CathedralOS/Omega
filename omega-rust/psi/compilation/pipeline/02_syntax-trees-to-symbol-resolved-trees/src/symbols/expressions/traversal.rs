@@ -141,6 +141,13 @@ impl ExpressionSymbolContext<'_, '_> {
             for nested in &application.arguments {
                 self.assign_static_argument_type_symbols(nested);
             }
+            if let Some(member) = self
+                .expression_table
+                .static_member(application.member)
+                .cloned()
+            {
+                self.assign_static_argument_type_symbols(&member);
+            }
         }
     }
 
@@ -320,7 +327,8 @@ impl ExpressionSymbolContext<'_, '_> {
                 }
                 assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
             }
-            symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
+            symbol_resolved_trees::expression::ExpressionNode::TypeExpression(type_reference)
+            | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
                 self.reassign_type_reference(type_reference);
             }
         }

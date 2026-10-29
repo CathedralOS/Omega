@@ -51,6 +51,7 @@ pub(super) fn lower_call_statement(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         lowerer.type_reference_exposure,
+        &call.authored_static_argument_selections,
         call.receiver_symbol,
         call.target_symbol,
         call.target.as_str(),
@@ -60,23 +61,7 @@ pub(super) fn lower_call_statement(
         call.target.source_span(),
     )? {
         let mut occurrences = call.authored_call_selection.into_iter().collect::<Vec<_>>();
-        {
-            occurrences.extend(
-                lowerer
-                    .source_trees
-                    .authored_declaration_selections()
-                    .iter()
-                    .filter(|selection| {
-                        request.designated_operands().iter().any(|operand| {
-                            let span = selection.source_span();
-                            span.source_id == operand.source_span.source_id
-                                && span.span.start >= operand.source_span.span.start
-                                && span.span.end <= operand.source_span.span.end
-                        })
-                    })
-                    .map(|selection| selection.occurrence_id()),
-            );
-        }
+        occurrences.extend(call.authored_static_argument_selections.iter().copied());
         let arguments = lowerer
             .source_trees
             .tables

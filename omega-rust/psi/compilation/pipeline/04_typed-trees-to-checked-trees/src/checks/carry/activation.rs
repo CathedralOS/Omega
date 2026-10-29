@@ -319,7 +319,7 @@ impl ActivationCarryAccumulator<'_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.visit_expression(unary.operand),
-            typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
         }
     }
 

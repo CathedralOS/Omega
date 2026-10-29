@@ -86,7 +86,7 @@ impl CompilationSession {
     ) -> Result<PackageReviewProduct, PackageReviewFailure> {
         super::run_on_compile_thread(|| {
             let package = build.package_inputs().root();
-            let target = build.generated_source_bundle().target();
+            let target = build.build_handoff().target();
             let checked = self
                 .check_package_build(build)
                 .map_err(PackageReviewFailure::Compilation)?;

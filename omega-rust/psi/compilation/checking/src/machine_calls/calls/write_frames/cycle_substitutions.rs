@@ -24,6 +24,7 @@ use symbols::SymbolHandle;
 #[derive(Clone, PartialEq, Eq)]
 enum Root {
     Receiver,
+    Local(SymbolHandle),
     Parameter(SymbolHandle),
     ParameterLeaf {
         parameter: SymbolHandle,
@@ -53,6 +54,11 @@ impl Substitutions {
     /// including shared roots whose provenance (rather than writes) is carried.
     pub(super) fn parameter(&mut self, state: SymbolHandle, parameter: SymbolHandle) -> usize {
         self.root(state, Root::Parameter(parameter))
+    }
+    /// A declared local is a storage anchor in this activation, never a formal
+    /// input from which another edge can append a substituted path.
+    pub(super) fn local(&mut self, state: SymbolHandle, local: SymbolHandle) -> usize {
+        self.root(state, Root::Local(local))
     }
     /// Descriptor leaves have finite identities independent of their containing
     /// parameter. A field selector before the first reference boundary names

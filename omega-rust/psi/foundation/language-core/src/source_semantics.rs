@@ -10,7 +10,7 @@ pub mod receiver_binding;
 /// The parser's purpose for a local, independent of its diagnostic name and
 /// relevance. Pattern markers retain coverage metadata but do not capture an
 /// owned runtime value; their per-field bindings are ordinary values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum LocalBindingRole {
     #[default]
     Value,
@@ -40,7 +40,9 @@ impl LocalBindingRole {
 
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
 /// data defaults to `Affine`, and `[linear]` maps to `Linear`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, compiler_storage::Record,
+)]
 pub enum Multiplicity {
     /// Freely duplicable and discardable (`[copy]`).
     Unrestricted,
@@ -56,7 +58,9 @@ pub enum Multiplicity {
 /// Relevance is deliberately independent of the binding's type and
 /// multiplicity. An erased binding remains part of semantic identity and the
 /// proof calculus even though later lowering omits its runtime representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
+)]
 pub enum BindingRelevance {
     /// An ordinary binding with runtime representation.
     #[default]
@@ -72,7 +76,7 @@ impl BindingRelevance {
 }
 
 /// How a data declaration obtains its representation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum DataSupplyMode {
     #[default]
     CheckedShape,
@@ -80,7 +84,9 @@ pub enum DataSupplyMode {
 }
 
 /// Whether a live value may cross a suspension point.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
+)]
 pub enum CarrySuspension {
     #[default]
     Forbidden,
@@ -88,7 +94,9 @@ pub enum CarrySuspension {
 }
 
 /// CPU affinity of a live value relative to the CPU recorded at mint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
+)]
 pub enum CarryCpu {
     #[default]
     Origin,
@@ -96,7 +104,9 @@ pub enum CarryCpu {
 }
 
 /// Host-thread affinity of a live value relative to the thread recorded at mint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
+)]
 pub enum CarryHostThread {
     #[default]
     Origin,
@@ -104,7 +114,9 @@ pub enum CarryHostThread {
 }
 
 /// Whether a live value may move to a different storage address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
+)]
 pub enum CarryAddress {
     #[default]
     Stable,
@@ -113,7 +125,9 @@ pub enum CarryAddress {
 
 /// Normalized four-axis carry policy. The default is deliberately strict so
 /// missing evidence fails closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, compiler_storage::Record,
+)]
 pub struct CarryPolicy {
     pub suspension: CarrySuspension,
     pub cpu: CarryCpu,
@@ -208,7 +222,7 @@ impl std::fmt::Display for CarryPolicy {
 
 /// One compiler-owned positive permission that relaxes a resource claim's
 /// born-strict carry policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CarryPermission {
     AcrossSuspend,
     AnyCpu,
@@ -264,25 +278,25 @@ impl std::fmt::Display for CarryPermission {
 
 /// Exact call-site acknowledgement of the statically known operational
 /// envelope. This is diagnostic/audit metadata, not contract identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct CallOperationalAcknowledgement {
     pub origin: CallOperationalAcknowledgementOrigin,
     pub acknowledges_suspend: bool,
     pub acknowledges_block: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum CallOperationalAcknowledgementOrigin {
     #[default]
     Source,
     CompilerSynthesized,
 }
 
-/// Whether a declared domain carries an explicit predicate body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DomainPredicateBody {
+/// Whether a declared domain carries predicate obligations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
+pub enum DomainPredicatePresence {
     #[default]
-    Bodyless,
+    Absent,
     Present,
 }
 
@@ -291,7 +305,9 @@ pub enum DomainPredicateBody {
 /// `WriteOnly` is exclusive like `Mutable`, but grants no observation of the
 /// referent. Keeping this as one closed axis prevents a reference from being
 /// represented as independently mutable and write-only.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub enum ReferenceAccess {
     #[default]
     Shared,
@@ -343,7 +359,7 @@ impl ReferenceAccess {
 /// This is not an ordinary trait conformance: each case grants fixed language
 /// semantics that packages cannot extend by declaring another same-shaped
 /// trait. The initial vocabulary contains only progress profiles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum DomainClassification {
     ProgressProfile,
 }
@@ -356,15 +372,32 @@ impl DomainClassification {
     }
 }
 
-impl DomainPredicateBody {
+impl DomainPredicatePresence {
     pub const fn is_present(self) -> bool {
         matches!(self, Self::Present)
     }
 
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Bodyless => "bodyless",
+            Self::Absent => "bodyless",
             Self::Present => "present",
         }
+    }
+}
+
+#[cfg(test)]
+mod domain_predicate_presence_tests {
+    use super::DomainPredicatePresence;
+
+    #[test]
+    fn absence_and_presence_preserve_canonical_encoding_tags() {
+        assert_eq!(
+            DomainPredicatePresence::default(),
+            DomainPredicatePresence::Absent
+        );
+        assert!(!DomainPredicatePresence::Absent.is_present());
+        assert!(DomainPredicatePresence::Present.is_present());
+        assert_eq!(DomainPredicatePresence::Absent.as_str(), "bodyless");
+        assert_eq!(DomainPredicatePresence::Present.as_str(), "present");
     }
 }

@@ -38,21 +38,24 @@ pub struct StagedFixedFrameFunctionRelativeRealization {
     pub(super) custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
 }
 
+optimization_core::record_views! {
+    record StagedFixedFrameFunctionRelativeRealization;
+    borrowed {
+        allocation: RetainedAllocation,
+        machine: StagedOptimizedPostAllocationMachinePlan,
+        encoding: StagedOptimizedSelectedFormEncoding,
+        baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+        exit_contract: ValidatedWholeFunctionExitContract,
+        manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+        custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+    }
+}
+
+/// Frame parts are read through the retained frame, and the layout parts
+/// through the retained layout optimization; those reads are not field views.
 impl StagedFixedFrameFunctionRelativeRealization {
     pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
         self.layout_optimization.relaxation()
-    }
-    pub const fn allocation(&self) -> &RetainedAllocation {
-        &self.allocation
-    }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
-        &self.machine
-    }
-    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
-        &self.encoding
-    }
-    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        &self.baseline_layout
     }
     pub fn layout(&self) -> &ResolvedMachineLayout {
         self.layout_optimization.layout()
@@ -72,15 +75,6 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub const fn protocol(&self) -> &ValidatedTargetFrameProtocolEncoding {
         self.frame.protocol()
     }
-    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
-        &self.exit_contract
-    }
-    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        &self.manifest
-    }
-    pub const fn custody(&self) -> &StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-        &self.custody
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,29 +89,18 @@ pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
 }
 
-impl StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> &AllocationEvidence {
-        &self.source
+optimization_core::record_views! {
+    record StagedFixedFrameFunctionRelativeRealizationCustodyReceipt;
+    shared {
+        machine: physical_instructions::PostAllocationMachineIdentity,
+        requirements: AllocatedCalleeSavedRequirementIdentity,
+        storage: NonAuthoritativeCalleeSaveStorageIdentity,
+        frame: TargetFrameLayoutIdentity,
+        protocol: TargetFrameProtocolEncodingIdentity,
+        exit_contract: WholeFunctionExitContractIdentity,
+        realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     }
-    pub const fn machine(&self) -> physical_instructions::PostAllocationMachineIdentity {
-        self.machine
-    }
-    pub const fn requirements(&self) -> AllocatedCalleeSavedRequirementIdentity {
-        self.requirements
-    }
-    pub const fn storage(&self) -> NonAuthoritativeCalleeSaveStorageIdentity {
-        self.storage
-    }
-    pub const fn frame(&self) -> TargetFrameLayoutIdentity {
-        self.frame
-    }
-    pub const fn protocol(&self) -> TargetFrameProtocolEncodingIdentity {
-        self.protocol
-    }
-    pub const fn exit_contract(&self) -> WholeFunctionExitContractIdentity {
-        self.exit_contract
-    }
-    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
-        self.realization
+    borrowed {
+        source: AllocationEvidence,
     }
 }

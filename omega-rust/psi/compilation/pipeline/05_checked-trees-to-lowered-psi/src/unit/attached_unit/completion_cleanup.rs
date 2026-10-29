@@ -17,6 +17,7 @@ use terminal_psi::StructuralParameterDeclaration;
 /// Borrowed source authority common to sequence and graph completion.
 #[derive(Clone, Copy)]
 pub(crate) struct NormalExitSource<'a> {
+    pub(crate) completion: checked_trees::CheckedNormalCompletion,
     pub(crate) cleanups: &'a [checked_trees::CheckedNormalExitCleanupPlan],
     /// Existing checked no-code dispositions of leading constructor locals.
     pub(crate) trivial_affine_discards: &'a [semantic_vocabulary::PlaceId],
@@ -120,6 +121,19 @@ pub(crate) fn coordinate(
     statement_index: usize,
     continuation: bool,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
+    optional_coordinate(source, statement_index, continuation)?.ok_or(LoweringError::Unsupported(
+        "normal exit requested from a no-normal invocation",
+    ))
+}
+
+/// A selected source transfer still owes its exact cleanup even when its
+/// invocation cannot return. Only an absent exit in a checked NoNormal body
+/// permits the physical unreachable successor to omit cleanup.
+pub(crate) fn optional_coordinate(
+    source: NormalExitSource<'_>,
+    statement_index: usize,
+    continuation: bool,
+) -> Result<Option<FlowClaimJoinExit>, LoweringError> {
     let mut rows = source.cleanups.iter().filter(|row| {
         row.exit.statement_index == statement_index
             && if continuation {
@@ -132,15 +146,20 @@ pub(crate) fn coordinate(
                 )
             }
     });
-    let row = rows.next().ok_or(LoweringError::Unsupported(
-        "normal exit has no cleanup plan",
-    ))?;
+    let Some(row) = rows.next() else {
+        return match source.completion {
+            checked_trees::CheckedNormalCompletion::NoNormal => Ok(None),
+            checked_trees::CheckedNormalCompletion::Possible => Err(LoweringError::Unsupported(
+                "normal exit has no cleanup plan",
+            )),
+        };
+    };
     if rows.next().is_some() {
         return Err(LoweringError::Unsupported(
             "normal exit has more than one cleanup plan",
         ));
     }
-    Ok(row.exit)
+    Ok(Some(row.exit))
 }
 
 /// Join the exact selected edge's authored and deferred dispositions before

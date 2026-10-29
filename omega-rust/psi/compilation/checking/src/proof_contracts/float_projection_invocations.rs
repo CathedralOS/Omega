@@ -115,21 +115,10 @@ fn walk_expression(
         return Ok(());
     }
     visited.push(expression);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                walk_expression(program, child, visited, projections, equalities)?;
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                walk_expression(program, *value, visited, projections, equalities)?;
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            walk_expression(program, atomic.value, visited, projections, equalities)?;
-            walk_expression(program, atomic.result, visited, projections, equalities)?;
-        }
+    let node = program.expression_table.expression(expression);
+    match node {
+        // An equality joins the projections its operands already recorded, so a
+        // binary's subtrees are walked before the join is proposed.
         ExpressionNode::Binary(binary) => {
             walk_expression(program, binary.left, visited, projections, equalities)?;
             walk_expression(program, binary.right, visited, projections, equalities)?;
@@ -156,10 +145,10 @@ fn walk_expression(
                     right: binary.right,
                 });
             }
+            return Ok(());
         }
-        ExpressionNode::Cast(cast) => {
-            walk_expression(program, cast.value, visited, projections, equalities)?;
-        }
+        // A projection call is retained after its own operands, so its receiver
+        // and arguments are walked before the join it contributes.
         ExpressionNode::Call(call) => {
             walk_expression(program, call.receiver, visited, projections, equalities)?;
             for argument in program.expression_table.expression_handles(call.arguments) {
@@ -206,38 +195,26 @@ fn walk_expression(
                     contract,
                 });
             }
+            return Ok(());
         }
-        ExpressionNode::Indexed(indexed) => {
-            walk_expression(
-                program,
-                indexed.collection,
-                visited,
-                projections,
-                equalities,
-            )?;
-            walk_expression(program, indexed.index, visited, projections, equalities)?;
-        }
-        ExpressionNode::Member(member) => {
-            walk_expression(program, member.receiver, visited, projections, equalities)?;
-        }
-        ExpressionNode::Borrow(value) => {
-            walk_expression(program, value.target, visited, projections, equalities)?
-        }
-        ExpressionNode::Range(range) => {
-            walk_expression(program, range.start, visited, projections, equalities)?;
-            walk_expression(program, range.end, visited, projections, equalities)?;
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                walk_expression(program, field.value, visited, projections, equalities)?;
-            }
-        }
-        ExpressionNode::Unary(unary) => {
-            walk_expression(program, unary.operand, visited, projections, equalities)?;
-        }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
+        _ => {}
     }
-    Ok(())
+    // Every other node contributes only its operand edges: case arm bodies,
+    // array elements, record fields, range endpoints, a folded carrier and the
+    // structural wrappers. The shared roster owns that list.
+    let mut failure = None;
+    crate::expression_traversal::children(program, node, |child| {
+        if failure.is_none()
+            && let Err(diagnostic) =
+                walk_expression(program, child, visited, projections, equalities)
+        {
+            failure = Some(diagnostic);
+        }
+    });
+    match failure {
+        Some(diagnostic) => Err(diagnostic),
+        None => Ok(()),
+    }
 }
 
 pub(crate) fn collect_float_meaning_projection_invocations(

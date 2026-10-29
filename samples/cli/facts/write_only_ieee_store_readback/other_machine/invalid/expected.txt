@@ -1,0 +1,1 @@
+machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation

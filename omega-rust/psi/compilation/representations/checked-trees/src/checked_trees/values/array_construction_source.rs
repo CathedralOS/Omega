@@ -2,7 +2,7 @@
 //! operand. Call coordinates retain authored occurrences; constructors never
 //! invent call ordinals. The containing plan supplies state and statement.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedArrayConstructionSource {
     Statement,
     CallArgument {

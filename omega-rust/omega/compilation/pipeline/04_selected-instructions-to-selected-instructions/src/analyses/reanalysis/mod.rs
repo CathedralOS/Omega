@@ -101,5 +101,3 @@ failed_display!(
     OptimizedSelectedReanalysisError,
     "optimized transformed-selected reanalysis failed"
 );
-
-impl std::error::Error for OptimizedSelectedReanalysisError {}

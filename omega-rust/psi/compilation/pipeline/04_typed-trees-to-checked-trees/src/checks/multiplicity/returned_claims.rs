@@ -695,7 +695,8 @@ fn stored_claims(
                     && event.access == PermissionAccess::Owned
                     && event.obligation_live
                     && event.root == source.root
-                    && facts.flow.ownership.segments.span_or_empty(event.segments) == source.segments
+                    && facts.flow.ownership.segments.span_or_empty(event.segments)
+                        == source.segments
             })
         });
     if !consumed && !has_carrier_transfer {

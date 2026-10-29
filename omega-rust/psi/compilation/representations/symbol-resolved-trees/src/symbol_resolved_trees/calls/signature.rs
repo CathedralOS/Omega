@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use symbols::SymbolHandle;
 
 /// One exact authored member of a service-reach ceiling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredServiceReachTarget {
     pub service: SymbolHandle,
     pub source_span: source::SourceSpan,
@@ -14,7 +14,7 @@ pub struct AuthoredServiceReachTarget {
 /// Provenance-only source custody for one callable's authored `reaches`
 /// clauses. Clause keyword occurrences preserve an explicit empty ceiling;
 /// targets bind exact boundary-trait identity to exact member spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AuthoredServiceReachRow {
     pub owner: SymbolHandle,
     pub keyword_source_spans: Vec<source::SourceSpan>,
@@ -22,14 +22,14 @@ pub struct AuthoredServiceReachRow {
     pub installation_bound: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub storage: StateSignatureStorage,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StateSignatureStorage {
     /// Fixed token owned by a trait requirement. Structural machine-parameter
     /// signatures and ordinary state signatures leave this empty.
@@ -64,7 +64,7 @@ pub struct StateSignatureStorage {
     pub where_facts: HandleSpan<crate::domain::ProofFact>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct NativeCallbackParameter {
     pub name: DiagnosticName,
     pub binder: DiagnosticName,
@@ -75,7 +75,7 @@ deref_to_storage!(StateSignature => StateSignatureStorage);
 
 /// A named parameter with ordinary declared type and binding modes. Machine
 /// qualification does not insert or distinguish an implicit receiver.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -86,7 +86,7 @@ pub struct StateParameter {
     pub relevance: language_core::BindingRelevance,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
     /// Exact authored clause keyword retained independently from semantic facts.
@@ -96,7 +96,7 @@ pub struct SignatureContract {
     pub token_count: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum SignatureContractKind {
     #[default]
     Requires,
@@ -110,7 +110,7 @@ pub enum SignatureContractKind {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CrashCause {
     Trap,
     Abort,

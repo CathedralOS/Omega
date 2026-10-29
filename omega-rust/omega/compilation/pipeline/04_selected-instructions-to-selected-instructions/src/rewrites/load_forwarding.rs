@@ -129,5 +129,3 @@ pub enum StoredLoadForwardingError {
 }
 
 failed_display!(StoredLoadForwardingError, "invalid stored-load forwarding");
-
-impl std::error::Error for StoredLoadForwardingError {}

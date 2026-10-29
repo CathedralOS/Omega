@@ -71,6 +71,7 @@ mod target_observations;
 
 pub(crate) use invocations::CheckedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
+pub(crate) use target_observations::retain_entries as retain_deferred_entries;
 pub(crate) use target_observations::settle as settle_target_observations;
 
 /// Dependency identity is independent of pending syntax work. A predecessor
@@ -250,10 +251,10 @@ pub(crate) fn evaluate(
     super::const_qualifications::defer_unproved(&mut selection_syntax);
     let selection_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            &syntax,
+            &mut syntax,
             sources.clone(),
             bindings.to_vec(),
-            context.retained_base(),
+            context.retained_base(), context.declaration_syntax,
         )?;
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut selection_syntax,

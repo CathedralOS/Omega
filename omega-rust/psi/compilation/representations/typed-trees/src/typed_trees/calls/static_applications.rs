@@ -17,13 +17,13 @@ pub type StaticMachineApplicationHandle = Handle<StaticMachineApplication>;
 
 /// Derived selection at one authored occurrence. The ordinal rejoins the
 /// explicit operand; this is neither callable admission nor a trust receipt.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticConformanceSelection {
     pub operand_ordinal: u32,
     pub application: Option<Box<crate::typed_trees::ClosedConformanceApplication>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineApplication {
     /// The authored operation, possibly a trait requirement, never its private
     /// executable realization or instance.
@@ -34,6 +34,8 @@ pub struct StaticMachineApplication {
     /// Diagnostic text only; the symbol above owns declaration identity.
     pub target: Identifier,
     pub arguments: HandleSpan<StaticMachineArgument>,
+    /// Original named input coordinates produced while materializing source recipes.
+    pub input_selections: HandleSpan<crate::product_operand::ProductInputSelection>,
     /// Occurrence-local machine operands after contextual specialization, in
     /// machine-binder order. Authored operands remain above; closed entries
     /// retain complete tuples through the ordinary specialization roster.
@@ -52,7 +54,7 @@ pub struct StaticMachineApplication {
     pub conformance_selection: Option<Box<StaticConformanceSelection>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineLifetimeBinding {
     pub parameter: Identifier,
     pub argument: Identifier,
@@ -60,14 +62,14 @@ pub struct StaticMachineLifetimeBinding {
 
 /// One known substitution for a source declaration's binder. Missing bindings
 /// are absent rows, not claims that an open tuple satisfies its requirements.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineBinding {
     /// Always the original callee binder, even when a caller body is cloned.
     pub parameter: SymbolHandle,
     pub value: StaticMachineBindingValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum StaticMachineBindingValue {
     Type(TypeReferenceHandle),
     Const(TypeReferenceHandle),
@@ -87,26 +89,6 @@ pub enum StaticMachineBindingValue {
 impl Default for StaticMachineBindingValue {
     fn default() -> Self {
         Self::Type(TypeReferenceHandle::invalid())
-    }
-}
-
-impl StaticMachineBinding {
-    pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
-        // The binder belongs to binding_declaration, not lexical_owner.
-        // Remapping it would turn recursive calls into bindings for a private
-        // caller's erased telescope. Actual operands do follow caller cloning.
-        match &mut self.value {
-            StaticMachineBindingValue::Machine(argument)
-            | StaticMachineBindingValue::Conformance(argument) => argument.remap_symbols(symbols),
-            StaticMachineBindingValue::RuntimeValue { subject, .. } => {
-                if let Some((_, replacement)) =
-                    symbols.iter().find(|(source, _)| *source == *subject)
-                {
-                    *subject = *replacement;
-                }
-            }
-            StaticMachineBindingValue::Type(_) | StaticMachineBindingValue::Const(_) => {}
-        }
     }
 }
 

@@ -6,13 +6,13 @@
 use super::{FlowOperandFact, FlowOperandReferent};
 use arena::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowStorageSnapshot {
     pub previous: Handle<FlowStorageSnapshot>,
     pub operation: FlowStorageOperation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FlowStorageOperation {
     #[default]
     Unknown,

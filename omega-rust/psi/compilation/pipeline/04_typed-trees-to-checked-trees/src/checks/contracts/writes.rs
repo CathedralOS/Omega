@@ -620,7 +620,7 @@ impl ConstructionWalk<'_, '_> {
                 self.scan(range.end, contexts);
             }
             ExpressionNode::Unary(unary) => self.scan(unary.operand, contexts),
-            typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
         }
         // Children complete before the next operand may mutate their source.
         // Reuse this walk's exact live contexts, just as record-field admission does.
@@ -686,7 +686,7 @@ fn construction_field_domain_identities<'program>(
         .filter(|constraint| {
             validation::field_domains::domain_requires_provenance(program, constraint.symbol)
                 || program.domain_definitions().iter().any(|domain| {
-                    domain.symbol == constraint.symbol && domain.predicate_body.is_present()
+                    domain.symbol == constraint.symbol && domain.predicate_presence.is_present()
                 })
         })
         .collect()

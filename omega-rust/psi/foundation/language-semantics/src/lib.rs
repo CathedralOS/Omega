@@ -44,7 +44,7 @@ pub use external_bindings::{
 pub use language_core::{
     CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin, CarryAddress, CarryCpu,
     CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension, DataSupplyMode,
-    DomainClassification, DomainPredicateBody, Multiplicity, ReferenceAccess,
+    DomainClassification, DomainPredicatePresence, Multiplicity, ReferenceAccess,
 };
 pub use machine_termination::{
     MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject,
@@ -68,3 +68,5 @@ pub use service_reach::{
     ServiceReachTable, SuspensionInterface, SuspensionPlan, SuspensionSummary,
     SynchronousInvocationInterface, SynchronousInvocationPlan,
 };
+
+pub mod native_bindings;

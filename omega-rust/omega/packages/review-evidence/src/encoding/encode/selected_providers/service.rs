@@ -34,10 +34,14 @@ pub(in crate::encoding::encode) fn method(
                 method.identities.text(claim.carrier_identity),
             )?;
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
-            encoder.field("predicate_body", |encoder| {
-                match claim.predicate_body {
-                    language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
-                    language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
+            encoder.field("predicate_presence", |encoder| {
+                match claim.predicate_presence {
+                    language_semantics::DomainPredicatePresence::Absent => {
+                        encoder.tag("bodyless", 0)
+                    }
+                    language_semantics::DomainPredicatePresence::Present => {
+                        encoder.tag("present", 1)
+                    }
                 };
                 Ok(())
             })?;

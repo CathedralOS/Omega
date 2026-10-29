@@ -224,10 +224,9 @@ fn scan_expression_use(
                     place_spelling_covers(&spelling, place)
                         || (consumes_record && place_spelling_covers(place, &spelling))
                 };
-                if let Some(place) = tracked
-                    .iter()
-                    .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
-                {
+                if let Some(place) = tracked.iter().find(|place| {
+                    place.any_window_open() && overlaps_consumed_value(&place.spelling)
+                }) {
                     diagnostics.push(Diagnostic::error(format!(
                         "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
                          window: a prior write left data `{}`'s default domain FALSE -- \
@@ -318,8 +317,18 @@ fn scan_expression_use(
                             call_established,
                         )
                     });
+                let raw_current_field = definition.is_some_and(|definition| {
+                    independently_present_scalar_field(
+                        program,
+                        definition,
+                        member,
+                        &receiver_spelling,
+                        tracked,
+                    )
+                });
                 if consumes_value
                     && !established_child
+                    && !raw_current_field
                     && let Some(definition) = definition
                     && crate::value_custody::data::data_requires_establishment(program, definition)
                 {
@@ -737,6 +746,53 @@ fn validate_qualified_place_read(
             program.display_type_reference_with_constraints(reference),
         )));
     }
+}
+
+/// An open parent coupling does not erase its present primitive cells. This
+/// only avoids consuming that coupling: selected-field qualifications and the
+/// ordinary content/ownership checks still independently police the read.
+/// Initial unestablished storage and an unknown active payload stay fenced.
+fn independently_present_scalar_field(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    member: &typed_trees::expression::TableMemberExpression,
+    receiver_spelling: &str,
+    tracked: &[TrackedPlace<'_>],
+) -> bool {
+    let symbol =
+        crate::value_custody::places::effective_member_symbol(program, member.receiver, member);
+    if !symbol.is_valid() {
+        return false;
+    }
+    let Some(field) = crate::value_custody::places::exact_data_member_field(
+        program,
+        definition,
+        symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    ) else {
+        return false;
+    };
+    if !matches!(
+        program
+            .type_reference_table
+            .type_reference(field.type_reference),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+    ) || program
+        .primitive_type_reference(field.type_reference)
+        .is_none()
+        || crate::value_custody::data::type_requires_establishment(program, field.type_reference)
+    {
+        return false;
+    }
+    let parent = program.symbols.get(field.symbol).parent;
+    tracked.iter().any(|place| {
+        place.spelling == receiver_spelling
+            && place.definition.symbol == definition.symbol
+            && place.established
+            && (program.symbols.get(parent).kind != symbols::SymbolKind::Variant
+                || place.active_case == Some(parent))
+    })
 }
 
 fn validate_data_read(

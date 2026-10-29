@@ -82,7 +82,7 @@ pub fn assignment_target_domain_constraints<'program>(
         .filter(|domain| {
             program
                 .domain_definition(domain.symbol)
-                .is_some_and(|definition| definition.predicate_body.is_present())
+                .is_some_and(|definition| definition.predicate_presence.is_present())
         })
         .collect()
 }
@@ -725,7 +725,7 @@ pub fn domain_is_vacuous(
         stack.pop();
         return vacuous;
     }
-    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+    !domain.predicate_presence.is_present() && domain.establishment_routes.is_empty()
 }
 
 /// The data-type name a field's type reference names (peeling `&`/`&mut` and a
@@ -850,7 +850,7 @@ pub fn predicate_domain_constraint_identities(
         .filter(|(symbol, _)| {
             program
                 .domain_definition(*symbol)
-                .is_some_and(|domain| domain.predicate_body.is_present())
+                .is_some_and(|domain| domain.predicate_presence.is_present())
         })
         .collect()
 }

@@ -45,7 +45,7 @@ pub enum IeeeRounding {
     TowardNegative,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BigInt {
     negative: bool,
     /// Little-endian limbs, no trailing zeros. Empty = zero.

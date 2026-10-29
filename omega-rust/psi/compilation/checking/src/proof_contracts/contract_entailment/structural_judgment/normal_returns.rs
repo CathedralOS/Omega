@@ -9,6 +9,7 @@
 mod array_elements;
 mod body_completion;
 mod collection_extents;
+mod match_captures;
 mod operand_types;
 mod owned_arguments;
 
@@ -300,73 +301,6 @@ impl<'program> StructuralJudge<'program> {
             return value;
         }
         let value = match value {
-            StructuralTerm::Variable(ref name) => {
-                if let Some((_, replacement)) = self
-                    .substitutions
-                    .iter()
-                    .find(|(variable, _)| variable == name)
-                {
-                    return self.completed_value_identity_at(replacement.clone(), depth + 1);
-                }
-                value
-            }
-            StructuralTerm::IntegerEmbedding { reference, value } => {
-                StructuralTerm::IntegerEmbedding {
-                    reference,
-                    value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
-                }
-            }
-            StructuralTerm::MathematicalBinary {
-                operator,
-                left,
-                right,
-            } => StructuralTerm::MathematicalBinary {
-                operator,
-                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
-                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
-            },
-            StructuralTerm::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            } => StructuralTerm::ObservedValue {
-                observed_type,
-                value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
-                descriptor: descriptor.map(|descriptor| {
-                    Box::new(self.completed_value_identity_at(*descriptor, depth + 1))
-                }),
-            },
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-                data,
-                case,
-                fields: fields
-                    .into_iter()
-                    .map(|(name, value)| (name, self.completed_value_identity_at(value, depth + 1)))
-                    .collect(),
-            },
-            StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left,
-                right,
-            } => StructuralTerm::ScalarBinary {
-                references,
-                operator,
-                meaning,
-                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
-                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
-            },
-            StructuralTerm::CollectionMeasure {
-                measure,
-                collection,
-            } => StructuralTerm::CollectionMeasure {
-                measure,
-                collection: Box::new(
-                    self.completed_value_identity_at(*collection, depth + 1)
-                        .into_collection_descriptor(),
-                ),
-            },
             StructuralTerm::Projection { subject, path } => {
                 let subject = self.completed_value_identity_at(*subject, depth + 1);
                 path.split('.')
@@ -382,7 +316,7 @@ impl<'program> StructuralJudge<'program> {
                         path,
                     })
             }
-            value => value,
+            other => other.map_children(|child| self.completed_value_identity_at(child, depth + 1)),
         };
         if !matches!(
             value.semantic_value(),
@@ -962,6 +896,35 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
+        if let Some(value) = program.static_boolean_value(expression) {
+            return Some(vec![
+                NormalReturnPath::observed(boolean_term(value), self)
+                    .at_expression(expression, demand),
+            ]);
+        }
+        if program.static_type_predicate_operands(expression).is_some() {
+            // Type operands have no runtime read/effect schedule. Their Boolean
+            // proposition is observed here; a concrete executable must still
+            // close it in preparation before either execution engine accepts it.
+            let value = self.declaration_term(expression)?;
+            return Some(vec![
+                NormalReturnPath::observed(value, self).at_expression(expression, demand),
+            ]);
+        }
+        if let ExpressionNode::SavedSubject(saved) = node
+            && program
+                .expression_table
+                .contains_value_capture(saved.capture)
+            && matches!(
+                program.expression_table.value_capture(saved.capture).owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            )
+        {
+            let value = self.completed_match_subject(saved)?;
+            return Some(vec![
+                NormalReturnPath::observed(value, self).at_expression(expression, demand),
+            ]);
+        }
         if program.saved_argument_source(expression).is_some() {
             // The argument scheduler has completed this exact predecessor.
             // Missing completion is absence of evidence, never source replay.
@@ -1080,6 +1043,72 @@ impl<'program> StructuralJudge<'program> {
                 NormalReturnPath::observed(StructuralTerm::Integer(value), self)
                     .at_expression(expression, demand),
             ]);
+        }
+
+        // A classifier observes a tag and returns Bool; its case head is not
+        // evaluated as a partial constructor. Unknown tags retain both paths.
+        if let ExpressionNode::Binary(binary) = node
+            && let Some((source_definition, source_variant)) =
+                super::super::structural_terms::case_guard_classifier(
+                    program,
+                    scope.0,
+                    Some(scope.1),
+                    expression,
+                )
+        {
+            let subject_type = self.normal_value_type_reference(binary.left, scope)?;
+            let definition =
+                program.data_constructor_definition(subject_type, source_definition.symbol)?;
+            let variant = program.data_constructor_case(
+                subject_type,
+                source_definition.symbol,
+                source_variant.symbol,
+            )?;
+            let mut outcomes = Vec::new();
+            for subject in self.evaluate_normal_paths(
+                binary.left,
+                environment,
+                scope,
+                depth + 1,
+                requested_operations,
+                entries,
+                NormalValueDemand::Value,
+            )? {
+                let judgment = subject.judge.judge_case(
+                    subject.value.clone(),
+                    definition.symbol,
+                    variant.symbol,
+                );
+                for truth in [false, true] {
+                    if (truth && matches!(judgment, StructuralJudgment::Refuted))
+                        || (!truth && matches!(judgment, StructuralJudgment::Proven))
+                    {
+                        continue;
+                    }
+                    let mut selected = subject.judge.clone();
+                    if truth {
+                        selected.intake_case_guarantee(&super::CaseGuarantee {
+                            subject: subject.value.clone(),
+                            data: definition.symbol,
+                            case: variant.symbol,
+                        });
+                        selected.intake_completed_match_case(
+                            expression,
+                            binary.left,
+                            &subject.value,
+                            subject_type,
+                            scope.0,
+                            scope.1,
+                            environment,
+                        );
+                    }
+                    outcomes.push(
+                        NormalReturnPath::observed(boolean_term(truth), selected)
+                            .at_expression(expression, demand),
+                    );
+                }
+            }
+            return Some(outcomes);
         }
 
         if let ExpressionNode::Binary(binary) = node
@@ -1224,6 +1253,14 @@ impl<'program> StructuralJudge<'program> {
                 entries,
                 NormalValueDemand::Value,
             )?;
+            for subject in &mut remaining {
+                subject.value = subject.judge.complete_match_subject(
+                    expression,
+                    dispatch,
+                    subject.value.clone(),
+                    scope,
+                )?;
+            }
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut next_remaining = Vec::new();
                 for subject in remaining {
@@ -1343,6 +1380,9 @@ impl<'program> StructuralJudge<'program> {
                 if matches!(arm.pattern, MatchPattern::Wildcard) {
                     break;
                 }
+            }
+            for outcome in &mut outcomes {
+                outcome.judge.retire_match_subject(dispatch);
             }
             return Some(outcomes);
         }
@@ -1692,6 +1732,7 @@ impl<'program> StructuralJudge<'program> {
                     let fields = program.expression_table.struct_fields(literal.fields);
                     let constructed = super::super::structural_terms::constructor_literal_term(
                         program,
+                        expression,
                         literal,
                         |declared, supplied| {
                             if let Some(field) = supplied {
@@ -1742,14 +1783,25 @@ impl<'program> StructuralJudge<'program> {
                     let [(_, left), (_, right)] = inputs.as_slice() else {
                         return None;
                     };
-                    value = super::super::structural_terms::binary_term_in_scope(
+                    if let Some(term) = super::super::structural_terms::binary_term_in_scope(
                         program,
                         Some(scope),
                         None,
                         expression,
                         left.observed_value()?.clone(),
                         right.observed_value()?.clone(),
-                    )?;
+                    ) {
+                        value = term;
+                    } else if !judge.runtime_body_values
+                        || !discarded_value_has_no_own_effects(program, scope, expression)
+                    {
+                        return None;
+                    }
+                    // A completed builtin may have no structural denotation
+                    // (for example nominal equality). Its fresh typed result
+                    // carries no operand equation, but cannot erase unrelated
+                    // prefix premises. Selected call effects retain their
+                    // separate operation owner and do not use this path.
                 }
                 if let ExpressionNode::Unary(_) = node {
                     let [(_, operand)] = inputs.as_slice() else {
@@ -2856,6 +2908,7 @@ fn discarded_value_has_no_own_effects(
         | ExpressionNode::String(_) => true,
         ExpressionNode::SavedSubject(_)
         | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => false,
     }
 }

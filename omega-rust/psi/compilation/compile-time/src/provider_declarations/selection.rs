@@ -8,6 +8,11 @@ pub use language_semantics::declaration_selection::CompositionMode;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelectionIdentity {
     pub symbol: SymbolHandle,
+    /// Arena-local prepared source application. Zero is an unapplied declaration.
+    pub application: arena::Handle<typed_trees::product_operand::ProductOperandApplication>,
+    /// Canonical complete application projected by its typing owner. None is a
+    /// declaration choice with no Type/Const telescope, never an erased tuple.
+    pub application_identity: Option<String>,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,
     pub authored_path: String,
@@ -269,10 +274,19 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
+    pub fn selects_schema(
+        &self,
+        schema_symbol: SymbolHandle,
+        requirement_identity: &str,
+        application: Option<&str>,
+    ) -> bool {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
                 identity.symbol == schema_symbol
+                    && identity
+                        .application_identity
+                        .as_deref()
+                        .map_or(true, |selected| Some(selected) == application)
             }
             Self::BoundaryOperatorFamily(family) => family.coordinates.iter().any(|coordinate| {
                 coordinate.symbol == schema_symbol
@@ -283,9 +297,13 @@ impl ProviderSelectionSubject {
 
     pub fn same_declaration_as(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => left.symbol == right.symbol,
+            (Self::BoundaryTrait(left), Self::BoundaryTrait(right)) => {
+                left.symbol == right.symbol
+                    && left.application_identity == right.application_identity
+            }
             (Self::BoundaryRequirement(left), Self::BoundaryRequirement(right)) => {
                 left.symbol == right.symbol
+                    && left.application_identity == right.application_identity
             }
             (Self::BoundaryOperatorFamily(left), Self::BoundaryOperatorFamily(right)) => {
                 left.package == right.package && left.canonical_path == right.canonical_path
@@ -305,6 +323,5 @@ pub struct ProviderSelection {
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: source::SourceSpan,
+    pub origin: language_semantics::declaration_selection::BuildSelectionOrigin,
 }

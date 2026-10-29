@@ -199,7 +199,7 @@ pub(crate) fn instantiate_requirement_applications(
 
 /// Symbolic and executable requirement calls share one binding roster.
 /// Openness prevents executable instantiation, not substitution in a contract.
-fn invocation_bindings(
+pub(crate) fn invocation_bindings(
     program: &mut TypedTrees,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],

@@ -25,9 +25,10 @@ pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
 
 pub use evaluated_bindings::{
-    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
-    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
-    EvaluatedForeignImport, EvaluatedForeignSyscall, evaluated_syscall_identity_digest,
+    BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
+    EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
+    EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
+    EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
 };
 pub use identity_table::{ProviderIdentityId, ProviderIdentityTable};
 pub use service_schemas::BoundaryCallingPlanCommitment;
@@ -123,6 +124,9 @@ pub struct ProviderPlan {
     /// to nominal provider types. Slot overrides select this identity, never
     /// individual rows.
     pub provider_type: String,
+    /// Complete applied implementation identity in this plan's identity table.
+    /// Zero is a declaration-level provider with no static application.
+    pub provider_application: ProviderIdentityId,
     /// Exact package owning `provider_type`. Free external leaves and
     /// toolchain/standalone/source-free trees retain `None`; consumers must not
     /// infer this from `provider_type` or the realizing machine's package.
@@ -205,6 +209,8 @@ impl PartialEq for ProviderPlan {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.provider_type == other.provider_type
+            && self.identity_text(self.provider_application)
+                == other.identity_text(other.provider_application)
             && self.provider_type_package_identity == other.provider_type_package_identity
             && self.target == other.target
             && self.schema == other.schema
@@ -266,6 +272,11 @@ impl ProviderPlan {
     /// structure. Unlike [`Self::report_fingerprint`], this includes exact
     /// normalized foreign-locator coordinates and is suitable for retained
     /// evidence identity. Computed once per plan value.
+    pub fn application_identity(&self) -> Option<&str> {
+        let identity = self.identity_text(self.provider_application);
+        (!identity.is_empty()).then_some(identity)
+    }
+
     pub fn identity_digest(&self) -> ProviderPlanDigest {
         *self
             .digest_memo
@@ -287,7 +298,7 @@ impl ProviderPlan {
         )
     }
 
-    /// Exact canonical input to the v4 normalized-plan commitment. Receivers
+    /// Exact canonical input to the v5 normalized-plan commitment. Receivers
     /// recompute the commitment before admitting a historical folded closure.
     /// Reconstruct from current fields, independently of the digest memo.
     pub fn identity_preimage(&self) -> Vec<u8> {
@@ -298,6 +309,7 @@ impl ProviderPlan {
     fn encode_identity(&self, mut encoder: ProviderPlanDigestEncoder) -> ProviderPlanDigestEncoder {
         encoder.string(&self.name);
         encoder.string(&self.provider_type);
+        encoder.string(self.identity_text(self.provider_application));
         encoder.package_identity(self.provider_type_package_identity);
         encoder.string(&self.target);
         encoder.string(self.schema.identity_text(self.schema.trait_name));
@@ -455,7 +467,7 @@ impl ProviderPlan {
                     claim.parameter_index,
                     self.schema.identities.text(claim.carrier_identity),
                     claim.domain,
-                    claim.predicate_body.as_str(),
+                    claim.predicate_presence.as_str(),
                     claim.authority_flow.as_str(),
                     claim.effective_carry,
                 ));

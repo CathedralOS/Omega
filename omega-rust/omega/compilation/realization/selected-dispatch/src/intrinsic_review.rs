@@ -2,19 +2,20 @@
 //! service binding and retaining the selected review identities.
 
 use crate::SelectedCompilerIntrinsicExecutionIdentity;
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use provider_planning::SelectedProviderReviewProvenance;
+use provider_planning::service_declarations::{ServiceDeclaration, ServiceDeclarations};
+use std::sync::Arc;
 use symbols::SymbolHandle;
 
 /// One consumer-supplied semantic binding after exact selected-plan
 /// settlement. The raw row remains visible for persistence/review, while the
-/// compiler-resolved declaration symbol prevents later consumers from
-/// searching for authority by a readable path.
+/// exact declaration/schema record prevents later consumers from searching
+/// for authority by a readable path or retaining a source-arena coordinate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedAcceptedSemanticBinding {
     accepted: package_compilation::AcceptedSemanticBinding,
-    declaration_symbol: SymbolHandle,
+    declaration: Arc<ServiceDeclaration>,
 }
 
 impl ResolvedAcceptedSemanticBinding {
@@ -22,8 +23,8 @@ impl ResolvedAcceptedSemanticBinding {
         &self.accepted
     }
 
-    pub const fn declaration_symbol(&self) -> SymbolHandle {
-        self.declaration_symbol
+    pub fn declaration(&self) -> &ServiceDeclaration {
+        &self.declaration
     }
 
     pub const fn role(&self) -> package_compilation::AcceptedSemanticBindingRole {
@@ -35,8 +36,7 @@ impl ResolvedAcceptedSemanticBinding {
 /// boundary declaration. Unlike Console execution settlement, this does not
 /// claim or synthesize a provider plan.
 pub(crate) fn resolve_accepted_service_binding(
-    checked: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    services: &ServiceDeclarations,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> Result<ResolvedAcceptedSemanticBinding, Diagnostic> {
     if !matches!(
@@ -57,48 +57,22 @@ pub(crate) fn resolve_accepted_service_binding(
         )));
     }
 
-    let matches = checked
-        .typed
-        .traits()
-        .iter()
-        .filter_map(|definition| {
-            if !definition.is_boundary
-                || checked
-                    .typed
-                    .symbols
-                    .symbol_package_identity(definition.symbol)
-                    != Some(binding.package())
-                || checked.symbols.display_path(definition.symbol, "::")
-                    != binding.declaration_path()
-            {
-                return None;
-            }
-            let schema = provider_planning::service_schema::from_typed(
-                provider_planning::ProviderPlanningContext::new(
-                    checked,
-                    source::DependencyScope::Product,
-                ),
-                calling_plans,
-                definition,
-            )?;
-            (schema.trait_package_identity == Some(binding.package())
-                && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
-                    == binding.normalized_schema_digest())
-            .then_some((definition.symbol, schema))
-        })
-        .collect::<Vec<_>>();
-
-    let [(declaration_symbol, schema)] = matches.as_slice() else {
+    let declaration = services
+        .select(binding.package(), binding.declaration_path())?
+        .declaration;
+    if declaration.schema.trait_package_identity != Some(binding.package())
+        || package_compilation::accepted_service_schema_digest(binding.role(), &declaration.schema)
+            != binding.normalized_schema_digest()
+    {
         return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} resolved to {} exact package-owned boundary declarations instead of one",
+            "accepted semantic binding {:?} changed its exact owner or service schema",
             binding.role(),
-            matches.len(),
         )));
-    };
-    validate_terminal_authority_permissions(binding, schema)?;
+    }
+    validate_terminal_authority_permissions(binding, &declaration.schema)?;
     Ok(ResolvedAcceptedSemanticBinding {
         accepted: binding.clone(),
-        declaration_symbol: *declaration_symbol,
+        declaration: Arc::clone(declaration),
     })
 }
 
@@ -111,8 +85,9 @@ pub(crate) fn resolve_accepted_service_binding(
 /// review rederives that unsupported child and rejects it until a closed
 /// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
-    checked: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    candidates: &[provider_planning::ProviderPlanCandidate],
+    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
+    services: &ServiceDeclarations,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
     selected_target: Option<&str>,
@@ -146,26 +121,34 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             continue;
         }
 
-        let catalog_context = provider_planning::ProviderPlanningContext::new(
-            checked,
-            source::DependencyScope::Product,
-        );
-        let expected_placed =
-            match provider_planning::SealedPlacedAccessor::rejoin_plan(catalog_context, plan) {
-                Ok(witness) => witness,
-                Err(error) => {
-                    diagnostics.push(error);
-                    retained_rows.push(Vec::new());
-                    continue;
-                }
-            };
+        let mut candidates = candidates
+            .iter()
+            .filter(|candidate| candidate.matches_selection(retained));
+        let candidate = match (candidates.next(), candidates.next()) {
+            (Some(candidate), None) => candidate,
+            _ => {
+                diagnostics.push(Diagnostic::error(
+                    "selected intrinsic review has no unique original provider candidate",
+                ));
+                retained_rows.push(Vec::new());
+                continue;
+            }
+        };
+        let expected_placed = match candidate.placed_accessor() {
+            Ok(witness) => witness,
+            Err(error) => {
+                diagnostics.push(error);
+                retained_rows.push(Vec::new());
+                continue;
+            }
+        };
         let catalog_role_matches = match retained.provider.schema {
             provider_planning::ProviderSchemaDeclaration::SealedPlacedAccessor(symbol) => {
                 expected_placed
                     .as_ref()
                     .is_some_and(|witness| witness.machine() == symbol)
                     && retained.provider.row_placed_accessors.as_slice()
-                        == std::slice::from_ref(&expected_placed)
+                        == std::slice::from_ref(&expected_placed.cloned())
             }
             _ => {
                 expected_placed.is_none()
@@ -184,13 +167,35 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             continue;
         }
         let mut rows = Vec::with_capacity(plan.rows.len());
-        for (((row, requirement_symbol), realization_symbol), completion_leaves) in plan
-            .rows
-            .iter()
-            .zip(&retained.provider.row_requirements)
-            .zip(&retained.provider.row_realizations)
-            .zip(&retained.row_external_completion_leaves)
+        for (row_index, (((row, requirement_symbol), realization_symbol), completion_leaves)) in
+            plan.rows
+                .iter()
+                .zip(&retained.provider.row_requirements)
+                .zip(&retained.provider.row_realizations)
+                .zip(&retained.row_external_completion_leaves)
+                .enumerate()
         {
+            let Some(realization_symbol) = realization_symbol.authored() else {
+                // Neither a Build locator nor a settlement table supplies a
+                // sealed intrinsic execution identity or an authored completion.
+                if matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                ) {
+                    diagnostics.push(Diagnostic::error(
+                        "intrinsic row has no exact authored realization",
+                    ));
+                }
+                rows.push(None);
+                continue;
+            };
+            let Some(declarations) = candidate.row_declarations(row_index) else {
+                diagnostics.push(Diagnostic::error(
+                    "selected intrinsic review lost its prepared original-row declarations",
+                ));
+                rows.push(None);
+                continue;
+            };
             if !matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -201,12 +206,9 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                 // exit row does; the binding names the requirement and the
                 // provider row, not the realization behind them.
                 accumulate_accepted_row_match(
-                    checked,
+                    &declarations.exit_process,
                     plan,
-                    row,
                     retained.provider.schema.symbol(),
-                    *requirement_symbol,
-                    *realization_symbol,
                     !completion_leaves.is_empty(),
                     accepted_console_binding,
                     accepted_process_exit_binding,
@@ -219,30 +221,46 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             }
             let unresolved = |accepted| crate::compiler_intrinsic::AcceptedRowBinding {
                 accepted,
-                declaration_symbol: None,
+                declaration_identity: None,
                 public_plan: None,
             };
-            match crate::compiler_intrinsic::row_execution_identity(
-                checked,
+            let Some(intrinsic) = declarations.intrinsic.as_ref() else {
+                diagnostics.push(Diagnostic::error(
+                    "selected intrinsic review has no prepared intrinsic declaration",
+                ));
+                rows.push(None);
+                continue;
+            };
+            let numeric = crate::compiler_intrinsic::numeric_execution(
+                crate::NumericProviderSelection {
+                    candidate: external_providers,
+                    custody: external_providers,
+                    provider: retained.provider.provider_type,
+                },
                 plan,
                 retained.provider.schema,
                 row,
                 *requirement_symbol,
-                *realization_symbol,
-                selected_target,
-                accepted_console_binding.map(unresolved),
-                accepted_process_exit_binding.map(unresolved),
-            ) {
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
+                realization_symbol,
+            );
+            let execution = numeric.and_then(|numeric| match numeric {
+                Some(identity) => Ok(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)),
+                None => crate::compiler_intrinsic::settle_declaration(
+                    intrinsic,
+                    plan,
+                    selected_target,
+                    accepted_console_binding.map(unresolved),
+                    accepted_process_exit_binding.map(unresolved),
+                ),
+            });
+            match execution {
+                Ok(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => {
                     if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                     {
                         accumulate_accepted_row_match(
-                            checked,
+                            &declarations.exit_process,
                             plan,
-                            row,
                             retained.provider.schema.symbol(),
-                            *requirement_symbol,
-                            *realization_symbol,
                             !completion_leaves.is_empty(),
                             accepted_console_binding,
                             accepted_process_exit_binding,
@@ -251,16 +269,13 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                             &mut diagnostics,
                         );
                     }
-                    rows.push(Some(identity))
+                    rows.push((!identity.is_numeric()).then_some(identity))
                 }
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported)) => {
+                Ok(SelectedCompilerIntrinsicExecutionIdentity::Unsupported) => {
                     accumulate_accepted_row_match(
-                        checked,
+                        &declarations.exit_process,
                         plan,
-                        row,
                         retained.provider.schema.symbol(),
-                        *requirement_symbol,
-                        *realization_symbol,
                         !completion_leaves.is_empty(),
                         accepted_console_binding,
                         accepted_process_exit_binding,
@@ -270,7 +285,6 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     );
                     rows.push(None)
                 }
-                Ok(None) => rows.push(None),
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
                     rows.push(None);
@@ -288,15 +302,18 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
         match (binding, matches.as_slice()) {
             (None, _) => {}
             (Some(binding), [declaration_symbol]) => {
-                match resolve_terminal_authority_permissions_for_symbol(
-                    checked,
-                    calling_plans,
-                    binding,
-                    *declaration_symbol,
-                ) {
-                    Ok(()) => resolved.push(ResolvedAcceptedSemanticBinding {
+                match services
+                    .for_symbol(*declaration_symbol)
+                    .and_then(|service| {
+                        validate_terminal_authority_permissions(
+                            binding,
+                            &service.declaration.schema,
+                        )?;
+                        Ok(Arc::clone(service.declaration))
+                    }) {
+                    Ok(declaration) => resolved.push(ResolvedAcceptedSemanticBinding {
                         accepted: binding.clone(),
-                        declaration_symbol: *declaration_symbol,
+                        declaration,
                     }),
                     Err(diagnostic) => diagnostics.push(diagnostic),
                 }
@@ -326,59 +343,99 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     Ok(resolved)
 }
 
-/// Consume one hosted-exit row against each supplied consumer binding. The
-/// Close leaf execution under its original satisfaction row and the separately
-/// accepted public selection. No leaf plan pretends to have the public digest.
-pub(crate) fn close_direct_boundary_candidates(
-    checked: &CheckedTrees,
+/// Construct complete target-call supplies after their host bindings settle.
+/// Original source rows remain borrowed from planning; no projected plan is
+/// reused as a public admission identity and no later pass fills execution.
+/// Declaration facts already came from their source owner: this operation
+/// joins target/accepted custody without querying checked trees again.
+pub(crate) fn produce_direct_boundary_leaves(
+    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
-    candidates: &mut [provider_planning::DirectBoundaryCandidate],
+    candidates: &[provider_planning::ProviderPlanCandidate],
+    services: &ServiceDeclarations,
     target: Option<&str>,
     bindings: &[ResolvedAcceptedSemanticBinding],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+    let mut leaves = Vec::new();
     for candidate in candidates {
-        let backend_plan::DirectBoundaryExecution::Intrinsic(execution) =
-            &mut candidate.leaf.execution
-        else {
-            continue;
-        };
-        let source = &candidate.source;
-        let [row] = source.plan.rows.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "direct boundary candidate lost its single original row",
-            )]);
-        };
-        let accepted = |role| {
-            let binding = bindings.iter().find(|binding| binding.role() == role)?;
-            let public = selected.iter().find(|provider| {
-                provider.provider.schema.symbol() == binding.declaration_symbol()
-                    && Some(provider.plan.identity_digest())
-                        == binding.accepted().selected_provider_plan_digest()
-            })?;
-            Some(crate::compiler_intrinsic::AcceptedRowBinding {
-                accepted: binding.accepted(),
-                declaration_symbol: Some(binding.declaration_symbol()),
-                public_plan: Some(&public.plan),
-            })
-        };
-        *execution = match crate::compiler_intrinsic::row_execution_identity(
-            checked,
-            &source.plan,
-            source.provenance.schema,
-            row,
-            source.provenance.row_requirements[0],
-            source.provenance.row_realizations[0],
-            target,
-            accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
-            accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
-        {
-            Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => Some(identity),
-            _ => None,
-        };
+        for input in candidate.direct_boundaries() {
+            let execution = match &input.mechanism {
+                provider_planning::DirectBoundaryMechanism::Foreign(binding) => {
+                    backend_plan::DirectBoundaryExecution::Foreign(binding.clone())
+                }
+                provider_planning::DirectBoundaryMechanism::Intrinsic => {
+                    let declaration = candidate
+                        .direct_declarations(input)
+                        .map_err(|diagnostic| vec![diagnostic])?
+                        .intrinsic
+                        .as_ref()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "direct intrinsic has no prepared original-row declaration",
+                            )]
+                        })?;
+                    let source = candidate
+                        .direct_source(input)
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                    let accepted = |role| -> Result<
+                        Option<crate::compiler_intrinsic::AcceptedRowBinding<'_>>,
+                        Diagnostic,
+                    > {
+                        let Some(binding) = bindings.iter().find(|binding| binding.role() == role)
+                        else {
+                            return Ok(None);
+                        };
+                        let declaration_symbol = services.rejoin(binding.declaration())?.symbol;
+                        let Some(public) = selected.iter().find(|provider| {
+                            provider.provider.schema.symbol() == declaration_symbol
+                                && Some(provider.plan.identity_digest())
+                                    == binding.accepted().selected_provider_plan_digest()
+                        }) else {
+                            return Ok(None);
+                        };
+                        Ok(Some(crate::compiler_intrinsic::AcceptedRowBinding {
+                            accepted: binding.accepted(),
+                            declaration_identity: Some(
+                                binding.declaration().nominal_identity.as_str(),
+                            ),
+                            public_plan: Some(&public.plan),
+                        }))
+                    };
+                    let numeric = crate::compiler_intrinsic::numeric_execution(
+                        crate::NumericProviderSelection {
+                            candidate: external_providers,
+                            custody: external_providers,
+                            provider: source.provider,
+                        },
+                        source.plan,
+                        source.schema,
+                        source.row,
+                        source.requirement,
+                        source.realization,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                    let closed = match numeric {
+                        Some(identity) => Some(identity),
+                        None => declaration.settle(
+                            source.plan, target,
+                            accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
+                            accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32).map_err(|diagnostic| vec![diagnostic])?,
+                        ).map_err(|diagnostic| vec![diagnostic])?,
+                    };
+                    backend_plan::DirectBoundaryExecution::Intrinsic(closed)
+                }
+            };
+            let leaf = input
+                .finish(candidate.plan(), execution)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            // Close every original row before coalescing equal supplies. This
+            // cannot hide a refusal; trust still owns the complete candidates.
+            if !leaves.contains(&leaf) {
+                leaves.push(leaf);
+            }
+        }
     }
-    Ok(())
+    Ok(leaves)
 }
 
 /// Console and canonical ProcessExit roles are independent: a row can consume
@@ -386,12 +443,9 @@ pub(crate) fn close_direct_boundary_candidates(
 /// declaration below.
 #[allow(clippy::too_many_arguments)]
 fn accumulate_accepted_row_match(
-    checked: &CheckedTrees,
+    declaration: &provider_planning::intrinsic_declarations::ExitProcessDeclaration,
     plan: &effects::provider_plan::ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
     schema_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
     checked_external_completion: bool,
     accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
@@ -400,14 +454,9 @@ fn accumulate_accepted_row_match(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(binding) = accepted_console_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+        match declaration.matches(
             crate::compiler_intrinsic::HostedService::Console,
-            checked,
             plan,
-            row,
-            schema_symbol,
-            requirement_symbol,
-            realization_symbol,
             checked_external_completion,
             binding,
         ) {
@@ -417,14 +466,9 @@ fn accumulate_accepted_row_match(
         }
     }
     if let Some(binding) = accepted_process_exit_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+        match declaration.matches(
             crate::compiler_intrinsic::HostedService::ProcessExit,
-            checked,
             plan,
-            row,
-            schema_symbol,
-            requirement_symbol,
-            realization_symbol,
             checked_external_completion,
             binding,
         ) {
@@ -433,38 +477,6 @@ fn accumulate_accepted_row_match(
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
-}
-
-fn resolve_terminal_authority_permissions_for_symbol(
-    checked: &CheckedTrees,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
-    binding: &package_compilation::AcceptedSemanticBinding,
-    declaration_symbol: SymbolHandle,
-) -> Result<(), Diagnostic> {
-    let declarations = checked
-        .typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == declaration_symbol)
-        .collect::<Vec<_>>();
-    let [definition] = declarations.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} resolved permission custody to {} boundary declarations instead of one",
-            binding.role(),
-            declarations.len(),
-        )));
-    };
-    let Some(schema) = provider_planning::service_schema::from_typed(
-        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
-        calling_plans,
-        definition,
-    ) else {
-        return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} cannot reconstruct its exact service schema for terminal-authority permission custody",
-            binding.role(),
-        )));
-    };
-    validate_terminal_authority_permissions(binding, &schema)
 }
 
 fn validate_terminal_authority_permissions(

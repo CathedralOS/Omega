@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 /// field encodes as tag varint + value varint; text/byte-slice/nested/repeated
 /// fields encode as tag varint + length varint + payload. Placements are
 /// stored SORTED BY TAG (the codec emits in field-number order).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum WirePlacement {
     Varint { tag: u64 },
     LengthPrefixed { tag: u64 },
@@ -33,7 +33,7 @@ impl WirePlacement {
 
 /// A schema's derived wire plan: its placements as a span into the
 /// `TypedTrees` placement arena (arena + span ownership, no nested vectors).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireSchemaPlan {
     pub schema: SymbolHandle,
     pub placements: HandleSpan<WirePlacement>,
@@ -56,7 +56,7 @@ pub struct WireSchemaPlan {
 /// then once to emit it after proving the remaining output capacity covers
 /// the length prefix and body. Retaining this row keeps the generated
 /// requirement honest about dynamic length, work, and output space.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireEncodeObligation {
     pub field_number: u64,
     pub element: WireScalarEncoding,
@@ -65,20 +65,20 @@ pub struct WireEncodeObligation {
     pub output_capacity: WireEncodeOutputCapacityObligation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum WireEncodeLengthObligation {
     #[default]
     RuntimeElementCount,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum WireEncodeWorkObligation {
     /// One exact-size pass and one emission pass over every live element.
     #[default]
     TwoPassesPerElement,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum WireEncodeOutputCapacityObligation {
     /// Remaining output covers the exact packed-body byte count plus its
     /// canonical length varint. The field tag is emitted separately.
@@ -93,7 +93,7 @@ pub enum WireEncodeOutputCapacityObligation {
 /// cannot produce `WireMember::Version`; each era is its own declaration.
 /// Wire schemas are external-representation contracts, kept separate from
 /// runtime `data` definitions.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireSchema {
     pub symbol: SymbolHandle,
     pub name: Identifier,
@@ -103,7 +103,7 @@ pub struct WireSchema {
     pub members: HandleSpan<WireMember>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum WireMember {
     Field(WireField),
     Reserved(WireReserved),
@@ -116,7 +116,7 @@ impl Default for WireMember {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireField {
     pub number: u64,
     pub name: Identifier,
@@ -124,12 +124,12 @@ pub struct WireField {
     pub type_reference: TypeReferenceHandle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireReserved {
     pub number: u64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireVersion {
     pub name: Identifier,
     pub members: HandleSpan<WireMember>,
@@ -154,7 +154,7 @@ pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
 /// runtime load width and whether the value zigzags before LEB128. The
 /// vocabulary is shared by validation, instruction selection, and the
 /// reference interpreter so all three agree byte-for-byte.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct WireScalarEncoding {
     pub byte_size: usize,
     pub zigzag: bool,

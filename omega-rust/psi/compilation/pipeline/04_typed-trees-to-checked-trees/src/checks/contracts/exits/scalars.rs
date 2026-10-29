@@ -96,25 +96,29 @@ pub(super) fn proves<'program>(
         &mut |leaf| evaluator.contract_value(leaf),
         &|_, _| true,
         &mut |atom| {
-            cases
-                .as_ref()
-                .and_then(|cases| cases.observe(atom))
+            program
+                .static_type_predicate_value_in(atom, exit_return_expression(program, exit))
                 .or_else(|| {
-                    // A current predicate can be known without fixing its scalar
-                    // operands to single values. Use the same exit premises as the
-                    // whole-contract prover; failed search never supplies false.
-                    // Each atom uses the same return and current-value
-                    // judgments. Proving only whole expressions with these
-                    // owners loses facts when a contract combines a returned
-                    // value equation with an independently observed guard.
-                    (evaluator.proves_boolean_result(atom) == Some(true)
-                        || evaluator.proves_immutable_result_comparison(atom)
-                        || evaluator.proves_return_arithmetic(atom)
-                        || evaluator.proves_result_field_equality(atom)
-                        || evaluator.proves_result_collection_length(atom)
-                        || evaluator.write_transported_equality(atom))
-                    .then_some(true)
-                    .or_else(|| evaluator.current_predicate(atom))
+                    cases
+                        .as_ref()
+                        .and_then(|cases| cases.observe(atom))
+                        .or_else(|| {
+                            // A current predicate can be known without fixing its scalar
+                            // operands to single values. Use the same exit premises as the
+                            // whole-contract prover; failed search never supplies false.
+                            // Each atom uses the same return and current-value
+                            // judgments. Proving only whole expressions with these
+                            // owners loses facts when a contract combines a returned
+                            // value equation with an independently observed guard.
+                            (evaluator.proves_boolean_result(atom) == Some(true)
+                                || evaluator.proves_immutable_result_comparison(atom)
+                                || evaluator.proves_return_arithmetic(atom)
+                                || evaluator.proves_result_field_equality(atom)
+                                || evaluator.proves_result_collection_length(atom)
+                                || evaluator.write_transported_equality(atom))
+                            .then_some(true)
+                            .or_else(|| evaluator.current_predicate(atom))
+                        })
                 })
         },
     ) == Some(ScalarValue::Boolean(true))

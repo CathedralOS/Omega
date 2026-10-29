@@ -276,7 +276,9 @@ pub(super) fn expression_reads_overlapping_place(
             .struct_fields(struct_literal.fields)
             .iter()
             .any(|field| recurse(field.value)),
-        typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            false
+        }
     }
 }
 
@@ -402,7 +404,7 @@ fn assembly_fact_is_proven(
                 );
             }
             membership.semantic_domain.is_valid() && contexts.iter().any(|context| facts.semantic.context_view(facts.semantic.contexts.get(*context)).facts().any(|candidate| {
-                matches!(candidate.payload, facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) if domain_symbol == membership.domain_symbol && semantic_domain == membership.semantic_domain)
+                matches!(candidate.payload, facts::domain_membership_pattern!(domain_symbol, semantic_domain) if domain_symbol == membership.domain_symbol && semantic_domain == membership.semantic_domain)
                 && candidate.place.as_place().and_then(|handle| crate::flow::canonical_place_from_semantic_place(program, &facts.semantic, facts.semantic.places.get(handle))).is_some_and(|candidate| candidate == place)
             }))
         }

@@ -4,7 +4,7 @@
 //! residences. Every argument is a sealed recipe's original allocation. Only
 //! after normal return does the adapter observe those same bytes on FD 3.
 
-use super::{ReceiverStorage, install_entry_text, invalid, recipe_index_for_runtime_position};
+use super::{HostedEntryStorage, install_entry_text, invalid, recipe_index_for_runtime_position};
 use diagnostics::Diagnostic;
 use object_file::{ObjectPlan, ObjectSymbolHandle};
 
@@ -55,9 +55,9 @@ fn receiver_form(target: target::NativeTarget) -> Option<ReceiverForm> {
 
 pub(crate) fn prepare(
     artifact: &crate::ObjectArtifact,
-    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
     object: ObjectPlan,
-    storage: ReceiverStorage,
+    storage: HostedEntryStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
     let invalid = || invalid(artifact.target);
     let form = receiver_form(artifact.target).ok_or_else(invalid)?;
@@ -67,12 +67,11 @@ pub(crate) fn prepare(
     words.extend([0x9100_03ea, 0xa900_792a]); // SP/LR -> exact scratch.
     address(&mut words, &mut addresses, 10, storage.stack_top);
     words.push(0x9100_015f); // Switch before any callee spill.
-    for (recipe, symbol) in private_entry_ram.iter().zip(&storage.private_ram) {
+    for (recipe, symbol) in recipes.iter().zip(&storage.private_ram) {
         initialize(&mut words, &mut addresses, *symbol, recipe.contents());
     }
-    for ordinal in 0..private_entry_ram.len() {
-        let index =
-            recipe_index_for_runtime_position(private_entry_ram, ordinal).ok_or_else(invalid)?;
+    for ordinal in 0..recipes.len() {
+        let index = recipe_index_for_runtime_position(recipes, ordinal).ok_or_else(invalid)?;
         if ordinal >= 8 {
             return Err(invalid());
         }
@@ -96,7 +95,7 @@ pub(crate) fn prepare(
         return Err(invalid());
     }
     words.push(0x9400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff));
-    for ((recipe, original), header) in private_entry_ram
+    for ((recipe, original), header) in recipes
         .iter()
         .zip(&storage.private_ram)
         .zip(&storage.observation_headers)

@@ -105,7 +105,16 @@ impl TypedTreeTables {
                         receiver,
                         target: call.target.clone(),
                         static_requirement_dispatch,
-                        machine_arguments: call.machine_arguments.clone(),
+                        machine_arguments: call
+                            .machine_arguments
+                            .iter()
+                            .map(|argument| {
+                                self.expression_table.copy_static_argument_from(
+                                    &source_tables.expression_table,
+                                    argument,
+                                )
+                            })
+                            .collect(),
                         arguments,
                         evidence_arguments: call.evidence_arguments.clone(),
                         operational_acknowledgement: call.operational_acknowledgement,
@@ -256,9 +265,17 @@ impl TypedTreeTables {
                     current.receiver_symbol = remapped(current.receiver_symbol, symbols);
                     current.receiver_root_symbol = remapped(current.receiver_root_symbol, symbols);
                     current.target_symbol = remapped(current.target_symbol, symbols);
-                    for argument in &mut current.machine_arguments {
-                        argument.remap_symbols(symbols);
+                    let mut arguments = std::mem::take(&mut current.machine_arguments);
+                    for argument in &mut arguments {
+                        self.expression_table
+                            .remap_static_argument_symbols(argument, symbols);
                     }
+                    let StatementNode::Call(current) =
+                        self.statement_table.statements.get_mut(handle)
+                    else {
+                        unreachable!();
+                    };
+                    current.machine_arguments = arguments;
                 }
                 StatementNode::Expression(expression) => {
                     self.expression_table.remap_symbols_in(expression, symbols);

@@ -7,7 +7,7 @@ use crate::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
     selection: SourceSelection,
@@ -31,7 +31,7 @@ pub struct SourceMap {
 /// Backing coordinates survive across requests; activation does not. Ordinary
 /// source maps select every appended file. A lineage fork selects only files
 /// admitted again for that compilation, without deleting historical payloads.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 enum SourceSelection {
     #[default]
     All,
@@ -42,7 +42,7 @@ enum SourceSelection {
 /// retains bytes and custody, never active imports or dependency authority.
 /// Requests borrow it only while admitting a source frontier; their maps remain
 /// immutable snapshots once passed to the language pipeline.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, compiler_storage::Record)]
 pub struct SourceCatalogue {
     backing: SourceMap,
 }
@@ -623,6 +623,26 @@ impl SourceMap {
             SourceResolutionStratum::DependencyActivationExtension => {
                 reference.resolution_stratum != SourceResolutionStratum::Base
                     || !same_package_files(reference, declaration)
+            }
+        }
+    }
+
+    /// Temporal visibility for a retained completed-Build package scope.
+    /// The immutable package output supplies this coordinate, never a caller's
+    /// fabricated SourceId. Own generated outputs remain unavailable to Base.
+    pub fn captured_reference_can_see_stratum(
+        package: PackageKeyIdentity,
+        stratum: SourceResolutionStratum,
+        declaration: &SourceFile,
+    ) -> bool {
+        match declaration.resolution_stratum {
+            SourceResolutionStratum::Base => true,
+            SourceResolutionStratum::CurrentActivationExtension => {
+                stratum == SourceResolutionStratum::CurrentActivationExtension
+            }
+            SourceResolutionStratum::DependencyActivationExtension => {
+                stratum != SourceResolutionStratum::Base
+                    || declaration.package_identity != Some(package)
             }
         }
     }

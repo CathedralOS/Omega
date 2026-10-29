@@ -10,14 +10,18 @@ mod admission;
 mod context;
 mod identities;
 mod product_requests;
+mod retained_selections;
 mod selection;
+pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
 
 use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
-pub use product_requests::{collect_product_provider_selections, form_product_provider_request};
+pub use product_requests::{
+    collect_product_provider_selections, validate_product_provider_description,
+};
 pub use selection::{
     CompositionMode, ProviderOperatorFamilySelection, ProviderSelection, ProviderSelectionIdentity,
     ProviderSelectionSubject,
@@ -258,6 +262,8 @@ fn collect_provider_selections<'a>(
                     argument.symbol
                 };
                 ProviderSelectionIdentity {
+                    application: Default::default(),
+                    application_identity: None,
                     symbol,
                     package: typed.symbols.symbol_package_identity(symbol),
                     canonical_path: typed.symbols.display_path(symbol, "::"),
@@ -283,14 +289,26 @@ fn collect_provider_selections<'a>(
                 return;
             }
         };
+        let origin = match language_semantics::declaration_selection::BuildSelectionOrigin::capture(
+            &typed.symbols,
+            machine,
+            machine,
+            source_span,
+            None,
+        ) {
+            Ok(origin) => origin,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason).with_source_span(source_span));
+                return;
+            }
+        };
         match admission::admit(
             context,
             boundary_identity,
             provider_type,
             composition_mode,
             None,
-            machine,
-            source_span,
+            origin,
             &selections,
         ) {
             Ok(selection) => selections.push(selection),

@@ -181,6 +181,9 @@ pub(super) fn expression_label(
         typed_trees::expression::ExpressionNode::StructLiteral(literal) => struct_label(literal),
         typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
         typed_trees::expression::ExpressionNode::Unary(unary) => unary_label(unary, render),
+        typed_trees::expression::ExpressionNode::TypeExpression(type_reference) => {
+            program.display_type_reference(*type_reference).to_string()
+        }
         typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
             "zero_value<{}>()",
             program.display_type_reference(*type_reference)

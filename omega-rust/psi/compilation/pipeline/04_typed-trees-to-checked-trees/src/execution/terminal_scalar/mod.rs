@@ -147,6 +147,41 @@ pub(super) fn checked_terminator(
 ) -> Option<CheckedScalarStateTerminator> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let terminator_ordinal = u32::try_from(binding_count).ok()?;
+    // Checking forms every canonical arm. Execution retains only the selected
+    // edge when its guard is a closed static proposition, keeping the original
+    // statement coordinate and its checked value/custody records.
+    for (index, statement) in statements.iter().enumerate().skip(binding_count) {
+        let StatementNode::Transition(transition) = statement else {
+            break;
+        };
+        let selected = match transition.guard {
+            TransitionGuardNode::Always => true,
+            TransitionGuardNode::When(guard) => match program.static_boolean_value(guard) {
+                Some(value) => value,
+                None => break,
+            },
+        };
+        if !selected {
+            continue;
+        }
+        if transition.continuation.is_valid() {
+            break;
+        }
+        let ordinal = u32::try_from(index).ok()?;
+        return match checked_branch_destination(program, machine, ordinal, transition, false)? {
+            CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation: false,
+            } => Some(CheckedScalarStateTerminator::Return { statement_ordinal }),
+            CheckedScalarBranchDestination::Crash { statement_ordinal } => {
+                Some(CheckedScalarStateTerminator::Crash { statement_ordinal })
+            }
+            CheckedScalarBranchDestination::Jump(successor) => {
+                Some(CheckedScalarStateTerminator::Jump(successor))
+            }
+            _ => None,
+        };
+    }
     let reachable =
         typed_trees::statement::reachable_transition_prefix(&statements[binding_count..]);
     Some(match reachable {

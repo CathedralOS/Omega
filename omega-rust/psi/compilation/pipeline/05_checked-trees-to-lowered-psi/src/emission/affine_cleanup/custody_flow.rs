@@ -52,7 +52,12 @@ fn edge_effects(
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .map(|edge| (&[][..], edge.cleanup_actions.as_slice()))
+            .map(|edge| {
+                (
+                    edge.structural_arguments.as_slice(),
+                    edge.cleanup_actions.as_slice(),
+                )
+            })
             .collect(),
         _ => Vec::new(),
     };
@@ -202,8 +207,7 @@ pub(super) fn solve(
         .enumerate()
         .map(|(index, &place)| (place, index))
         .collect();
-    let mut births_by_op: HashMap<OperationId, Vec<PlaceId>> =
-        HashMap::with_capacity(births.len());
+    let mut births_by_op: HashMap<OperationId, Vec<PlaceId>> = HashMap::with_capacity(births.len());
     for &(place, op) in births {
         births_by_op.entry(op).or_default().push(place);
     }

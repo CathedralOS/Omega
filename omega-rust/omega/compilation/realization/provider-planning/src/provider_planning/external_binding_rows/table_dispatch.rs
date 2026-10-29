@@ -20,9 +20,10 @@ pub(super) fn field_offset(
     let machine_symbol = provenance
         .row_realizations
         .get(row)
+        .and_then(crate::ProviderRowRealization::authored)
         .ok_or("table row lost its selected realization")?;
     let machine = typed
-        .machine_by_symbol(*machine_symbol)
+        .machine_by_symbol(machine_symbol)
         .ok_or("table row has no selected source machine")?;
     let table = machine.attached_data_symbol;
     let definition = typed

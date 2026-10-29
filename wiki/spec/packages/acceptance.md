@@ -16,6 +16,18 @@ accepted semantic bindings and compiler input identity, and explicit project
 decisions. Dependency rows do not contain package-asserted trusted
 capability manifests.
 
+Under `staged-build-capability-attenuation` (2026-10-28), keep three roles
+separate: Build code requests dependencies/providers and may add restrictions;
+the lock retains reviewed decisions and exact accepted meaning; the invocation
+supplies actual capabilities and backing. A source restriction does not grant
+an operation, and acceptance is neither a capability nor a policy program.
+Large authored policies may be ordinary selected/imported modules without
+allowing a package to approve its own request. Check each reached stage before
+its restricted effects, retaining its exact dependency and delegated-context
+identity. Different filesystem views cannot reuse an execution merely because
+the package or requested reach is the same. Ordinary receiver/deployment policy
+remains an independent admission boundary.
+
 The project trusts whoever edits and lands its lock. Parsing, content checks,
 graph validation, and transaction consistency detect malformed state, wrong
 inputs, and races; they do not authenticate review against that person. A lock

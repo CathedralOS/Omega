@@ -11,7 +11,7 @@ For example:
 
 ```omega
 data Span
-where
+requires
     start <= end,
 {
     start: u32;

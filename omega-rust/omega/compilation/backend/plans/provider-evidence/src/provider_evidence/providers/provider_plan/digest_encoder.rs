@@ -51,7 +51,7 @@ pub(crate) trait DigestFeed {
     }
 }
 
-const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v4\0";
+const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v5\0";
 
 pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
 
@@ -83,7 +83,7 @@ impl ProviderPlanDigestEncoder {
 
     pub(crate) fn for_service_schema() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v4\0");
+        digest.update(b"omega.service-schema.sha256.v5\0");
         Self(digest, None)
     }
 
@@ -94,6 +94,7 @@ impl ProviderPlanDigestEncoder {
     pub(crate) fn receiver_applications(&mut self, schema: &super::ServiceSchema) {
         self.len(schema.receiver_applications.len());
         for application in &schema.receiver_applications {
+            self.string(schema.identity_text(application.application));
             self.string(schema.identity_text(application.trait_name));
             self.package_identity(application.trait_package_identity);
             self.len(application.argument_identities.len());
@@ -173,9 +174,9 @@ impl ProviderPlanDigestEncoder {
             self.len(claim.parameter_index);
             self.string(identities.text(claim.carrier_identity));
             self.string(&claim.domain);
-            self.byte(match claim.predicate_body {
-                language_semantics::DomainPredicateBody::Bodyless => 0,
-                language_semantics::DomainPredicateBody::Present => 1,
+            self.byte(match claim.predicate_presence {
+                language_semantics::DomainPredicatePresence::Absent => 0,
+                language_semantics::DomainPredicatePresence::Present => 1,
             });
             self.carry_policy(claim.effective_carry);
             self.byte(match claim.authority_flow {

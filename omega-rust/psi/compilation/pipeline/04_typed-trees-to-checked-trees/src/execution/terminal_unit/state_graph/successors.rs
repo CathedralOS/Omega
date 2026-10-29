@@ -50,11 +50,6 @@ pub(in crate::execution::terminal_unit) enum SuccessorGuard {
     ScalarArguments,
     ErasedArguments,
     ErasedProofArguments,
-    PendingInvocationSource,
-    PendingInvocationCustody,
-    PendingInvocationTarget,
-    PendingInvocationArguments,
-    PendingInvocationAmbiguity,
     EdgeCleanup,
 }
 
@@ -92,21 +87,6 @@ impl SuccessorEdge {
                     SuccessorGuard::ErasedArguments => guard_phase!($edge, "erased arguments"),
                     SuccessorGuard::ErasedProofArguments => {
                         guard_phase!($edge, "erased proof arguments")
-                    }
-                    SuccessorGuard::PendingInvocationSource => {
-                        guard_phase!($edge, "pending invocation source occurrence")
-                    }
-                    SuccessorGuard::PendingInvocationCustody => {
-                        guard_phase!($edge, "pending invocation source custody")
-                    }
-                    SuccessorGuard::PendingInvocationTarget => {
-                        guard_phase!($edge, "pending invocation executable target")
-                    }
-                    SuccessorGuard::PendingInvocationArguments => {
-                        guard_phase!($edge, "pending invocation authored arguments")
-                    }
-                    SuccessorGuard::PendingInvocationAmbiguity => {
-                        guard_phase!($edge, "ambiguous pending invocation source occurrence")
                     }
                     SuccessorGuard::EdgeCleanup => guard_phase!($edge, "edge cleanup"),
                 }
@@ -1175,7 +1155,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             .collect::<Option<Vec<_>>>()?;
     // The composed route mints full rosters through the one successor-plan
     // constructor; ordinary edges never select a continuation.
-    let mut successor = CheckedStructuralControlSuccessorPlan::new(
+    Some(CheckedStructuralControlSuccessorPlan::new(
         ordinal,
         target.symbol,
         false,
@@ -1184,72 +1164,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         erased_arguments,
         erased_proof_arguments,
         Vec::new(),
-    );
-    // Source permission scheduling retains the caller's frontier while a
-    // nonreturning terminal invocation remains pending. Recursive fusion
-    // changes its physical control edge, not that completion contract.
-    if let Some((invoked, _)) =
-        validation::terminal_callable_target(program, machine, arrival.target)
-        && invoked == target.symbol
-        && validation::normal_completion_possible(program, target) == Some(false)
-    {
-        mark(SuccessorGuard::PendingInvocationSource);
-        let flow = facts.flow.control.state(machine.symbol, source.symbol)?;
-        let mut calls = flow.calls.handles().filter(|handle| {
-            let call = facts.flow.control.calls.get(*handle);
-            call.statement_index == ordinal as usize
-                && !facts.flow.control.is_retired(source.symbol, call)
-                && validation::find_call_site(
-                    program,
-                    machine.symbol,
-                    source.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                )
-                .is_some_and(|site| site.completes_transition(program, transition.target))
-                && validation::transition_call_target(
-                    program,
-                    machine,
-                    source,
-                    call.statement_index,
-                    call.call_ordinal,
-                ) == Some(transition.target)
-        });
-        let selected = calls.next()?;
-        mark(SuccessorGuard::PendingInvocationAmbiguity);
-        if calls.next().is_some() {
-            return None;
-        }
-        let call = facts.flow.control.calls.get(selected);
-        mark(SuccessorGuard::PendingInvocationCustody);
-        if !call.authored_source_custody_valid {
-            return None;
-        }
-        mark(SuccessorGuard::PendingInvocationTarget);
-        // Flow retains the selected callable declaration, whereas the fused
-        // arrival names its executable state. Join through the same exact
-        // source-owner topology as ordinary terminal calls; do not rewrite
-        // the authored identity or normalize an unknown target into a match.
-        if call.authored_target != arrival.target
-            || !validation::terminal_callable_target(program, machine, call.target_symbol)
-                .is_some_and(|(entry, _)| entry == invoked)
-        {
-            return None;
-        }
-        mark(SuccessorGuard::PendingInvocationArguments);
-        if call.authored_expression != arrival.expression
-            || facts
-                .flow
-                .control
-                .call_arguments
-                .span(call.authored_arguments)
-                != Some(arrival.arguments)
-        {
-            return None;
-        }
-        successor.pending_source_invocation = selected;
-    }
-    Some(successor)
+    ))
 }
 
 /// Resolve a finite field/index path below an established source root.

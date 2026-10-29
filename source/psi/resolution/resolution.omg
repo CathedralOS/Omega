@@ -87,7 +87,6 @@ public data ValueBinding [copy] {
     case Local(statement: u64 in Trapping);
     case Parameter(parameter: u64 in Trapping);
     case PatternBinder(field: u64 in Trapping);
-    case State(handle: u64 in Trapping);
     case Machine(handle: u64 in Trapping);
     case Data(item: u64 in Trapping);
     case DataCase(item: u64 in Trapping, data_case: u64 in Trapping);
@@ -142,18 +141,14 @@ public data PathBinding [copy] {
 
 // The generic parameters a type name may bind: the enclosing declaration's
 // contiguous range of `SyntaxTrees::generic_parameters`, then, for a trait or
-// conformance member, its container's range. Exact lexical ancestors supply
-// static context between those tiers, never another invocation's values.
+// conformance member, its container's range, which the member's own shadow.
 public data TypeScope [copy] {
+    // Declaration handle plus one, never a runtime environment.
+    lexical_machine: u64 in Trapping;
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
     first_outer_parameter: u64 in Trapping;
     outer_parameter_count: u64 in Trapping;
-    // Exact ancestor declaration context, never an invocation environment.
-    has_lexical_parent: bool;
-    lexical_parent: u64 in Trapping;
-    has_machine: bool;
-    machine: u64 in Trapping;
 }
 
 // What the `in Domain` qualifier of a type reference denotes. A bare
@@ -176,8 +171,7 @@ public data DomainBinding [copy] {
 // machine's owner is its authored `Owner::`; a trait requirement or default
 // and a conformance member are named through their container (`Trait::name`,
 // `Conformance::name`), whose `SyntaxTrees::traits` or `conformances` handle
-// is `item`. Lexical ancestry is independent in MachineItem; overload
-// families, duplicates and callees compare both identities.
+// is `item`. Overload families, duplicates and callees compare these paths.
 public data MachineOwner [copy] {
     container: MachineContainer;
     item: u64 in Trapping;
@@ -202,7 +196,6 @@ public data ResolveDiagnosticCode [copy] {
     case UnknownDataType;
     case UnknownDomain;
     case DuplicateParameter;
-    case DuplicateState;
     case DuplicateMachine;
     case DuplicateGenericParameter;
     case UnknownName;
@@ -309,10 +302,6 @@ where
     // For each component of a lexicographic measure, by member handle, the
     // field handle of its owner it names, plus one; zero for none.
     component_fields: [u64; 32000];
-    // For each state parameter of a ranked machine, by parameter handle, the
-    // offset among its machine's entry parameters of the one of the same
-    // spelling, plus one; zero for none.
-    rank_carriers: [u64; 32768];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -653,8 +642,7 @@ crashes Trap
     }
 }
 
-// The offset of the entry parameter state parameter `parameter` carries,
-// plus one; zero for none or a parameter beyond the table.
+// The exact declared measure selected by this witness clause.
 public machine NameResolution::ranking_measure(resolution: &NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
     transition clause < 2048 {
         true -> read(resolution, clause)
@@ -720,42 +708,6 @@ crashes Trap
     requires member < 32000
     {
         resolution.component_fields[member] = bound as u64;
-    }
-
-    machine invalid() {
-        crash Trap;
-    }
-}
-
-public machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
-    transition parameter < 32768 {
-        true -> read(resolution, parameter)
-        _ -> none()
-    }
-
-    machine read(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping
-    requires parameter < 32768
-    {
-        resolution.rank_carriers[parameter] as u64 in Trapping
-    }
-
-    machine none() -> u64 in Trapping {
-        0
-    }
-}
-
-public machine NameResolution::set_rank_carrier(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
-crashes Trap
-{
-    transition parameter < 32768 {
-        true -> write(resolution, parameter, carried)
-        _ -> invalid()
-    }
-
-    machine write(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
-    requires parameter < 32768
-    {
-        resolution.rank_carriers[parameter] = carried as u64;
     }
 
     machine invalid() {

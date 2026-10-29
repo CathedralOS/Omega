@@ -46,6 +46,10 @@ pub(in crate::record) fn expression(
             case.validate_resolved()?;
         }
         Expression::ZeroValue(value) => value_type(value)?,
+        Expression::TypeEquality { left, right, .. } => {
+            value_type(left)?;
+            value_type(right)?;
+        }
         Expression::Array(elements) => {
             for element in elements {
                 expression(element, scope, nesting + 1)?;

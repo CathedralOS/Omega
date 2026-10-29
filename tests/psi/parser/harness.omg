@@ -106,8 +106,8 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR16`, version
-// 16, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR17`, version
+// 17, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
@@ -129,8 +129,8 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 54);
-    ParserHarness::write_u64(parser_harness, 16);
+    ParserHarness::write_byte(parser_harness, 55);
+    ParserHarness::write_u64(parser_harness, 17);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -199,12 +199,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedMachineReturnType -> parse_diagnostic(parser_harness, output, 46)
             ParseDiagnosticCode::ExpectedMachineBody -> parse_diagnostic(parser_harness, output, 47)
             ParseDiagnosticCode::ExpectedMachineBodyEnd -> parse_diagnostic(parser_harness, output, 48)
-            ParseDiagnosticCode::ExpectedStateName -> parse_diagnostic(parser_harness, output, 49)
-            ParseDiagnosticCode::ExpectedStateBody -> parse_diagnostic(parser_harness, output, 50)
-            ParseDiagnosticCode::ExpectedStateBodyEnd -> parse_diagnostic(parser_harness, output, 51)
             ParseDiagnosticCode::MachineCapacityExceeded -> parse_diagnostic(parser_harness, output, 52)
             ParseDiagnosticCode::ParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 53)
-            ParseDiagnosticCode::StateCapacityExceeded -> parse_diagnostic(parser_harness, output, 54)
             ParseDiagnosticCode::ExpectedOperand -> parse_diagnostic(parser_harness, output, 55)
             ParseDiagnosticCode::ExpectedExpressionPathMember -> parse_diagnostic(parser_harness, output, 56)
             ParseDiagnosticCode::ExpectedFieldName -> parse_diagnostic(parser_harness, output, 57)
@@ -289,7 +285,6 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136)
             ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137)
             ParseDiagnosticCode::ExpectedDomainEnd -> parse_diagnostic(parser_harness, output, 138)
-            ParseDiagnosticCode::ExpectedDomainBodyEnd -> parse_diagnostic(parser_harness, output, 139)
             ParseDiagnosticCode::DomainCapacityExceeded -> parse_diagnostic(parser_harness, output, 140)
             ParseDiagnosticCode::NamePathCapacityExceeded -> parse_diagnostic(parser_harness, output, 141)
             ParseDiagnosticCode::ExpectedConstantName -> parse_diagnostic(parser_harness, output, 142)
@@ -1015,8 +1010,7 @@ machine ParserHarness::write_parse_observation(
 // expression range, the visibility flag, the span, the target flag and span,
 // the boundary flag and the container tag (0 root, 1 trait, 2 conformance).
 // Parameter rows carry the name,
-// type-reference handle and span. State rows carry the name, parameter range,
-// return-type flag and handle, statement range and span.
+// type-reference handle and span. Every declaration uses the same machine row.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
 reaches Console
 crashes Trap
@@ -1046,8 +1040,7 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.clause_count);
         ParserHarness::write_u64(parser_harness, item.first_statement);
         ParserHarness::write_u64(parser_harness, item.statement_count);
-        ParserHarness::write_u64(parser_harness, item.first_state);
-        ParserHarness::write_u64(parser_harness, item.state_count);
+        ParserHarness::write_u64(parser_harness, item.parent);
         ParserHarness::write_flag(parser_harness, item.has_body);
         ParserHarness::write_u64(parser_harness, item.first_expression);
         ParserHarness::write_u64(parser_harness, item.expression_count);
@@ -1093,8 +1086,6 @@ crashes Trap
         ParserHarness::write_flag(parser_harness, item.every_requirement);
         ParserHarness::write_u64(parser_harness, item.first_component);
         ParserHarness::write_u64(parser_harness, item.component_count);
-        ParserHarness::write_flag(parser_harness, item.has_lexical_parent);
-        ParserHarness::write_u64(parser_harness, item.lexical_parent);
         transition { _ -> machine_row(parser_harness, output, index + 1) }
     }
 
@@ -1106,7 +1097,7 @@ crashes Trap
     machine parameter_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
         transition index < output.parameter_count {
             true -> write_parameter(parser_harness, output, index)
-            _ -> state_count(parser_harness, output)
+            _ -> bodies(parser_harness, output)
         }
     }
 
@@ -1118,42 +1109,15 @@ crashes Trap
         transition { _ -> parameter_row(parser_harness, output, index + 1) }
     }
 
-    machine state_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
-        ParserHarness::write_u64(parser_harness, output.state_count as u64 in Trapping);
-        transition { _ -> state_row(parser_harness, output, 0) }
-    }
-
-    machine state_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
-        transition index < output.state_count {
-            true -> write_state(parser_harness, output, index)
-            _ -> bodies(parser_harness, output)
-        }
-    }
-
     machine bodies(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_body_tables(parser_harness, output);
-    }
-
-    machine write_state(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
-        let item: StateItem = SyntaxTrees::state_item(output, index);
-        ParserHarness::write_source_span(parser_harness, item.name.source_span);
-        ParserHarness::write_u64(parser_harness, item.first_parameter);
-        ParserHarness::write_u64(parser_harness, item.parameter_count);
-        ParserHarness::write_flag(parser_harness, item.has_return_type);
-        ParserHarness::write_u64(parser_harness, item.return_type);
-        ParserHarness::write_u64(parser_harness, item.first_clause);
-        ParserHarness::write_u64(parser_harness, item.clause_count);
-        ParserHarness::write_u64(parser_harness, item.first_statement);
-        ParserHarness::write_u64(parser_harness, item.statement_count);
-        ParserHarness::write_source_span(parser_harness, item.source_span);
-        transition { _ -> state_row(parser_harness, output, index + 1) }
     }
 
     machine done() {}
 }
 
 
-// Body tables follow the states: expressions (kind and operator tags, left,
+// Executable body tables follow the declaration signatures: expressions (kind and operator tags, left,
 // right, range first and count, flag, name span, type-reference handle,
 // span; a Name's identifier is its name span and its range is zero, a Path's
 // range covers its members and its name span is zero), call arguments (expression handles), construction fields (name,

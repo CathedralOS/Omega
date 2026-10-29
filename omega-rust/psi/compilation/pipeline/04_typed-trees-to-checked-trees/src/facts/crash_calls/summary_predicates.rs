@@ -9,6 +9,78 @@ pub(crate) enum SummaryCrashRouteGuard {
     Predicate(SummaryCrashPredicate),
 }
 
+impl SummaryCrashRouteGuard {
+    fn conjunction(&self, other: &Self) -> Self {
+        let (left, right) = match (self, other) {
+            (Self::Truth, other) | (other, Self::Truth) => return other.clone(),
+            (Self::Predicate(left), Self::Predicate(right)) => (left, right),
+        };
+        if !left.builtin_meaning || !right.builtin_meaning {
+            // Each operand independently overapproximates their conjunction.
+            // A raw And tag cannot authenticate an authored operator's laws,
+            // so lose precision rather than forge a compound identity. Prefer
+            // the executable builtin predicate; otherwise retain a stable
+            // existing operand without reinterpreting either one's meaning.
+            let retained = match (left.builtin_meaning, right.builtin_meaning) {
+                (true, false) => left,
+                (false, true) => right,
+                (false, false) => std::cmp::min(left, right),
+                (true, true) => unreachable!("both builtin meanings passed the gate"),
+            };
+            return Self::Predicate(retained.clone());
+        }
+        if left == right {
+            let mut result = left.clone();
+            if result.scalar.is_none() {
+                result.scalar.clone_from(&right.scalar);
+            }
+            return Self::Predicate(result);
+        }
+        // Canonical conjunct order is independent of dependency visitation.
+        // Both annotations describe the same pure conjunction even when the
+        // identity's order differs; neither supplies a missing entry identity.
+        let mut pending = vec![&left.identity, &right.identity];
+        let mut conjuncts = Vec::new();
+        while let Some(identity) = pending.pop() {
+            if let CrashPredicateExpression::Binary {
+                operator,
+                left,
+                right,
+            } = identity
+                && *operator == typed_trees::expression::BinaryOperator::And as u8
+            {
+                pending.extend([left.as_ref(), right.as_ref()]);
+            } else {
+                conjuncts.push(identity.clone());
+            }
+        }
+        conjuncts.sort();
+        conjuncts.dedup();
+        let mut conjuncts = conjuncts.into_iter();
+        let first = conjuncts.next().expect("two predicates supply a conjunct");
+        let identity = conjuncts.fold(first, |left, right| CrashPredicateExpression::Binary {
+            operator: typed_trees::expression::BinaryOperator::And as u8,
+            left: Box::new(left),
+            right: Box::new(right),
+        });
+        let scalar = left
+            .scalar
+            .as_ref()
+            .zip(right.scalar.as_ref())
+            .map(
+                |(left, right)| checked_trees::CheckedBooleanExpression::And {
+                    left: Box::new(left.clone()),
+                    right: Box::new(right.clone()),
+                },
+            );
+        Self::Predicate(SummaryCrashPredicate {
+            identity,
+            builtin_meaning: left.builtin_meaning && right.builtin_meaning,
+            scalar,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct SummaryCrashPredicate {
     pub(crate) identity: CrashPredicateExpression,
@@ -306,6 +378,30 @@ impl SummaryCrashBucket {
         }
     }
 
+    /// Restrict every possible route by this invocation's own stable path.
+    /// Recursive widening happens before this operation, so it cannot erase
+    /// a local guard that all executions of that dependency must observe.
+    pub(crate) fn on_path(mut self, path: &SummaryCrashRouteGuard) -> Self {
+        self.alternative_guards = self
+            .alternative_guards
+            .iter()
+            .map(|route| route.conjunction(path))
+            .filter(|route| match route {
+                SummaryCrashRouteGuard::Truth => true,
+                SummaryCrashRouteGuard::Predicate(predicate) => {
+                    let value = if predicate.builtin_meaning {
+                        summary_boolean_value(&predicate.identity)
+                    } else {
+                        predicate.identity.boolean_value()
+                    };
+                    value != Some(false)
+                }
+            })
+            .collect();
+        normalize_summary_guards(&mut self.alternative_guards);
+        self
+    }
+
     /// Transport each referenced projection through the retained invocation.
     /// Private fixed-point propagation uses the same custody boundary as a
     /// direct call: a sibling write does not erase an untouched field, and an
@@ -518,9 +614,10 @@ pub(super) fn executable_entry_predicate(
             | Scalar::IntegerExactCast { operand, .. }
             | Scalar::RepresentationView { operand, .. } => scalar(operand),
             Scalar::Boolean(value) => executable_entry_predicate(value),
-            Scalar::ErasedParameter { .. } | Scalar::Local { .. } | Scalar::StorageRead { .. } => {
-                false
-            }
+            Scalar::ConstantApplication { .. }
+            | Scalar::ErasedParameter { .. }
+            | Scalar::Local { .. }
+            | Scalar::StorageRead { .. } => false,
         }
     }
     match expression {

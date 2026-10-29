@@ -207,7 +207,7 @@ pub struct DomainCandidateIndex {
 /// unrelated lookups from contending. Machine/state topology keys retain the
 /// arena revisions and full visible root span separately: shortening a roster
 /// must not cancel an arena mutation or hide a root generation change.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub struct DeclarationIndexes {
     machines: OwnedIndex<MachinePositionIndex, (u64, HandleSpan<machine::Machine>)>,
     states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,

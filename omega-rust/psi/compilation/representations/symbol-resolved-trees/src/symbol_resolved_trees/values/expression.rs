@@ -4,6 +4,7 @@
 //! expressions between tables.
 
 mod display;
+mod static_members;
 mod symbol_copies;
 mod table_copies;
 pub(crate) use table_copies::ExpressionSource;
@@ -32,7 +33,7 @@ pub type ExpressionHandle = Handle<ExpressionNode>;
 /// Arena dummy storage for an occurrence identity. `None` exists only to
 /// satisfy the arena's private dummy slot; expression spans contain only
 /// `Some` values inserted through `new`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 struct StoredAuthoredSelectionOccurrenceId(Option<AuthoredDeclarationSelectionOccurrenceId>);
 
 impl StoredAuthoredSelectionOccurrenceId {
@@ -46,13 +47,13 @@ impl StoredAuthoredSelectionOccurrenceId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ExpressionTable {
     nodes: ExpressionNodeStorage,
     spans: ExpressionSpanStorage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
     source_spans: Vec<SourceSpan>,
@@ -61,7 +62,7 @@ struct ExpressionNodeStorage {
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct ExpressionSpanStorage {
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<DiagnosticName>,
@@ -70,6 +71,7 @@ struct ExpressionSpanStorage {
     match_arms: Arena<TableMatchArm>,
     match_fields: Arena<TableMatchField>,
     match_subjects: Arena<MatchSubjectCapture>,
+    static_members: Arena<StaticMachineArgument>,
     match_proof_selectors: Arena<crate::statement::OutcomeProofSelector>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
 }
@@ -99,6 +101,34 @@ macro_rules! expression_node_accessors {
 }
 
 impl ExpressionTable {
+    pub fn insert_static_member(
+        &mut self,
+        member: StaticMachineArgument,
+    ) -> Handle<StaticMachineArgument> {
+        self.spans.static_members.insert(member)
+    }
+
+    pub fn static_member(
+        &self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&StaticMachineArgument> {
+        self.spans
+            .static_members
+            .is_valid(member)
+            .then(|| self.spans.static_members.get(member))
+    }
+
+    pub fn static_member_mut(
+        &mut self,
+        member: Handle<StaticMachineArgument>,
+    ) -> Option<&mut StaticMachineArgument> {
+        if self.spans.static_members.is_valid(member) {
+            Some(self.spans.static_members.get_mut(member))
+        } else {
+            None
+        }
+    }
+
     pub fn insert_match_arms(
         &mut self,
         arms: impl IntoIterator<Item = TableMatchArm>,
@@ -204,6 +234,7 @@ impl ExpressionTable {
                 match_arms: Arena::new(),
                 match_fields: Arena::new(),
                 match_subjects: Arena::new(),
+                static_members: Arena::new(),
                 match_proof_selectors: Arena::new(),
                 authored_selection_occurrence_ids: Arena::new(),
             },
@@ -223,6 +254,7 @@ impl ExpressionTable {
         self.spans.match_arms.reset_retain_capacity();
         self.spans.match_fields.reset_retain_capacity();
         self.spans.match_subjects.reset_retain_capacity();
+        self.spans.static_members.reset_retain_capacity();
         self.spans.match_proof_selectors.reset_retain_capacity();
         self.spans
             .authored_selection_occurrence_ids
@@ -621,7 +653,7 @@ impl Default for ExpressionTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
     /// Read one enclosing dispatch's completed subject, without evaluating
@@ -647,17 +679,20 @@ pub enum ExpressionNode {
     /// Exact decoded literal octets, including non-UTF-8 `\xNN` values.
     String(source::SourceBytes),
     Unary(TableUnaryExpression),
+    /// A source type operand. Only static type predicates consume it; it has
+    /// no runtime scalar or storage value.
+    TypeExpression(arena::Handle<crate::types::TypeReference>),
     /// Proof-only observation of a type's normalized all-zero home value.
     ZeroValue(arena::Handle<crate::types::TypeReference>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableBorrowExpression {
     pub target: ExpressionHandle,
     pub access: language_core::ReferenceAccess,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     /// Scalar observed-prior destination. Invalid for loads, stores and whole
@@ -673,20 +708,20 @@ impl Default for ExpressionNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableBinaryExpression {
     pub left: ExpressionHandle,
     pub operator: BinaryOperator,
     pub right: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableUnaryExpression {
     pub operator: UnaryOperator,
     pub operand: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     /// Root of the complete cast target in the program's child-type arena.
@@ -707,20 +742,20 @@ pub struct TableCastExpression {
     pub form: language_core::cast_form::CastForm,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableRangeExpression {
     pub start: ExpressionHandle,
     pub end: ExpressionHandle,
     pub end_inclusive: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMembershipExpression {
     pub value: ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
@@ -732,7 +767,7 @@ pub struct TableMembershipExpression {
     pub case_symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
@@ -743,7 +778,7 @@ pub struct TableMemberExpression {
     pub case_variant: Option<DiagnosticName>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableCallExpression {
     /// Original declaration correspondence certified by source resolution.
     pub authored_call_binding:
@@ -762,7 +797,7 @@ pub struct TableCallExpression {
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: arena::Handle<crate::types::TypeReference>,
@@ -778,19 +813,22 @@ pub struct StaticMachineArgument {
     pub symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticSymbolApplication {
+    /// Continuation selected after this exact applied owner, as in
+    /// `Owner<T>::member<U>`. Zero denotes no qualified continuation.
+    pub member: Handle<StaticMachineArgument>,
     pub lifetime_arguments: Box<[DiagnosticName]>,
     pub arguments: Box<[StaticMachineArgument]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct EvidenceProjection {
     pub term: DiagnosticName,
     pub member: DiagnosticName,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableNamePath {
     pub members: HandleSpan<DiagnosticName>,
     /// One exact declaration identity per authored path segment.
@@ -818,7 +856,7 @@ impl TableNamePath {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TableStructLiteral {
     pub type_name: DiagnosticName,
     pub type_symbol: SymbolHandle,
@@ -829,14 +867,14 @@ pub struct TableStructLiteral {
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TableStructLiteralField {
     pub name: DiagnosticName,
     pub field_symbol: SymbolHandle,
     pub value: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum BinaryOperator {
     Add,
     And,
@@ -886,39 +924,39 @@ impl BinaryOperator {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum UnaryOperator {
     BitwiseNot,
     LogicalNot,
 }
 
 /// Ordered value dispatch. The subject is evaluated once before testing arms.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
     pub capture: Handle<MatchSubjectCapture>,
     pub arms: HandleSpan<TableMatchArm>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MatchSubjectCapture {
     pub subject: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableSavedSubject {
     pub capture: Handle<MatchSubjectCapture>,
     pub pattern_head: ExpressionHandle,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchArm {
     pub pattern: MatchPattern,
     pub value: ExpressionHandle,
     pub source_span: SourceSpan,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MatchPattern {
     Value(ExpressionHandle),
     Destructure(TableDestructurePattern),
@@ -926,7 +964,7 @@ pub enum MatchPattern {
     Wildcard,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableDestructurePattern {
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,
@@ -938,14 +976,14 @@ pub struct TableDestructurePattern {
     pub proof_selectors: HandleSpan<crate::statement::OutcomeProofSelector>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchField {
     pub member: DiagnosticName,
     pub field_symbol: SymbolHandle,
     pub action: MatchFieldAction,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum MatchFieldAction {
     Bind(DiagnosticName),
     Equal(ExpressionHandle),

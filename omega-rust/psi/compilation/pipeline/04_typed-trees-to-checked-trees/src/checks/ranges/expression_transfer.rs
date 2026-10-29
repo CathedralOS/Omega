@@ -238,7 +238,7 @@ fn expression_has_effect_at_depth(
                     next,
                 )
             }),
-        typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }
 
@@ -545,7 +545,7 @@ impl ExpressionTransfer<'_, '_> {
                     self.transfer(facts, field.value, sink);
                 }
             }
-            typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
         }
     }
 }

@@ -3,7 +3,7 @@
 use crate::{ScalarQualificationSetId, ScalarType};
 
 /// Scalar payload shape and immutable canonical membership set coordinate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct QualifiedScalarType {
     pub scalar_type: ScalarType,
     pub qualifications: ScalarQualificationSetId,

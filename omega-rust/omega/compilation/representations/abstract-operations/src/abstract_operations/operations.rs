@@ -1003,8 +1003,7 @@ impl AbstractOperation {
     }
 
     /// The owned structural transfer through `edge`: the successor target
-    /// and its bound structural arguments. Case successors bind scalar
-    /// payloads only, so they transfer nothing owned through this query.
+    /// and its bound structural arguments, independent of scalar payload capture.
     pub fn owned_transfer(
         &self,
         edge: EdgeId,
@@ -1022,6 +1021,10 @@ impl AbstractOperation {
                 ..
             } => [when_true, when_false]
                 .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
                 .find(|successor| successor.psi_edge == edge)
                 .map(|successor| (successor.target, successor.structural_bindings.as_slice())),
             _ => None,
@@ -1154,7 +1157,6 @@ impl AbstractOperation {
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
             | Self::StructuralCaseMembership { path, .. }
-            | Self::StructuralCase { path, .. }
             | Self::StructuralByteSequenceFieldByteStore { path, .. }
             | Self::StructuralByteSequenceFieldStore { path, .. }
             | Self::StructuralByteViewFieldStore { path, .. }
@@ -1215,6 +1217,13 @@ impl AbstractOperation {
                 .iter()
                 .chain(&when_false.structural_bindings)
                 .map(|binding| binding.argument.path.as_slice())
+                .collect(),
+            Self::StructuralCase { path, cases, .. } => std::iter::once(path.as_slice())
+                .chain(cases.iter().flat_map(|case| {
+                    case.structural_bindings
+                        .iter()
+                        .map(|binding| binding.argument.path.as_slice())
+                }))
                 .collect(),
             Self::EstablishReference { source, .. }
             | Self::EstablishPlacedReference { source, .. }

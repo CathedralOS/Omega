@@ -208,6 +208,7 @@ fn expression_children(
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
     Ok(children)
@@ -1098,21 +1099,23 @@ impl<'program> Collector<'program> {
                 }
                 let site = validation::CallSite::Expression { expression, call };
                 let mut selections = Vec::new();
-                for occurrence in table.authored_selection_occurrences(expression) {
+                for occurrence in call.authored_call_selection.iter().copied() {
+                    if !table
+                        .authored_selection_occurrences(expression)
+                        .any(|retained| retained == occurrence)
+                    {
+                        return Err(
+                            "constant call lost its source-owned Call occurrence attachment".into(),
+                        );
+                    }
                     let Some(selection) = program.authored_declaration_selections().get(occurrence)
                     else {
                         return Err("constant call lost an attached authored selection".into());
                     };
                     if selection.kind() != Kind::Call {
-                        continue;
-                    }
-                    // A retained recipe root also carries its transitive
-                    // authored inventory. Only this expression's own source
-                    // point annotates its call; nested occurrences are checked
-                    // when their exact helper or dependency is traversed.
-                    let reference = selection.source_span();
-                    if reference != table.source_span(expression) {
-                        continue;
+                        return Err(
+                            "constant call occurrence has a different selection role".into()
+                        );
                     }
                     let Some(target) = selection
                         .target()

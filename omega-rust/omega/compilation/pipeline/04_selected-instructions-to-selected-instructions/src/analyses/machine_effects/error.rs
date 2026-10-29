@@ -11,5 +11,3 @@ pub enum MachineEffectStageError {
 }
 
 failed_display!(MachineEffectStageError, "machine-effect analysis failed");
-
-impl std::error::Error for MachineEffectStageError {}

@@ -1,6 +1,6 @@
 //! Complete selected-provider policy captured from live checked associations.
 
-mod bindings;
+pub(crate) mod bindings;
 mod families;
 mod rows;
 
@@ -28,7 +28,21 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = input.into();
+    let projected = input
+        .external_providers
+        .is_none()
+        .then(|| input.project_external_providers())
+        .transpose()?;
+    let services = input
+        .service_declarations
+        .is_none()
+        .then(|| input.project_service_declarations());
+    let compilation = &PackageReviewInput {
+        service_declarations: input.service_declarations.or(services.as_ref()),
+        external_providers: input.external_providers.or(projected.as_ref()),
+        ..input
+    };
     let selected_execution = compilation.custody.execution();
     let mut plans = selected_execution
         .selected_provider_provenance
@@ -40,6 +54,10 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         })
         .collect::<Result<Vec<_>, _>>()?;
     plans.sort_by(|(_, left), (_, right)| left.compare_canonical(right));
+    // Row-local substitution checks cannot justify a circular collection of
+    // mutually asserted rows. Require grounded checked dependency paths before
+    // publishing the complete selected-provider policy.
+    super::installation::validate_installation_dependency_order(compilation)?;
     let families = families::project(compilation, target, &plans)?;
     let projected_installation_reaches = plans
         .iter()
@@ -104,6 +122,15 @@ fn project_plan(
             &plan.name,
             "provider type",
         )?,
+        None if matches!(
+            retained.selected_by,
+            provider_planning::ProviderSelectionProvenance::NativeBuild
+        ) && !plan.rows.is_empty()
+            && retained
+                .provider
+                .row_realizations
+                .iter()
+                .all(|row| row.native().is_some()) => {}
         None if plan.provider_type_package_identity.is_none()
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),

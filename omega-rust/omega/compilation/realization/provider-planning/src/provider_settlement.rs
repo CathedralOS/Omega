@@ -189,6 +189,7 @@ fn mint_toolchain_settled_plan(
         ),
         provider_type: provider.to_owned(),
         provider_type_package_identity: None,
+        provider_application: Default::default(),
         target: target_name.to_owned(),
         schema,
         rows,
@@ -223,7 +224,7 @@ pub struct SettledTargetMachineDeclarations {
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
-    pub settlement: ProviderSettlement,
+    pub settlement: ProviderSettlement<crate::UnpreparedProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
 }
@@ -232,9 +233,7 @@ pub struct CheckedProviderSelection {
 /// trust replay and native realization. Candidate plans stay separate from the
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderSettlement {
-    /// Exact direct boundary candidates; only native execution demand selects them.
-    pub direct_boundary_leaves: Vec<crate::DirectBoundaryCandidate>,
+pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -247,7 +246,11 @@ pub struct ProviderSettlement {
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     /// Every derived candidate plan plus toolchain-settled plans; trust
     /// replays each selected plan against exactly one of these.
-    pub provider_plans: Vec<ProviderPlan>,
+    pub provider_candidates: Vec<crate::ProviderPlanCandidate<Rows>>,
+    /// Complete authored native candidates, including private/unselected rows.
+    /// Package output and audit use this inventory, never runtime demand as an
+    /// excuse to discard a declared foreign promise.
+    pub native_build_plans: Vec<crate::DerivedProviderPlan>,
     /// Complete ordinary-`via` evaluation population, including leaves not
     /// selected for this executable. Backend lowering reads only the imports
     /// installed in provider plans.
@@ -267,7 +270,48 @@ pub struct ProviderSettlement {
         Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
-impl ProviderSettlement {
+impl ProviderSettlement<crate::UnpreparedProviderRows> {
+    /// Close declaration facts against the finalized source snapshot, after
+    /// target constant/layout closure and before source-free leaf completion.
+    pub fn prepare_row_declarations(
+        self,
+        typed: &TypedTrees,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<ProviderSettlement, Vec<Diagnostic>> {
+        let Self {
+            planning_target_profile,
+            boundary_calling_plan_realizations,
+            component_calling_applications,
+            provider_candidates,
+            native_build_plans,
+            evaluated_via_bindings,
+            external_binding_rows,
+            independent_component_descriptions,
+            verified_independent_components,
+        } = self;
+        let mut prepared = Vec::with_capacity(provider_candidates.len());
+        for candidate in provider_candidates {
+            prepared.push(
+                candidate
+                    .prepare_row_declarations(typed, exact_toolchain_sources)
+                    .map_err(|diagnostic| vec![diagnostic])?,
+            );
+        }
+        Ok(ProviderSettlement {
+            planning_target_profile,
+            boundary_calling_plan_realizations,
+            component_calling_applications,
+            provider_candidates: prepared,
+            native_build_plans,
+            evaluated_via_bindings,
+            external_binding_rows,
+            independent_component_descriptions,
+            verified_independent_components,
+        })
+    }
+}
+
+impl<Intrinsic> ProviderSettlement<Intrinsic> {
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.
@@ -393,6 +437,7 @@ fn demanded_provider_plans(
                         selection.subject.selects_schema(
                             candidate.provenance.schema.symbol(),
                             candidate.plan.identity_text(row.requirement_identity),
+                            candidate.plan.schema.root_application_identity(),
                         )
                     })
                 })
@@ -409,6 +454,7 @@ pub fn settle_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
+    native_supplies: &[crate::native_bindings::NativeBuildSupply],
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
@@ -428,19 +474,30 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
+    let mut evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
         checked,
         source::DependencyScope::Product,
         planning_target,
         package_inputs,
     )?;
-    let derived_provider_plans = derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
+    let mut derived_provider_plans =
+        derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
+            context,
+            &boundary_calling_plan_realizations,
+            target_name,
+            &evaluated_via_bindings,
+            &settled_target_machines.origins,
+        ))?;
+    let mut identities = evaluated_via_bindings.identities().clone().into_builder();
+    let native_build_plans = crate::native_bindings::derive(
         context,
         &boundary_calling_plan_realizations,
-        target_name,
-        &evaluated_via_bindings,
-        &settled_target_machines.origins,
-    ))?;
+        native_supplies,
+        planning_target,
+        &mut identities,
+    )?;
+    derived_provider_plans.extend(native_build_plans.iter().cloned());
+    evaluated_via_bindings.retain_extended_identities(identities.build())?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
             checked,
@@ -452,18 +509,17 @@ pub fn settle_checked_providers(
         &target_provider_defaults,
         build_provider_selections,
     )?;
-    let direct_boundary_leaves = crate::provider_planning::direct_boundary_leaves::derive(
+    let direct_context = crate::provider_planning::external_binding_rows::ExternalBindingContext {
+        selected_target: target_name,
+        native_target: provider_selection_target,
+        boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
         typed,
-        &derived_provider_plans,
-        target_name,
-        provider_selection_target,
-        &boundary_calling_plan_realizations,
         opaque_representation_selections,
-    )?;
-    let mut provider_plans = derived_provider_plans
-        .iter()
-        .map(|derived| derived.plan.clone())
-        .collect::<Vec<_>>();
+    };
+    let mut provider_candidates = derived_provider_plans
+        .into_iter()
+        .map(|source| crate::provider_planning::provider_rows::prepare(source, &direct_context))
+        .collect::<Result<Vec<_>, _>>()?;
     // The canonical `FilesystemHost` slot admits no authored conformance or
     // selection row; the toolchain mints the per-target realization plan
     // itself. It joins extraction, fused-service erasure, closure facts, the
@@ -504,7 +560,7 @@ pub fn settle_checked_providers(
         &selected_semantic_plans,
         &selected_provider_plans
             .iter()
-            .map(|selected| selected.derived.clone())
+            .map(|selected| &selected.derived)
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         typed,
@@ -530,7 +586,10 @@ pub fn settle_checked_providers(
         checked,
         &mut selected_provider_provenance,
         target_name,
-        &derived_provider_plans,
+        &provider_candidates
+            .iter()
+            .filter_map(crate::ProviderPlanCandidate::derived)
+            .collect::<Vec<_>>(),
     )?;
     if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
         semantic_roles::validate_proposed(typed, &selected_provider_provenance)?;
@@ -562,7 +621,7 @@ pub fn settle_checked_providers(
                     provider_type: None,
                     row_requirements: minted.requirement_symbols,
                     row_realizations: vec![
-                        symbols::SymbolHandle::invalid();
+                        crate::ProviderRowRealization::Toolchain;
                         minted.plan.rows.len()
                     ],
                     row_target_machine_origins: vec![None; minted.plan.rows.len()],
@@ -576,7 +635,7 @@ pub fn settle_checked_providers(
         // The trust report replays every selected plan against exactly one
         // retained candidate; the toolchain-settled plan is a real retained
         // candidate for the slot even though no package authored it.
-        provider_plans.push(minted.plan);
+        provider_candidates.push(crate::ProviderPlanCandidate::toolchain(minted.plan));
     }
     for assumption in assumed_bindings {
         let signature = |symbol| {
@@ -766,11 +825,11 @@ pub fn settle_checked_providers(
         )?;
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
-            direct_boundary_leaves,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             component_calling_applications,
-            provider_plans,
+            provider_candidates,
+            native_build_plans,
             evaluated_via_bindings,
             external_binding_rows,
             verified_independent_components: independent_components

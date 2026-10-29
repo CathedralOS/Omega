@@ -26,8 +26,7 @@ pub(crate) fn validate_formation(
     let environment = crate::proof_contracts::arithmetic_domains::requires_value_environment(
         program, caller, state,
     );
-    let mut decisions = crate::proof_contracts::arithmetic_domains::ArithmeticDecisions::default();
-    crate::proof_contracts::arithmetic_domains::validate_value_range_retaining_decisions(
+    crate::proof_contracts::arithmetic_domains::validate_value_range_retaining_obligations(
         program,
         caller,
         Some(state),
@@ -37,9 +36,8 @@ pub(crate) fn validate_formation(
         program.arithmetic_domain_for_type_reference(expected),
         owner,
         diagnostics,
-        &mut decisions,
+        formation_obligations,
     );
-    formation_obligations.extend(decisions.integer_range_obligations);
     let anonymous_integer = program
         .primitive_type_reference(expected)
         .is_some_and(|primitive| primitive.accepts_integer_literal())

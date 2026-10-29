@@ -10,7 +10,9 @@ use std::hash::{Hash, Hasher};
 /// One normalized transfer-container fragment. Every coordinate is in bits
 /// except the container's byte offset; semantic width comes from the field,
 /// not from whichever fragment happens to have the highest source bit.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct AuthoredBitFragment {
     pub container_byte_offset: u64,
     pub container_width_bits: u64,
@@ -23,7 +25,7 @@ pub struct AuthoredBitFragment {
 /// never allocation handles or arena generations. Sorting follows the layout
 /// normalizer's complete coordinate tuple; duplicate rows remain observable
 /// so an invalid recipe cannot become valid through silent deduplication.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct AuthoredBitFragments {
     storage: Arena<AuthoredBitFragment>,
     fragments: HandleSpan<AuthoredBitFragment>,
@@ -87,13 +89,13 @@ impl Hash for AuthoredBitFragments {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct AuthoredRecordStorage {
     pub byte_size: u64,
     pub byte_alignment: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AuthoredFieldStorage {
     Scalar {
         byte_offset: u64,

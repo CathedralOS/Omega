@@ -125,10 +125,11 @@ impl SelectedCleanup {
                 .map(|transfer| ownership.segments.span_or_empty(transfer.path).to_vec())
                 .collect::<Vec<_>>();
             for transfer in &selected_transfers {
-                let source_place = validation::CanonicalPlace {
-                    root: transfer.root,
-                    segments: ownership.segments.span_or_empty(transfer.path).to_vec(),
-                };
+                let source_place = crate::checks::places::place_or_root_in(
+                    &ownership.segments,
+                    transfer.root,
+                    transfer.path,
+                );
                 let (places, remaining, cut) = super::owned_selection::evaluated_source_custody(
                     ownership,
                     transfer.expression,
@@ -942,7 +943,7 @@ fn source_gap(
         program,
         event.machine_symbol,
         site,
-        checked_trees::CheckedUnitPlanGapReason::Unsupported(message),
+        checked_trees::CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(message)),
     )
 }
 

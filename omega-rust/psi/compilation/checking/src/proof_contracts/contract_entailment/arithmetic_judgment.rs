@@ -451,8 +451,12 @@ impl<'program> Engine<'program> {
                 | OpaqueTerm::ShiftLeft { .. }
                 | OpaqueTerm::Bitwise { .. } => Some(name.as_str()),
                 OpaqueTerm::Quotient { dividend, .. }
-                | OpaqueTerm::Remainder { modulus: dividend, .. }
-                | OpaqueTerm::ShiftRight { value: dividend, .. } => {
+                | OpaqueTerm::Remainder {
+                    modulus: dividend, ..
+                }
+                | OpaqueTerm::ShiftRight {
+                    value: dividend, ..
+                } => {
                     let interval = self.arithmetic_intervals.get(name.as_str())?;
                     let Some(low) = &interval.low else {
                         return Some(name.as_str());
@@ -462,9 +466,9 @@ impl<'program> Engine<'program> {
                     }
                     let upper_bound_poly = match term {
                         OpaqueTerm::Quotient { .. } => self.substituted(dividend),
-                        OpaqueTerm::Remainder { .. } | OpaqueTerm::ShiftRight { .. } => {
-                            self.substituted(dividend).sub(&Polynomial::constant(BigInt::from_i64(1)))
-                        }
+                        OpaqueTerm::Remainder { .. } | OpaqueTerm::ShiftRight { .. } => self
+                            .substituted(dividend)
+                            .sub(&Polynomial::constant(BigInt::from_i64(1))),
                         _ => unreachable!(),
                     };
                     let proves_upper_le_low = queries.prove_at_least(
@@ -1232,19 +1236,12 @@ impl<'program> Engine<'program> {
         if !self.selected_binary_meaning(fact, &binary) {
             return None;
         }
-        match binary.operator {
-            BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => {
-                let left = self.normalize(binary.left)?;
-                let right = self.normalize(binary.right)?;
-                Some((binary.operator, left, right))
-            }
-            _ => None,
+        if !binary.operator.is_comparison() {
+            return None;
         }
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        Some((binary.operator, left, right))
     }
 
     /// Normalize a TERM expression to a polynomial. `None` = outside the

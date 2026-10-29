@@ -37,7 +37,7 @@ pub enum PropositionBodySurface {
 pub struct DomainSurface {
     pub name: String,
     pub target_type: String,
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub fact_count: usize,
     pub membership_fact_count: usize,
     pub semantic_clause_token_count: usize,
@@ -96,7 +96,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 report.domains.insert(DomainSurface {
                     name: domain.name.as_str(syntax_trees).to_owned(),
                     target_type: type_reference_name(syntax_trees, domain.target_type),
-                    predicate_body: domain.predicate_body,
+                    predicate_presence: domain.predicate_presence,
                     fact_count: syntax_trees.items.proof_facts(domain.facts).len(),
                     membership_fact_count: syntax_trees
                         .items

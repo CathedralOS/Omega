@@ -72,6 +72,14 @@ impl SyntaxCopy<'_> {
             for nested in application.arguments.iter_mut() {
                 self.remap_static_machine_argument(other, nested);
             }
+            if application.member.is_valid() {
+                let member = other
+                    .expressions
+                    .static_member(application.member)
+                    .expect("qualified static member belongs to the copied syntax table");
+                let copied = self.copy_static_machine_argument(other, member);
+                application.member = self.expressions.insert_static_member(copied);
+            }
         }
     }
 

@@ -27,6 +27,8 @@ mod function_digest_tests;
 mod ordinary;
 mod register;
 
+pub use contracts::encode_memory_access;
+
 use crate::effects::program::identity::{encode_ids, encode_kind};
 use register_model::encode_constraint_key;
 

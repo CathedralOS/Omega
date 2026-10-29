@@ -5,7 +5,7 @@ use crate::encoding::encode::values::{
 };
 use crate::record::PackagePolicyProviderBinding;
 
-pub(super) fn binding(
+pub(in crate::encoding) fn binding(
     encoder: &mut Encoder,
     binding: &PackagePolicyProviderBinding,
 ) -> Result<(), PackageReviewEncodingError> {

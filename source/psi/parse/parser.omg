@@ -24,7 +24,6 @@ use psi::tokens::tokens;
 public data Parser
 where
     current_index <= 65535,
-    machine_depth <= 10240,
     expression_operand_depth <= 64,
     expression_operator_depth <= 64,
     expression_frame_depth <= 32,
@@ -96,12 +95,6 @@ where
     committed_type_count: u64 in Trapping;
     committed_lifetime_first: u64 in Trapping;
     committed_lifetime_count: u64 in Trapping;
-    // Open declaration indices, not invocation frames or captured bindings.
-    // Each own header and executable range is retained before descending.
-    machine_frames: [u64; 10240] in Trapping;
-    machine_depth: u64;
-    machine_index: u64 in Trapping;
-    completed_machine: u64 in Trapping;
     machine_start: u64 in Trapping;
     machine_is_public: bool;
     machine_has_target: bool;
@@ -124,7 +117,9 @@ where
     machine_clause_count: u64 in Trapping;
     machine_first_statement: u64 in Trapping;
     machine_statement_count: u64 in Trapping;
-    machine_first_state: u64 in Trapping;
+    machine_parent: u64 in Trapping;
+    machine_current: u64 in Trapping;
+    machine_result: u64 in Trapping;
     machine_generic_count: u64 in Trapping;
     machine_operator: OperatorToken;
     machine_token_start: u64 in Trapping;
@@ -239,7 +234,6 @@ public machine Parser::initialize(parser: &mut Parser) {
 // The unit `parse` appends next: its spans anchor to `source`, and its token
 // cursor starts over.
 machine Parser::begin_unit(parser: &mut Parser, source: SourceId, source_length: u64 in Trapping) {
-    parser.machine_depth = 0;
     parser.source = source;
     parser.source_length = source_length;
     Parser::initialize_cursor(parser);

@@ -835,8 +835,6 @@ pub enum LiteralFoldError {
 
 failed_display!(LiteralFoldError, "terminal literal fold failed");
 
-impl std::error::Error for LiteralFoldError {}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LiteralFoldDecodeError {
     Truncated,

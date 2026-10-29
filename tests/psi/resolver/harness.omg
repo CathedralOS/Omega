@@ -1,5 +1,5 @@
 // Gate-owned black-box name-resolution harness. The gate package's build root
-// binds `resolver_entry_start` as its own product entry; the product compiler
+// binds `ResolverHarness::main` as its own product entry; the product compiler
 // closure never includes it. Lexing and parsing run exactly as in the product;
 // their rejections exit without an observation, since the parser gate owns
 // those phases' observations.
@@ -12,18 +12,6 @@ use psi::resolve::resolver;
 use psi::source::source;
 
 public data ResolverHarness {
-}
-
-// Hosted entry supplies no context parameter. The harness owns its ordinary
-// context storage and lends that live local to the processing machine.
-public machine resolver_entry_start()
-reaches Console
-invokes Console;
-crashes Trap
-blocks;
-{
-    let mut resolver_harness: ResolverHarness;
-    block ResolverHarness::main(&mut resolver_harness);
 }
 
 // A little-endian `u32` read from the gate's input, or the input ending
@@ -44,6 +32,16 @@ data HarnessWord [copy] {
 // shared syntax tables in order, so its position is its `SourceId`; the
 // whole set then resolves. Malformed framing exits 253, and a set its
 // provisions cannot hold 252, without an observation.
+machine main()
+reaches Console
+invokes Console;
+crashes Trap
+blocks;
+{
+    let mut harness: ResolverHarness;
+    block ResolverHarness::main(&mut harness);
+}
+
 public machine ResolverHarness::main(resolver_harness: &mut ResolverHarness)
 reaches Console
 invokes Console;
@@ -474,7 +472,6 @@ crashes Trap
             ResolveDiagnosticCode::UnknownDataType -> diagnostic_tag(resolver_harness, output, 7)
             ResolveDiagnosticCode::UnknownDomain -> diagnostic_tag(resolver_harness, output, 8)
             ResolveDiagnosticCode::DuplicateParameter -> diagnostic_tag(resolver_harness, output, 9)
-            ResolveDiagnosticCode::DuplicateState -> diagnostic_tag(resolver_harness, output, 10)
             ResolveDiagnosticCode::DuplicateMachine -> diagnostic_tag(resolver_harness, output, 11)
             ResolveDiagnosticCode::DuplicateGenericParameter -> diagnostic_tag(resolver_harness, output, 12)
             ResolveDiagnosticCode::UnknownName -> diagnostic_tag(resolver_harness, output, 13)
@@ -596,7 +593,6 @@ crashes Trap
             ValueBinding::Local { statement } -> value_tag(resolver_harness, output, index, 2, statement, 0)
             ValueBinding::Parameter { parameter } -> value_tag(resolver_harness, output, index, 3, parameter, 0)
             ValueBinding::PatternBinder { field } -> value_tag(resolver_harness, output, index, 4, field, 0)
-            ValueBinding::State { handle } -> value_tag(resolver_harness, output, index, 5, handle, 0)
             ValueBinding::Machine { handle } -> value_tag(resolver_harness, output, index, 6, handle, 0)
             ValueBinding::Data { item } -> value_tag(resolver_harness, output, index, 7, item, 0)
             ValueBinding::DataCase { item, data_case } -> value_tag(resolver_harness, output, index, 8, item, data_case)

@@ -262,7 +262,7 @@ pub fn root_before_edge(
 /// The exact source projection a checked edge binds to this arrival. The path
 /// is retained rather than treating a pointee or field as its carrier root.
 /// This names storage only; access, custody and type correspondence remain
-/// independently checked. Conflicting edges and case payloads supply no match.
+/// independently checked. Conflicting structural arguments supply no match.
 pub fn projection_before_edge<'edge>(
     machine: &TerminalMachine,
     block: BlockId,
@@ -285,9 +285,6 @@ pub fn projection_before_edge<'edge>(
             path: &[],
         });
     };
-    if crate::control_graph::reaches_by_case(predecessor, block) {
-        return None;
-    }
     let mut forwarded = None;
     for binding in crate::control_graph::forwarded_bindings(predecessor) {
         if binding.target != block {

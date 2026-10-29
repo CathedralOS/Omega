@@ -5,6 +5,5 @@
 
 mod declarations;
 mod policy;
-mod requirements;
 
 pub use policy::project_checked_terminal_permission_policy;

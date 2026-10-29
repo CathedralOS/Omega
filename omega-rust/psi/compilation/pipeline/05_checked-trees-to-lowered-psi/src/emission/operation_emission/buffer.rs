@@ -661,13 +661,7 @@ impl OperationBuffer {
         kind: OperationKind,
     ) -> OperationId {
         let id = self.allocate();
-        self.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result,
-            kind,
-        });
+        self.push(Operation::unsuspended(id, result, kind));
         id
     }
 

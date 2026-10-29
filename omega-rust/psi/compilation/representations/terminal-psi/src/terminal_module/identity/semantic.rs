@@ -5,7 +5,7 @@ use crate::VocabularyMarker;
 /// `terminal-codec` is the authority that computes this value from
 /// canonical bytes. The representation lives here so verified consumers can
 /// retain exact program identity without depending upward on the codec crate.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct SemanticFingerprint([u8; 32]);
 
 impl SemanticFingerprint {
@@ -33,7 +33,7 @@ impl std::fmt::Display for SemanticFingerprint {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct TerminalPsiIdentity {
     pub vocabulary_marker: VocabularyMarker,
     pub program_fingerprint: SemanticFingerprint,

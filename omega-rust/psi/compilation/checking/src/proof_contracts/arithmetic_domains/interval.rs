@@ -226,34 +226,22 @@ impl Interval {
     /// `min(a, b)`: the result is <= both operands and >= the smaller of the two
     /// possible values. Unbounded ends behave as the appropriate infinity (a
     /// `None` low is -inf, a `None` high is +inf), so `min(x, 100)` upper-bounds
-    /// at 100 even when `x` is unbounded.
+    /// at 100 even when `x` is unbounded. That is the hull's lower rule on the
+    /// low end and the meet's upper rule on the high end.
     pub(super) fn min_with(self, other: Self) -> Self {
         Self {
-            low: match (self.low, other.low) {
-                (Some(a), Some(b)) => Some(a.min(b)),
-                _ => None,
-            },
-            high: match (self.high, other.high) {
-                (Some(a), Some(b)) => Some(a.min(b)),
-                (Some(v), None) | (None, Some(v)) => Some(v),
-                (None, None) => None,
-            },
+            low: self.union(other).low,
+            high: self.intersect(other).high,
         }
     }
 
     /// `max(a, b)`: the dual of `min_with` -- `max(0, x)` lower-bounds at 0 even
-    /// when `x` is unbounded.
+    /// when `x` is unbounded. That is the meet's lower rule on the low end and
+    /// the hull's upper rule on the high end.
     pub(super) fn max_with(self, other: Self) -> Self {
         Self {
-            low: match (self.low, other.low) {
-                (Some(a), Some(b)) => Some(a.max(b)),
-                (Some(v), None) | (None, Some(v)) => Some(v),
-                (None, None) => None,
-            },
-            high: match (self.high, other.high) {
-                (Some(a), Some(b)) => Some(a.max(b)),
-                _ => None,
-            },
+            low: self.intersect(other).low,
+            high: self.union(other).high,
         }
     }
 
@@ -308,19 +296,10 @@ impl Interval {
 
     /// Does `self` (a type's range) fully contain `inner` (a computed value
     /// range)? An unbounded `inner` end against a bounded `self` end is NOT
-    /// contained -- the value might exceed the type.
+    /// contained -- the value might exceed the type. Clipping at the meet is
+    /// exactly that test: a range the meet leaves untouched is contained.
     pub(super) fn contains(self, inner: Interval) -> bool {
-        let low_ok = match (self.low, inner.low) {
-            (Some(bound), Some(value)) => value >= bound,
-            (Some(_), None) => false,
-            (None, _) => true,
-        };
-        let high_ok = match (self.high, inner.high) {
-            (Some(bound), Some(value)) => value <= bound,
-            (Some(_), None) => false,
-            (None, _) => true,
-        };
-        low_ok && high_ok
+        self.intersect(inner) == inner
     }
 }
 

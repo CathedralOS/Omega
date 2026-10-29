@@ -53,7 +53,7 @@ struct PendingProduct {
         semantic_vocabulary::PackageKeyIdentity,
         DependencyPurpose,
     )>,
-    generated: Vec<package_compilation::PackageGeneratedSourceBundle>,
+    generated: Vec<package_compilation::PackageBuildHandoff>,
 }
 
 pub(super) struct ReadinessScheduler<'session, 'operation> {
@@ -673,9 +673,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     .position(|source| source.declared.identity() == package)
                     .ok_or_else(|| Source("helper dependency has no retained Build".into()))?;
                 if let Some(prepared) = self.prepared_product(dependency, purpose)? {
-                    current
-                        .generated
-                        .push(prepared.generated_source_bundle().clone());
+                    current.generated.push(prepared.build_handoff().clone());
                 } else {
                     pending.push(self.pending_product(dependency, purpose)?);
                 }
@@ -687,9 +685,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 .ok_or_else(|| Source("helper preparation lost its pending Product".into()))?;
             let prepared = self.complete_product(current)?;
             match pending.last_mut() {
-                Some(parent) => parent
-                    .generated
-                    .push(prepared.generated_source_bundle().clone()),
+                Some(parent) => parent.generated.push(prepared.build_handoff().clone()),
                 None => return Ok(prepared),
             }
         }
@@ -748,7 +744,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             ..
         } = pending;
         let inputs = inputs
-            .with_complete_dependency_generated_sources(generated)
+            .with_complete_dependency_build_handoffs(generated)
             .map_err(|errors| Source(format!("helper generated source join: {errors:?}")))?;
         let Some(ResolvedBuild::Settled(completed)) = &mut self.sources[source].build else {
             return Err(Source(

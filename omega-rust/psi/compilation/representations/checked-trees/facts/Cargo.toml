@@ -9,6 +9,7 @@ name = "facts"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../../foundation/compiler-storage" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 arena = { path = "../../../../foundation/arena" }
 language-core = { path = "../../../../foundation/language-core" }

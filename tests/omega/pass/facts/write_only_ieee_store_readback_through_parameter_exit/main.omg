@@ -1,0 +1,13 @@
+// Fact: an IEEE f64 computed and stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
+// Place: parameter. The read-back value is passed to a machine parameter before the comparison.
+// Expected exit: 0
+
+machine store(r: &write f64) { r = 6.0 / 8.0; }
+machine compare(v: f64) -> bool { v == 0.75 }
+
+machine main() crashes Trap {
+    let mut slot: f64;
+    store(&write slot);
+    transition compare(slot) { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

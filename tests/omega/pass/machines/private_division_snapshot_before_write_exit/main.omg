@@ -1,0 +1,11 @@
+// Expected exit: 0
+data Cell { left: u64 in Wrapping; right: u64 in Wrapping; }
+machine quotient(cell: &mut Cell) -> u64 in Wrapping {
+ transition cell.right != 0 { true -> divided(cell) false -> (0) }
+ machine divided(cell: &mut Cell) -> u64 in Wrapping { let before: u64 in Wrapping = cell.right; cell.right = 0; cell.left / before }
+}
+machine main() crashes Trap {
+ let mut cell: Cell = Cell { left: 84, right: 7 };
+ transition quotient(&mut cell) == 12 && cell.right == 0 { true -> {} false -> bad() }
+ machine bad() crashes Trap { crash Trap; }
+}

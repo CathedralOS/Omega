@@ -3,8 +3,7 @@
 //! is inferred: the boundary operation owns both endpoints and the storage.
 
 use machine_code::{
-    Aarch64ForeignCallFloatingControlRecord, FunctionTargetFrameLayout, PlacedFunctionFragment,
-    X86ForeignCallFloatingControlRecord,
+    ForeignCallFloatingControlRecord, FunctionTargetFrameLayout, PlacedFunctionFragment,
 };
 use selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedNormalizedForeignCall,
@@ -12,8 +11,8 @@ use selected_instructions::{
 use target::{Architecture, NativeTarget};
 
 pub(super) struct FloatingControlCustody {
-    pub x86: Option<X86ForeignCallFloatingControlRecord>,
-    pub aarch64: Option<Aarch64ForeignCallFloatingControlRecord>,
+    pub x86: Option<ForeignCallFloatingControlRecord>,
+    pub aarch64: Option<ForeignCallFloatingControlRecord>,
 }
 
 pub(super) fn derive(
@@ -128,7 +127,7 @@ pub(super) fn derive(
         .map_err(|_| "foreign control emitted span is not addressable")?;
     Ok(match target.architecture {
         Architecture::X86_64 => FloatingControlCustody {
-            x86: Some(X86ForeignCallFloatingControlRecord {
+            x86: Some(ForeignCallFloatingControlRecord {
                 target,
                 saved_slot_byte_offset,
                 save_offset,
@@ -140,7 +139,7 @@ pub(super) fn derive(
         },
         Architecture::Aarch64 => FloatingControlCustody {
             x86: None,
-            aarch64: Some(Aarch64ForeignCallFloatingControlRecord {
+            aarch64: Some(ForeignCallFloatingControlRecord {
                 target,
                 saved_slot_byte_offset,
                 save_offset,

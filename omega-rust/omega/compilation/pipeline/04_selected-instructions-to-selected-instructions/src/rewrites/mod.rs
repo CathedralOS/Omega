@@ -82,9 +82,10 @@ macro_rules! receipt_selected_identities {
 /// Every rewrite receipt's canonical identity: the family's own domain
 /// separator, both selected-plan identities, the optimization unit, the fuel
 /// schedule, the transformed function coordinate, and the rule's instruction
-/// coordinate(s). One declarative row per rule expands the encoder, so a rule
-/// declares only what distinguishes its identity. A row's prose stays a plain
-/// `//` comment: a doc comment on a macro invocation is an unused attribute.
+/// coordinate(s). One declarative row per rule expands the encoder and the
+/// receipt's own `identity()` accessor, so a rule declares only what
+/// distinguishes its identity. A row's prose stays a plain `//` comment: a doc
+/// comment on a macro invocation is an unused attribute.
 macro_rules! rewrite_receipt_identity {
     (
         $function:ident, $identity:ident, $receipt:ident,
@@ -106,6 +107,15 @@ macro_rules! rewrite_receipt_identity {
                     $(crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
                 },
             ))
+        }
+
+        impl $receipt {
+            /// The durable transformation identity the post-allocation
+            /// manifest ledger records: the receipt's exact fields under its
+            /// family's domain separator.
+            pub fn identity(&self) -> $identity {
+                $function(self)
+            }
         }
     };
 }
@@ -374,12 +384,8 @@ pub(crate) fn integer_copy_row<'environment, E>(
     let Some(row) = environment.constraint(environment.selected_keys().copy_i64) else {
         return Err(mismatch());
     };
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
+    if !declares_pair(row, RegisterOperandAccess::Use, RegisterOperandAccess::Def)
         || row.operands[0].class != value_class
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Def
         || row.operands[1].class != output_class
         || !row.implicit_uses.is_empty()
         || !row.implicit_defs.is_empty()
@@ -391,6 +397,23 @@ pub(crate) fn integer_copy_row<'environment, E>(
         return Err(mismatch());
     }
     Ok(row)
+}
+
+/// Whether `row` declares the two operand positions every admission restates:
+/// operand 0 is `first_access` and operand 1 is `second_access`. Class, tie,
+/// and clobber checks stay with the caller; those are that family's contract.
+pub(crate) fn declares_pair(
+    row: &RegisterInstructionConstraint,
+    first_access: RegisterOperandAccess,
+    second_access: RegisterOperandAccess,
+) -> bool {
+    let [first, second] = row.operands.as_slice() else {
+        return false;
+    };
+    first.operand == 0
+        && first.access == first_access
+        && second.operand == 1
+        && second.access == second_access
 }
 
 /// A rewrite's candidate carrier in the emitted two-operand form every

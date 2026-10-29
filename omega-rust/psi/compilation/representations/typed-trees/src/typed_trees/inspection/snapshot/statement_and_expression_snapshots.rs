@@ -19,6 +19,8 @@ pub enum StaticArgumentSnapshot {
     },
     Path(Vec<String>),
     Application {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        member: Option<Box<StaticArgumentSnapshot>>,
         path: Vec<String>,
         lifetime_arguments: Vec<String>,
         arguments: Vec<StaticArgumentSnapshot>,
@@ -260,6 +262,9 @@ pub enum ExpressionSnapshot {
     Unary {
         operator: String,
         operand: Box<ExpressionSnapshot>,
+    },
+    TypeExpression {
+        type_reference: Box<TypeReferenceSnapshot>,
     },
     ZeroValue {
         type_reference: Box<TypeReferenceSnapshot>,
@@ -661,6 +666,9 @@ pub(crate) fn expression_snapshot(
             operator: unary.operator.display_name().to_owned(),
             operand: Box::new(expression_snapshot(program, unary.operand)),
         },
+        ExpressionNode::TypeExpression(type_reference) => ExpressionSnapshot::TypeExpression {
+            type_reference: Box::new(type_reference_snapshot(program, *type_reference)),
+        },
         ExpressionNode::ZeroValue(type_reference) => ExpressionSnapshot::ZeroValue {
             type_reference: Box::new(type_reference_snapshot(program, *type_reference)),
         },
@@ -684,6 +692,10 @@ pub(crate) fn snapshot_static_argument(
         }
     } else if let Some(application) = &argument.application {
         StaticArgumentSnapshot::Application {
+            member: program
+                .expression_table
+                .static_member(application.member)
+                .map(|member| Box::new(snapshot_static_argument(program, member))),
             path: path_snapshot(&argument.path),
             lifetime_arguments: path_snapshot(&application.lifetime_arguments),
             arguments: application

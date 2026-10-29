@@ -10,18 +10,16 @@
 
 mod aarch64;
 mod windows_x86_64;
-pub(super) use aarch64::validate as validate_aarch64;
-pub(super) use windows_x86_64::{
-    validate as validate_windows_x86_64, validate_unit as validate_windows_x86_64_unit,
-};
+pub(crate) use aarch64::validate as validate_aarch64;
+pub(super) use windows_x86_64::validate as validate_windows_x86_64;
 
 use diagnostics::Diagnostic;
 
-use super::{HostedReceiverPartitions, invalid, recipe_index_for_runtime_position};
+use super::{HostedEntryPartitions, invalid, recipe_index_for_runtime_position};
 
 fn expected_addresses(
     bss_address: u64,
-    partitions: HostedReceiverPartitions,
+    partitions: HostedEntryPartitions,
     invalid: &dyn Fn() -> Diagnostic,
 ) -> Result<(u64, u64, u64), Diagnostic> {
     Ok((
@@ -52,20 +50,14 @@ fn rip_relative(bytes: &[u8], address: u64, field: usize) -> Option<u64> {
 /// Replay the Linux System V installed argument bridge, including every exact
 /// original byte, declared argument pointer and normal-return observation.
 pub(super) fn validate_x86_64(
-    target: target::NativeTarget,
     bytes: &[u8],
     address: u64,
     selected_entry: u64,
     bss_address: u64,
-    partitions: HostedReceiverPartitions,
+    partitions: HostedEntryPartitions,
     private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
-    let invalid = || invalid(target);
-    if target != target::NativeTarget::linux_x64()
-        && !(target == target::NativeTarget::macos_x64() && private_entry_ram.is_empty())
-    {
-        return Err(invalid());
-    }
+    let invalid = || invalid(target::NativeTarget::linux_x64());
     let (continuation, stack_top, receiver) =
         expected_addresses(bss_address, partitions, &invalid)?;
     if bytes.get(0..3) != Some(&[0x48, 0x89, 0x25])
@@ -182,16 +174,7 @@ pub(super) fn validate_x86_64(
             offset += 46;
         }
     }
-    if target == target::NativeTarget::macos_x64() {
-        if bytes.get(offset..offset + 3) != Some(&[0x48, 0x8b, 0x25])
-            || rip_relative(bytes, address, offset + 3) != Some(continuation)
-            || bytes.get(offset + 7..) != Some(&[0x31, 0xc0, 0xc3])
-        {
-            return Err(invalid());
-        }
-    } else if bytes.get(offset..)
-        != Some(&[0x31, 0xff, 0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b])
-    {
+    if bytes.get(offset..) != Some(&[0x31, 0xff, 0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b]) {
         return Err(invalid());
     }
     Ok(())

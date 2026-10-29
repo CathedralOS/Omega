@@ -69,7 +69,7 @@ pub(crate) fn compile(
                 let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
                 source.build.directory = Some(directory.to_path_buf());
                 crate::produce_source(
-                    &mut compiler::CompilationSession::default(),
+                    &mut crate::build_session::compiler_session(),
                     source,
                     compiler::CompilationProduct::Inspection(machine.clone()),
                 )
@@ -135,7 +135,7 @@ fn compile_standalone_reports(
         compilation = compilation.with_build_snapshot(snapshot.clone());
     }
     let outcomes =
-        crate::compile_sources(&mut compiler::CompilationSession::default(), compilation)
+        crate::compile_sources(&mut crate::build_session::compiler_session(), compilation)
             .map_err(BuildError::Diagnostics)?;
     for outcome in outcomes.into_outcomes().into_vec() {
         let profile = match (outcome.target_profile(), &request.targets, targets) {

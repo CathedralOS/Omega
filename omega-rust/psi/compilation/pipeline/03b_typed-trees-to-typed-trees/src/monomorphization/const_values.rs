@@ -11,9 +11,7 @@
 
 use super::Candidate;
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{
-    CanonicalConstValue, boolean_literal_spelling,
-};
+use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 use numerics::literals::{IntegerLanding, IntegerLiteral};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -72,12 +70,16 @@ pub(super) fn substitute(
             Some(start) => program
                 .expression_table
                 .iter_expressions_from(start)
-                .filter_map(|(handle, _)| exact_binder_name(program, handle, *binder).then_some(handle))
+                .filter_map(|(handle, _)| {
+                    exact_binder_name(program, handle, *binder).then_some(handle)
+                })
                 .collect::<Vec<_>>(),
             None => program
                 .expression_table
                 .iter_expressions()
-                .filter_map(|(handle, _)| exact_binder_name(program, handle, *binder).then_some(handle))
+                .filter_map(|(handle, _)| {
+                    exact_binder_name(program, handle, *binder).then_some(handle)
+                })
                 .collect::<Vec<_>>(),
         };
         let projections = nominal_record_projections(program, *binder, expression_start);

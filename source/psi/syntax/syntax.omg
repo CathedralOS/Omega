@@ -164,7 +164,7 @@ public data DataItem [copy] {
     source_span: SourceSpan;
 }
 
-// One typed parameter of a machine or state: `name: Type`.
+// One typed parameter of a machine: `name: Type`.
 // A binding marked `[erased]`
 // (wiki/spec/proofs/contracts.md#explicit-erased-bindings): it stays in
 // checking and identity but contributes no runtime field, read or cleanup.
@@ -317,7 +317,7 @@ public data ArmPatternKind [copy] {
 // What an arm's target spells (wiki/spec/language/state_contracts.md). A
 // `Call` names a declaration, `name(arguments)` or `Owner::name(arguments)`,
 // possibly acknowledged (`suspend block f(x)`); resolution decides whether it
-// jumps to a state or completes the machine through a terminal call. A
+// completes the invocation through a terminal call. A
 // `Value` is any other expression, a terminal value that completes the
 // machine. `Unit` is the explicit Unit completion `{}`.
 public data ArmTargetKind [copy] {
@@ -383,7 +383,7 @@ public data Statement [copy] {
 // `Terminates` is the termination promise; `terminates by subjects [-> View]`
 // adds its ranking witness: the ranked subjects in `SyntaxTrees::arguments`
 // and the view, a path or an argumented view call, as its expression.
-// Machines, contracts, states, data declarations and cases each own a
+// Machines, contracts, data declarations and cases each own a
 // contiguous range of clauses.
 public data ClauseKind [copy] {
     case Reaches;
@@ -407,7 +407,6 @@ public data ClauseOwner [copy] {
     case TraitMember;
     case Contract;
     case Refinement;
-    case State;
     case Data;
     case DataCase;
     case Domain;
@@ -429,21 +428,6 @@ public data Clause [copy] {
     // whose `flag` is its inclusiveness.
     has_range: bool;
     range: u64 in Trapping;
-    source_span: SourceSpan;
-}
-
-// A named state member of a machine body. Its parameters are a contiguous
-// range of `SyntaxTrees::parameters`.
-public data StateItem [copy] {
-    name: IdentifierSpan;
-    first_parameter: u64 in Trapping;
-    parameter_count: u64 in Trapping;
-    has_return_type: bool;
-    return_type: u64 in Trapping;
-    first_clause: u64 in Trapping;
-    clause_count: u64 in Trapping;
-    first_statement: u64 in Trapping;
-    statement_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -493,21 +477,14 @@ public data OperatorToken [copy] {
 // its `where machine` contracts, one per static machine binder, a contiguous
 // range of `SyntaxTrees::contracts`. A fixed token after `machine` binds
 // `operator`, spelled at `token`.
-// The parameters and return type are each declaration's own signature.
-// Rows are preorder; has_lexical_parent selects an earlier exact MachineItem.
-// Own expression, statement and contract ranges exclude descendants.
-// `first_state`
-// and `state_count` cover the authored `state` members; the entry's own
-// statements precede them in the body. A bodyless declaration ends at `;`
-// and owns no statements or states. Every expression of the declaration,
-// in its own clauses and executable body lies in the contiguous range from
+// Every declaration has its own signature, contract and executable ranges.
+// Its lexical parent scopes names without retaining runtime values. A bodyless declaration ends at `;`
+// and owns no statements or nested declarations. Every expression of the declaration,
+// in its clauses and its bodies, lies in the contiguous range from
 // `first_expression`. A target-scoped declaration (`linux_arm64 machine
 // ...`) names its target, one body of the family the path keys by target;
 // `boundary machine` marks a crossing.
 public data MachineItem [copy] {
-    // Lexical ancestry is independent of the data/code namespace owner.
-    has_lexical_parent: bool;
-    lexical_parent: u64 in Trapping;
     has_owner: bool;
     owner: IdentifierSpan;
     name: IdentifierSpan;
@@ -521,8 +498,8 @@ public data MachineItem [copy] {
     clause_count: u64 in Trapping;
     first_statement: u64 in Trapping;
     statement_count: u64 in Trapping;
-    first_state: u64 in Trapping;
-    state_count: u64 in Trapping;
+    // Lexical declaration parent, machine handle plus one; zero at package/container scope.
+    parent: u64 in Trapping;
     has_body: bool;
     first_expression: u64 in Trapping;
     expression_count: u64 in Trapping;
@@ -581,7 +558,7 @@ public data NamePath [copy] {
 // the header (`: A<T> + B`) and then in the body (`requires A;`), are
 // type-reference handles in `SyntaxTrees::trait_parents`; its member
 // machines and their descendants are a physical range of `SyntaxTrees::machines`;
-// direct requirements have !has_lexical_parent and their container
+// direct requirements have parent == 0 and their container
 // is `Trait`; its `where proposition` contracts are a contiguous range of
 // `SyntaxTrees::contracts`. `boundary trait` declares service requirements
 // at a crossing. A transparent refinement `trait Name = Base { ... }` names a
@@ -609,7 +586,7 @@ public data TraitItem [copy] {
 // A named implementation `Name<binders> satisfies Trait<arguments> { rows }`.
 // The satisfied trait application is one type reference. Checked members are
 // a physical range of `SyntaxTrees::machines`; direct members have
-// !has_lexical_parent and their container is
+// parent == 0 and their container is
 // `Conformance`; reference rows bind a requirement to an existing machine.
 // Its generic parameters are the header's own, as for a trait.
 public data ConformanceItem [copy] {
@@ -789,12 +766,8 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedMachineReturnType;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
-    case ExpectedStateName;
-    case ExpectedStateBody;
-    case ExpectedStateBodyEnd;
     case MachineCapacityExceeded;
     case ParameterCapacityExceeded;
-    case StateCapacityExceeded;
     case ExpectedOperand;
     case ExpectedExpressionPathMember;
     case ExpectedFieldName;
@@ -879,7 +852,6 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedEstablishedBy;
     case ExpectedDomainRoute;
     case ExpectedDomainEnd;
-    case ExpectedDomainBodyEnd;
     case DomainCapacityExceeded;
     case NamePathCapacityExceeded;
     case ExpectedConstantName;
@@ -960,7 +932,6 @@ where
     machine_count <= 10240,
     parameter_count <= 32768,
     erased_binding_count <= 1024,
-    state_count <= 8192,
     expression_count <= 131072,
     argument_count <= 65536,
     construct_field_count <= 4096,
@@ -1013,8 +984,6 @@ where
     parameter_count: u64;
     erased_bindings: [ErasedBinding; 1024] in Trapping;
     erased_binding_count: u64;
-    states: [StateItem; 8192] in Trapping;
-    state_count: u64;
     expressions: [Expression; 131072] in Trapping;
     expression_count: u64;
     arguments: [u64; 65536] in Trapping;
@@ -1072,7 +1041,6 @@ public machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: Source
     syntax_trees.machine_count = 0;
     syntax_trees.parameter_count = 0;
     syntax_trees.erased_binding_count = 0;
-    syntax_trees.state_count = 0;
     syntax_trees.expression_count = 0;
     syntax_trees.argument_count = 0;
     syntax_trees.construct_field_count = 0;
@@ -1336,23 +1304,6 @@ crashes Trap
     }
 
     machine invalid() -> Parameter {
-        crash Trap;
-    }
-}
-
-public machine SyntaxTrees::state_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem
-crashes Trap
-{
-    transition handle < syntax_trees.state_count {
-        true -> read(syntax_trees, handle)
-        _ -> invalid()
-    }
-
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> StateItem {
-        syntax_trees.states[handle]
-    }
-
-    machine invalid() -> StateItem {
         crash Trap;
     }
 }

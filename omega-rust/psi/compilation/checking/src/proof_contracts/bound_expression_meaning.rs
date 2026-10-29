@@ -141,6 +141,11 @@ fn binary_expression_meaning(
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
+    if program.static_type_predicate_operands(expression).is_some() {
+        // Type equality has a fixed static meaning; it neither selects a value
+        // operator nor authorizes a runtime read of either type operand.
+        return true;
+    }
     match binary.operator {
         BinaryOperator::CaseMembership => {
             has_exact_case_membership_meaning(program, machine, state, expression, binary)
@@ -1209,4 +1214,62 @@ fn builtin_comparison_meaning(
             operand_type(program, machine, state, comparison.right),
         ],
     )
+}
+
+/// Static type refinement reuses the ordinary equality selection. A generated
+/// Boolean pattern has no permission to replace a selected user operation.
+pub fn static_type_boolean_equalities(program: &dyn crate::CheckingInput) -> Vec<ExpressionHandle> {
+    let mut meanings =
+        std::collections::HashMap::<ExpressionHandle, bool, symbols::BuildSymbolHasher>::default();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                crate::collect_statement_expression_trees(program, statement, &mut expressions);
+            }
+            for contract in program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state))
+            {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    crate::append_fact_expression_roots(program, fact, &mut expressions);
+                }
+            }
+            for expression in expressions {
+                let Some(binary) = program.expression_table.binary_node(expression) else {
+                    continue;
+                };
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) {
+                    continue;
+                }
+                if !matches!(
+                    program.expression_table.expression(binary.left),
+                    ExpressionNode::Boolean(_)
+                ) && !matches!(
+                    program.expression_table.expression(binary.right),
+                    ExpressionNode::Boolean(_)
+                ) {
+                    continue;
+                }
+                let builtin =
+                    builtin_boolean_equality(program, machine, Some(state), expression, binary);
+                meanings
+                    .entry(expression)
+                    .and_modify(|all| *all &= builtin)
+                    .or_insert(builtin);
+            }
+        }
+    }
+    let mut equalities = meanings
+        .into_iter()
+        .filter_map(|(expression, all)| all.then_some(expression))
+        .collect::<Vec<_>>();
+    equalities
+        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+    equalities.dedup();
+    equalities
 }

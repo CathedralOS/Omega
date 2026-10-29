@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 /// One captured entry. Link targets remain data until a compiler lookup follows
 /// them; the executable bit is retained payload for the acquiring consumer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, compiler_storage::Record)]
 pub enum CapturedSourceNode {
     Directory,
     File { bytes: Arc<[u8]>, executable: bool },
@@ -27,7 +27,7 @@ pub enum CapturedSourceNode {
 /// Compiler lookups resolve relative symlinks with at most 64 traversals and
 /// reject escapes, dangling links and cycles. Consumers implementing Build's
 /// non-following protocol must inspect `entries()` instead of compiler lookups.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedSourceTree {
     entries: BTreeMap<PathBuf, CapturedSourceNode>,
 }

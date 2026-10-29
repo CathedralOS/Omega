@@ -19,7 +19,6 @@ PAYLOAD_FIELD_COLLIDES_WITH_COMMON_FIELD = 6
 UNKNOWN_DATA_TYPE = 7
 UNKNOWN_DOMAIN = 8
 DUPLICATE_PARAMETER = 9
-DUPLICATE_STATE = 10
 DUPLICATE_MACHINE = 11
 DUPLICATE_GENERIC_PARAMETER = 12
 UNKNOWN_NAME = 13
@@ -249,6 +248,7 @@ def decode(payload: bytes) -> Observation:
         (reader.byte(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
+    assert all(row[0] != 5 for row in value_bindings), "retired binding tag"
     path_bindings = tuple(
         (reader.byte(), reader.u64())
         for _ in range(reader.u64())
@@ -423,6 +423,25 @@ def phase_rejected_units(program: str, name: str, units: tuple[tuple, ...], stat
     actual_status, payload = run_units(program, units)
     assert actual_status == status, f"{name}: status {actual_status}"
     assert payload == b"", name
+
+
+def nested_machine_cases(program: str) -> None:
+    source = (b"machine outer<T>(x: T) -> T { x "
+              b"machine middle<U>(u: U) -> U { u "
+              b"machine leaf<V>(t: T, u: U, v: V) -> V { v } } }")
+    accepted(program, "three-level-static-binder-identities", source,
+             (generic(0), generic(0), generic(1), generic(1), generic(0), generic(1), generic(2), generic(2)))
+    source = b"machine outer() { first() machine first() { second() } machine second() { first() } }"
+    accepted(program, "forward-sibling-and-ancestor-family", source, (),
+             value_bindings=(machine(1), NOT_A_NAME, machine(2), NOT_A_NAME, machine(1), NOT_A_NAME))
+    source = b"machine outer() { left() machine left() { hidden() machine hidden() {} } machine right() { hidden() } }"
+    rejected(program, "sibling-private-descendant-inaccessible", source, UNKNOWN_NAME, b"hidden", occurrence=3)
+    source = b"machine outer(x: u8) { machine child() -> u8 { x } }"
+    rejected(program, "nested-runtime-parameter-not-captured", source, UNKNOWN_NAME, b"x", occurrence=2)
+    source = b"machine outer() { let secret: u8 = 1; machine child() -> u8 { secret } }"
+    rejected(program, "nested-runtime-local-not-captured", source, UNKNOWN_NAME, b"secret", occurrence=2)
+    source = b"machine outer() { machine helper() {} } machine outside() { outer::helper() }"
+    rejected(program, "qualification-cannot-export-helper", source, UNKNOWN_NAME, b"outer::helper")
 
 
 def main() -> None:
@@ -745,8 +764,8 @@ def main() -> None:
     accepted(
         program,
         "machine-signature-types",
-        b"machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) {} }\ndata D { y: u8; }",
-        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u8")),
+        b'machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) -> u64 {} }\ndata D { y: u8; }',
+        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u64"), builtin("u8")),
     )
     accepted(
         program,
@@ -1173,8 +1192,8 @@ def main() -> None:
     accepted(
         program,
         "generic-machine-signature",
-        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) {} }\ndata Vec<T> { v: T; }",
-        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(1)),
+        b'machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) -> &[T] {} }\ndata Vec<T> { v: T; }',
+        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(0), SLICE_ROW, REFERENCE_ROW, generic(1)),
     )
     accepted(
         program,
@@ -2461,6 +2480,8 @@ def main() -> None:
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
+
+    nested_machine_cases(program)
 
     determinism = b"data A<T> { x: T; y: B in Wrapping; }\ndata B { case C(v: A); }"
     first = run(program, determinism)

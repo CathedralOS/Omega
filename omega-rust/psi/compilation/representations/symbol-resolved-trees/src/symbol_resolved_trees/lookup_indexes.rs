@@ -249,3 +249,19 @@ impl super::SymbolResolvedTrees {
             .with_generic_origin_index(revision, build, run)
     }
 }
+
+// These pointer-keyed maps describe only this in-memory arena owner. Persisting
+// them would give restored allocations another process's addresses and verdicts.
+impl compiler_storage::Record for ResolvedIndexes {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}

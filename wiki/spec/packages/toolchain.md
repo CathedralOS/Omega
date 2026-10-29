@@ -34,8 +34,8 @@ provider or capability and cannot be inferred from an alias or source location.
 
 Rejoin package, exact declaration, complete schema, and any role-required selected
 plan. Every supplied row settles exactly once; foreign, stale, ambiguous, or
-unmatched rows reject. Downstream consumers use the resolved symbol, not another
-name search. Requirement-only roles cannot synthesize a provider. An interpreter
+unmatched rows reject. Downstream consumers use the resolved declaration identity,
+not another name search. Requirement-only roles cannot synthesize a provider. An interpreter
 routing token identifies the exact declaration in one checked program; it grants
 no filesystem access or policy acceptance.
 

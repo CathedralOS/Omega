@@ -25,7 +25,7 @@ fn domain_is_declared(
         && program.domain_definitions().iter().any(|domain| {
             domain.symbol == constraint.symbol
                 && domain.classification == constraint.classification
-                && domain.predicate_body == constraint.predicate_body
+                && domain.predicate_presence == constraint.predicate_presence
                 && domain.semantic_roles.denotation_dimension.is_some()
                     == constraint.semantic_roles.denotation_dimension.is_some()
                 && domain.semantic_roles.arithmetic_policy.is_some()

@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 /// Local semantic identity, not a portable artifact commitment or a loan.
 /// The default's zero declaration is the arena absence row, not ordinal zero
 /// in any live declaration's telescope.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct LifetimeParameterIdentity {
     pub declaration: SymbolHandle,
     pub ordinal: usize,

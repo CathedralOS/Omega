@@ -67,15 +67,11 @@ pub(super) fn caller_state_preserves_label_names(
             {
                 return false;
             }
-            let written = CanonicalPlace {
-                root: invalidation.mutated_root,
-                segments: facts
-                    .flow
-                    .invalidations
-                    .segments
-                    .span_or_empty(invalidation.mutated_segments)
-                    .to_vec(),
-            };
+            let written = crate::checks::places::place_or_root_in(
+                &facts.flow.invalidations.segments,
+                invalidation.mutated_root,
+                invalidation.mutated_segments,
+            );
             let read_places = reads
                 .iter()
                 .filter_map(|read| {

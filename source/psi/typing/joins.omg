@@ -10,7 +10,8 @@ use psi::typing::typer;
 // patterns.md, "compatible arm values"). The first value of a fixed type
 // gives the join its type, and every other value has that type, lands there
 // as an unlanded value, or is `Never`; a value qualified differently, or one
-// that would meet it only by a loan or a membership, is incompatible. When
+// that would meet it only by a new loan or a membership, is incompatible.
+// Existing references retain their admitted shared reborrow at the join. When
 // no value fixes a type, the values are unlanded and share one shape:
 // anonymous numbers and choices join as an anonymous choice, and anonymous
 // arrays of one shape as that array (landing.omg).
@@ -62,12 +63,13 @@ crashes Trap
         let admission: Admission = Typer::admission(typer, syntax, result_type, handle);
         transition admission {
             Admission::Exact -> value(typer, syntax, values, result_type, offset + 1)
-            Admission::Landed -> landed(typer, syntax, values, result_type, offset, handle)
+            Admission::Landed -> adapted(typer, syntax, values, result_type, offset, handle)
+            Admission::SharedReborrow -> adapted(typer, syntax, values, result_type, offset, handle)
             _ -> incompatible(typer, syntax, handle, admission)
         }
     }
 
-    machine landed(
+    machine adapted(
         typer: &mut Typer,
         syntax: &SyntaxTrees,
         values: JoinedValues,

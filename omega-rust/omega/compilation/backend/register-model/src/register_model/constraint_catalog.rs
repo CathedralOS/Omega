@@ -85,8 +85,8 @@ impl RegisterConstraintKey {
 }
 
 /// Canonical identity bytes for one constraint key: the family tag byte
-/// followed by the variant word. Every identity codec that walks a register
-/// catalog spells this row the same way.
+/// followed by the variant word. The family half is [`RegisterConstraintFamily::tag`]'s
+/// row, so a new family member cannot drift here.
 pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
     bytes.push(key.family.tag());
     crate::codec_bytes::push_encoded(bytes, key.variant.to_le_bytes());
@@ -234,6 +234,19 @@ impl RegisterOperandAccess {
     }
 }
 
+/// The operand views annotated with exactly `access`, in request order.
+pub fn views_with_access(
+    views: &[RegisterViewId],
+    accesses: &[RegisterOperandAccess],
+    access: RegisterOperandAccess,
+) -> Vec<RegisterViewId> {
+    views
+        .iter()
+        .zip(accesses)
+        .filter_map(|(view, actual)| (*actual == access).then_some(*view))
+        .collect()
+}
+
 /// Allocation constraints for one explicit instruction operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegisterOperandConstraint {
@@ -303,6 +316,26 @@ impl RegisterConstraintCatalog {
     /// The constraint row keyed `key`, when the catalog defines it.
     pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
         find_register_constraint(&self.constraints, key)
+    }
+
+    /// The row among `keys` whose declared operand views and accesses match
+    /// `views` and `accesses` positionally, when one exists.
+    pub fn row_matching(
+        &self,
+        keys: &[RegisterConstraintKey],
+        views: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+    ) -> Option<&RegisterInstructionConstraint> {
+        self.constraints.iter().find(|row| {
+            keys.contains(&row.key)
+                && row.operands.len() == views.len()
+                && row.operands.len() == accesses.len()
+                && row.operands.iter().zip(views.iter().zip(accesses)).all(
+                    |(operand, (view, access))| {
+                        operand.fixed_view == Some(*view) && operand.access == *access
+                    },
+                )
+        })
     }
 }
 

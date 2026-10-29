@@ -61,10 +61,12 @@ pub(crate) mod ownership_occurrences;
 mod cleanup_admission;
 mod crashes;
 pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
+pub(crate) use crashes::call_route_guard_covers;
 
 // Operator resolution, indexed access bounds, and machine termination.
 mod indexed_writes;
 mod operators;
+mod places;
 mod ranges;
 pub(crate) mod termination;
 

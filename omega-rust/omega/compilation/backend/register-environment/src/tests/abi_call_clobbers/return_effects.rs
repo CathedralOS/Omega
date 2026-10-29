@@ -287,7 +287,7 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             // A return encoded as ordinary fall-through fails the encoded
             // control/barrier join.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .control = MachineEncodedControlEffect::FallThroughV1;
             assert_eq!(
@@ -306,7 +306,8 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             // to a non-empty subset, and a use list that reads nothing has
             // dropped the read its control effect still performs.
             let mut corrupted = catalog.clone();
-            let encoded = &mut declaration_mut(&mut corrupted, key).alternatives[0].encoded;
+            let encoded =
+                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
             assert!(
                 !encoded.implicit_unit_uses.is_empty(),
                 "{key:?} declares no return-address use"
@@ -326,7 +327,7 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             let row = environment.constraint(key).unwrap();
             assert!(row.clobbers.is_empty(), "{key:?}");
             let preserved = convention.callee_saved[0];
-            declaration_mut(&mut corrupted, key).alternatives[0]
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
                 .encoded
                 .implicit_unit_clobbers
                 .push(preserved);

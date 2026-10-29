@@ -680,7 +680,7 @@ pub fn selected_construction_definition<'a>(
     construction_members_are_concrete(program, definition).then_some(definition)
 }
 
-pub(super) fn selected_construction_case<'a>(
+pub(crate) fn selected_construction_case<'a>(
     program: &'a dyn crate::CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,

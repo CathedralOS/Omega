@@ -322,21 +322,25 @@ fn state_equation<'program>(
                         .is_some_and(|owner| {
                             owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
                                 && owner.body_is_present
-                                && program.machine_type_parameters(owner).is_empty()
+                                && program
+                                    .expression_table
+                                    .call_node(result)
+                                    .is_some_and(|call| {
+                                        unchanged_static_arguments(
+                                            program,
+                                            machine,
+                                            owner,
+                                            &call.machine_arguments,
+                                        )
+                                    })
                         })
-                        && program
-                            .expression_table
-                            .call_node(result)
-                            .is_some_and(|call| call.machine_arguments.is_empty())
                 })
             {
-                if !super::isolation::aggregate_storage_types_match(
-                    program,
-                    transfer.state.return_type,
-                    expected_result,
-                ) {
-                    return None;
-                }
+                // Each equation reads its own declared result. The edge applies
+                // its exact runtime actuals before the returned leaves enter
+                // this namespace. Raw type equality here would compare foreign
+                // dependent subjects before that substitution; ordinary call
+                // admission independently checks applied result compatibility.
                 edges.push(state_equations::Edge {
                     target: transfer.state,
                     statement_index: index,
@@ -422,6 +426,38 @@ fn state_equation<'program>(
         inference.active_states.pop();
     }
     result
+}
+
+/// Equations substitute runtime actuals. Their declaration types remain valid
+/// without another static substitution only when every selected binder is the
+/// same binder already in the source context. Closed, specialized calls have
+/// an empty telescope; identity forwarding retains its exact type/value/const symbols.
+fn unchanged_static_arguments(
+    program: &dyn crate::CheckingInput,
+    source: &Machine,
+    target: &Machine,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
+) -> bool {
+    let parameters = program.machine_type_parameters(target);
+    parameters.len() == arguments.len()
+        && parameters.iter().zip(arguments).all(|(parameter, argument)| {
+            program.machine_type_parameters(source).iter().any(|in_scope| {
+                in_scope.symbol == parameter.symbol
+            }) && argument.application.is_none()
+                && argument.const_literal.is_none()
+                && argument.evidence_projection.is_none()
+                && if argument.type_reference.is_valid() {
+                    !argument.symbol.is_valid()
+                        && argument.path.is_empty()
+                        && matches!(
+                            program.type_reference_table.type_reference(argument.type_reference),
+                            typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                                if *symbol == parameter.symbol
+                        )
+                } else {
+                    argument.symbol == parameter.symbol
+                }
+        })
 }
 
 /// Evaluate one result expression against the prefix context immediately before

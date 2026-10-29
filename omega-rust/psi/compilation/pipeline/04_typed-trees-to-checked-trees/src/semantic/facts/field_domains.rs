@@ -461,7 +461,7 @@ fn state_parameter_domain_is_resource_claim(
         && program
             .domain_definition(domain_symbol)
             .is_some_and(|domain| {
-                domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
+                domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
             })
 }
 

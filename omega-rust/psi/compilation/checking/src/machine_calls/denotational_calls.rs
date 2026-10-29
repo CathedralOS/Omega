@@ -358,7 +358,7 @@ fn expression_is_fact_observation_free(
             .expression_handles(*values)
             .iter()
             .all(|value| expression_is_fact_observation_free(program, *value)),
-        typed_trees::literal_expression_pattern!() => true,
+        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => true,
     };
     if !allowed && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
         eprintln!("DENOTATION observation expression={expression:?} node={node:?}",);

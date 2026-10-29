@@ -94,10 +94,10 @@ pub(in crate::encoding::encode) fn domain_shape(
     encoder.field("index_arguments", |encoder| {
         encoder.sequence(&shape.index_arguments, encode_type_identity)
     })?;
-    encoder.field("predicate_body", |encoder| {
-        match shape.predicate_body {
-            language_semantics::DomainPredicateBody::Bodyless => encoder.tag("bodyless", 0),
-            language_semantics::DomainPredicateBody::Present => encoder.tag("present", 1),
+    encoder.field("predicate_presence", |encoder| {
+        match shape.predicate_presence {
+            language_semantics::DomainPredicatePresence::Absent => encoder.tag("bodyless", 0),
+            language_semantics::DomainPredicatePresence::Present => encoder.tag("present", 1),
         };
         Ok(())
     })?;

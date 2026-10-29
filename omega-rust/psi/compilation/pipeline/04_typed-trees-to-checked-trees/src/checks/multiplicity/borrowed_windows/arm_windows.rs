@@ -819,7 +819,9 @@ impl<'facts> ArmWindowPlan<'facts> {
                     edge_conditional,
                 );
             }
-            ExpressionNode::Name(_) | typed_trees::spelled_literal_expression_pattern!() => {}
+            ExpressionNode::Name(_)
+            | ExpressionNode::TypeExpression(_)
+            | typed_trees::spelled_literal_expression_pattern!() => {}
         }
     }
 }

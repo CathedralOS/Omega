@@ -31,7 +31,7 @@ pub fn program_entry_semantic_binding_role(
 
 /// One compiler consumer role whose ordinary-package declaration must be
 /// accepted explicitly rather than inferred from a package or source name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AcceptedSemanticBindingRole {
     /// Target-independent recognition of the exact process-exit Console
     /// declaration. Physical lowering support remains a separate target fact.
@@ -92,7 +92,7 @@ pub enum AcceptedSemanticBindingRole {
 /// prove that a human or model audited anything. The compiler still rejoins
 /// the package owner, nominal declaration, normalized schema, complete
 /// selected provider plan, target, and intrinsic ABI before using the role.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct AcceptedSemanticBinding {
     role: AcceptedSemanticBindingRole,
     package: PackageKeyIdentity,

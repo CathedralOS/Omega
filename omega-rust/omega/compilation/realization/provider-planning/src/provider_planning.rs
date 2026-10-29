@@ -16,13 +16,13 @@
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
-pub(crate) mod direct_boundary_leaves;
-mod external_binding_rows;
+pub(crate) mod external_binding_rows;
 mod external_requirements;
 mod independent_components;
 mod installation_reach;
 mod operator_provider_evidence;
 mod provenance_replay;
+pub(crate) mod provider_rows;
 mod qualification_grants;
 mod selected_plan_bindings;
 mod selection_provenance;
@@ -45,11 +45,12 @@ pub use provenance_replay::{
     selected_requirement_checked_adapter,
 };
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
+pub(crate) use selection_provenance::{
+    PreparedSelectionDeclarations, SelectedProviderPlanWithProvenance,
+    selected_provider_plan_facts_with_independent_components,
+};
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, selected_provider_plan_facts,
-};
-pub(crate) use selection_provenance::{
-    SelectedProviderPlanWithProvenance, selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
@@ -67,7 +68,7 @@ use installation_reach::derive_selected_installation_reach_resolutions;
 pub fn bind_selected_provider_plan_facts(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
     root_grants: &[String],
@@ -142,8 +143,19 @@ pub fn select_derived_provider_plans(
             .into_iter()
             .map(|selected| SelectedProviderPlanWithProvenance {
                 derived: derived[selected.candidate].clone(),
-                selected_by: selected.selected_by,
+                selected_by: if derived[selected.candidate]
+                    .provenance
+                    .row_realizations
+                    .iter()
+                    .all(|row| row.native().is_some())
+                {
+                    ProviderSelectionProvenance::NativeBuild
+                } else {
+                    selected.selected_by
+                },
             })
             .collect()
     })
 }
+
+pub use provenance_replay::ProviderRowRealization;

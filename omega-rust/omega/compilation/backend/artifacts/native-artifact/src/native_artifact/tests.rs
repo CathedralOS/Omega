@@ -97,7 +97,7 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
             calling_conventions::RegisterSet::new(Vec::new());
         assert!(validate(&changed).is_err());
         let mut changed = call.clone();
-        changed.x86_floating_control = Some(machine_code::X86ForeignCallFloatingControlRecord {
+        changed.x86_floating_control = Some(machine_code::ForeignCallFloatingControlRecord {
             target: target::NativeTarget::linux_x64(),
             saved_slot_byte_offset: 0,
             save_offset: 1,
@@ -107,15 +107,14 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
         });
         assert!(validate(&changed).is_err());
         let mut changed = call.clone();
-        changed.aarch64_floating_control =
-            Some(machine_code::Aarch64ForeignCallFloatingControlRecord {
-                target: target::NativeTarget::linux_arm64(),
-                saved_slot_byte_offset: 0,
-                save_offset: 1,
-                save_byte_count: 4,
-                restore_offset: 8,
-                restore_byte_count: 4,
-            });
+        changed.aarch64_floating_control = Some(machine_code::ForeignCallFloatingControlRecord {
+            target: target::NativeTarget::linux_arm64(),
+            saved_slot_byte_offset: 0,
+            save_offset: 1,
+            save_byte_count: 4,
+            restore_offset: 8,
+            restore_byte_count: 4,
+        });
         assert!(validate(&changed).is_err());
     }
 }

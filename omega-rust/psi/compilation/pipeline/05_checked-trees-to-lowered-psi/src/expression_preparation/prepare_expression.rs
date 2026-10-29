@@ -100,6 +100,9 @@ impl<'a> PreparedExpressionContext<'a> {
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         match expression {
+            CheckedScalarExpression::ConstantApplication { .. } => Err(LoweringError::Unsupported(
+                "pending contract constant cannot be emitted as an executable value",
+            )),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => self
                 .sequence_observation(
                     identities,
@@ -228,6 +231,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 left,
                 right,
                 formation_decided,
+                ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 let left = self.lower_scalar(identities, left)?;

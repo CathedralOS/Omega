@@ -20,68 +20,39 @@ use selected_instructions_to_selected_instructions::{
 
 use super::PostHomeCustodyReceipt;
 
-/// Assignment probe over a completed selected-lowering run's final facts.
-/// Computing the assignment without consuming the run lets the route answer
-/// residual `NoCompatibleHome` pressure with runtime spill instead of
-/// post-lowering homes.
-#[allow(dead_code)]
-pub(crate) fn assign_optimized_register_homes_after_selected_lowering(
-    run: &StagedSelectedLoweringOptimizationRun,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_selected_lowering(run, None)
-}
+pub(crate) use construction::{
+    assign_register_homes_after_pre_allocation as assign_optimized_register_homes_after_pre_allocation,
+    assign_register_homes_after_selected_lowering as assign_optimized_register_homes_after_selected_lowering,
+    stage_optimized_register_homes_after_pre_allocation_with_assignment,
+    stage_optimized_register_homes_after_selected_lowering_with_assignment,
+};
 
-pub(crate) fn assign_optimized_register_homes_after_selected_lowering_reusing(
-    run: &StagedSelectedLoweringOptimizationRun,
-    reuse: &mut crate::assignment::home_assignment::compute::FunctionHomeReuse,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_selected_lowering(run, Some(reuse))
-}
-
-/// The staged-homes form over an already-computed assignment, for the
-/// composing route that probed assignment while it still owned the run.
-pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
-    run: StagedSelectedLoweringOptimizationRun,
-    homes: ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-    OptimizedPostSelectedLoweringHomeCustodyError,
-> {
-    let staged =
-        construction::construct_register_homes_after_selected_lowering_with_assignment(run, homes)?;
-    Ok(staged)
-}
-
-/// Assignment probe over a completed pre-allocation run's final facts.
-/// Computing the assignment without consuming the run lets the route answer
-/// residual `NoCompatibleHome` pressure with runtime spill instead of
-/// post-run homes.
-#[allow(dead_code)]
-pub(crate) fn assign_optimized_register_homes_after_pre_allocation(
-    run: &StagedPreAllocationOptimizationRun,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_pre_allocation(run, None)
-}
-
-pub(crate) fn assign_optimized_register_homes_after_pre_allocation_reusing(
-    run: &StagedPreAllocationOptimizationRun,
-    reuse: &mut crate::assignment::home_assignment::compute::FunctionHomeReuse,
-) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
-    construction::assign_register_homes_after_pre_allocation(run, Some(reuse))
-}
-
-/// The staged-homes form over an already-computed assignment, for the
-/// composing route that probed assignment while it still owned the run.
-pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
-    run: StagedPreAllocationOptimizationRun,
-    homes: ValidatedRegisterHomes,
-) -> Result<
-    StagedOptimizedRegisterHomesAfterPreAllocation,
-    OptimizedPostPreAllocationHomeCustodyError,
-> {
-    let staged =
-        construction::construct_register_homes_after_pre_allocation_with_assignment(run, homes)?;
-    Ok(staged)
+/// The source-evidence accessors every run-based route publishes: the
+/// environment, selections and budget the admitted source legality settled,
+/// plus the shared assignment-context rows.
+macro_rules! source_evidence_accessors {
+    ($field:ident) => {
+        pub const fn register_environment(
+            &self,
+        ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+            self.$field.source_legality_stage().register_environment()
+        }
+        /// The governing optimizer selections admitted with the run.
+        pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+            self.$field.selections()
+        }
+        /// The per-pass work budget admitted beside the source's evidence.
+        pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+            self.$field.source_legality_stage().budget_per_pass()
+        }
+        assignment_context_accessors!(
+            $field
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+        );
+    };
 }
 
 /// Strict homes after one or more separately requested literal folds. The
@@ -189,28 +160,7 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
             None => self.run.source_legality_stage().legality(),
         }
     }
-    /// The register environment admitted with the run's source legality —
-    /// the lowering suite preserves it, so the source's environment is the
-    /// current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.run.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the run.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.run.selections()
-    }
-    /// The per-pass work budget admitted beside the source's evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.run.source_legality_stage().budget_per_pass()
-    }
-    assignment_context_accessors!(
-        run.source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    source_evidence_accessors!(run);
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterSelectedLowering {
         custody: &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     });
@@ -270,28 +220,7 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     pub fn legality(&self) -> &ValidatedAllocationLegality {
         self.run.legality()
     }
-    /// The register environment admitted with the run's source legality —
-    /// the pre-allocation families preserve it, so the source's environment
-    /// is the current one.
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.run.source_legality_stage().register_environment()
-    }
-    /// The governing optimizer selections admitted with the run.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.run.selections()
-    }
-    /// The per-pass work budget admitted beside the source's evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.run.source_legality_stage().budget_per_pass()
-    }
-    assignment_context_accessors!(
-        run.source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    source_evidence_accessors!(run);
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterPreAllocation {
         custody: &StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     });

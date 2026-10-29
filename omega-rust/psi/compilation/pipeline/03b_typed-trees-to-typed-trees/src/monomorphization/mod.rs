@@ -21,6 +21,7 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
+pub(crate) use body_rewriting::normalize_const_arguments;
 pub(crate) use result_locals::require_complete_dispatch_subjects;
 
 use crate::monomorphization::body_cloning::clone_specialized_machine;
@@ -62,7 +63,7 @@ mod dynamic_families;
 pub(crate) use dynamic_families::generate_dynamic_family_specializations;
 mod dynamic_slots;
 pub(crate) use dynamic_slots::instantiate_dynamic_slots;
-mod requirement_applications;
+pub(crate) mod requirement_applications;
 pub(crate) use requirement_applications::instantiate_requirement_applications;
 pub(crate) use requirement_providers::generate_requirement_provider_specializations;
 pub(crate) use type_reference_walk::for_each_type_reference;

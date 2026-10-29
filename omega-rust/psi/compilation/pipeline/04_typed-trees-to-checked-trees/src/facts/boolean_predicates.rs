@@ -17,7 +17,8 @@ use facts::{
 };
 use normalization::normalize;
 pub(crate) use paths::{
-    EntryPaths, capture_entry_guard, conjunction, entry_path_condition, seed_entry_paths,
+    EntryPaths, capture_entry_expression, capture_entry_guard, conjunction, entry_path_condition,
+    entry_path_necessary_condition, seed_entry_paths,
 };
 pub(crate) use retention::retained;
 use symbols::SymbolHandle;
@@ -97,16 +98,32 @@ pub(crate) fn entry_expression(
     statement: usize,
     predicate: &BoundPredicate,
 ) -> Option<Boolean> {
+    entry_expression_with(program, machine, predicate, |place| {
+        super::crash_entry_values::entry_parameter_place(program, machine, state, statement, place)
+    })
+}
+
+/// One projection owner for a completed bound proposition. The caller supplies
+/// the authenticated observation cut; the shared entry scalar adapter retains
+/// exact authored structural positions and dense primitive positions.
+pub(crate) fn entry_expression_with(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    predicate: &BoundPredicate,
+    mut subject: impl FnMut(
+        &CanonicalPlace,
+    ) -> Option<(
+        u32,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )>,
+) -> Option<Boolean> {
+    if predicate.machine != machine {
+        return None;
+    }
     let mut expression = predicate.expression.clone();
     map_observations(&mut expression, &mut |operand| {
-        let binding = predicate.binding(&operand)?;
-        let (position, path) = super::crash_entry_values::entry_parameter_place(
-            program,
-            machine,
-            state,
-            statement,
-            &binding.place,
-        )?;
+        let binding = predicate.binding(operand)?;
+        let (position, path) = subject(&binding.place)?;
         *operand = entry_scalar(program, machine, position, path, operand.primitive_type()?)?;
         Some(())
     })?;
@@ -1072,7 +1089,8 @@ pub(crate) fn map_scalar(
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
-        Scalar::IntegerLiteral { .. }
+        Scalar::ConstantApplication { .. }
+        | Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,

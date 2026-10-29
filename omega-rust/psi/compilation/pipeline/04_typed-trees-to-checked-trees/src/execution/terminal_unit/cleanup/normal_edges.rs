@@ -1,6 +1,9 @@
 //! Selected normal-edge custody, expressed in the ordinary state value namespace.
 //! The shared ownership selection supplies order and exact outgoing coordinates;
 //! hook requirements remain obligations at that edge, never new unconditional facts.
+mod exits;
+pub(in crate::execution::terminal_unit) use exits::state_exits;
+
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
     CheckFacts, CheckedComposedUnitControlStatePlan, CheckedUnitCallableEntry,
@@ -9,6 +12,22 @@ use checked_trees::{
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
+
+/// The producing layer joins source invocation reachability with its completed
+/// physical control. Unknown source outcomes remain potentially normal.
+pub(in crate::execution::terminal_unit) fn completed_body_outcome(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    physical_continuation: bool,
+) -> checked_trees::CheckedNormalCompletion {
+    if physical_continuation
+        && validation::normal_completion_possible(program, state) != Some(false)
+    {
+        checked_trees::CheckedNormalCompletion::Possible
+    } else {
+        checked_trees::CheckedNormalCompletion::NoNormal
+    }
+}
 
 /// Mutable construction scratch; only the shared cleanup arena is published.
 struct NormalExitConstruction {
@@ -20,7 +39,8 @@ struct NormalExitConstruction {
 fn retain_normal_exits(
     shapes: &mut ShapeCollector<'_>,
     rows: Vec<NormalExitConstruction>,
-) -> arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan> {
+    completion: checked_trees::CheckedNormalCompletion,
+) -> checked_trees::CheckedNormalExitCleanups {
     let owner = &mut shapes.cleanup_control;
     let retained = rows
         .into_iter()
@@ -30,7 +50,10 @@ fn retain_normal_exits(
             actions: owner.actions.insert_many(row.actions),
         })
         .collect::<Vec<_>>();
-    owner.normal_exit_rows.insert_many(retained)
+    checked_trees::CheckedNormalExitCleanups {
+        completion,
+        rows: owner.normal_exit_rows.insert_many(retained),
+    }
 }
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
@@ -39,14 +62,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
-) -> Result<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>, &'static str> {
-    if state_plan
-        .terminator
-        .has_normal_continuation(&state_plan.operations, &facts.flow.guarded_exits)
-        == Some(false)
-    {
-        return Ok(Default::default());
-    }
+) -> Result<checked_trees::CheckedNormalExitCleanups, &'static str> {
     let (machine, state) = program
         .machines()
         .iter()
@@ -56,6 +72,17 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
                 .map(|state| (machine, state))
         })
         .ok_or("normal cleanup state has no owning machine")?;
+    let completion = state_plan.normal_exit_cleanups.completion;
+    let exits = state_exits(program, facts, machine.symbol, state)?;
+    // No normal return does not erase an authored transfer's cleanup. Only
+    // the absent source exit roster permits an unreachable physical edge to
+    // carry no transaction.
+    if completion == checked_trees::CheckedNormalCompletion::NoNormal && exits.is_empty() {
+        return Ok(checked_trees::CheckedNormalExitCleanups {
+            completion,
+            ..Default::default()
+        });
+    }
     let rows = cleanup_rows(
         program,
         facts,
@@ -63,9 +90,10 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         shapes,
         machine.symbol,
         state,
+        exits,
         |root| owner_source(program, facts, state, state_plan, root).map(Some),
     )?;
-    Ok(retain_normal_exits(shapes, rows))
+    Ok(retain_normal_exits(shapes, rows, completion))
 }
 
 /// Sequence completion disposes current named storage through the same checked
@@ -77,16 +105,23 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
-) -> Option<arena::HandleSpan<checked_trees::CheckedNormalExitCleanupPlan>> {
-    if plan
-        .operations
-        .iter()
-        .any(|operation| !operation.has_normal_continuation())
-    {
-        return Some(Default::default());
-    }
+) -> Option<checked_trees::CheckedNormalExitCleanups> {
     let machine = program.machine_by_symbol(plan.machine)?;
     let state = program.state_in_machine(machine, plan.state)?;
+    let completion = completed_body_outcome(
+        program,
+        state,
+        plan.operations
+            .iter()
+            .all(|operation| operation.has_normal_continuation()),
+    );
+    let exits = state_exits(program, facts, plan.machine, state).ok()?;
+    if completion == checked_trees::CheckedNormalCompletion::NoNormal && exits.is_empty() {
+        return Some(checked_trees::CheckedNormalExitCleanups {
+            completion,
+            ..Default::default()
+        });
+    }
     let rows = cleanup_rows(
         program,
         facts,
@@ -94,6 +129,7 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         shapes,
         plan.machine,
         state,
+        exits,
         |root| {
             let operations = &plan.operations;
             if root.as_expression().is_some() {
@@ -124,7 +160,7 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         },
     )
     .ok()?;
-    Some(retain_normal_exits(shapes, rows))
+    Some(retain_normal_exits(shapes, rows, completion))
 }
 
 fn cleanup_rows(
@@ -134,6 +170,7 @@ fn cleanup_rows(
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
+    exits: Vec<checked_trees::FlowClaimJoinExit>,
     mut source_for_owner: impl FnMut(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
@@ -143,43 +180,14 @@ fn cleanup_rows(
         .control
         .state(machine, state.symbol)
         .ok_or("normal cleanup state has no retained control flow")?;
-    let mut rows = Vec::<NormalExitConstruction>::new();
-    for outgoing in facts
-        .flow
-        .control
-        .outgoing
-        .span_or_empty(flow_state.outgoing)
-    {
-        let kind = if !outgoing.transition_target.is_valid() {
-            checked_trees::FlowClaimJoinExitKind::FinalExpression
-        } else {
-            let transition = program
-                .statement_table
-                .statement_at(state, outgoing.statement_index)
-                .ok_or("normal cleanup edge has no source statement")?
-                .as_transition()
-                .ok_or("normal cleanup edge is not a direct transition")?;
-            if transition.target == outgoing.transition_target {
-                checked_trees::FlowClaimJoinExitKind::TransitionTarget
-            } else if transition.continuation == outgoing.transition_target {
-                checked_trees::FlowClaimJoinExitKind::TransitionContinuation
-            } else {
-                return Err("normal cleanup edge does not select the source transition");
-            }
-        };
-        let exit = checked_trees::FlowClaimJoinExit {
-            state_symbol: state.symbol,
-            statement_index: outgoing.statement_index,
-            kind,
-        };
-        if !rows.iter().any(|row| row.exit == exit) {
-            rows.push(NormalExitConstruction {
-                exit,
-                selected_regions: Vec::new(),
-                actions: Vec::new(),
-            });
-        }
-    }
+    let mut rows = exits
+        .into_iter()
+        .map(|exit| NormalExitConstruction {
+            exit,
+            selected_regions: Vec::new(),
+            actions: Vec::new(),
+        })
+        .collect::<Vec<_>>();
     let mut retirements = Vec::new();
     let mut establishment_ordered = Vec::new();
     for disposition_handle in facts

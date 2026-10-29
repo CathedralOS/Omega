@@ -7,25 +7,58 @@ use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 use symbols::SymbolHandle;
 
-type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, String);
+type ProviderSelectionKey = (
+    Option<semantic_vocabulary::PackageKeyIdentity>,
+    String,
+    Option<String>,
+);
 
-fn provider_slot_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+fn provider_slot_key(plan: &ProviderPlan) -> ProviderSelectionKey {
     (
         plan.schema.trait_package_identity,
         plan.schema.identity_text(plan.schema.trait_name).to_owned(),
+        plan.schema.root_application_identity().map(str::to_owned),
     )
 }
 
-fn selected_subject_keys(selection: &crate::ProviderSelection) -> Vec<ProviderSelectionKey> {
+fn selected_subject_keys(
+    selection: &crate::ProviderSelection,
+    slots: &[ProviderSelectionKey],
+) -> Vec<ProviderSelectionKey> {
     match &selection.subject {
         crate::ProviderSelectionSubject::BoundaryTrait(identity)
         | crate::ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![(identity.package, identity.canonical_path.clone())]
+            if let Some(application) = &identity.application_identity {
+                return vec![(
+                    identity.package,
+                    identity.canonical_path.clone(),
+                    Some(application.clone()),
+                )];
+            }
+            // A bare declaration has no Type/Const telescope. Its public
+            // regions remain universal; the checked provider's complete schema
+            // owns each receiving view. Closed applications never use this lane.
+            let matched = slots
+                .iter()
+                .filter(|slot| slot.0 == identity.package && slot.1 == identity.canonical_path)
+                .cloned()
+                .collect::<Vec<_>>();
+            if matched.is_empty() {
+                vec![(identity.package, identity.canonical_path.clone(), None)]
+            } else {
+                matched
+            }
         }
         crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
             .coordinates()
             .iter()
-            .map(|coordinate| (family.package, coordinate.requirement_identity.clone()))
+            .map(|coordinate| {
+                (
+                    family.package,
+                    coordinate.requirement_identity.clone(),
+                    None,
+                )
+            })
             .collect(),
     }
 }
@@ -34,13 +67,15 @@ fn selected_provider_key(selection: &crate::ProviderSelection) -> ProviderSelect
     (
         selection.provider_type.package,
         selection.provider_type.canonical_path.clone(),
+        selection.provider_type.application_identity.clone(),
     )
 }
 
-fn provider_plan_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
+fn provider_plan_key(plan: &ProviderPlan) -> ProviderSelectionKey {
     (
         plan.provider_type_package_identity,
         plan.provider_type.clone(),
+        plan.application_identity().map(str::to_owned),
     )
 }
 
@@ -49,6 +84,7 @@ pub enum ProviderSelectionProvenance {
     BuildOverride(Vec<crate::ProviderSelection>),
     TargetDefault(Vec<crate::ProviderSelection>),
     UniqueCoveringCandidate,
+    NativeBuild,
 }
 
 impl ProviderSelectionProvenance {
@@ -58,7 +94,7 @@ impl ProviderSelectionProvenance {
     /// themselves.
     pub fn composition_mode(&self) -> Result<crate::CompositionMode, String> {
         match self {
-            Self::UniqueCoveringCandidate => Ok(crate::CompositionMode::Fused),
+            Self::UniqueCoveringCandidate | Self::NativeBuild => Ok(crate::CompositionMode::Fused),
             Self::TargetDefault(declarations) => {
                 if declarations.iter().any(|declaration| {
                     declaration.composition_mode != crate::CompositionMode::Fused
@@ -102,7 +138,8 @@ pub struct SelectedProviderReviewProvenance {
     pub plan: ProviderPlan,
     pub provider: ProviderPlanProvenance,
     pub selected_by: ProviderSelectionProvenance,
-    /// Closed compiler-owned execution identity for each provider row.
+    /// Host and placement execution identity for each provider row. Numeric
+    /// rows carry None: their meaning lives in Psi's external declarations.
     ///
     /// Selection initially leaves this empty because exact execution is not
     /// settled until after checking. The compiler must replace it with one
@@ -144,7 +181,7 @@ pub fn selected_provider_plan_facts(
 /// facts publish only when that join is complete.
 pub(crate) fn selected_provider_plan_facts_with_independent_components(
     context: crate::ProviderPlanningContext<'_>,
-    mut selected: Vec<SelectedProviderPlanWithProvenance>,
+    selected: Vec<SelectedProviderPlanWithProvenance>,
     independent_components: &[VerifiedComponent],
 ) -> Result<
     (
@@ -153,99 +190,146 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
-    let typed = context.typed;
-    selected.sort_by(|left, right| left.derived.plan.selection_order(&right.derived.plan));
+    let declarations = PreparedSelectionDeclarations::prepare(
+        context,
+        selected
+            .iter()
+            .flat_map(|plan| authored_selection_declarations(&plan.selected_by)),
+    );
+    declarations.finish(selected, independent_components)
+}
 
-    let mut diagnostics = replay_operator_family_selections(context, &selected);
-    let mut independent_join = IndependentComponentJoin::new(independent_components);
-    for selected_plan in &selected {
-        let plan = &selected_plan.derived.plan;
-        let provenance = &selected_plan.derived.provenance;
-        let composition_mode = match selected_plan.selected_by.composition_mode() {
-            Ok(mode) => mode,
-            Err(reason) => {
-                diagnostics.push(diagnostics::Diagnostic::error(reason));
+/// Source-only family replay belongs to declaration preparation. Selection still
+/// checks the complete retained coordinate roster after actual demand is known.
+/// These invocation-local coordinates are compared, never used to reopen source.
+pub(crate) struct PreparedSelectionDeclarations {
+    families: Vec<(crate::ProviderSelection, Vec<diagnostics::Diagnostic>)>,
+}
+
+impl PreparedSelectionDeclarations {
+    pub(crate) fn prepare<'declaration>(
+        context: crate::ProviderPlanningContext<'_>,
+        declarations: impl IntoIterator<Item = &'declaration crate::ProviderSelection>,
+    ) -> Self {
+        let mut families = Vec::new();
+        for declaration in declarations {
+            let crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) =
+                &declaration.subject
+            else {
+                continue;
+            };
+            if families.iter().any(|(retained, _)| retained == declaration) {
                 continue;
             }
-        };
-        // Component-closure fence. An `Independent` edge closes only when
-        // exactly one verified component description realizes this plan
-        // (`VerifiedComponent::realizes_selected_plan` matches the selected
-        // provider type and every checked-adapter row against the verified
-        // module's provider-candidate catalog). The join reads the verified
-        // carrier itself, never a projection of its fields; a missing,
-        // duplicated, or mismatched realization rejects here rather than
-        // falling back to Fused.
-        if composition_mode == crate::CompositionMode::Independent
-            && let Err(diagnostic) = independent_join.realize(plan)
-        {
-            diagnostics.push(diagnostic);
+            let diagnostics = family
+                .replay_against_typed(context)
+                .into_iter()
+                .map(diagnostics::Diagnostic::error)
+                .collect();
+            families.push((declaration.clone(), diagnostics));
         }
-        let schema_symbol = provenance.schema.symbol();
-        let declarations = match &selected_plan.selected_by {
-            ProviderSelectionProvenance::BuildOverride(declarations)
-            | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-            ProviderSelectionProvenance::UniqueCoveringCandidate => continue,
-        };
-        if declarations.is_empty() {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
+        Self { families }
+    }
+
+    pub(crate) fn finish(
+        &self,
+        mut selected: Vec<SelectedProviderPlanWithProvenance>,
+        independent_components: &[VerifiedComponent],
+    ) -> Result<
+        (
+            effects::SelectedProviderPlanFacts,
+            Vec<SelectedProviderReviewProvenance>,
+        ),
+        Vec<diagnostics::Diagnostic>,
+    > {
+        selected.sort_by(|left, right| left.derived.plan.selection_order(&right.derived.plan));
+
+        let mut diagnostics = self.check_operator_family_selections(&selected);
+        let mut independent_join = IndependentComponentJoin::new(independent_components);
+        for selected_plan in &selected {
+            let plan = &selected_plan.derived.plan;
+            let provenance = &selected_plan.derived.provenance;
+            let composition_mode = match selected_plan.selected_by.composition_mode() {
+                Ok(mode) => mode,
+                Err(reason) => {
+                    diagnostics.push(diagnostics::Diagnostic::error(reason));
+                    continue;
+                }
+            };
+            // Component-closure fence. An `Independent` edge closes only when
+            // exactly one verified component description realizes this plan
+            // (`VerifiedComponent::realizes_selected_plan` matches the selected
+            // provider type and every checked-adapter row against the verified
+            // module's provider-candidate catalog). The join reads the verified
+            // carrier itself, never a projection of its fields; a missing,
+            // duplicated, or mismatched realization rejects here rather than
+            // falling back to Fused.
+            if composition_mode == crate::CompositionMode::Independent
+                && let Err(diagnostic) = independent_join.realize(plan)
+            {
+                diagnostics.push(diagnostic);
+            }
+            let schema_symbol = provenance.schema.symbol();
+            let declarations = match &selected_plan.selected_by {
+                ProviderSelectionProvenance::BuildOverride(declarations)
+                | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
+                ProviderSelectionProvenance::UniqueCoveringCandidate
+                | ProviderSelectionProvenance::NativeBuild => continue,
+            };
+            if declarations.is_empty() {
+                diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected provider plan `{}` has an authored selection origin without a declaration",
                 plan.name,
             )));
-        }
-        for declaration in declarations {
-            let selecting_source = typed
-                .symbols
-                .symbol_provenance_source_span(declaration.selecting_machine);
-            if !declaration.subject.selects_schema(
-                schema_symbol,
-                plan.schema.identity_text(plan.schema.trait_name),
-            ) || Some(declaration.provider_type.symbol) != provenance.provider_type
-                || selecting_source.is_none_or(|source| {
-                    source.source_id != declaration.source_span.source_id
-                        || declaration.source_span.span.start >= declaration.source_span.span.end
-                })
-            {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
+            }
+            for declaration in declarations {
+                if !declaration.subject.selects_schema(
+                    schema_symbol,
+                    plan.schema.identity_text(plan.schema.trait_name),
+                    plan.schema.root_application_identity(),
+                ) || Some(declaration.provider_type.symbol) != provenance.provider_type
+                {
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance",
                     plan.name,
                 )));
+                }
             }
         }
-    }
-    diagnostics.extend(independent_join.finish());
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
+        diagnostics.extend(independent_join.finish());
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
 
-    let plans = selected
-        .iter()
-        .map(|selected| selected.derived.plan.clone())
-        .collect::<Vec<_>>();
-    let facts = effects::SelectedProviderPlanFacts::from_selected_plans(plans.clone())
-        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    if facts.plans() != plans
-        || plans.iter().any(|plan| {
-            facts
-                .plan_by_exact_evidence(plan.report_fingerprint(), plan)
-                .is_none()
-        })
-    {
-        return Err(vec![diagnostics::Diagnostic::error(
-            "selected provider semantic facts do not retain the exact plans aligned with provenance",
-        )]);
+        let plans = selected
+            .iter()
+            .map(|selected| selected.derived.plan.clone())
+            .collect::<Vec<_>>();
+        let facts = effects::SelectedProviderPlanFacts::from_selected_plans(plans.clone())
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        if facts.plans() != plans
+            || plans.iter().any(|plan| {
+                facts
+                    .plan_by_exact_evidence(plan.report_fingerprint(), plan)
+                    .is_none()
+            })
+        {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "selected provider semantic facts do not retain the exact plans aligned with provenance",
+            )]);
+        }
+        let provenance = selected
+            .into_iter()
+            .map(|selected| SelectedProviderReviewProvenance {
+                plan: selected.derived.plan,
+                provider: selected.derived.provenance,
+                selected_by: selected.selected_by,
+                row_compiler_intrinsic_executions: Vec::new(),
+                row_external_completion_leaves: Vec::new(),
+            })
+            .collect();
+        Ok((facts, provenance))
     }
-    let provenance = selected
-        .into_iter()
-        .map(|selected| SelectedProviderReviewProvenance {
-            plan: selected.derived.plan,
-            provider: selected.derived.provenance,
-            selected_by: selected.selected_by,
-            row_compiler_intrinsic_executions: Vec::new(),
-            row_external_completion_leaves: Vec::new(),
-        })
-        .collect();
-    Ok((facts, provenance))
 }
 
 fn authored_selection_declarations(
@@ -254,7 +338,8 @@ fn authored_selection_declarations(
     match provenance {
         ProviderSelectionProvenance::BuildOverride(declarations)
         | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-        ProviderSelectionProvenance::UniqueCoveringCandidate => &[],
+        ProviderSelectionProvenance::UniqueCoveringCandidate
+        | ProviderSelectionProvenance::NativeBuild => &[],
     }
 }
 
@@ -264,6 +349,7 @@ fn same_family_declaration(
 ) -> bool {
     left.subject.same_declaration_as(&right.subject)
         && left.provider_type.symbol == right.provider_type.symbol
+        && left.provider_type.application_identity == right.provider_type.application_identity
 }
 
 /// Atomic family replay. Selection resolved each coordinate as its own slot
@@ -273,65 +359,72 @@ fn same_family_declaration(
 /// candidate. Here every family declaration is replayed once against the
 /// canonical roster the typed program derives now, and every coordinate must
 /// be realized by exactly one selected plan of the declared provider.
-fn replay_operator_family_selections(
-    context: crate::ProviderPlanningContext<'_>,
-    selected: &[SelectedProviderPlanWithProvenance],
-) -> Vec<diagnostics::Diagnostic> {
-    let mut families: Vec<&crate::ProviderSelection> = Vec::new();
-    for selected_plan in selected {
-        for declaration in authored_selection_declarations(&selected_plan.selected_by) {
-            if matches!(
-                declaration.subject,
-                crate::ProviderSelectionSubject::BoundaryOperatorFamily(_)
-            ) && !families
-                .iter()
-                .any(|existing| same_family_declaration(existing, declaration))
-            {
-                families.push(declaration);
+impl PreparedSelectionDeclarations {
+    fn check_operator_family_selections(
+        &self,
+        selected: &[SelectedProviderPlanWithProvenance],
+    ) -> Vec<diagnostics::Diagnostic> {
+        let mut families: Vec<&crate::ProviderSelection> = Vec::new();
+        for selected_plan in selected {
+            for declaration in authored_selection_declarations(&selected_plan.selected_by) {
+                if matches!(
+                    declaration.subject,
+                    crate::ProviderSelectionSubject::BoundaryOperatorFamily(_)
+                ) && !families
+                    .iter()
+                    .any(|existing| same_family_declaration(existing, declaration))
+                {
+                    families.push(declaration);
+                }
             }
         }
-    }
-    let mut diagnostics = Vec::new();
-    for declaration in families {
-        let crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) = &declaration.subject
-        else {
-            continue;
-        };
-        diagnostics.extend(
-            family
-                .replay_against_typed(context)
-                .into_iter()
-                .map(diagnostics::Diagnostic::error),
-        );
-        for coordinate in family.coordinates() {
-            let realized = selected
+        let mut diagnostics = Vec::new();
+        for declaration in families {
+            let crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) =
+                &declaration.subject
+            else {
+                continue;
+            };
+            match self
+                .families
                 .iter()
-                .filter(|selected_plan| {
-                    selected_plan.derived.provenance.schema.symbol() == coordinate.symbol
-                        && selected_plan
-                            .derived
-                            .plan
-                            .schema
-                            .identity_text(selected_plan.derived.plan.schema.trait_name)
-                            == coordinate.requirement_identity
-                        && selected_plan.derived.provenance.provider_type
-                            == Some(declaration.provider_type.symbol)
-                        && authored_selection_declarations(&selected_plan.selected_by)
-                            .iter()
-                            .any(|retained| same_family_declaration(retained, declaration))
-                })
-                .count();
-            if realized != 1 {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
+                .find(|(prepared, _)| prepared == declaration)
+            {
+                Some((_, replay)) => diagnostics.extend(replay.iter().cloned()),
+                None => diagnostics.push(diagnostics::Diagnostic::error(
+                    "selected operator family has no exact prepared declaration",
+                )),
+            }
+            for coordinate in family.coordinates() {
+                let realized = selected
+                    .iter()
+                    .filter(|selected_plan| {
+                        selected_plan.derived.provenance.schema.symbol() == coordinate.symbol
+                            && selected_plan
+                                .derived
+                                .plan
+                                .schema
+                                .identity_text(selected_plan.derived.plan.schema.trait_name)
+                                == coordinate.requirement_identity
+                            && selected_plan.derived.provenance.provider_type
+                                == Some(declaration.provider_type.symbol)
+                            && authored_selection_declarations(&selected_plan.selected_by)
+                                .iter()
+                                .any(|retained| same_family_declaration(retained, declaration))
+                    })
+                    .count();
+                if realized != 1 {
+                    diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "boundary-operator family `{}` selection resolves coordinate `{}` to {realized} selected plans of provider `{}`; every coordinate is realized by exactly one",
                     family.authored_path,
                     coordinate.requirement_identity,
                     declaration.provider_type.authored_path,
                 )));
+                }
             }
         }
+        diagnostics
     }
-    diagnostics
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -351,7 +444,7 @@ fn resolve_provider_selection_slots<'selection>(
     let mut resolved = Vec::new();
     let mut diagnostics = Vec::new();
     for declaration in declarations {
-        for slot_key in selected_subject_keys(declaration) {
+        for slot_key in selected_subject_keys(declaration, slot_keys) {
             if slot_keys.contains(&slot_key) {
                 resolved.push((slot_key, declaration.clone()));
             } else {
@@ -520,7 +613,7 @@ pub(crate) fn select_provider_plan_indices(
                     "slot `{slot_name}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
                     distinct_provider_types
                         .iter()
-                        .map(|(_, provider)| format!("`{provider}`"))
+                        .map(|(_, provider, application)| format!("`{provider}`{}", application.as_deref().map(|application| format!("<{application}>")).unwrap_or_default()))
                         .collect::<Vec<_>>()
                         .join(", "),
                 )));

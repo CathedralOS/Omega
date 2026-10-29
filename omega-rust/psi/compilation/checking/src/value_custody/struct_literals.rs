@@ -43,7 +43,9 @@ pub use window_elements::{ArrayWindowShape, array_window_shape};
 pub use construction_bounds::case_predicates_admit_zero;
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
-pub(crate) use field_obligations::{construction_application, selected_construction_field};
+pub(crate) use field_obligations::{
+    construction_application, selected_construction_case, selected_construction_field,
+};
 pub(crate) use field_obligations::{
     construction_field_type, each_selected_literal_field, validate_array_literal_elements,
     validate_array_literal_elements_for_shape,

@@ -243,7 +243,7 @@ pub(crate) fn boundary_authority_refusal(
     let owner = program.traits().iter().find(|owner| {
         owner.is_boundary
             && program
-                .trait_machine_instances(owner)
+                .executable_trait_machine_instances(owner)
                 .any(|signature| signature.symbol == call.target_symbol)
     })?;
     let site = validation::find_call_site(

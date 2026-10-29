@@ -20,7 +20,7 @@ use super::{
 /// Computing the assignment without consuming the run lets the route answer
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
-pub(super) fn assign_register_homes_after_pre_allocation(
+pub(crate) fn assign_register_homes_after_pre_allocation(
     run: &StagedPreAllocationOptimizationRun,
     reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
@@ -36,7 +36,7 @@ pub(super) fn assign_register_homes_after_pre_allocation(
 
 /// The same construction over an already-computed assignment, for the
 /// composing route that probed assignment while it still owned the run.
-pub(super) fn construct_register_homes_after_pre_allocation_with_assignment(
+pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
     run: StagedPreAllocationOptimizationRun,
     homes: ValidatedRegisterHomes,
 ) -> Result<
@@ -84,7 +84,7 @@ fn finish_register_homes_after_pre_allocation(
 /// Computing the assignment without consuming the run lets the route answer
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
-pub(super) fn assign_register_homes_after_selected_lowering(
+pub(crate) fn assign_register_homes_after_selected_lowering(
     run: &StagedSelectedLoweringOptimizationRun,
     reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
@@ -100,7 +100,7 @@ pub(super) fn assign_register_homes_after_selected_lowering(
 
 /// The same construction over an already-computed assignment, for the
 /// composing route that probed assignment while it still owned the run.
-pub(super) fn construct_register_homes_after_selected_lowering_with_assignment(
+pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
     run: StagedSelectedLoweringOptimizationRun,
     homes: ValidatedRegisterHomes,
 ) -> Result<

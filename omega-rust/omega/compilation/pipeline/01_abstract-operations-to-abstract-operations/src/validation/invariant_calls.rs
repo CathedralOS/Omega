@@ -427,6 +427,27 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_call(
     (!crash_continuations.is_empty()).then_some((callee, result))
 }
 
+/// Every admitted structural-signature call's yield: the scalar substitution
+/// the moved operands take plus the `(spelled, landed)` root rewrites its
+/// structural arguments need, or `None` when the call may not move.
+pub(crate) type CallAdmission = Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)>;
+
+/// One structural-signature call's bid on a relocation run: the enclosing
+/// `function` and `component`, the candidate `node`, the run's `relocating`
+/// values, `relocating_roots`, and `effects`, plus the unit's `functions`
+/// roster the crash-custody lanes re-derive their rosters from. Bundled so the
+/// admissions below forward one run instead of respelling six arguments at
+/// every delegation.
+pub(crate) struct StructuralCallRun<'a> {
+    pub(crate) functions: &'a [PsiOptimizationFunction],
+    pub(crate) function: &'a PsiOptimizationFunction,
+    pub(crate) component: &'a OptimizerCycleComponent,
+    pub(crate) node: &'a OptimizationNode,
+    pub(crate) relocating: &'a BTreeSet<ValueId>,
+    pub(crate) relocating_roots: &'a BTreeSet<PlaceId>,
+    pub(crate) effects: &'a crate::EffectSummaryAnalysis,
+}
+
 /// The complete unit-call admission shared by the proposal and the
 /// relocation freeze replay: `node` must carry the source-owned call shape
 /// ([`admissible_invariant_unit_call`]) — which yields the exact internal
@@ -481,33 +502,12 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_call(
 /// member-produced root, preheader-visible root)` rewrites the relocated
 /// call performs on its structural arguments — empty when every argument
 /// already names a visible or run-produced root.
-pub(crate) fn invariant_unit_call_admission(
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let callee = admissible_invariant_unit_call(node)?;
-    let O::CallStructural {
-        structural_arguments,
-        result: AbstractStructuralCallResult::Unit,
-        ..
-    } = &node.operation
-    else {
-        return None;
-    };
+pub(crate) fn invariant_unit_call_admission(run: &StructuralCallRun<'_>) -> CallAdmission {
     borrow_call_admission(
-        function,
-        component,
-        node,
-        callee,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        relocating_roots,
-        effects,
+        run,
+        admissible_invariant_unit_call(run.node)?,
+        run.relocating_roots,
+        |result| matches!(result, AbstractStructuralCallResult::Unit),
     )
 }
 
@@ -527,32 +527,13 @@ pub(crate) fn invariant_unit_call_admission(
 /// does the preheader invocation return what every in-loop traversal's
 /// invocation returned.
 pub(crate) fn invariant_structural_scalar_call_admission(
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let callee = admissible_invariant_structural_scalar_call(node)?;
-    let O::CallStructural {
-        structural_arguments,
-        result: AbstractStructuralCallResult::Scalar(_),
-        ..
-    } = &node.operation
-    else {
-        return None;
-    };
+    run: &StructuralCallRun<'_>,
+) -> CallAdmission {
     borrow_call_admission(
-        function,
-        component,
-        node,
-        callee,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        relocating_roots,
-        effects,
+        run,
+        admissible_invariant_structural_scalar_call(run.node)?,
+        run.relocating_roots,
+        |result| matches!(result, AbstractStructuralCallResult::Scalar(_)),
     )
 }
 
@@ -587,36 +568,12 @@ pub(crate) fn invariant_structural_scalar_call_admission(
 /// per-traversal disposal the relocation re-expresses rather than preserves.
 /// Returns the scalar substitution plus the structural-argument root
 /// rewrites the relocated call performs.
-pub(crate) fn invariant_structural_call_admission(
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let (callee, result) = admissible_invariant_structural_call(node)?;
-    let tolerated =
-        structural_call_result_tolerated(function, component, &result, relocating_roots)?;
-    let O::CallStructural {
-        structural_arguments,
-        result: AbstractStructuralCallResult::Structural { .. },
-        ..
-    } = &node.operation
-    else {
-        return None;
-    };
-    borrow_call_admission(
-        function,
-        component,
-        node,
-        callee,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        &tolerated,
-        effects,
-    )
+pub(crate) fn invariant_structural_call_admission(run: &StructuralCallRun<'_>) -> CallAdmission {
+    let (callee, result) = admissible_invariant_structural_call(run.node)?;
+    let tolerated = structural_call_result_tolerated(run, &result)?;
+    borrow_call_admission(run, callee, &tolerated, |result| {
+        matches!(result, AbstractStructuralCallResult::Structural { .. })
+    })
 }
 
 /// The member-discard tolerances an admitted structural-result `CallStructural`
@@ -629,14 +586,12 @@ pub(crate) fn invariant_structural_call_admission(
 /// fresh place every traversal. An unrestricted result adds nothing: a
 /// custody-free copy payload enters no discard roster.
 fn structural_call_result_tolerated(
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
+    run: &StructuralCallRun<'_>,
     result: &terminal_psi::StructuralOperationResult,
-    relocating_roots: &BTreeSet<PlaceId>,
 ) -> Option<BTreeSet<PlaceId>> {
-    let mut tolerated = relocating_roots.clone();
+    let mut tolerated = run.relocating_roots.clone();
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
-        if !scalar_case_result_contained(function, component, result.place) {
+        if !scalar_case_result_contained(run.function, run.component, result.place) {
             return None;
         }
         tolerated.insert(result.place);
@@ -657,38 +612,13 @@ fn structural_call_result_tolerated(
 /// refuses contracts whose crash predicates are not scalar-only, so a call
 /// whose published routes read a callee structural parameter stays inside.
 pub(crate) fn invariant_crash_continuation_unit_call_admission(
-    functions: &[PsiOptimizationFunction],
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let callee = admissible_invariant_crash_continuation_unit_call(node)?;
-    let O::CallStructural {
-        arguments,
-        structural_arguments,
-        crash_continuations,
-        result: AbstractStructuralCallResult::Unit,
-        ..
-    } = &node.operation
-    else {
-        return None;
-    };
+    run: &StructuralCallRun<'_>,
+) -> CallAdmission {
     crash_continuation_borrow_call_admission(
-        functions,
-        function,
-        component,
-        node,
-        callee,
-        arguments,
-        crash_continuations,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        relocating_roots,
-        effects,
+        run,
+        admissible_invariant_crash_continuation_unit_call(run.node)?,
+        run.relocating_roots,
+        |result| matches!(result, AbstractStructuralCallResult::Unit),
     )
 }
 
@@ -705,38 +635,13 @@ pub(crate) fn invariant_crash_continuation_unit_call_admission(
 /// the roster recomputed under the substituted actuals, and the caller's
 /// published crash ceiling covering it.
 pub(crate) fn invariant_crash_continuation_structural_scalar_call_admission(
-    functions: &[PsiOptimizationFunction],
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let callee = admissible_invariant_crash_continuation_structural_scalar_call(node)?;
-    let O::CallStructural {
-        arguments,
-        structural_arguments,
-        crash_continuations,
-        result: AbstractStructuralCallResult::Scalar(_),
-        ..
-    } = &node.operation
-    else {
-        return None;
-    };
+    run: &StructuralCallRun<'_>,
+) -> CallAdmission {
     crash_continuation_borrow_call_admission(
-        functions,
-        function,
-        component,
-        node,
-        callee,
-        arguments,
-        crash_continuations,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        relocating_roots,
-        effects,
+        run,
+        admissible_invariant_crash_continuation_structural_scalar_call(run.node)?,
+        run.relocating_roots,
+        |result| matches!(result, AbstractStructuralCallResult::Scalar(_)),
     )
 }
 
@@ -755,41 +660,13 @@ pub(crate) fn invariant_crash_continuation_structural_scalar_call_admission(
 /// argument root's landing, the roster recomputed under the substituted
 /// actuals, and the caller's published crash ceiling covering it.
 pub(crate) fn invariant_crash_continuation_structural_call_admission(
-    functions: &[PsiOptimizationFunction],
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let (callee, result) = admissible_invariant_crash_continuation_structural_call(node)?;
-    let tolerated =
-        structural_call_result_tolerated(function, component, &result, relocating_roots)?;
-    let O::CallStructural {
-        arguments,
-        structural_arguments,
-        crash_continuations,
-        result: AbstractStructuralCallResult::Structural { .. },
-        ..
-    } = &node.operation
-    else {
-        return None;
-    };
-    crash_continuation_borrow_call_admission(
-        functions,
-        function,
-        component,
-        node,
-        callee,
-        arguments,
-        crash_continuations,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        &tolerated,
-        effects,
-    )
+    run: &StructuralCallRun<'_>,
+) -> CallAdmission {
+    let (callee, result) = admissible_invariant_crash_continuation_structural_call(run.node)?;
+    let tolerated = structural_call_result_tolerated(run, &result)?;
+    crash_continuation_borrow_call_admission(run, callee, &tolerated, |result| {
+        matches!(result, AbstractStructuralCallResult::Structural { .. })
+    })
 }
 
 /// The shared crash-evidence halves every admitted structural-signature
@@ -812,20 +689,26 @@ pub(crate) fn invariant_crash_continuation_structural_call_admission(
 /// verifier replays, minus the entry-requirement discharge a producer-only
 /// proof could have relied on.
 fn crash_continuation_borrow_call_admission(
-    functions: &[PsiOptimizationFunction],
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
+    run: &StructuralCallRun<'_>,
     callee: MachineId,
-    arguments: &[ValueId],
-    crash_continuations: &[terminal_psi::CrashRouteBucket],
-    structural_arguments: &[terminal_psi::StructuralArgument],
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
     tolerated: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    let callee_function = functions
+    expected: impl FnOnce(&AbstractStructuralCallResult) -> bool,
+) -> CallAdmission {
+    let O::CallStructural {
+        arguments,
+        structural_arguments,
+        crash_continuations,
+        result,
+        ..
+    } = &run.node.operation
+    else {
+        return None;
+    };
+    if !expected(result) {
+        return None;
+    }
+    let callee_function = run
+        .functions
         .iter()
         .find(|candidate| candidate.machine == callee)?;
     if crate::validation::relocation_rewrites::structural_call_crash_continuations(
@@ -838,17 +721,8 @@ fn crash_continuation_borrow_call_admission(
         // moved node never inherits a roster the contract did not produce.
         return None;
     }
-    let (substitution, rewrites) = borrow_call_admission(
-        function,
-        component,
-        node,
-        callee,
-        structural_arguments,
-        relocating,
-        relocating_roots,
-        tolerated,
-        effects,
-    )?;
+    let (substitution, rewrites) =
+        borrow_call_evidence(run, callee, structural_arguments, tolerated)?;
     let moved_arguments = arguments
         .iter()
         .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
@@ -858,9 +732,34 @@ fn crash_continuation_borrow_call_admission(
             callee_function,
             &moved_arguments,
         )?;
-    let caller_contract = function.verified_contract.as_ref()?;
+    let caller_contract = run.function.verified_contract.as_ref()?;
     crash_routes_cover(&caller_contract.crash_routes, &continuations)
         .then_some((substitution, rewrites))
+}
+
+/// The shape gate and evidence tail every structural-signature call admission
+/// shares: `node` must carry an `O::CallStructural` whose result variant
+/// `expected` accepts — the half each admission's own callee gate cannot
+/// state — and `tolerated` member discards then pass
+/// [`borrow_call_evidence`]'s whole surface unchanged.
+fn borrow_call_admission(
+    run: &StructuralCallRun<'_>,
+    callee: MachineId,
+    tolerated: &BTreeSet<PlaceId>,
+    expected: impl FnOnce(&AbstractStructuralCallResult) -> bool,
+) -> CallAdmission {
+    let O::CallStructural {
+        structural_arguments,
+        result,
+        ..
+    } = &run.node.operation
+    else {
+        return None;
+    };
+    if !expected(result) {
+        return None;
+    }
+    borrow_call_evidence(run, callee, structural_arguments, tolerated)
 }
 
 /// The shared evidence every admitted structural-signature call replays once
@@ -912,30 +811,27 @@ fn crash_continuation_borrow_call_admission(
 /// every in-loop invocation did. `Owned` over linear, claimed, or any other
 /// custody would move a place this boundary cannot re-express and stays
 /// refused.
-fn borrow_call_admission(
-    function: &PsiOptimizationFunction,
-    component: &OptimizerCycleComponent,
-    node: &OptimizationNode,
+fn borrow_call_evidence(
+    run: &StructuralCallRun<'_>,
     callee: MachineId,
     structural_arguments: &[terminal_psi::StructuralArgument],
-    relocating: &BTreeSet<ValueId>,
-    relocating_roots: &BTreeSet<PlaceId>,
     tolerated: &BTreeSet<PlaceId>,
-    effects: &crate::EffectSummaryAnalysis,
-) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
-    if !scalar_call_callee_pure(effects, callee) {
+) -> CallAdmission {
+    if !scalar_call_callee_pure(run.effects, callee) {
         return None;
     }
-    if !component_members_unobservable(function, component, effects) {
+    if !component_members_unobservable(run.function, run.component, run.effects) {
         return None;
     }
-    if !component_preserves_place_observations_tolerating(function, component, tolerated) {
+    if !component_preserves_place_observations_tolerating(run.function, run.component, tolerated) {
         return None;
     }
-    let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
-    let preheader_source = shared_entry_source(component)?;
-    let preheader = function.block(preheader_source)?;
-    let representatives = invariant_member_place_parameters(function, component, relocating_roots);
+    let substitution =
+        member_scalar_operand_substitution(run.function, run.component, run.node, run.relocating)?;
+    let preheader_source = shared_entry_source(run.component)?;
+    let preheader = run.function.block(preheader_source)?;
+    let representatives =
+        invariant_member_place_parameters(run.function, run.component, run.relocating_roots);
     let mut rewrites = Vec::new();
     for argument in structural_arguments {
         match argument.access {
@@ -963,19 +859,19 @@ fn borrow_call_admission(
             // substitutes a mutating argument's spelling.
             terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
-                if !(relocating_roots.contains(&argument.place)
-                    && member_root_producer_count(function, component, argument.place) == 1)
+                if !(run.relocating_roots.contains(&argument.place)
+                    && member_root_producer_count(run.function, run.component, argument.place) == 1)
                 {
                     return None;
                 }
             }
             terminal_psi::StructuralAccess::SharedBorrow => {
                 let resolved = call_argument_root_landing(
-                    function,
-                    component,
+                    run.function,
+                    run.component,
                     preheader,
                     &representatives,
-                    relocating_roots,
+                    run.relocating_roots,
                     argument.place,
                 )?;
                 if resolved != argument.place {
@@ -1013,19 +909,19 @@ fn borrow_call_admission(
                     return None;
                 }
                 let resolved = call_argument_root_landing(
-                    function,
-                    component,
+                    run.function,
+                    run.component,
                     preheader,
                     &representatives,
-                    relocating_roots,
+                    run.relocating_roots,
                     argument.place,
                 )?;
-                if copyable_owned_argument_root(function, resolved) {
+                if copyable_owned_argument_root(run.function, resolved) {
                     if resolved != argument.place {
                         rewrites.push((argument.place, resolved));
                     }
                 } else if !(resolved == argument.place
-                    && consumed_owned_argument_root(function, component, resolved))
+                    && consumed_owned_argument_root(run.function, run.component, resolved))
                 {
                     return None;
                 }

@@ -130,6 +130,25 @@ pub fn aarch64_register_constraint_catalog(
             .chain([fixed(8, RegisterOperandAccess::Def, "x0")])
             .collect::<Vec<_>>()
     };
+    // The recurring operand shape of the bulk-memory and scalar-codec rows:
+    // the first `inputs` homes are preserved uses, the rest early-clobber defs.
+    let use_then_early_clobber = |operands: u16, inputs: u16| {
+        (0..operands)
+            .map(|operand| {
+                let mut row = allocatable(
+                    operand,
+                    if operand < inputs {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    },
+                    GPR64,
+                );
+                row.early_clobber = operand >= inputs;
+                row
+            })
+            .collect::<Vec<_>>()
+    };
 
     let sp_units = view("sp").units.clone();
     let pc_units = view("pc").units.clone();
@@ -621,42 +640,14 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(nzcv_clobbering_row(
         RegisterConstraintId(0),
         AARCH64_COPY_BYTES,
-        (0..5)
-            .map(|operand| {
-                let mut row = allocatable(
-                    operand,
-                    if operand < 3 {
-                        RegisterOperandAccess::Use
-                    } else {
-                        RegisterOperandAccess::Def
-                    },
-                    GPR64,
-                );
-                row.early_clobber = operand >= 3;
-                row
-            })
-            .collect(),
+        use_then_early_clobber(5, 3),
     ));
     // The zero fill reads its preserved destination/count inputs on every
     // iteration; the cursor is written before the count guard reads them.
     constraints.push(nzcv_clobbering_row(
         RegisterConstraintId(0),
         AARCH64_ZERO_BYTES,
-        (0..3)
-            .map(|operand| {
-                let mut row = allocatable(
-                    operand,
-                    if operand < 2 {
-                        RegisterOperandAccess::Use
-                    } else {
-                        RegisterOperandAccess::Def
-                    },
-                    GPR64,
-                );
-                row.early_clobber = operand >= 2;
-                row
-            })
-            .collect(),
+        use_then_early_clobber(3, 2),
     ));
     // Scalar codecs carry the actual byte footprint. Every working home is
     // early-clobber, so neither input nor another scratch home can alias it.
@@ -667,21 +658,7 @@ pub fn aarch64_register_constraint_catalog(
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,
-            operands: (0..6)
-                .map(|operand| {
-                    let mut row = allocatable(
-                        operand,
-                        if operand < input_count {
-                            RegisterOperandAccess::Use
-                        } else {
-                            RegisterOperandAccess::Def
-                        },
-                        GPR64,
-                    );
-                    row.early_clobber = operand >= input_count;
-                    row
-                })
-                .collect(),
+            operands: use_then_early_clobber(6, input_count),
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
             clobbers: view("nzcv").units.clone(),
@@ -693,21 +670,7 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(nzcv_clobbering_row(
         RegisterConstraintId(0),
         AARCH64_SCAN_BYTE_SEQUENCE,
-        (0..5)
-            .map(|operand| {
-                let mut row = allocatable(
-                    operand,
-                    if operand < 2 {
-                        RegisterOperandAccess::Use
-                    } else {
-                        RegisterOperandAccess::Def
-                    },
-                    GPR64,
-                );
-                row.early_clobber = operand >= 2;
-                row
-            })
-            .collect(),
+        use_then_early_clobber(5, 2),
     ));
     // The compare reads its four preserved inputs while the cursors are
     // written before any input home is consumed; the verdict operand is the
@@ -715,21 +678,7 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(nzcv_clobbering_row(
         RegisterConstraintId(0),
         AARCH64_COMPARE_BYTE_SEQUENCES,
-        (0..8)
-            .map(|operand| {
-                let mut row = allocatable(
-                    operand,
-                    if operand < 4 {
-                        RegisterOperandAccess::Use
-                    } else {
-                        RegisterOperandAccess::Def
-                    },
-                    GPR64,
-                );
-                row.early_clobber = operand >= 4;
-                row
-            })
-            .collect(),
+        use_then_early_clobber(8, 4),
     ));
     for (key, load) in [(AARCH64_LOAD_PACKED, true), (AARCH64_STORE_PACKED, false)] {
         let mut result = allocatable(

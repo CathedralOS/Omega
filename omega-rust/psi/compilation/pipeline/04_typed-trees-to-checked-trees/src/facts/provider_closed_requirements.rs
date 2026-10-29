@@ -99,22 +99,46 @@ pub(crate) fn record_provider_closed_requirements(
                 continue;
             };
             for implementation in program.conformances().iter().filter(|implementation| {
-                implementation.type_parameters.is_empty()
-                    && implementation.rows.iter().any(|row| {
-                        row.declaring_trait == application.declaring_trait
-                            && row.requirement == application.template
-                            && program.requirement_realization_matches(
-                                application.signature.symbol,
-                                row.realization_machine,
-                                provider.symbol,
-                            )
-                    })
+                implementation.rows.iter().any(|row| {
+                    row.declaring_trait == application.declaring_trait
+                        && row.requirement == application.template
+                        && program.requirement_realization_matches(
+                            application.signature.symbol,
+                            row.realization_machine,
+                            provider.symbol,
+                        )
+                })
             }) {
-                let Some(correspondence) = validation::provider_region_correspondence(
-                    program,
-                    implementation,
-                    &receiving_scope,
-                ) else {
+                let captures = implementation
+                    .rows
+                    .iter()
+                    .filter(|row| {
+                        row.requirement == application.template
+                            && row.declaring_trait == application.declaring_trait
+                    })
+                    .filter_map(|row| {
+                        program.typed_program().implementation_capture(
+                            provider.symbol,
+                            row.realization_machine,
+                            implementation.symbol,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let correspondence = match captures.as_slice() {
+                    [] => validation::provider_region_correspondence(
+                        program,
+                        implementation,
+                        &receiving_scope,
+                    ),
+                    [capture] => validation::closed_provider_region_correspondence(
+                        program,
+                        implementation,
+                        &receiving_scope,
+                        capture,
+                    ),
+                    _ => None,
+                };
+                let Some(correspondence) = correspondence else {
                     continue;
                 };
                 rows.push((

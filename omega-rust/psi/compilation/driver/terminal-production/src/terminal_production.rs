@@ -21,6 +21,8 @@ pub struct TerminalProductionRequest<'a> {
     pub publication: terminal_codec::TerminalPublication,
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
+    /// Reuse the declaration product already owned by this exact checked input.
+    pub external_declarations: Option<&'a crate::PreparedExternalProviderDeclarations>,
     pub machine: TerminalMachineSelection<'a>,
     /// Complete callable/interface roots requested by the owning product.
     /// These retain bodies/declarations without granting execution authority.
@@ -39,6 +41,7 @@ impl<'a> TerminalProductionRequest<'a> {
             publication: terminal_codec::TerminalPublication::Portable,
             checked,
             exact_toolchain_sources,
+            external_declarations: None,
             machine,
             roots: crate::TerminalProgramRoots::default(),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
@@ -61,6 +64,12 @@ impl<'a> TerminalProductionRequest<'a> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let declaration_requests = crate::build_bindings::capture_declarations(checked);
+        let native_formations = crate::build_bindings::capture_native_formations(
+            checked,
+            self.machine,
+            &declaration_requests,
+        )
+        .map_err(TerminalArtifactProductionError::BuildContext)?;
         let lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
@@ -69,6 +78,7 @@ impl<'a> TerminalProductionRequest<'a> {
                     self.exact_toolchain_sources,
                     self.roots,
                     self.publication,
+                    self.external_declarations,
                 )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
@@ -177,6 +187,7 @@ impl<'a> TerminalProductionRequest<'a> {
             binding_calls,
             declaration_requests,
             query_calls,
+            native_formations,
         );
         let build_requests = crate::TerminalBuildRequests::new(program.view(), request_calls);
         let build_filesystem =

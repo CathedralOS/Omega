@@ -82,6 +82,7 @@ pub(crate) mod collection_bounds;
 pub(crate) mod completed_domains;
 pub(crate) mod completed_observations;
 mod completed_values;
+pub(crate) use completed_values::completed_value_case_at_occurrence;
 mod construction_predicates;
 pub(crate) mod statement_predicates;
 
@@ -116,7 +117,7 @@ pub(crate) mod structural_prefix;
 pub(crate) use operand_fits::{
     anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
     exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence,
+    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
 };
 mod structural_terms;
 pub(crate) mod transparent_applications;
@@ -1082,15 +1083,16 @@ fn fact_call_targets(
                 .iter()
                 .copied(),
         ),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {
-            FactCallTargets {
-                any: false,
-                all_declared: true,
-            }
-        }
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => FactCallTargets {
+            any: false,
+            all_declared: true,
+        },
     }
 }
 
+pub(crate) use structural_terms::immutable_entry_boolean_projection;
 pub(crate) use structural_terms::source_operations_have_same_meaning;
 
 pub use structural_terms::{

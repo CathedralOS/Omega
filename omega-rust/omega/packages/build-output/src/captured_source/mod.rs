@@ -24,7 +24,7 @@ use std::sync::Arc;
 /// is the inventory's identity for this entry. Symlink entries retain only the
 /// inert captured target spelling; captured links are never materialized or
 /// traversed.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CapturedSourceEntry {
     Directory,
     File {
@@ -144,7 +144,7 @@ impl<'a> CapturedSourceFile<'a> {
 /// retained rows here); package-controlled data cannot fabricate an inventory
 /// that disagrees with the canonical metadata index bound into the build's
 /// filesystem grants.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedBuildSourceInput {
     canonical_source_metadata: Arc<CanonicalFilesystemMetadataIndex>,
     entries: Arc<BTreeMap<Vec<u8>, CapturedSourceEntry>>,

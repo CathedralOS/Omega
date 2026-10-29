@@ -121,30 +121,10 @@ pub(crate) fn rewrite_slot_applications(
     slot_bindings: &[(String, (String, symbols::SymbolHandle))],
     missing: &mut Vec<String>,
 ) -> StructuralTerm {
+    let rewrite = |value: StructuralTerm| {
+        rewrite_slot_applications(program, &value, slot_names, slot_bindings, missing)
+    };
     match term {
-        StructuralTerm::ObservedValue {
-            observed_type,
-            value,
-            descriptor,
-        } => StructuralTerm::ObservedValue {
-            observed_type: *observed_type,
-            descriptor: descriptor.as_ref().map(|descriptor| {
-                Box::new(rewrite_slot_applications(
-                    program,
-                    descriptor,
-                    slot_names,
-                    slot_bindings,
-                    missing,
-                ))
-            }),
-            value: Box::new(rewrite_slot_applications(
-                program,
-                value,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-        },
         StructuralTerm::Application {
             result_type,
             target,
@@ -192,131 +172,10 @@ pub(crate) fn rewrite_slot_applications(
                 arguments,
             }
         }
-        StructuralTerm::IntegerEmbedding { reference, value } => StructuralTerm::IntegerEmbedding {
-            reference: *reference,
-            value: Box::new(rewrite_slot_applications(
-                program,
-                value,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-        },
-        StructuralTerm::MathematicalBinary {
-            operator,
-            left,
-            right,
-        } => StructuralTerm::MathematicalBinary {
-            operator: *operator,
-            left: Box::new(rewrite_slot_applications(
-                program,
-                left,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-            right: Box::new(rewrite_slot_applications(
-                program,
-                right,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-        },
-        StructuralTerm::ScalarBinary {
-            references,
-            operator,
-            meaning,
-            left,
-            right,
-        } => StructuralTerm::ScalarBinary {
-            references: *references,
-            operator: *operator,
-            meaning: *meaning,
-            left: Box::new(rewrite_slot_applications(
-                program,
-                left,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-            right: Box::new(rewrite_slot_applications(
-                program,
-                right,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-        },
-        StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
-            data: data.clone(),
-            case: case.clone(),
-            fields: fields
-                .iter()
-                .map(|(name, value)| {
-                    (
-                        name.clone(),
-                        rewrite_slot_applications(
-                            program,
-                            value,
-                            slot_names,
-                            slot_bindings,
-                            missing,
-                        ),
-                    )
-                })
-                .collect(),
-        },
-        StructuralTerm::CallProjection { .. } => term.clone().map_argument_terms(|argument| {
-            rewrite_slot_applications(program, &argument, slot_names, slot_bindings, missing)
-        }),
-        StructuralTerm::IndexedValue {
-            element_type,
-            element_identity,
-            collection,
-            index,
-        } => StructuralTerm::IndexedValue {
-            element_type: *element_type,
-            element_identity: *element_identity,
-            collection: Box::new(rewrite_slot_applications(
-                program,
-                collection,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-            index: Box::new(rewrite_slot_applications(
-                program,
-                index,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-        },
-        StructuralTerm::CollectionMeasure {
-            measure,
-            collection,
-        } => StructuralTerm::CollectionMeasure {
-            measure: *measure,
-            collection: Box::new(rewrite_slot_applications(
-                program,
-                collection,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-        },
-        StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
-            subject: Box::new(rewrite_slot_applications(
-                program,
-                subject,
-                slot_names,
-                slot_bindings,
-                missing,
-            )),
-            path: path.clone(),
-        },
-        other => other.clone(),
+        // Every other variant, including a projection call's arguments, walks
+        // the shared child table; a slot binding only ever replaces an
+        // application's callable, so the rest of the term keeps its shape.
+        other => other.clone().map_children(rewrite),
     }
 }
 

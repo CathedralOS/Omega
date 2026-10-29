@@ -2,6 +2,9 @@
 //! Preparation authenticates the explicit activation before later value operands
 //! execute. The private request context is captured beside those exact calls.
 
+mod native_locators;
+pub(crate) use native_locators::normalize as normalize_native_locators;
+
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, RootBindingOperand,
@@ -18,6 +21,37 @@ pub(crate) fn lower(
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let source_span = request.source_span();
+    // Typing retains the resolver's original attachments and also issues
+    // type-reference selections for static receivers and structural inputs.
+    // Rejoin against that same typed ledger after operand capture; the earlier
+    // resolver ledger cannot contain typing's ordinary selection suffix.
+    // Preserve those exact coordinates beside the inert request until its
+    // Product owner materializes the ordinary source recipe.
+    let mut operand_selections = Vec::new();
+    for operand in request.designated_operands() {
+        for (_, selection) in operand
+            .application
+            .as_ref()
+            .into_iter()
+            .flat_map(|graph| graph.selections.iter())
+        {
+            let kind = selection.kind.ok_or_else(|| {
+                Diagnostic::error("designated operand lost its authored selection kind")
+            })?;
+            operand_selections.push(
+                target
+                    .authored_declaration_selections()
+                    .source_coordinate_occurrence(selection.source_span, selection.exposure, kind)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "Build operand cannot rejoin its {kind:?} selection ({:?}): {reason}",
+                            selection.exposure
+                        ))
+                        .with_source_span(selection.source_span)
+                    })?,
+            );
+        }
+    }
     let operation = match (&request, arguments.len()) {
         (BuildSelectionRequest::ProviderReadiness(_), 1) => "await_provider",
         (BuildSelectionRequest::Exclusion(_), 2) => "exclude",
@@ -30,6 +64,11 @@ pub(crate) fn lower(
             if matches!(binding.implementation, RootBindingOperand::Description) =>
         {
             "bind_description"
+        }
+        (BuildSelectionRequest::Declaration(binding), 3)
+            if binding.operation == BuildOperation::NativeBinding =>
+        {
+            "bind_native"
         }
         (BuildSelectionRequest::Declaration(binding), 1)
             if binding.operation.selects_product_declarations()
@@ -84,6 +123,7 @@ pub(crate) fn lower(
     let commit = find(operation)?;
     let value_helpers = match &request {
         BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
+        _ if operation == "bind_native" => vec![(1, "build_selection_target")],
         _ if operation == "select_provider" => {
             let mut helpers = vec![(1, "build_selection_target")];
             if arguments.len() == 3 {
@@ -116,6 +156,7 @@ pub(crate) fn lower(
                     operational_acknowledgement| {
         let arguments = table.insert_expression_handles(arguments);
         let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+            authored_call_selection: None,
             authored_call_binding: None,
             authored_machine_application: Default::default(),
             exact_coercion_target: Default::default(),
@@ -173,12 +214,14 @@ pub(crate) fn lower(
         build_selection,
         Default::default(),
     );
-    Ok(emit(
+    let committed = emit(
         commit.symbol,
         crate::lowerer::name::lower_name(&commit.name),
         receiver,
         arguments,
         build_selection,
         acknowledgement,
-    ))
+    );
+    table.attach_authored_selection_occurrences(committed, operand_selections);
+    Ok(committed)
 }

@@ -25,11 +25,21 @@ fn source<'a>(
     control: &'a checked_trees::CheckedCleanupControlPlans,
 ) -> NormalExitSource<'a> {
     NormalExitSource {
+        completion: state.normal_exit_cleanups.completion,
         cleanups: control.normal_exits(state.normal_exit_cleanups),
         trivial_affine_discards: &[],
         operations: &state.operations,
         parameters: &state.structural_parameters,
     }
+}
+
+pub(super) fn optional_coordinate(
+    control: &checked_trees::CheckedCleanupControlPlans,
+    state: &CheckedComposedUnitControlStatePlan,
+    statement_index: usize,
+    continuation: bool,
+) -> Result<Option<FlowClaimJoinExit>, LoweringError> {
+    completion_cleanup::optional_coordinate(source(state, control), statement_index, continuation)
 }
 
 pub(super) fn destination(
@@ -48,49 +58,6 @@ pub(super) fn coordinate(
     completion_cleanup::coordinate(source(state, control), statement_index, continuation)
 }
 pub(super) use completion_cleanup::selection;
-
-/// Consume the source completion classification of this checked arrival.
-/// A fused pending invocation has no source normal completion; ordinary edges
-/// still require their exact selected cleanup coordinate.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn for_successor_regions(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    claims: crate::emission::claim_bindings::PublishedClaims<'_>,
-    checked: &CheckedTrees,
-    state: &CheckedComposedUnitControlStatePlan,
-    edge: &checked_trees::CheckedStructuralControlSuccessorPlan,
-    catalogs: &mut catalogs::ComposedCatalogs<'_>,
-    parameters: &[StructuralParameterDeclaration],
-    evaluation: &Evaluation,
-    operations: &OperationBuffer,
-) -> Result<Vec<CleanupRegion>, LoweringError> {
-    if edge.pending_source_invocation.is_valid() {
-        // Stage04 established the exact original call's pending contract and
-        // its fused destination once. Consume that checked classification;
-        // replaying source admission here would create a second semantic owner.
-        // This selects no source cleanup, release or normal return. Whole
-        // no-code carrier custody still belongs to affine frontier closure.
-        return Ok(Vec::new());
-    }
-    let exit = coordinate(
-        catalogs.cleanup_control,
-        state,
-        edge.statement_ordinal as usize,
-        edge.is_continuation,
-    )?;
-    let mut regions = for_exit_regions(
-        identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
-    )?;
-    selection(
-        state.state,
-        &state.operations,
-        evaluation,
-        operations,
-        &mut regions,
-    )?;
-    Ok(regions)
-}
-
 pub(super) fn scalar_returns(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     claims: crate::emission::claim_bindings::PublishedClaims<'_>,

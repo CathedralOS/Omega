@@ -141,9 +141,20 @@ fn lower_nonbinary_expression_node_into_table(
     expression: &syntax::expression::ExpressionNode,
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
-        syntax::expression::ExpressionNode::TypeExpression(_) => Err(Diagnostic::error(
-            "a type expression must be resolved by a static type equation; it is not a runtime value",
-        )),
+        syntax::expression::ExpressionNode::TypeExpression(reference) => {
+            let reference = crate::lowering::type_reference::lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                *reference,
+            )?;
+            let reference = lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .child_type_references
+                .append(reference);
+            Ok(expression_table(lowerer).insert(ExpressionNode::TypeExpression(reference)))
+        }
         syntax::expression::ExpressionNode::Match(dispatch) => {
             match_dispatch::lower_match(lowerer, syntax_trees, *dispatch)
         }
@@ -580,6 +591,26 @@ pub(crate) fn lower_static_machine_argument(
             .map(|application| {
                 Ok::<_, Diagnostic>(Box::new(
                     symbol_resolved_trees::expression::StaticSymbolApplication {
+                        member: if application.member.is_valid() {
+                            let source = syntax_trees
+                                .expressions
+                                .static_member(application.member)
+                                .ok_or_else(|| {
+                                    Diagnostic::error(
+                                        "qualified static member has no owning syntax record",
+                                    )
+                                })?;
+                            let member =
+                                lower_static_machine_argument(lowerer, syntax_trees, source)?;
+                            lowerer
+                                .symbol_resolved_trees
+                                .tables
+                                .bodies
+                                .expressions
+                                .insert_static_member(member)
+                        } else {
+                            arena::Handle::invalid()
+                        },
                         lifetime_arguments: application
                             .lifetime_arguments
                             .iter()

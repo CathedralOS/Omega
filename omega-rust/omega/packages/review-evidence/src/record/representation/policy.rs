@@ -2,6 +2,7 @@
 
 mod validation;
 
+use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyCallingPlan, PackagePolicyClosedConformanceApplication,
     PackagePolicyConformanceShape, PackageReviewNominalIdentity, PackageReviewNominalOwner,
@@ -56,40 +57,18 @@ pub struct PackagePolicyRepresentationDemand {
 }
 
 impl PackagePolicyRepresentation {
-    crate::record::accessors::record_accessors!(package);
-    pub const fn target(&self) -> PackageReviewRepresentationTarget {
-        self.target
-    }
-
-    pub fn declarations(&self) -> &[PackageReviewNominalIdentity] {
-        &self.declarations
-    }
-
-    pub fn producer_availability(&self) -> &[PackagePolicyRepresentationAvailability] {
-        &self.producer_availability
-    }
-
-    pub fn selected_availability(&self) -> &[PackagePolicyRepresentationSelection] {
-        &self.selected_availability
-    }
-
-    pub fn demands(&self) -> &[PackagePolicyRepresentationDemand] {
-        &self.demands
-    }
+    field_projection_accessors!(copied package: semantic_vocabulary::PackageKeyIdentity);
+    field_projection_accessors!(copied target: PackageReviewRepresentationTarget);
+    field_projection_accessors!(sliced declarations: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced producer_availability: &[PackagePolicyRepresentationAvailability]);
+    field_projection_accessors!(sliced selected_availability: &[PackagePolicyRepresentationSelection]);
+    field_projection_accessors!(sliced demands: &[PackagePolicyRepresentationDemand]);
 }
 
 impl PackagePolicyRepresentationAvailability {
-    pub const fn opaque(&self) -> &PackageReviewNominalIdentity {
-        &self.opaque
-    }
-
-    pub const fn conformance(&self) -> &PackagePolicyConformanceShape {
-        &self.conformance
-    }
-
-    pub const fn carrier(&self) -> &PackageReviewNominalIdentity {
-        &self.carrier
-    }
+    field_projection_accessors!(borrowed opaque: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed conformance: &PackagePolicyConformanceShape);
+    field_projection_accessors!(borrowed carrier: &PackageReviewNominalIdentity);
 }
 
 impl PackagePolicyRepresentationSelection {
@@ -123,11 +102,6 @@ impl PackagePolicyRepresentationDemand {
             ))
     }
 
-    pub const fn opaque(&self) -> &PackageReviewNominalIdentity {
-        &self.opaque
-    }
-
-    pub const fn calling(&self) -> &PackagePolicyCallingPlan {
-        &self.calling
-    }
+    field_projection_accessors!(borrowed opaque: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed calling: &PackagePolicyCallingPlan);
 }

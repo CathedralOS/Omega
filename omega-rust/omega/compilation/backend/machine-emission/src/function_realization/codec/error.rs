@@ -1,3 +1,4 @@
+//! Manifest wire decode failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     Truncated,
@@ -20,6 +21,12 @@ pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     IdentityMismatch,
     TrailingBytes,
 }
+
+// The shared cursor owns truncation; this wire reports it as its own
+// `Truncated` refusal, the exact rejection the local cursor produced.
+optimization_core::truncated_from_adapter!(
+    FunctionRelativeOptimizationRealizationManifestDecodeError
+);
 
 impl std::fmt::Display for FunctionRelativeOptimizationRealizationManifestDecodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

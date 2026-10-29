@@ -10,7 +10,7 @@
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedExpressionType {
     pub expression: ExpressionHandle,
     /// Zero means that the occurrence establishes no declared place type.
@@ -19,14 +19,14 @@ pub struct ResolvedExpressionType {
     pub result: TypeReferenceHandle,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedCarrierType {
     pub reference: TypeReferenceHandle,
     pub carrier: TypeReferenceHandle,
 }
 
 /// Dense immutable tables keyed by the corresponding generational handle.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ResolvedTypeFacts {
     expressions: Box<[ResolvedExpressionType]>,
     carriers: Box<[ResolvedCarrierType]>,

@@ -276,7 +276,9 @@ impl SymbolCopy<'_, '_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.expression_payloads(unary.operand),
-            ExpressionNode::ZeroValue(reference) => *reference = self.type_reference(*reference),
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                *reference = self.type_reference(*reference)
+            }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
@@ -310,6 +312,24 @@ impl SymbolCopy<'_, '_> {
         if let Some(application) = &mut argument.application {
             for child in application.arguments.iter_mut() {
                 self.static_argument(child);
+            }
+            if application.member.is_valid() {
+                let mut member = self
+                    .program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+                    .expect("copied static member belongs to the receiving expression table")
+                    .clone();
+                self.static_argument(&mut member);
+                *self
+                    .program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member_mut(application.member)
+                    .expect("copied static member remains present") = member;
             }
         }
     }
@@ -726,6 +746,7 @@ mod tests {
                 requirement_application: arena::Handle::invalid(),
                 machine_arguments: vec![StaticMachineArgument {
                     application: Some(Box::new(StaticSymbolApplication {
+                        member: arena::Handle::invalid(),
                         lifetime_arguments: Box::new([]),
                         arguments: vec![argument.clone()].into_boxed_slice(),
                     })),

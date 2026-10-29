@@ -108,6 +108,7 @@ public boundary trait BuildBindingOperations {
     machine await_provider(activation: u64) reaches suspends;
     machine bind(activation: u64) reaches;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches;
+    machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches;
     machine select(activation: u64) reaches;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches;
     machine exclude(activation: u64, code: u64) reaches;

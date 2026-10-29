@@ -153,7 +153,8 @@ fn scalar(
         }
         checked_trees::integer_widen_triple_pattern!(operand, ..) => scalar(operand, namespace),
         CheckedScalarExpression::Boolean(predicate) => inspect(predicate, namespace),
-        CheckedScalarExpression::Parameter { .. }
+        CheckedScalarExpression::ConstantApplication { .. }
+        | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::ImplementationSelection { .. } => Ok(()),

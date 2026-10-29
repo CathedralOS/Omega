@@ -1,0 +1,36 @@
+// Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
+// Expected exit: 0
+data Pair [copy] where lo == hi { lo: u64; hi: u64; }
+data Envelope [copy] where (self in Envelope::Empty) || (self in Envelope::Point) {
+    marker: u64;
+    case Empty;
+    case Point(pair: Pair);
+}
+machine set_marker(value: &mut Envelope) { value.marker = 23; }
+machine observe(difference: u64, lower: u64, expected: u64) -> u64 {
+    match lower == expected { true -> difference false -> 99 }
+}
+machine pair_width(pair: Pair, expected: u64) -> u64 {
+    observe(pair.hi - pair.lo, pair.lo, expected)
+}
+machine width(value: Envelope, expected: u64) -> u64 {
+    match value {
+        Envelope::Point { pair, .. } -> pair_width(pair, expected)
+        Envelope::Empty -> 77
+    }
+}
+machine main() crashes Trap {
+    let mut point: Envelope = Envelope::Point { marker: 5, pair: Pair { lo: 17, hi: 17 } };
+    set_marker(&mut point);
+    let point_marker: u64 = point.marker;
+    let exact: u64 = width(point, 17);
+    let mut empty: Envelope = Envelope::Empty { marker: 7 };
+    set_marker(&mut empty);
+    let empty_marker: u64 = empty.marker;
+    let fallback: u64 = width(empty, 0);
+    transition exact == 0 && fallback == 77 && point_marker == 23 && empty_marker == 23 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

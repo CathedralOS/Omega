@@ -841,7 +841,7 @@ fn admitted_resource_carry_origin(
         return None;
     };
     let domain = program.domain_definition(domain_symbol)?;
-    (domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
+    (domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
         && crate::checks::type_multiplicity(program, domain.target_type)
             == language_semantics::Multiplicity::Linear)
         .then_some(value)

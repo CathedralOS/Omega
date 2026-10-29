@@ -100,20 +100,7 @@ crashes Trap
 
     machine entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, item: MachineItem) -> bool {
         let stores: bool = Checker::frame_stores(checker, syntax, resolution, typing, machine, item.first_statement, item.statement_count);
-        transition { _ -> member_state(checker, syntax, resolution, typing, machine, item, 0, stores) }
-    }
-
-    machine member_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
-        transition offset < item.state_count {
-            true -> state_stores(checker, syntax, resolution, typing, machine, item, offset, changed)
-            _ -> expression(checker, syntax, resolution, typing, machine, item, 0, changed)
-        }
-    }
-
-    machine state_stores(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
-        let body: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        let stores: bool = Checker::frame_stores(checker, syntax, resolution, typing, machine, body.first_statement, body.statement_count);
-        transition { _ -> member_state(checker, syntax, resolution, typing, machine, item, offset + 1, changed || stores) }
+        transition { _ -> expression(checker, syntax, resolution, typing, machine, item, 0, stores) }
     }
 
     machine expression(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, changed: bool) -> bool {
@@ -185,7 +172,6 @@ crashes Trap
     machine called(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, expression: Expression, selection: Selection) -> bool {
         transition selection {
             Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, machine, expression, handle)
-            Selection::State { handle } -> jump(checker, syntax, resolution, typing, machine, expression, handle)
             _ -> opaque(checker, syntax, typing, machine, expression)
         }
     }
@@ -197,12 +183,6 @@ crashes Trap
         let spread: bool = Checker::mark_unknown(checker, machine, unknown);
         let passed: bool = Checker::frame_arguments(checker, syntax, resolution, typing, machine, expression, item.first_parameter, item.parameter_count, unknown);
         fields || spread || passed
-    }
-
-    machine jump(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, machine: u64 in Trapping, expression: Expression, target_state: u64 in Trapping) -> bool {
-        let item: StateItem = SyntaxTrees::state_item(syntax, target_state);
-        let passed: bool = Checker::frame_arguments(checker, syntax, resolution, typing, machine, expression, item.first_parameter, item.parameter_count, false);
-        passed
     }
 
     machine opaque(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, machine: u64 in Trapping, expression: Expression) -> bool {

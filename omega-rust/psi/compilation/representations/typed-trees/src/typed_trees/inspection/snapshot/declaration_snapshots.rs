@@ -224,6 +224,8 @@ pub struct DataDefinitionSnapshot {
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub predicate_subject: Option<DataPredicateSubjectSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub generic_instance: Option<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_selection: Option<CleanupSelectionSnapshot>,
@@ -232,6 +234,12 @@ pub struct DataDefinitionSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub retired_identities: Vec<u64>,
     pub members: Vec<DataMemberSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DataPredicateSubjectSnapshot {
+    pub carrier: TypeReferenceSnapshot,
+    pub owned_by_data: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -306,7 +314,7 @@ pub struct DomainDefinitionSnapshot {
     pub alias: Vec<DomainAliasConstituentSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub classification: Option<&'static str>,
-    pub predicate_body: &'static str,
+    pub predicate_presence: &'static str,
     pub semantic_id: u32,
     pub semantic_roles: DomainSemanticRolesSnapshot,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -393,6 +401,14 @@ pub(crate) fn data_definition_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        predicate_subject: (data.predicate_subject_symbol.is_valid()
+            && data.predicate_subject_type.is_valid())
+        .then(|| DataPredicateSubjectSnapshot {
+            carrier: type_reference_snapshot(program, data.predicate_subject_type),
+            owned_by_data: program.symbols.get(data.predicate_subject_symbol).parent == data.symbol
+                && program.symbols.get(data.predicate_subject_symbol).kind
+                    == symbols::SymbolKind::Parameter,
+        }),
         generic_instance: data
             .generic_instance
             .map(|origin| type_reference_snapshot(program, origin)),
@@ -543,7 +559,7 @@ pub(crate) fn domain_definition_snapshot(
             })
             .unwrap_or_default(),
         classification: domain.classification.map(|value| value.as_str()),
-        predicate_body: domain.predicate_body.as_str(),
+        predicate_presence: domain.predicate_presence.as_str(),
         semantic_id: domain.semantic_id.0,
         semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
         establishment_routes: domain

@@ -20,7 +20,10 @@ pub use declarations::operators::{
     derive_pre_flow_operator_selections, scoped_operator_application,
 };
 pub use declarations::traits::refinement_fit;
-pub use declarations::traits::{ProviderRegionCorrespondence, provider_region_correspondence};
+pub use declarations::traits::{
+    ProviderRegionCorrespondence, closed_provider_region_correspondence,
+    provider_region_correspondence,
+};
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
@@ -100,10 +103,10 @@ pub use proof_contracts::arithmetic_domains::{
     selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
-    exact_predicate_conjunction, exact_predicate_intervals, exact_predicate_ordering,
-    length_member, predicate_integer_operand, predicate_ordering_consequences,
-    premises_prove_expression,
+    PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,
+    PredicateIntegerReadSubject, PredicateIntegerSubject, exact_predicate_conjunction,
+    exact_predicate_intervals, exact_predicate_ordering, length_member, predicate_integer_operand,
+    predicate_ordering_consequences, premises_prove_expression,
 };
 pub use proof_contracts::contract_entailment::call_projection_identity::{
     captured_call_argument_index_matches, captured_call_index_value,
@@ -120,6 +123,7 @@ pub use proof_contracts::contract_entailment::content_conservation::{
     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
+pub(crate) use proof_contracts::contract_entailment::immutable_entry_boolean_projection;
 pub use proof_contracts::contract_entailment::numeric_observations::{
     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
     NumericObservationDemand, captured_numeric_observations,
@@ -247,7 +251,8 @@ pub use value_custody::intrinsic_boundaries::validate_boundary_completion_declar
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
 pub use crate::declarations::selection_authority::{
-    DeclarationSelectionAuthority, validate_authored_declaration_selections,
+    DeclarationSelectionAuthority, RecordedDeclarationAuthority,
+    validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
     RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
@@ -303,7 +308,7 @@ pub use declarations::operators::{
     validate_closed_operator_application, validate_named_operator_application,
 };
 pub use declarations::operators::{
-    build_operator_uses, checked_operator_candidate, collect_named_requirement_uses,
+    build_operator_uses, checked_operator_candidate,
     collect_pre_specialization_operator_selections, comparison_operator_spelling,
     expression_type_reference_for_origin, indexed_operand_types,
     select_pending_domain_operator_meanings, token_bound_machine_call_target,
@@ -325,10 +330,11 @@ pub use machine_calls::effect_inference::{
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
+pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
-    ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
-    ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
-    ValidatedRequirementCallTypeBinding, ValidatedStaticMachineSelections,
+    PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
+    ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
+    ValidatedRequirementCallSpecialization, ValidatedRequirementCallTypeBinding,
     closed_static_call_type_bindings, validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
@@ -568,15 +574,16 @@ pub use machine_calls::calls::{
     call_site_argument_expressions, call_site_evidence_arguments, call_target_entry_symbol,
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
-    completing_transition_invocation, completing_transition_transfer,
-    expression_normal_completion_possible, find_call_site, find_call_site_in_state, find_machine,
-    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
-    find_state_in_machine, find_state_on_machine, invocation_output_parameter,
-    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
-    normal_completion_possible, receiver_can_dispatch_to_machine, resolve_name_path_member_symbol,
-    resolve_state_call_target, statement_call_can_dispatch_to_machine,
-    statement_call_receiver_members, statement_call_receiver_path, terminal_callable_target,
-    trait_machine_signature_symbol, transition_call_target,
+    completing_transition_invocation, completing_transition_invocations,
+    completing_transition_transfer, expression_normal_completion_possible, find_call_site,
+    find_call_site_in_state, find_machine, find_machine_by_entry_state, find_machine_head,
+    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
+    invocation_output_parameter, machine_parameter_signature_symbol, machine_state_by_symbols,
+    machine_state_count, normal_completion_possible, receiver_can_dispatch_to_machine,
+    resolve_name_path_member_symbol, resolve_state_call_target,
+    statement_call_can_dispatch_to_machine, statement_call_receiver_members,
+    statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
+    transition_call_target,
 };
 pub use value_custody::places::{
     CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,
@@ -654,3 +661,8 @@ pub use value_custody::places::storage_path_relations;
 pub use value_custody::membership_evidence;
 
 pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
+
+pub use proof_contracts::bound_expression_meaning::static_type_boolean_equalities;
+pub mod native_locators;
+
+pub use value_custody::literals::land_owned_fixed_byte_literal;

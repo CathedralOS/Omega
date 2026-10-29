@@ -66,11 +66,7 @@ impl NativeEntryBridge {
         self.call_field_offset
     }
     pub fn call_stack_bias(&self) -> u32 {
-        if self.request.target.architecture == Architecture::X86_64 {
-            8
-        } else {
-            0
-        }
+        call_stack_bias(self.request.target.architecture)
     }
 }
 
@@ -122,6 +118,12 @@ struct PreservedRegister {
     register: MachineRegister,
     offset: u32,
     byte_size: u8,
+}
+
+/// Return-address word that x86-64 pushes below the caller's entry stack
+/// pointer. AArch64 links in a register, so its frames carry no such word.
+fn call_stack_bias(architecture: Architecture) -> u32 {
+    u32::from(architecture == Architecture::X86_64) * 8
 }
 
 fn value_transport(
@@ -455,13 +457,7 @@ pub fn emit_native_entry_bridge(
     let frame_bytes = cursor
         .checked_add(15)
         .map(|value| value & !15)
-        .and_then(|value| {
-            value.checked_add(if request.target.architecture == Architecture::X86_64 {
-                8
-            } else {
-                0
-            })
-        })
+        .and_then(|value| value.checked_add(call_stack_bias(request.target.architecture)))
         .filter(|value| *value <= i32::MAX as u32)
         .ok_or(Error::FrameOverflow)?;
     let interval = crate::frame_layout::stack_commit::stack_commit_granule_bytes(request.target)
@@ -520,11 +516,7 @@ pub fn emit_native_entry_bridge(
         encoding.capture_registers(&mut bytes, transport.destination.pieces(), pointer)?;
     }
     let incoming_bias = frame_bytes
-        .checked_add(if request.target.architecture == Architecture::X86_64 {
-            8
-        } else {
-            0
-        })
+        .checked_add(call_stack_bias(request.target.architecture))
         .ok_or(Error::FrameOverflow)?;
     for (transport, snapshot) in transports.iter().zip(&snapshots) {
         encoding.capture_stack(

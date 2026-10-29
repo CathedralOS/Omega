@@ -1,17 +1,9 @@
 // A target-keyed provider call establishes total >= 1000, so exact subtraction total - 1000 preserves the selected provider result.
 // Expected exit: 0
-boundary trait Reading {
-    machine total() -> u64 reaches ensures result >= 999u64;
-}
-FirstReading satisfies Reading {
-    machine total() -> u64 ensures result >= 1000u64 { 1100u64 }
-}
-SecondReading satisfies Reading {
-    machine total() -> u64 ensures result >= 1000u64 { 2100u64 }
-}
+use reading_provider::main::Reading;
 const SUBTRAHEND: u64 = 1000u64;
 machine journey(expected: u64) reaches Reading crashes Trap {
-    let difference: u64 = Reading::total() - SUBTRAHEND;
+    let difference: u64 = Reading<17u64>::total() - SUBTRAHEND;
     transition difference == expected { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

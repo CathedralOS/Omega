@@ -17,8 +17,13 @@ use super::{
     StagedOptimizedActiveResidentRematerializationPressure,
 };
 
+/// Stage the proven rematerialization sweep without attempting terminal
+/// homes assignment: the result is custody for the route's own decision —
+/// complete the sweep when assignment succeeds, or hand the same proven
+/// prefix to runtime-spill recovery when residual `NoCompatibleHome`
+/// pressure remains.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compute_active_resident_rematerialization_pressure(
+pub(crate) fn stage_optimized_active_resident_rematerialization_pressure(
     source: StagedOptimizedAllocationLegality,
     choice_policy: SpillChoicePolicy,
     classification_policy: RecoveryClassificationPolicy,
@@ -111,8 +116,6 @@ pub(super) fn compute_active_resident_rematerialization_pressure(
     );
     Ok(StagedOptimizedActiveResidentRematerializationPressure {
         source,
-        choices,
-        classifications,
         rematerialization,
         liveness,
         ranges,
@@ -125,7 +128,11 @@ pub(super) fn compute_active_resident_rematerialization_pressure(
 /// homes a successful assignment produced, so residual `NoCompatibleHome`
 /// pressure is a route decision — it hands the prefix to runtime-spill
 /// recovery — not a failure this function interprets.
-pub(super) fn complete_active_resident_rematerialization(
+/// Terminal completion of a proven sweep: the caller supplies the homes a
+/// successful assignment over the rebuilt facts produced. Custody is granted
+/// only after independent replay reconstructs the complete chain, exactly as
+/// the one-shot entrance requires.
+pub(crate) fn complete_optimized_active_resident_rematerialization(
     pressure: StagedOptimizedActiveResidentRematerializationPressure,
     homes: crate::ValidatedRegisterHomes,
 ) -> Result<
@@ -134,8 +141,6 @@ pub(super) fn complete_active_resident_rematerialization(
 > {
     let StagedOptimizedActiveResidentRematerializationPressure {
         source,
-        choices,
-        classifications,
         rematerialization,
         liveness,
         ranges,
@@ -156,17 +161,7 @@ pub(super) fn complete_active_resident_rematerialization(
         &homes,
     )
     .map_err(OptimizedActiveResidentRematerializationError::Manifest)?;
-    let custody = custody_receipt(
-        prefix_custody.source(),
-        &choices,
-        &classifications,
-        &rematerialization,
-        &liveness,
-        &ranges,
-        &legality,
-        &homes,
-        &manifest,
-    );
+    let custody = custody_receipt(prefix_custody, &homes, &manifest);
     Ok(StagedOptimizedActiveResidentRematerialization {
         source,
         rematerialization,

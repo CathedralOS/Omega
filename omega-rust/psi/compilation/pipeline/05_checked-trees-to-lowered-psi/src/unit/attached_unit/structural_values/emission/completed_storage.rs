@@ -9,6 +9,7 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, unsupported,
 };
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 
 impl Emission<'_, '_, '_> {
     /// A private value edge changes storage identity, not membership.
@@ -439,32 +440,26 @@ impl Emission<'_, '_, '_> {
         let transported_claims = completed.claims;
         let place = super::place_id(super::allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
-        self.operations.push(terminal_psi::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: terminal_psi::OperationResult::Structural(
-                terminal_psi::StructuralOperationResult {
-                    place,
-                    structural_type: self.structural_type,
-                    multiplicity: self.multiplicity,
-                    qualifications,
-                    projected_qualifications,
-                    qualification_establishments: Vec::new(),
-                    claims: transported_claims.clone(),
-                },
-            ),
-            kind: terminal_psi::OperationKind::MoveStructuralValue { source },
-        });
+        self.operations.push(terminal_psi::Operation::unsuspended(
+            operation,
+            terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place,
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                qualifications,
+                projected_qualifications,
+                qualification_establishments: Vec::new(),
+                claims: transported_claims.clone(),
+            }),
+            terminal_psi::OperationKind::MoveStructuralValue { source },
+        ));
         self.evaluation
             .retire_structural_operation_operands(operation, self.operations)?;
-        self.environment
-            .private_places
-            .push(super::operation_result_declaration(
-                place,
-                operation,
-                self.structural_type,
-            ));
+        self.environment.private_places.push(operation_result_place(
+            place,
+            operation,
+            self.structural_type,
+        ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         // This is the exact owned transfer just emitted, not a new

@@ -490,29 +490,27 @@ pub struct NormalizedForeignCallbackRelocation {
     kind: object_file::RelocationKind,
 }
 
+/// `pub const fn field(&self) -> T { self.field }` for every carried `Copy`
+/// field. The relocation columns are one custody shape, so each record that
+/// carries them names them once here instead of spelling the getters out.
+macro_rules! copied_accessors {
+    ($($name:ident : $ty:ty),* $(,)?) => {
+        $(
+            pub const fn $name(&self) -> $ty {
+                self.$name
+            }
+        )*
+    };
+}
+
 impl NormalizedForeignCallbackRelocation {
-    pub const fn object_symbol(&self) -> object_file::ObjectSymbolHandle {
-        self.object_symbol
-    }
-
-    pub const fn origin(&self) -> object_file::RelocationOrigin {
-        self.origin
-    }
-
-    pub const fn offset(&self) -> usize {
-        self.offset
-    }
-
-    pub const fn byte_width(&self) -> usize {
-        self.byte_width
-    }
-
-    pub const fn addend(&self) -> i64 {
-        self.addend
-    }
-
-    pub const fn kind(&self) -> object_file::RelocationKind {
-        self.kind
+    copied_accessors! {
+        object_symbol: object_file::ObjectSymbolHandle,
+        origin: object_file::RelocationOrigin,
+        offset: usize,
+        byte_width: usize,
+        addend: i64,
+        kind: object_file::RelocationKind,
     }
 }
 
@@ -599,28 +597,13 @@ impl NormalizedForeignCallRelocation {
         &self.boundary_plan_identity
     }
 
-    pub const fn object_symbol(&self) -> object_file::ObjectSymbolHandle {
-        self.object_symbol
-    }
-
-    pub const fn origin(&self) -> object_file::RelocationOrigin {
-        self.origin
-    }
-
-    pub const fn offset(&self) -> usize {
-        self.offset
-    }
-
-    pub const fn byte_width(&self) -> usize {
-        self.byte_width
-    }
-
-    pub const fn addend(&self) -> i64 {
-        self.addend
-    }
-
-    pub const fn kind(&self) -> object_file::RelocationKind {
-        self.kind
+    copied_accessors! {
+        object_symbol: object_file::ObjectSymbolHandle,
+        origin: object_file::RelocationOrigin,
+        offset: usize,
+        byte_width: usize,
+        addend: i64,
+        kind: object_file::RelocationKind,
     }
 
     pub fn callbacks(&self) -> &[NormalizedForeignCallbackRelocations] {

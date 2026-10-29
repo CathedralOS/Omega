@@ -820,6 +820,7 @@ fn subject_call(
     };
     let operation = crate::execution::terminal_unit::calls::build_call_operation(
         program,
+        shapes,
         facts,
         Some(scalar_callees),
         machine,

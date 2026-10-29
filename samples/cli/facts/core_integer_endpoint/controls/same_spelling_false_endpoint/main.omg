@@ -1,0 +1,4 @@
+// A same-spelled ordinary machine cannot donate the core endpoint fact.
+machine max<T>() -> u32 ensures result == 42u32 { 42u32 }
+machine consume(value: u32) requires value == 0xFFFF_FFFFu32 {}
+machine main() { consume(max<u32>()); }

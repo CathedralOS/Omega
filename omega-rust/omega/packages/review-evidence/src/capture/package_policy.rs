@@ -6,6 +6,7 @@
 mod assumed_bindings;
 mod authority;
 mod external;
+mod native_bindings;
 mod restricted_build;
 mod semantic_dependencies;
 
@@ -45,7 +46,11 @@ pub fn project_checked_package_policy<'a>(
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     let input = input.into();
     let queries = PolicyCheckingContexts::new(input.program, input.custody);
+    let external_providers = input.project_external_providers()?;
+    let services = input.project_service_declarations();
     let compilation = &PackageReviewInput {
+        service_declarations: Some(&services),
+        external_providers: Some(&external_providers),
         checking_input: &queries.candidate,
         custody_checking_input: &queries.custody,
         ..input
@@ -82,6 +87,7 @@ pub fn project_checked_package_policy<'a>(
         terminal_permissions,
         representation,
         external_supplies,
+        native_bindings: native_bindings::project(compilation, package)?,
         dangerous_capabilities,
         slack_uses,
         semantic_dependencies,

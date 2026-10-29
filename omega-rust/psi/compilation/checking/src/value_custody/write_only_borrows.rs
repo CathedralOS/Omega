@@ -74,6 +74,25 @@ fn has_checked_write_only_implementation(
                 })
             },
         )
+        || satisfied_by_checked_implementations(program, machine.symbol)
+}
+
+/// A boundary requirement's satisfiers carry its non-observation evidence:
+/// whichever implementation the build selects, every one is a checked Omega
+/// body, so the selected receipt can never read through the write-only loan.
+/// An unsatisfied requirement supplies no receipt at all.
+fn satisfied_by_checked_implementations(
+    program: &dyn crate::CheckingInput,
+    requirement: symbols::SymbolHandle,
+) -> bool {
+    let satisfiers =
+        crate::machine_calls::denotational_calls::requirement_satisfiers(program, requirement);
+    !satisfiers.is_empty()
+        && satisfiers.iter().all(|satisfier| {
+            program
+                .machine(*satisfier)
+                .is_some_and(Machine::supplies_checked_body)
+        })
 }
 
 pub(crate) fn validate_checked_write_only_slice(
@@ -563,6 +582,24 @@ fn write_only_assignment_leaf(
 ) -> bool {
     is_discardable_write_only_field_leaf(program, field_type)
         || is_qualified_write_only_leaf(program, field_type)
+        || is_stored_reference_leaf(program, field_type)
+}
+
+/// A displaced reference leaf ends only through the retained replacement
+/// custody transaction, the same disposal authority a whole-aggregate store
+/// already exercises over descriptor members: the incoming descriptor
+/// installs its own backing loan and the displaced one retires without
+/// observing its referent. The ordinary store and borrow checks still own the
+/// incoming value's type, authority, and loan installation; this gate adds
+/// only the non-observation judgment that replacing a descriptor slot needs.
+fn is_stored_reference_leaf(
+    program: &dyn crate::CheckingInput,
+    field_type: TypeReferenceHandle,
+) -> bool {
+    matches!(
+        program.type_reference_table.type_reference(field_type),
+        TypeReferenceNode::Reference { .. }
+    )
 }
 
 /// One qualified leaf a common-field store may displace: an already-admissible
@@ -1554,14 +1591,21 @@ fn validate_opaque_call_inputs(
         crate::machine_calls::calls::selected_requirement_signature(program, target)
             .filter(|(declaration, _)| declaration.is_boundary)
     {
-        // A boundary namespace supplies an interface, not a checked selected
-        // realization or its non-observation receipt. Its generic external
-        // supplier may remain universal while the call's formals are closed.
-        // Judge that exact application here; scanning machine declarations
-        // alone would miss stored authority behind the supplier's `&mut T`.
-        // Source-selected checked implementations took the Machine arm above.
-        // This is missing realization evidence, not a prohibition on checked
-        // providers implementing an abstract write-only interface.
+        // A boundary requirement satisfied only by checked implementations
+        // carries its non-observation evidence through whichever binding the
+        // build selects; this judgment has no selected row, so every
+        // satisfier must supply it. An unsatisfied or opaquely satisfied
+        // requirement supplies an interface, not a receipt.
+        if satisfied_by_checked_implementations(program, signature.symbol) {
+            return;
+        }
+        // Its generic external supplier may remain universal while the call's
+        // formals are closed. Judge that exact application here; scanning
+        // machine declarations alone would miss stored authority behind the
+        // supplier's `&mut T`. Source-selected checked implementations took
+        // the Machine arm above. This is missing realization evidence, not a
+        // prohibition on checked providers implementing an abstract
+        // write-only interface.
         let local_parameters = program.state_signature_type_parameters(signature);
         let bindings = if local_parameters.is_empty() {
             // Closed rows retain authored operands after substitution. They
@@ -1779,7 +1823,7 @@ fn validate_expression(
         ExpressionNode::Unary(unary) => {
             validate_expression(program, machine, state, unary.operand, roots, diagnostics)
         }
-        typed_trees::spelled_literal_expression_pattern!() => {}
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -2149,6 +2193,8 @@ fn expression_mentions_root(
             .iter()
             .any(|field| expression_mentions_root(program, field.value, root)),
         ExpressionNode::Unary(unary) => expression_mentions_root(program, unary.operand, root),
-        typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            false
+        }
     }
 }

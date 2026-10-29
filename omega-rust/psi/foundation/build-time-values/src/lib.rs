@@ -17,7 +17,7 @@
 /// either direction: compiler-built arguments in, the machine's terminal
 /// value out. Field order is preserved for deterministic reporting; struct
 /// fields retain descriptor labels without depending on backend layout.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub enum BuildTimeValue {
     Unit,
     Int(i64),

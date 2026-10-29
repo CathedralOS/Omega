@@ -34,6 +34,33 @@ fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
         )
 }
 
+/// Semantics whose encoded work reaches machine state outside the register
+/// frame: a floating-control save or restore, a port, a system, control or
+/// model-specific register, a halt, interrupt control, a fence, or an atomic
+/// or placed access. Such a rule never moves across an external effect.
+fn touches_external_state(semantic: MachineSemanticKind) -> bool {
+    matches!(
+        semantic,
+        MachineSemanticKind::SaveFloatingControl
+            | MachineSemanticKind::RestoreFloatingControl
+            | MachineSemanticKind::PortWrite
+            | MachineSemanticKind::SystemRegisterRead
+            | MachineSemanticKind::SystemRegisterWrite
+            | MachineSemanticKind::ControlRegisterRead
+            | MachineSemanticKind::ControlRegisterWrite
+            | MachineSemanticKind::PortRegisterRead
+            | MachineSemanticKind::PortRegisterWrite
+            | MachineSemanticKind::ModelSpecificRead
+            | MachineSemanticKind::ModelSpecificWrite
+            | MachineSemanticKind::ProcessorHalt
+            | MachineSemanticKind::InterruptControl
+            | MachineSemanticKind::MemoryFence
+            | MachineSemanticKind::AtomicFence
+            | MachineSemanticKind::AtomicAccess(_)
+            | MachineSemanticKind::PlacedScalarAccess(_)
+    )
+}
+
 /// A positional roster: one `Use` row per input, then one early `Def` per
 /// result, each row naming its own position with no tie and no fixed view. The
 /// declared total pins the arity the arm requires, so a roster of any other
@@ -115,30 +142,17 @@ pub(super) fn validate_declaration(
     let semantic = declaration.semantic;
     // A Trapping form may stop the process in place, which is as observable
     // as a hosted effect: it must not move across one, and it is never dead.
+    // A hosted byte read or write, or a hosted exit, reaches outside the
+    // process for the same reason.
     let expected_barrier = if has_policy_trap(semantic)
         || matches!(
             semantic,
             MachineSemanticKind::HostedReadByte
-                | MachineSemanticKind::SaveFloatingControl
-                | MachineSemanticKind::RestoreFloatingControl
                 | MachineSemanticKind::HostedWriteByteI32
                 | MachineSemanticKind::HostedExitProcessI32
-                | MachineSemanticKind::PortWrite
-                | MachineSemanticKind::SystemRegisterRead
-                | MachineSemanticKind::SystemRegisterWrite
-                | MachineSemanticKind::ControlRegisterRead
-                | MachineSemanticKind::ControlRegisterWrite
-                | MachineSemanticKind::PortRegisterRead
-                | MachineSemanticKind::PortRegisterWrite
-                | MachineSemanticKind::ModelSpecificRead
-                | MachineSemanticKind::ModelSpecificWrite
-                | MachineSemanticKind::ProcessorHalt
-                | MachineSemanticKind::InterruptControl
-                | MachineSemanticKind::MemoryFence
-                | MachineSemanticKind::AtomicFence
-                | MachineSemanticKind::AtomicAccess(_)
-                | MachineSemanticKind::PlacedScalarAccess(_)
-        ) {
+        )
+        || touches_external_state(semantic)
+    {
         MachineBarrier::ExternalEffect
     } else if matches!(
         semantic,
@@ -858,26 +872,7 @@ fn validate_encoded_effects(
         | MachineEncodedControlEffect::HostedExitOrTrapV1
         | MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::FallThroughV1
-            if matches!(
-                declaration.semantic,
-                MachineSemanticKind::SaveFloatingControl
-                    | MachineSemanticKind::RestoreFloatingControl
-                    | MachineSemanticKind::PortWrite
-                    | MachineSemanticKind::SystemRegisterRead
-                    | MachineSemanticKind::SystemRegisterWrite
-                    | MachineSemanticKind::ControlRegisterRead
-                    | MachineSemanticKind::ControlRegisterWrite
-                    | MachineSemanticKind::PortRegisterRead
-                    | MachineSemanticKind::PortRegisterWrite
-                    | MachineSemanticKind::ModelSpecificRead
-                    | MachineSemanticKind::ModelSpecificWrite
-                    | MachineSemanticKind::ProcessorHalt
-                    | MachineSemanticKind::InterruptControl
-                    | MachineSemanticKind::MemoryFence
-                    | MachineSemanticKind::AtomicFence
-                    | MachineSemanticKind::AtomicAccess(_)
-                    | MachineSemanticKind::PlacedScalarAccess(_)
-            ) =>
+            if touches_external_state(declaration.semantic) =>
         {
             MachineBarrier::ExternalEffect
         }

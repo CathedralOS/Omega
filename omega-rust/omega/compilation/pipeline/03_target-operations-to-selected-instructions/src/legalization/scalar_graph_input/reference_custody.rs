@@ -404,6 +404,36 @@ impl Custody {
         self.leaves.get(&(place, path.to_vec()))
     }
 
+    /// One custody step shared by every reference form: capture the descriptor
+    /// backing for the normalized root, then form the leaf that carries it.
+    fn form_leaf(
+        &self,
+        function: &PsiOptimizationFunction,
+        types: &[StructuralTypeDeclaration],
+        source: &StructuralArgument,
+        operation: OperationId,
+        root: Root,
+        parents: Vec<OccurrenceIdentity>,
+        result: &StructuralOperationResult,
+    ) -> Result<Leaf, LegalizationError> {
+        let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
+        let (backing, backing_parents) =
+            descriptor_backing::capture(function, self, types, source, operation, &root)?;
+        let mut leaf = Leaf::formed(
+            (result.place, Vec::new()),
+            root,
+            parents,
+            operation,
+            result,
+            referent,
+        );
+        leaf.backing = backing;
+        leaf.parents.extend(backing_parents);
+        leaf.parents.sort();
+        leaf.parents.dedup();
+        Ok(leaf)
+    }
+
     /// Copy the actual shared descriptor while retaining its backing and parents.
     /// Borrowed contents never become resident input permissions; guarded absent
     /// slots remain absent under the same observation used for ordinary copies.
@@ -1003,17 +1033,37 @@ fn storage_projection(
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let leaf = custody.leaf(source.place, &path[..crossing])?;
+        let leaf_referent = match custody.leaf(source.place, &path[..crossing]) {
+            Some(leaf) => leaf.referent,
+            // A runtime-indexed prefix names every possible fixed slot, not a
+            // single declared key. The observation replay authenticates each
+            // fixed alternative's carrier; only a uniform referent keeps one
+            // crossing type.
+            None => {
+                let observed = observations::observe_alternatives(
+                    function,
+                    custody,
+                    types,
+                    source.place,
+                    &path[..crossing],
+                )
+                .ok()?;
+                let (first, rest) = observed.split_first()?;
+                rest.iter()
+                    .all(|alternative| alternative.referent == first.referent)
+                    .then_some(first.referent)?
+            }
+        };
         let reference = leaf_type(types, carrier, &path[..crossing])?;
         let StructuralTypeShape::Reference { referent, access } =
             find_structural_type(types, reference)?.shape
         else {
             return None;
         };
-        if referent != leaf.referent || !source.access.admits_referent(access) {
+        if referent != leaf_referent || !source.access.admits_referent(access) {
             return None;
         }
-        carrier = leaf.referent;
+        carrier = leaf_referent;
         path = &path[crossing + 1..];
     }
     optimization_unit_semantics::structural_borrowed_storage_projection(
@@ -2472,26 +2522,9 @@ pub(in crate::legalization) fn apply(
                 return Err(invalid());
             }
             let (root, parents) = normalized_source(function, custody, types, source)?;
-            let (backing, backing_parents) = descriptor_backing::capture(
-                function,
-                custody,
-                types,
-                source,
-                *psi_operation,
-                &root,
-            )?;
-            let mut leaf = Leaf::formed(
-                (result.place, Vec::new()),
-                root,
-                parents,
-                *psi_operation,
-                result,
-                referent,
-            );
-            leaf.backing = backing;
-            leaf.parents.extend(backing_parents);
-            leaf.parents.sort();
-            leaf.parents.dedup();
+            let psi = *psi_operation;
+            let mut leaf =
+                custody.form_leaf(function, types, source, psi, root, parents, result)?;
             leaf.placed = Some(target_operations::TargetPlacedInterpretation::Captured(
                 correspondence.clone(),
             ));
@@ -2538,61 +2571,41 @@ pub(in crate::legalization) fn apply(
             // Formation is a reborrow even when the owning aggregate has only
             // one reference leaf. Only explicit move operations transfer its
             // permission; layout cardinality cannot consume the parent.
-            let leaf =
-                {
-                    let (mut root, parents) = normalized_source(function, custody, types, source)?;
-                    if let Some(storage) = storage {
-                        // The source operation, not its signature, issues the
-                        // interpretation step. A recipe with no relative offset
-                        // can describe only an actual zero-offset formation.
-                        let mut offsets =
-                            function
-                                .block_nodes()
-                                .filter_map(|node| match node.operation {
-                                    AbstractOperation::IntegerConstant {
-                                        result, value, ..
-                                    } if result == storage.byte_offset => Some(value),
-                                    _ => None,
-                                });
-                        if offsets.next() != Some(semantic_vocabulary::IntegerValue::Unsigned(0))
-                            || offsets.next().is_some()
+            let (mut root, parents) = normalized_source(function, custody, types, source)?;
+            if let Some(storage) = storage {
+                // The source operation, not its signature, issues the
+                // interpretation step. A recipe with no relative offset
+                // can describe only an actual zero-offset formation.
+                let mut offsets = function
+                    .block_nodes()
+                    .filter_map(|node| match node.operation {
+                        AbstractOperation::IntegerConstant { result, value, .. }
+                            if result == storage.byte_offset =>
                         {
-                            return Err(invalid());
+                            Some(value)
                         }
-                        terminal_semantics::representation_view_declaration(
-                            types.iter(),
-                            referent,
-                            storage.stored_scalar,
-                        )
-                        .ok_or_else(|| invalid())?;
-                        root = root.projected(&[StructuralPathSegment::RepresentationView {
-                            structural_type: referent,
-                            stored_scalar: storage.stored_scalar,
-                        }]);
-                    }
-                    let (backing, backing_parents) = descriptor_backing::capture(
-                        function,
-                        custody,
-                        types,
-                        source,
-                        *psi_operation,
-                        &root,
-                    )?;
-                    let mut leaf = Leaf::formed(
-                        (result.place, Vec::new()),
-                        root,
-                        parents,
-                        *psi_operation,
-                        result,
-                        referent,
-                    );
-                    leaf.placed = placed_source(function, custody, types, source);
-                    leaf.backing = backing;
-                    leaf.parents.extend(backing_parents);
-                    leaf.parents.sort();
-                    leaf.parents.dedup();
-                    leaf
-                };
+                        _ => None,
+                    });
+                if offsets.next() != Some(semantic_vocabulary::IntegerValue::Unsigned(0))
+                    || offsets.next().is_some()
+                {
+                    return Err(invalid());
+                }
+                terminal_semantics::representation_view_declaration(
+                    types.iter(),
+                    referent,
+                    storage.stored_scalar,
+                )
+                .ok_or_else(|| invalid())?;
+                root = root.projected(&[StructuralPathSegment::RepresentationView {
+                    structural_type: referent,
+                    stored_scalar: storage.stored_scalar,
+                }]);
+            }
+            let psi = *psi_operation;
+            let mut leaf =
+                custody.form_leaf(function, types, source, psi, root, parents, result)?;
+            leaf.placed = placed_source(function, custody, types, source);
             custody.leaves.insert((result.place, Vec::new()), leaf);
         }
         AbstractOperation::ReleaseReference {
@@ -2942,7 +2955,14 @@ pub(in crate::legalization) fn apply(
         _ => {}
     }
     custody.prune_retired();
-    custody.validate_occurrences()?;
+    custody.validate_occurrences().inspect_err(|_| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE custody-operation-context machine={:?} position={:?} operation={:?} sources={:?}",
+                function.machine, custody.reference_position, operation, custody.borrowed_sources
+            );
+        }
+    })?;
     Ok(())
 }
 
@@ -3209,6 +3229,8 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            exit.prune_retired();
+            exit.validate_occurrences()?;
             exits.push((
                 edge,
                 target,
@@ -3224,6 +3246,16 @@ pub(in crate::legalization) fn apply_terminator(
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )?;
+            // There is no successor activation coordinate after completion.
+            // Result transfer authenticated its full leaf ancestry above and
+            // selected cleanup has executed. Captured borrowed-block address
+            // aliases now expire; they are lookup authority, not additional
+            // resident loan occurrences or evidence of descriptor disposal.
+            // Retain and validate every actual surviving leaf and retired
+            // ancestor independently after dropping these local coordinates.
+            custody.borrowed_sources = std::sync::Arc::default();
+            custody.prune_retired();
+            custody.validate_occurrences()?;
         }
     }
     if !exits.is_empty() {
@@ -3313,8 +3345,6 @@ fn apply_cleanup_actions(
         }
         discard_owned(function, custody, types, place, event)?;
     }
-    custody.prune_retired();
-    custody.validate_occurrences()?;
     Ok(())
 }
 
@@ -3522,7 +3552,11 @@ pub(in crate::legalization) fn block_entry_states(
                         })
             });
             arrival.prune_retired();
-            arrival.validate_occurrences()?;
+            arrival.validate_occurrences().inspect_err(|_| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!("CHECKSITE custody-arrival-context machine={:?} source_block={:?} edge={:?} target={:?} terminator={:?} scope={:?} sources={:?}", function.machine, block.id, edge.psi_edge, edge.target, terminator.operation, scope, arrival.borrowed_sources);
+                }
+            })?;
             arrivals.push((edge.psi_edge, edge.target, arrival));
         }
         final_arrivals[position] = arrivals;

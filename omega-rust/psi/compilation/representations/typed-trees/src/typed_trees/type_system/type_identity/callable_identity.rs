@@ -46,23 +46,25 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 /// One interned named-callable identity. Zero is the absence state: a machine
 /// whose declaration carries no entry state has no callable identity and no
 /// slot is minted for it, so no consumer wraps this handle in an `Option`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+)]
 pub struct CallableIdentityId(u32);
 
 /// One interned declaration path, shared by every overload of a family.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CallablePathId(u32);
 
 /// One interned parameter signature. Two identities share it exactly when
 /// they are the same overload family under result-domain dispatch.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CallableParametersId(u32);
 
 /// One interned dispatch-bearing result-domain set. Call sites intern the set
 /// their destination requests through
 /// [`TypedTrees::callable_result_dispatch_identity`] and then select an
 /// overload by comparing handles.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CallableResultDispatchId(u32);
 
 macro_rules! interned_handle {
@@ -124,7 +126,7 @@ enum DeclarationKey {
     BoundaryOperatorRequirement(usize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, compiler_storage::Record)]
 struct CallableIdentityRecord {
     path: CallablePathId,
     parameters: CallableParametersId,
@@ -137,7 +139,7 @@ struct CallableIdentityRecord {
 
 /// Append-only structural keys: every minted handle remains valid through
 /// declaration revisions and is preserved when its owning program is cloned.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, compiler_storage::Record)]
 pub struct CallableIdentityTable {
     paths: Vec<Box<str>>,
     path_slots: HashMap<Box<str>, CallablePathId>,
@@ -624,12 +626,8 @@ impl TypedTrees {
             return Vec::new();
         };
         self.sweep_callable_identities();
-        let positions = self.read_callable_memo(|memo| {
-            memo.machines
-                .get(slot)
-                .cloned()
-                .unwrap_or_default()
-        });
+        let positions =
+            self.read_callable_memo(|memo| memo.machines.get(slot).cloned().unwrap_or_default());
         let machines = self.machines();
         positions
             .into_iter()

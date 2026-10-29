@@ -997,7 +997,7 @@ pub fn machine_scalar_constant_origin(
         }
         for binding in crate::control_graph::forwarded_bindings(block) {
             if binding.target == owner {
-                incoming.push(*binding.arguments.get(ordinal)?);
+                incoming.push(*binding.arguments?.get(ordinal)?);
             }
         }
     }

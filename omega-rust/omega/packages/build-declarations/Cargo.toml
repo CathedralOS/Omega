@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 optimization-core = { path = "../../foundation/optimization-core" }
 psi-compiler = { path = "../../../psi/compilation/driver" }

@@ -35,7 +35,6 @@ crashes Trap
         parser.statement_start = token.start;
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> done()
-            Token::Keyword { keyword: KeywordKind::State, .. } -> done()
             Token::Keyword { keyword: KeywordKind::Machine, .. } -> done()
             Token::Keyword { keyword: KeywordKind::Let, .. } -> let_statement(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::Transition, .. } -> transition_statement(parser, input, unsupported)

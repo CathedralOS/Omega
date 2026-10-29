@@ -1,15 +1,15 @@
 # Omega
 
-Omega is a systems language built around explicit state machines, checked contracts, and ownership of memory and resources. This eliminates entire classes of bugs while keeping performance on par with C.
+Omega is a systems language built around explicit state machines, mathematical proofs, and ownership of memory and resources. Entire classes of bugs are eliminated while keeping performance on par with C.
 
-Instability can only arise under faulty premises. For example, an Omega program will trust that the OS APIs do what they claim. As long as this is true, it can prove safety. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
+Instability can only arise under faulty premises, such as a faulty Operating System API contract. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
 
-The state-machine structure of Omega allows us to answer otherwise difficult questions at compile-time:
+The state-machine structure of Omega turns your codebase into a queryable graph, allowing quick answers to hard questions:
 - Does an API access the filesystem, including through its dependencies?
 - Does an API call crash? Does it provably terminate? Under what conditions?
 - Does a program perform well under load?
 
-Omega is being built for software where performance is critical, and failure is costly. This spans from user facing apps to aircraft systems to OS kernels.
+Omega is being built for software where performance is critical, and failure is costly; from user facing apps, to aircraft systems, to OS kernels.
 
 Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral puts the design to work on kernel problems: managing memory, controlling hardware, and running untrusted software.
 
@@ -33,11 +33,11 @@ These are design guarantees, within the stated trust boundaries:
 | Stack overflow | ✅ Prevented | Worst case stack calculations and tail-recursion only |
 | Data races | ✅ Prevented| Borrow-checking and synchronization. |
 | Hidden or unexpected service reach | ✅ Prevented | Queryable call reachability graphs with no circumvention. |
-| Integer overflow / division by zero | ☑️ Prevented by default | Compile-time checked by default. |
-| Unintended infinite loops | ☑️ Opt-in Prevention | Termination proofs. |
-| Deadlocks / indefinite waits | ☑️ Preventable | Protocol proofs. |
-| Dependency supply-chain attacks | ☑️ Preventable | Reviewable reach graphs, package manager reports. |
-| Compiler supply-chain attacks | ☑️ Preventable | Auditable bootstrap chain. |
+| Integer overflow / division by zero | 🌟 Prevented by default | Compile-time checked by default. |
+| Unintended infinite loops | 🌟 Opt-in Prevention | Termination proofs. |
+| Deadlocks / indefinite waits | 🌟 Preventable | Protocol proofs. |
+| Dependency supply-chain attacks | 🌟 Preventable | Reviewable reach graphs, package manager reports. |
+| Compiler supply-chain attacks | 🌟 Preventable | Auditable bootstrap chain. |
 
 These guarantees rely on the contracts of external code and hardware. A foreign
 function that lies about its memory access, or an OS that violates its contract,
@@ -49,98 +49,220 @@ ratified language contracts, not claims that their compiler migration is complet
 `STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md) retain that implementation
 and source-migration acceptance.
 
+The 2026-10-28 [requirement-clause unification](wiki/spec/language/state_contracts.md#requirement-clauses)
+retires `where` in favor of `requires` and direct assembly contract clauses.
+The examples use the ratified spelling; `REQUIRES-UNIFICATION` in
+[TASKS.md](TASKS.md) retains the compiler and source migration.
+
 ## Machines
 
-A machine defines behavior, its inputs, and its contract. A simple machine looks like an ordinary function or method:
+A machine defines behavior, its inputs, and its contract. It can look like an
+ordinary function, but its contract is checked across calls. Here division may
+crash only when its denominator is zero:
 
 ```omega
-data Player {
-    health: u32;
+// This machine is obligated to report that it can crash when denominator is 0!
+machine divide(
+    numerator: u32,
+    denominator: u32
+) -> u32
+crashes Trap denominator == 0
+{
+    transition denominator == 0 {
+        true -> zero_divisor()
+        false -> (numerator / denominator)
+    }
+
+    machine zero_divisor() -> u32
+    crashes Trap
+    {
+        crash Trap;
+    }
 }
 
-machine Player::take_damage(&mut self, amount: u32)
-    requires amount <= self.health
-    ensures self.health == before(self.health) - amount
+// This machine cannot crash, because the crashy 0 case is handled.
+machine distribute_damage_to_enemies(
+    total_damage: u32,
+    enemy_count: u32
+) -> u32
+crashes Trap false
 {
-    // Guaranteed safe since amount <= self.health
-    self.health = self.health - amount;
+    transition enemy_count == 0 {
+        true -> 0
+        false -> divide(total_damage, enemy_count)
+    }
 }
 ```
 
-- `&mut self` borrows the player exclusively.
-- `requires` is the caller's obligation: establish that the subtraction is safe.
-- `ensures` is the implementation's obligation: prove the promised result.
-  `before(...)` refers to the value on entry.
+`divide` permits a guarded `Trap`; the caller's `crashes Trap false` permits none.
+The zero-enemy branch returns directly. On the other branch, the checker knows
+`enemy_count != 0` and disproves the callee's crash route for that call.
 
-The caller can establish the condition through a branch or facts already known. An unproved call is a compile error, not an automatically inserted runtime assertion.
+Remove the branch and call `divide` directly: the caller must prove a nonzero
+count another way or relax its explicit no-Trap contract. This is not exception handling
+or an assertion asking the compiler to trust the programmer.
 
-For longer control flow, machines contain named states and explicit transitions. Transfers carry values and ownership without growing the call stack.
+Longer control flow uses nested machines and explicit transitions. Proved
+runtime tail cycles carry values and ownership without growing the call stack.
 [Machines](wiki/language_guide/chapter_3_machines.md)
-[States and transitions](wiki/language_guide/chapter_4_states_transitions.md)
+[Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
 
 ## Domains and invariants
 
-Contracts can describe relationships between fields, not just individual arguments. A data type's `where` clause defines its **default domain**:
+The data declaration's `requires` clause keeps every valid player's health between
+0 and 100. Named domains describe additional facts: a player may respawn only
+when dead and outside a cutscene, and respawning must leave them alive:
 
 ```omega
-data Span
-where
-    start <= end,
+data Player
+    requires self.health <= 100
 {
-    start: u32;
-    end: u32;
+    health: u32;
+    in_cutscene: bool;
 }
 
-machine Span::shift(&mut self, delta: u32)
-    requires self.end <= u32::Maximum - delta
+domain Player::Respawnable
+requires
+    self.health == 0 && !self.in_cutscene;
+
+domain Player::Alive
+requires
+    self.health > 0;
+
+machine respawn(player: &mut Player)
+requires
+    player in Player::Respawnable
+ensures
+    player in Player::Alive
 {
-    self.start = self.start + delta;
-    self.end = self.end + delta;
+    player.health = 100;
+}
+
+machine update(player: &mut Player) {
+    transition player in Player::Respawnable {
+        true -> respawn(player)
+        false -> {}
+    }
 }
 ```
 
-The first write can temporarily break `start <= end`. Exclusive access prevents
-another observer from seeing that intermediate state; the second write restores
-the relationship. Returning early or passing the broken span to a machine that
-requires a valid one is rejected.
+`requires` is the caller's obligation; `ensures` is the implementation's
+obligation. The branch in `update` establishes both respawn conditions, and
+`respawn` establishes `Alive` by setting health to 100. Check only for zero health
+and the call is rejected: the cutscene condition is still missing.
 
-The checker proves both additions fit and that the domain holds again at return.
-Neither check inserts a runtime assertion or adds a field: a span still contains
-just two `u32` values.
+The branch tests ordinary fields. Domain qualification adds no runtime state
+tag or wrapper. The default domain must hold whenever the whole value is
+observed; exclusive mutation may temporarily break and then restore it. Setting
+health to 100 establishes `Alive` while preserving the player's default domain.
 
-Named domains let other contracts reuse such facts. Ordinary machines also
-establish mathematical theorems, and eligible computations can be evaluated at
-compile time or referenced in proofs without maintaining a separate algorithm.
+Ordinary machines can also establish mathematical theorems, and eligible
+computations can run at compile time or be referenced in proofs without a
+separate implementation.
 [Domains](wiki/language_guide/chapter_8_domains.md) ·
 [Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
 [Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
 
-## Hardware access
+## Checked Inline Assembly
 
-Ownership also applies when a device accesses memory. In this driver API sketch,
-`receive` lends a nonempty buffer to a device for writing. `finish` returns only
-after the device releases the loan and the required memory visibility holds:
+Copying a packet's 16-byte header must not read past a truncated packet or
+overwrite a short destination. Moving the work into assembly does not remove
+those obligations:
 
 ```omega
-let transfer = device.receive(&mut buffer);
+machine copy_header(
+    packet: &[u8],
+    destination: &mut [u8; 16]
+)
+requires packet.len >= 16
+{
+    let source_address: addr = address_of(&packet[0]);
+    let destination_address: addr = address_of(&mut destination[0]);
 
-// buffer[0] = 42;       // Rejected: the device holds exclusive access.
-// let byte = buffer[0]; // Rejected: CPU reads are excluded too.
-
-suspend device.finish(move transfer);
-
-buffer[0] = 42;          // Valid after release.
+    asm clobbers xmm0 {
+        copy
+            requires packet.len >= 16:
+        movdqu xmm0, [source_address];
+        movdqu [destination_address], xmm0
+    }
+}
 ```
 
-`suspend` allows the current activation to pause; it does not discard the loan.
-Losing the linear transfer token cannot release it, and a device's success
-status alone is insufficient. A fallible completion must preserve the pending
-obligation when release cannot be established.
+The load needs 16 readable bytes; the store needs 16 writable bytes. The packet
+length requirement and destination type establish the bounds, while the borrowed
+arguments supply the necessary access. Numeric addresses alone grant nothing.
+Shifting the store one byte forward would overrun the destination and leave an
+unproved access obligation.
 
-The driver supplies the operations; Omega checks their composition. Hardware
-behavior must be established through checked instruction contracts or explicit
-provider assumptions. Required fences still execute—ownership checking does not
-replace synchronization.
+Label contracts are checked against instruction semantics, not trusted comments.
+This SIMD snippet illustrates the intended contract; it is not a currently
+validated `movdqu` example. Instruction and target support remain incomplete.
+
+## Reach Reporting
+
+A save-game operation needs to write its supplied file. It does not need to
+upload the save or launch another process:
+
+```omega
+machine save_game(
+    save_file: File,
+    bytes: &[u8]
+) -> IoResult
+blocks
+reaches FilesystemContentWrite
+{
+    block FilesystemService::write(save_file, bytes)
+}
+```
+
+`reaches FilesystemContentWrite` is a ceiling on this operation and its checked
+transitive calls. Adding network, Console or process-launch reach anywhere in
+that call chain would exceed the ceiling. Reach describes service usage; the
+supplied file and selected backing provide the actual authority.
+
+`blocks` and the call-site `block` acknowledge that the worker may be occupied
+while the operation waits. `suspend` instead parks an activation and returns
+control to its executor. Neither grants additional service access.
+
+## Hardware access
+
+The same-sized memory is not always permitted to support the same operations.
+Assume the platform's `UartMmio` policy describes a write-only transmit register:
+writing sends data to the device, but borrowing it as ordinary read/write RAM
+is not permitted. This example deliberately fails at the final borrow:
+
+```omega
+data UartRegisters {
+    transmit: u32;
+}
+
+machine broken_reset(
+    uart: &mut Placed<UartMmio, UartRegisters>
+)
+reaches DeviceIo
+{
+    let mut ram_word: u32 = 42;
+
+    clear(&mut ram_word); // Valid: Ordinary RAM.
+    uart.transmit.write(0);
+
+    clear(&mut uart.transmit); // Rejected: cannot borrow MMIO as RAM.
+
+    machine clear(word: &mut u32) {
+        word = 0;
+    }
+}
+```
+
+The RAM borrow and explicit device write are permitted. The rejected call tries
+to pass a device accessor to a helper requiring an ordinary RAM reference.
+Even exclusive access to `uart` cannot manufacture the missing access mode.
+Recasts and checked assembly must respect that distinction too.
+
+The platform supplies the placement policy and its correspondence to the actual
+device. Omega checks against those contracts; it does not infer a datasheet from
+a field name. This is a policy-dependent design example, not a claim that the
+shown invalid program or every placed-access operation is currently supported.
 
 The same model extends to
 [memory authority without runtime domain tags](wiki/spec/resources/extents.md)

@@ -16,6 +16,7 @@ use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod invocation_parameters;
+mod product_operands;
 mod requirement_predicates;
 pub(crate) use invocation_parameters::invocation_parameters;
 
@@ -72,6 +73,7 @@ pub fn validate_source_const_recipes(
             }
         }
     }
+    product_operands::validate_source_recipes(program, &mut diagnostics, formation_obligations);
     crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
@@ -81,6 +83,23 @@ pub fn validate_authored_static_arguments(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
+    for argument in program.typed_program().designated_static_type_arguments() {
+        let Some(owner) = program.machine(argument.owner) else {
+            diagnostics.push(
+                Diagnostic::error("designated static argument lost its exact source owner")
+                    .with_source_span(argument.source_span),
+            );
+            continue;
+        };
+        crate::validate_static_type_argument(
+            program,
+            crate::StaticTypeArgumentOwner::Machine(owner),
+            argument.reference,
+            &symbols,
+            &mut diagnostics,
+            formation_obligations,
+        );
+    }
     let scopes = requirement_predicates::CallScopes::build(program);
     let expression_states = expression_call_states(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
@@ -113,6 +132,7 @@ pub fn validate_authored_static_arguments(
             }
         }
     }
+    product_operands::validate_parameter_correspondence(program, &mut diagnostics);
     // The declaration owns a complete family, including tuples no source call
     // uses. Preparation can derive these rows but cannot admit their operands
     // or substituted predicates on the checker's behalf.

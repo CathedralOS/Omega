@@ -15,19 +15,19 @@ use crate::review_record_encoding::{
 };
 use crate::{
     AcceptedSemanticBinding, BuildSnapshotCapture, BuildSnapshotRequest,
-    BuildSourceCaptureObligation, IndependentComponentDescription, PackageCompilationInputs,
-    PackageDependencyClosure, PackageGeneratedSourceBundle,
+    BuildSourceCaptureObligation, IndependentComponentDescription, PackageBuildHandoff,
+    PackageCompilationInputs, PackageDependencyClosure,
 };
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x02";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x04";
 const SNAPSHOT_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-SNAPSHOT\x01";
 
 /// Commit the current activation's own generated outputs as well as the
 /// dependency bundles already covered by `review_cache_inputs_digest`.
-pub fn generated_source_bundle_digest(bundle: &PackageGeneratedSourceBundle) -> [u8; 32] {
-    let mut digest = DomainDigestEncoder::new(b"omega-generated-source-bundle-v1\0");
+pub fn package_build_handoff_digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
+    let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v4\0");
     hash_generated_bundle(&mut digest, bundle);
     digest.finish()
 }
@@ -66,7 +66,7 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
     }
     digest.byte(purpose_tag(inputs.compilation_purpose()));
     digest.byte(u8::from(inputs.semantic_role_discovery()));
-    for bundle in inputs.dependency_generated_source_bundles() {
+    for bundle in inputs.dependency_build_handoffs() {
         hash_generated_bundle(&mut digest, bundle);
     }
     for binding in inputs.accepted_semantic_bindings() {
@@ -180,7 +180,7 @@ fn hash_dependency_closure(digest: &mut DomainDigestEncoder, closure: &PackageDe
     }
 }
 
-fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageGeneratedSourceBundle) {
+fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageBuildHandoff) {
     digest.raw(&bundle.package().digest());
     digest.byte(purpose_tag(bundle.purpose()));
     digest.byte(crate::target_profile_tags::target_profile_tag(
@@ -195,6 +195,15 @@ fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageGener
     };
     hash_dependency_closure(digest, bundle.dependency_closure());
     digest.raw(&bundle.source_consumption_commitment().digest());
+    digest.raw(
+        &super::package_compilation::provider_selection_codec::package_provider_selections_digest(
+            bundle.provider_selections(),
+            bundle.selection_observation(),
+        ),
+    );
+    digest.raw(&super::package_compilation::native_output_codec::digest(
+        bundle,
+    ));
     digest.u64(bundle.sources().len() as u64);
     for source in bundle.sources() {
         digest.bytes(source.relative_path());

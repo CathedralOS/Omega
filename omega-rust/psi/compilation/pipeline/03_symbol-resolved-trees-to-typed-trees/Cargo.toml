@@ -10,6 +10,7 @@ name = "symbol_resolved_trees_to_typed_trees"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../foundation/compiler-storage" }
 validation = { path = "../../checking" }
 facts = { path = "../../representations/checked-trees/facts" }
 arena = { path = "../../../foundation/arena" }

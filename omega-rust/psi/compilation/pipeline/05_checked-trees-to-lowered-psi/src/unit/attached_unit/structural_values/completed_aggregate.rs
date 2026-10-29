@@ -11,11 +11,11 @@
 use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, OperationKind, OperationResult, PlaceId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    unsupported,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralTypeId, unsupported,
 };
 use super::member_memberships;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use terminal_psi::{
     RecordFieldInitializer, RecordFieldValue, StructuralArgument, StructuralFieldDeclaration,
@@ -114,13 +114,7 @@ fn declare_establishment(
         result.projected_qualifications = projected_qualifications;
     }
     let operation = operations.push_leaf(result, kind);
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: operation,
-            structural_type,
-        },
-    })
+    Ok(operation_result_place(place, operation, structural_type))
 }
 
 /// Complete every field member's memberships under its declared field path,

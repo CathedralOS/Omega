@@ -111,13 +111,7 @@ pub(super) fn derive_summaries(
     let component_geometries: Vec<Option<projections::ComponentProjectionGeometry>> = components
         .iter()
         .map(|component| {
-            projections::prepare_component_geometry(
-                program,
-                flow,
-                semantic,
-                component,
-                call_frames,
-            )
+            projections::prepare_component_geometry(program, flow, semantic, component, call_frames)
         })
         .collect();
     let mut summaries = machines
@@ -203,21 +197,20 @@ pub(super) fn derive_summaries(
                 summaries[index] = summary;
             }
         }
-        let external_changed = previous
-            .iter()
-            .zip(&last_external)
-            .enumerate()
-            .any(|(index, (curr, prev))| {
-                !in_any_component[index] && !summary_equivalent(curr, prev)
-            });
+        let external_changed =
+            previous
+                .iter()
+                .zip(&last_external)
+                .enumerate()
+                .any(|(index, (curr, prev))| {
+                    !in_any_component[index] && !summary_equivalent(curr, prev)
+                });
         for ((component, indices), geometry) in components
             .iter()
             .zip(&component_indices)
             .zip(&component_geometries)
         {
-            if !external_changed
-                && components.len() == 1
-            {
+            if !external_changed && components.len() == 1 {
                 continue;
             }
             derive_component(

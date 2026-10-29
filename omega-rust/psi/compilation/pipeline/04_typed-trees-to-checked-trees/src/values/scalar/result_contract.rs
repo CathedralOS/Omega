@@ -441,14 +441,11 @@ impl ContractPredicates<'_, '_> {
         depth: usize,
     ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
         let program = self.program;
-        // A selected contract recipe has already passed ordinary formation and
-        // target closure. Publish its exact landed value through the existing
-        // scalar vocabulary; never evaluate a source call in this reader.
-        if program
-            .constant_recipe_for_contract_expression(expression)
-            .is_valid()
-            && let Some(value) = program.closed_integer_expression_value_in(expression, self.owner)
-        {
+        // Retain the exact application even before a target supplies its value.
+        // Missing closure is not an absent authored predicate. This reader
+        // neither executes the application nor decides its formation debts.
+        let recipe = program.constant_recipe_for_contract_expression(expression);
+        if recipe.is_valid() {
             let reference = validation::parameter_expression_result_type_reference(
                 program,
                 self.owner,
@@ -456,6 +453,16 @@ impl ContractPredicates<'_, '_> {
                 expression,
             )?;
             let primitive = program.primitive_type_reference(reference)?;
+            let Some(value) = program.closed_integer_expression_value_in(expression, self.owner)
+            else {
+                return Some((
+                    CheckedScalarExpression::ConstantApplication {
+                        recipe,
+                        primitive_type: primitive,
+                    },
+                    reference,
+                ));
+            };
             typed_trees::closed_numeric::land_integer(&value, primitive)?;
             let spelling = value.to_string();
             let (negative, digits) = spelling
@@ -580,6 +587,7 @@ impl ContractPredicates<'_, '_> {
                     left_domain,
                     right,
                     right_domain,
+                    false,
                     false,
                 )?;
                 // A contract term is a total observation. Trapping arithmetic
@@ -783,9 +791,22 @@ impl ContractPredicates<'_, '_> {
         if subject.projection.is_empty() {
             return self.numeric_term(subject.expression, depth);
         }
+        let value =
+            self.projected_scalar_subject(subject.expression, &subject.projection, depth)?;
+        is_integer(self.program.primitive_type_reference(value.1)?).then_some(value)
+    }
+
+    fn projected_scalar_subject(
+        &self,
+        expression: ExpressionHandle,
+        projection: &[facts::PlaceSegment],
+        depth: usize,
+    ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+        if depth >= 64 || projection.is_empty() {
+            return None;
+        }
         let (position, mut path, reference) = if self.allow_result
-            && let Some(result) =
-                validation::reserved_result_place(self.program, subject.expression)
+            && let Some(result) = validation::reserved_result_place(self.program, expression)
         {
             if result.machine_symbol != self.owner
                 || validation::reserved_result_owner(self.program, result.root)
@@ -810,7 +831,7 @@ impl ContractPredicates<'_, '_> {
             let (root, path, reference) = super::structural_fields::structural_storage_place(
                 self.program,
                 self.parameters,
-                subject.expression,
+                expression,
             )?;
             let position = root.parameter()?;
             if !contract_storage_root(
@@ -825,27 +846,35 @@ impl ContractPredicates<'_, '_> {
         let segments = super::structural_fields::applied_projection_segments(
             self.program,
             reference,
-            &subject.projection,
+            projection,
         )?;
         let reference =
             validation::owned_projection_type_reference(self.program, reference, &segments)?;
         let primitive_type = self.program.primitive_type_reference(reference)?;
-        if !is_integer(primitive_type) {
+        if !is_integer(primitive_type) && primitive_type != PrimitiveType::Bool {
             return None;
         }
         path.extend(super::structural_fields::structural_projection_path(
             self.program,
             &segments,
         )?);
-        Some((
+        let value = if primitive_type == PrimitiveType::Bool {
+            CheckedScalarExpression::Boolean(Box::new(
+                CheckedBooleanExpression::StructuralParameterField {
+                    observation: Default::default(),
+                    parameter_position: position,
+                    path,
+                },
+            ))
+        } else {
             CheckedScalarExpression::StructuralParameterField {
                 observation: Default::default(),
                 parameter_position: position,
                 path,
                 primitive_type,
-            },
-            reference,
-        ))
+            }
+        };
+        Some((value, reference))
     }
 
     /// Publish a whole predicate only after checked bidirectional equivalence.
@@ -934,6 +963,17 @@ impl ContractPredicates<'_, '_> {
         expression: ExpressionHandle,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
+        let expression = self.program.static_boolean_normal_form(expression);
+        if self
+            .program
+            .static_type_predicate_operands(expression)
+            .is_some()
+        {
+            return self
+                .program
+                .static_type_predicate_value(expression)
+                .map(CheckedBooleanExpression::Constant);
+        }
         if depth >= 64
             || self.remaining.get() == 0
             || !self

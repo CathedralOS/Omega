@@ -1,4 +1,4 @@
-// MIN has magnitude2^63: remainders include both +/- i64::MAX.
+// MIN has magnitude2^63: remainders include both +/- i64 maximum.
 machine remainder(value: i64) -> i64
     ensures result >= -9223372036854775806 && result <= 9223372036854775806
 {

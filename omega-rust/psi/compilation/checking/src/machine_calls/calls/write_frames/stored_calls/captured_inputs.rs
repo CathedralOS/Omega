@@ -18,7 +18,10 @@ use typed_trees::types::TypeReferenceHandle;
 /// independent possible-alias sets cannot establish that association.
 pub(super) struct InstantiatedSource {
     pub source: SlotSource,
-    pub substitutions: Vec<(symbols::SymbolHandle, super::super::FrameSourcePlace)>,
+    pub substitutions: Vec<(
+        super::super::FrameSourcePlace,
+        super::super::FrameSourcePlace,
+    )>,
 }
 
 pub(super) fn instantiate_sources(
@@ -190,7 +193,7 @@ fn observations(
                 }
                 (
                     observation.source,
-                    Some((parameter.symbol, observation.substitution)),
+                    Some((supplied.origin.source.clone(), observation.substitution)),
                 )
             }
             ReferenceSource::Symbolic(origin) if origin.source.is_static() => (

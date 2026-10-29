@@ -52,7 +52,7 @@ pub enum DecodedCanonicalConstValue {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CanonicalConstValue {
     pub type_name: String,
     pub encoding: String,
@@ -83,7 +83,7 @@ pub fn boolean_literal_spelling(name: &str) -> Option<bool> {
 /// The declared typed carrier remains separate compiler custody. This value
 /// retains only the canonical producer encoding and its encoded carrier
 /// consistency claim; diagnostic rendering never participates in equality.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct CanonicalConstIdentity {
     pub type_name: String,
     pub encoding: String,

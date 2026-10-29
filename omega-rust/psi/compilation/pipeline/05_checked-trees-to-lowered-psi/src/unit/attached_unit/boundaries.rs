@@ -100,6 +100,7 @@ pub(crate) fn lower_declarations(
         let element_views =
             crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
         let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,
@@ -295,7 +296,7 @@ pub(crate) fn validate_requirement_kind(
                     && definition.symbol == plan.contract_owner
                     && checked
                         .typed
-                        .trait_machine_instances(definition)
+                        .executable_trait_machine_instances(definition)
                         .any(|signature| {
                             signature.symbol == plan.machine && plan.state == signature.symbol
                         })

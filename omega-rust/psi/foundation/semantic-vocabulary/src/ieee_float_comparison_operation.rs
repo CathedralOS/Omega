@@ -4,7 +4,7 @@
 //! Signed zeros compare equal. These are operation meanings, not permission to
 //! replace an authored selected operator with a builtin comparison.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum IeeeFloatComparisonOperation {
     Equal,
     NotEqual,

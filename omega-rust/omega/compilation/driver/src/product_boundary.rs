@@ -235,7 +235,8 @@ fn entry_storage_has_no_provisional_field_mode() {
         include_str!("../../products/src/package_build.rs"),
         include_str!("checked/package_compilation.rs"),
         include_str!("execution_settlement.rs"),
-        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs"),
+        include_str!("../../realization/selected-dispatch/src/provider_binding.rs"),
+        include_str!("../../realization/selected-dispatch/src/selected_execution.rs"),
         include_str!(
             "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
         ),
@@ -321,7 +322,7 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
         "PreparedPackageBuild",
         ".prepare_build(",
         ".check_build(",
-        "with_complete_dependency_generated_sources(",
+        "with_complete_dependency_build_handoffs(",
         "join_dependency_builds(",
         "with_independent_component_descriptions(",
         "publish_checked_component(",
@@ -425,6 +426,33 @@ fn native_provider_handoff_borrows_closed_source_associations() {
 }
 
 #[test]
+fn selected_intrinsic_settlement_borrows_original_row_declarations() {
+    let settlement = include_str!("../../realization/selected-dispatch/src/intrinsic_review.rs");
+    for forbidden in [
+        "CheckedTrees",
+        "ProviderPlanningContext",
+        "SealedPlacedAccessor::rejoin_plan",
+        "row_execution_identity(",
+        "accepted_binding_matches_exit_process_row(",
+    ] {
+        assert!(
+            !settlement.contains(forbidden),
+            "selected settlement reopens {forbidden}"
+        );
+    }
+    assert!(settlement.contains("candidate.row_declarations("));
+    assert!(settlement.contains(".direct_declarations("));
+    let producer =
+        include_str!("../../realization/provider-planning/src/provider_planning/provider_rows.rs");
+    assert!(producer.contains("struct ProviderRow {"));
+    assert!(producer.contains("direct: Option<DirectBoundaryInput>"));
+    assert!(producer.contains("ExitProcessDeclaration::prepare("));
+    let review =
+        include_str!("../../../packages/review-evidence/src/capture/providers/intrinsics.rs");
+    assert!(review.contains("derive_selected_compiler_intrinsic_execution_identity_for_row"));
+}
+
+#[test]
 fn components_use_the_shared_product_sequence() {
     for source in [
         include_str!("checked/package_compilation.rs"),
@@ -456,8 +484,8 @@ fn terminal_production_owns_the_build_provider_companion() {
     let production = include_str!("terminal/terminal_artifact.rs");
     let completion = include_str!("../../native-production/src/application.rs");
     assert!(completion.contains("pub provider_proposals:"));
-    assert!(production.contains("provider_proposals: produce_target_provider_proposals("));
-    assert!(production.contains("TargetProviderPublicationRequest"));
+    assert!(production.contains("provider_proposals: application.provider_publication.publish("));
+    assert!(production.contains("TargetProviderPreparationRequest"));
     assert!(completion.contains("with_target_provider_proposals(self.provider_proposals)"));
     assert!(completion.contains("TerminalNativeProposalRequest<'_>"));
     assert!(completion.contains("if self.physical_entry_adapter"));
@@ -475,6 +503,36 @@ fn terminal_production_owns_the_build_provider_companion() {
             "completion reopens {forbidden}"
         );
     }
+}
+
+#[test]
+fn provider_publication_consumes_prepared_declarations_without_source() {
+    let preparation = include_str!(
+        "../../realization/provider-planning/src/target_machines/provider_publication.rs"
+    );
+    let publication = include_str!(
+        "../../realization/provider-planning/src/target_machines/provider_publication/prepared.rs"
+    );
+    assert!(!preparation.contains("TerminalArtifactView"));
+    assert!(preparation.contains("PreparedSelectionDeclarations::prepare("));
+    for forbidden in [
+        "ProviderPlanningContext",
+        ".typed",
+        "derive_satisfies_plans",
+        "settle_provider_defaults",
+        "exact_owner_nominal_identity",
+    ] {
+        assert!(
+            !publication.contains(forbidden),
+            "publication reopens {forbidden}"
+        );
+    }
+    assert!(publication.contains("candidate.explicitly_selected"));
+    assert!(publication.contains("module.boundary_machines"));
+    assert!(publication.contains("self.selection_declarations.finish(selected, &[])?"));
+    assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
 }
 
 #[test]
@@ -560,9 +618,35 @@ fn product_batch_carries_work_instead_of_empty_outcome_slots() {
 }
 
 #[test]
+fn selected_source_preparation_has_no_post_terminal_installation() {
+    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(preparation.contains("pub fn prepare_selected_execution("));
+    assert!(preparation.contains("retain_selected_compiler_intrinsic_review_identities("));
+    assert!(preparation.contains("produce_direct_boundary_leaves("));
+    assert!(preparation.contains("resolve_accepted_service_binding("));
+    let product = include_str!("product_execution.rs");
+    assert!(product.contains("self.realization.into_checked_compilation()"));
+    let selection = include_str!("execution_settlement.rs");
+    for retired in [
+        "CheckedProviderProgram",
+        "SelectedExecutionRequest",
+        "settle_selected_execution(",
+        "install_after_terminal",
+    ] {
+        assert!(
+            !selection.contains(retired),
+            "late source phase returned: {retired}"
+        );
+        assert!(
+            !product.contains(retired),
+            "late source phase returned: {retired}"
+        );
+    }
+}
+
+#[test]
 fn product_installation_does_not_prepare_reference_interpreter_dispatch() {
-    let settlement =
-        include_str!("../../realization/selected-dispatch/src/execution_settlement.rs");
+    let settlement = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     for reference_work in [
         "CheckedInterpreterDispatch",
         "prepare_checked_interpreter_dispatch",

@@ -290,30 +290,14 @@ pub(crate) fn verify_macos_open_cache_extended_acl_custody(
     Ok(())
 }
 
+/// Verify one already-classified cache root through the ancestry walk's step.
 #[cfg(target_os = "macos")]
 pub(crate) fn verify_macos_open_cache_directory_acl_custody(
     kind: CacheCustodyKind,
     path: &Path,
     classified: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
-        cache_custody_invalid(
-            kind,
-            path,
-            format!("could not retain cache custody directory: {error}"),
-        )
-    })?;
-    let opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
-    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
-        return Err(cache_custody_invalid(
-            kind,
-            path,
-            "cache custody directory changed between classification and no-follow open",
-        ));
-    }
-    verify_macos_opened_cache_directory_acl_custody(kind, path, &directory)
+    verify_macos_cache_ancestor_acl_custody(kind, path, classified, None).map(|_| ())
 }
 
 #[cfg(not(target_os = "macos"))]

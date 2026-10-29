@@ -5,6 +5,52 @@ Rust compiler. [Mathematical proof contracts](../proofs/contracts.md) owns theor
 meaning, assumptions, bundles, and evidence; [Terminal fact validity](../terminal-psi/fact_validity.md)
 governs which premises the emitted product's obligations may use.
 
+## Requirement clauses
+
+Named decision: `requires-clause-unification`, settled 2026-10-28.
+
+`where` is retired from Omega source syntax. `requires` introduces predicates
+on data declarations, named domains, generic declarations and machines, and
+introduces structural or nominal static-callable requirements. Assembly bodies
+carry their contract clauses directly after `asm`, without a grouping keyword.
+There is no compatibility spelling or second proof system for the retired word.
+
+The declaration determines the subject, scope and checking boundary:
+
+| Context | Requirement |
+| --- | --- |
+| Data declaration | The complete value's default-domain validity obligations; construction, consumption and invariant windows retain their existing rules. |
+| Named domain | Membership obligations for the exact qualified subject, without changing establishment or access routes. |
+| Generic declaration | Obligations on the admitted argument tuple, including static type equations and complete callable contracts. |
+| Machine | Entry obligations established at every invocation under exact actual-argument substitution. |
+| Assembly body or label | Incoming-edge assertions over the exact modeled machine state. |
+
+Data and domain predicates retain their logical `self` subject. This does not
+introduce a machine receiver, implicit argument, borrow or authority. Generic
+constraints retain binder kinds, static/runtime distinctions, type-equation
+inference and specialization rules; an entry predicate does not make an unknown
+value static. Repeated predicate clauses in one scope conjoin their obligations.
+`ensures` remains the distinct normal-completion guarantee and proof obligation.
+
+`requires machine Step(...)` declares a structural callable requirement;
+`requires machine Handler satisfies Trait::requirement` declares a nominal one.
+They retain the existing binder-kind and complete-contract rules, not inference
+from body uses. A nested callable's own `requires`, `ensures` and operational
+clauses belong to that callable. Its terminating semicolon closes that contract
+before subsequent clauses resume the enclosing declaration. Nested premises are
+not flattened into the enclosing machine's entry requirements.
+
+Assembly removes the grouping word rather than replacing it with another
+`requires`: `asm requires ready ...` has one entry requirement, and
+`asm clobbers none { ... }` needs no predicate clause. Body-level `requires`,
+`ensures` and `clobbers`, and label-level contracts, retain their existing
+semantics. No assertion becomes an admission or overrides the instruction catalog.
+
+This is the accepted source contract, not a claim that either compiler already
+accepts all new forms. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)
+tracks both producers, repository and customer source migration, and deletion of
+the retired grammar and compatibility paths.
+
 ## Bindings and arrivals
 
 A machine enters its own executable body; there is no separately authored entry
