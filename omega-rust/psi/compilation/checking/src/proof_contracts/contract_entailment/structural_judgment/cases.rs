@@ -109,18 +109,13 @@ impl StructuralJudge<'_> {
         map: &[(String, StructuralTerm)],
         guarantees: &mut Vec<CaseGuarantee>,
     ) {
-        use specification_calls::{SelectedCallContract, owner_parameters, owner_symbol};
+        use specification_calls::{SelectedCallContract, owner_parameters};
         if !self.has_exact_case_subjects() {
             return;
         }
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return;
         };
-        let scope = match owner {
-            SelectedCallContract::Concrete(machine, _) => machine.symbol,
-            _ => owner_symbol(owner),
-        };
-        let parameters = owner_parameters(self.program, owner);
         // Logical conjunction has fixed compiler meaning. Its children retain
         // their own selected meanings: a case classifier is not scalar equality.
         if binary.operator == BinaryOperator::And {
