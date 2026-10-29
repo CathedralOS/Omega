@@ -23106,6 +23106,8 @@ fail/tasks/task_runtime_provider_contract_narrowing rejected 2749ms expected @a9
 	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
 fail/tasks/task_runtime_selected_provider_missing rejected 2495ms expected @a92f16431042
 	TaskRuntime boundary slot has no retained selected provider plan
+fail/terminal_psi/inspection_scalar_library rejected 850ms expected @c4f19fdf7ba8
+	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(10)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
 fail/termination/bitwise_payload_no_rank_progress rejected 2096ms expected @a92f16431042
 	terminating machine stuck: cannot prove strict rank decrease on a recurrent arrival: the transition from `stuck` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `stuck` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
@@ -33739,6 +33741,8 @@ pass/tasks/ordinary_named_task_runtime_compile checked 1501ms @a92f16431042
 pass/tasks/task_runtime_machine_selection_compile checked 1502ms @a92f16431042
 pass/terminal_psi/content_custody_exit checked 7771ms check-target:macos_arm64 @598688c61fee
 pass/terminal_psi/debug_identity_complete_module checked 15010ms check-target:macos_arm64 terminal-inspections:match @a92f16431042
+pass/terminal_psi/inspection_scalar_library checked 1941ms terminal-inspections:match @c4f19fdf7ba8
+pass/terminal_psi/inspection_scalar_provider_scope checked 1797ms terminal-inspections:match @c4f19fdf7ba8
 pass/terminal_psi/integer_control_contract rejected 783ms regressed-from:checked @a92f16431042
 	exact arithmetic in machine `terminal_exact_multiply_joint_bound` state `prove_exact_multiply_joint` transition argument may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `terminal_exact_multiply_u64_joint_bound` state `prove_exact_multiply_u64_joint` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
