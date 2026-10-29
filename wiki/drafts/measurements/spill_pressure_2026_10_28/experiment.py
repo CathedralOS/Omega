@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[4]
-DATA = ROOT / 'build/spill-pressure-experiment'
+DATA = ROOT / (sys.argv[1] if len(sys.argv) > 1 else 'build/spill-pressure-experiment')
 DATA.mkdir(exist_ok=True)
 TARGET = str(ROOT / 'build/parallelism-target')
 environment = dict(os.environ, CARGO_UNSTABLE_CHECKSUM_FRESHNESS='true', CARGO_BUILD_FINGERPRINT='content')
