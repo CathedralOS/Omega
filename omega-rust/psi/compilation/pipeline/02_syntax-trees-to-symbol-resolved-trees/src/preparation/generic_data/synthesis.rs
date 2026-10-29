@@ -359,8 +359,9 @@ pub(crate) fn desugar_generic_data_instances_in(
         else {
             return Err(vec![
                 Diagnostic::error(format!(
-                    "existing generic instance `{}` lost its exact template and argument identity",
+                    "existing generic instance `{}` lost its exact template and argument identity: {}",
                     definition.name.as_str(syntax),
+                    super::arguments::closed_application_unavailability(syntax, selection, origin),
                 ))
                 .with_source_span(definition.name.source_span()),
             ]);
