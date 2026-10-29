@@ -111,6 +111,11 @@ pub(in crate::hosted_receiver) fn validate(
         position: 0,
         failure: address.checked_add(failed as u64).ok_or_else(invalid)?,
     };
+    macro_rules! p {
+        ($a:expr => $b:expr => $c:expr) => {
+            reader.pointer($a, $b, $c)
+        };
+    }
     reader.pointer(&[0x48, 0x89, 0x25], saved, "loader stack was not preserved")?;
     reader.bytes(
         &[0x48, 0x83, 0xe4, 0xf0],
@@ -156,16 +161,8 @@ pub(in crate::hosted_receiver) fn validate(
     reader.pointer(&[0xe8], imports[1], "pipe open calls another import")?;
     reader.bytes(&[0x48, 0x83, 0xf8, 0xff], "invalid pipe handle accepted")?;
     reader.failure(0x84)?;
-    reader.pointer(
-        &[0x48, 0x89, 0x05],
-        saved + 8,
-        "pipe handle overwrote loader continuation",
-    )?;
-    reader.pointer(
-        &[0x48, 0x8d, 0x25],
-        stack_top,
-        "callee stack is not its disjoint partition",
-    )?;
+    p!(&[0x48, 0x89, 0x05] => saved + 8 => "pipe handle overwrote loader continuation")?;
+    p!(&[0x48, 0x8d, 0x25] => stack_top => "callee stack is not its disjoint partition")?;
     reader.bytes(
         &[0x48, 0x83, 0xec, 64],
         "semantic call lost its shadow/stack arguments",
@@ -210,11 +207,7 @@ pub(in crate::hosted_receiver) fn validate(
             4 => [0x48, 0x8d, 0x05],
             _ => return Err(invalid()),
         };
-        reader.pointer(
-            &prefix,
-            originals[index],
-            "semantic argument names another original allocation",
-        )?;
+        p!(&prefix => originals[index] => "semantic argument names another original allocation")?;
         if ordinal == 4 {
             reader.bytes(
                 &[0x48, 0x89, 0x44, 0x24, 32],
@@ -222,16 +215,8 @@ pub(in crate::hosted_receiver) fn validate(
             )?;
         }
     }
-    reader.pointer(
-        &[0xe8],
-        selected_entry,
-        "bridge calls another semantic entry",
-    )?;
-    reader.pointer(
-        &[0x48, 0x8b, 0x25],
-        saved,
-        "observer did not restore loader stack",
-    )?;
+    p!(&[0xe8] => selected_entry => "bridge calls another semantic entry")?;
+    p!(&[0x48, 0x8b, 0x25] => saved => "observer did not restore loader stack")?;
     reader.bytes(
         &[0x48, 0x83, 0xe4, 0xf0, 0x48, 0x83, 0xec, 64],
         "observer Win32 calls lost their guarded stack frame",
@@ -243,16 +228,8 @@ pub(in crate::hosted_receiver) fn validate(
             (header, contents.len()),
             (original, recipe.contents().len()),
         ] {
-            reader.pointer(
-                &[0x48, 0x8b, 0x0d],
-                saved + 8,
-                "observation uses another pipe handle",
-            )?;
-            reader.pointer(
-                &[0x48, 0x8d, 0x15],
-                source,
-                "observation reads another allocation",
-            )?;
+            p!(&[0x48, 0x8b, 0x0d] => saved + 8 => "observation uses another pipe handle")?;
+            p!(&[0x48, 0x8d, 0x15] => source => "observation reads another allocation")?;
             reader.bytes(&[0x41, 0xb8], "observation length register changed")?;
             reader.bytes(&(length as u32).to_le_bytes(), "observation extent changed")?;
             reader.bytes(
@@ -270,11 +247,7 @@ pub(in crate::hosted_receiver) fn validate(
         }
     }
     for import in &imports[3..] {
-        reader.pointer(
-            &[0x48, 0x8b, 0x0d],
-            saved + 8,
-            "retirement uses another handle",
-        )?;
+        p!(&[0x48, 0x8b, 0x0d] => saved + 8 => "retirement uses another handle")?;
         reader.pointer(&[0xe8], *import, "retirement calls another import")?;
         reader.bytes(&[0x85, 0xc0], "failed retirement accepted")?;
         reader.failure(0x84)?;
@@ -287,11 +260,7 @@ pub(in crate::hosted_receiver) fn validate(
         &[0xb8, 200, 0, 0, 0],
         "observation failure reported success",
     )?;
-    reader.pointer(
-        &[0x48, 0x8b, 0x25],
-        saved,
-        "original loader stack was not restored",
-    )?;
+    p!(&[0x48, 0x8b, 0x25] => saved => "original loader stack was not restored")?;
     reader.bytes(&[0xc3], "bridge does not resume its loader")?;
     if reader.position != bytes.len() {
         return Err(Reader::reject("extra instructions after bridge completion"));
