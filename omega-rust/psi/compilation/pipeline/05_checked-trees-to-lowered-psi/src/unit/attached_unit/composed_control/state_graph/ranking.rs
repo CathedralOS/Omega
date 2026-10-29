@@ -228,6 +228,20 @@ pub(super) fn retain(
         });
     }
     if components.is_empty() {
+        if std::env::var_os("OMEGA_TRACE_UNIT_RANK_OWNERS").is_some() {
+            eprintln!(
+                "unit_rank machine={} entry={:?} ranks={ranks:?} rank_edges={edges:?}",
+                machine.name, machine.entry
+            );
+            for block in &machine.blocks {
+                eprintln!(
+                    "unit_rank block={:?} operations={} terminator={:?}",
+                    block.id,
+                    block.operations.len(),
+                    block.terminator
+                );
+            }
+        }
         return unsupported("Unit graph rank has no cyclic component");
     }
     machine.ranked_scc = Some(TerminalRankedScc::Natural(components));

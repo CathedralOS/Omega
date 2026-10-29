@@ -1203,7 +1203,20 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &signature.runtime_requirements,
         )?
     };
-    ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
+    ranking::retain(&mut machine, &block_ranks, &rank_edges).inspect_err(|_| {
+        if std::env::var_os("OMEGA_TRACE_UNIT_RANK_OWNERS").is_some() {
+            for (position, state) in plan.states.iter().enumerate() {
+                if let Ok(owner) = super::owner(checked, state.state) {
+                    eprintln!(
+                        "unit_rank source_state={:?} owner={} live={}",
+                        state.state,
+                        checked.typed.symbols.display_path(owner, "::"),
+                        admitted.live[position]
+                    );
+                }
+            }
+        }
+    })?;
     drop(_rank_guard);
     Ok((
         machine,
