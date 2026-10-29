@@ -341,17 +341,20 @@ impl Implication<'_> {
         target: ExpressionHandle,
         source: ExpressionHandle,
     ) -> Option<Vec<(Frame, Path)>> {
-        // This judgment interprets element stores. Replacing a reference
-        // carrier is a different storage operation; it cannot be interpreted
-        // as replacing that reference's current referent contents.
-        if !matches!(
-            self.program.expression_table.expression(target),
-            ExpressionNode::Indexed(_)
-        ) {
-            return None;
-        }
         let mut result = Vec::new();
         for (path, place) in self.storage_place(frame, path, target, 0)? {
+            // Functional contents do not represent descriptor rebinding,
+            // interior mutation or cleanup execution. Classify the exact
+            // destination carrier without peeling it into a readable referent.
+            if ![
+                crate::ContentsRequirement::BorrowFree,
+                crate::ContentsRequirement::StableObservation,
+            ]
+            .into_iter()
+            .all(|requirement| crate::has_contents(self.program, place.reference, &[], requirement))
+            {
+                return None;
+            }
             for (path, value) in self.expression(frame, path, source, 0)? {
                 let replacement = declared_value(self.program, value, place.reference)?;
                 let current = path
