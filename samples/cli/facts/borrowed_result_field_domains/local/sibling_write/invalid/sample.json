@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "Ascii"
+    "cannot prove default-domain field requirement for call inspect",
+    "parameter cell.storage requires [u8; N]::Ascii"
   ]
 }
