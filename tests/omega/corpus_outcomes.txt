@@ -1,12 +1,3 @@
-# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
-# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
-# `expected` or `unexpected` when its expected.txt fragments were weighed,
-# then any execution facts such as exit:70 or stdout:match, then
-# `regressed-from:<status>[+fact]*` when the row has lost a success it used
-# to record, then `@<revision>` recording which commit measured the row
-# (`+wt` = dirty tree; rows measured before stamping have no token).
-# Tab-indented lines under a fixture are its diagnostics, in order.
-# A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 927ms expected @a92f16431042
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
