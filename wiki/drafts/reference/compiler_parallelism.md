@@ -361,3 +361,12 @@ Focused native/Terminal/reject checks passed; tiny workloads showed no
 consistent effect in follow-up blocks. The change is retained locally, without
 remote publication. This meets the bounded search's substantial-win target by
 shortening repeated serial work rather than increasing worker count.
+
+That allocator change landed in [PR #755](https://github.com/CathedralOS/Omega/pull/755).
+The next [retained-graph experiment](../measurements/retained_graph_2026_10_29/README.md)
+attributed the large warm restore and tested bounded buffer preallocation.
+It preserves native bytes, invalid twins, malformed-record refusal and fresh
+admission while lowering warm peak private commit by about 97–119 MiB
+(15–19%). Timing differences did not establish another latency improvement.
+That memory change is retained locally; the landing receipt and descendant-main
+smoke evidence for PR #755 are recorded with the experiment.
