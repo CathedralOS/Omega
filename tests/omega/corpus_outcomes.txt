@@ -4299,9 +4299,9 @@ fail/domains/record_interval_member_out_of_range rejected 567ms expected @a92f16
 	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/reference_return_literal_outside_domain rejected 1264ms unexpected @a92f16431042
 	cannot prove default-domain field requirement for return from Main::pick, state pick, at statement 1: "\\xff" requires [u8]::Utf8
-fail/domains/refinement_chain_routed_provenance_forge rejected 1121ms expected @a92f16431042
-	cannot prove default-domain field requirement for return from Token::forge, state forge, at statement 0: Token requires Token::Issued::Fresh
+fail/domains/refinement_chain_routed_provenance_forge rejected 1599ms expected @0cea3356c5b0+wt
 	construction value is not proven in domain `Token::Issued::Fresh` in Token::forge state `forge` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from Token::forge, state forge, at statement 0: Token requires Token::Issued::Fresh
 fail/domains/result_domain_overload_duplicate_predicate rejected 402ms expected @a92f16431042
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` cannot prove ensures contract proof fact `result >= 0 && result <= 100` on the transition arm guarded by `<always>`
@@ -25902,8 +25902,7 @@ pass/dependent/zero_gated_record_field_store_exit checked 9230ms check-target:ma
 pass/dependent/zero_valid_qualified_storage checked 6545ms @a92f16431042
 pass/dependent/zeroed_record_member_sum_elision checked 9910ms check-target:macos_arm64 @a92f16431042
 pass/domains/bitwise_live_membership_exit checked 3269ms check-target:macos_arm64 @a92f16431042
-pass/domains/bodyless_owner_establishment rejected 2460ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1909ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2455ms @a92f16431042
 pass/domains/call_requires_domain_intersection_preserved checked 2551ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2050ms @a92f16431042
@@ -25919,8 +25918,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit checked 2647ms 
 pass/domains/dependent_coordinate_sum_rational_bound checked 2630ms @a92f16431042
 pass/domains/dependent_coordinate_sum_upper_bound checked 2295ms @a92f16431042
 pass/domains/domain_axis_cast checked 2550ms @a92f16431042
-pass/domains/domain_established_by rejected 2044ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2335ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 2546ms @a92f16431042
 pass/domains/domain_intersection checked 3121ms @a92f16431042
 pass/domains/domain_operator_add checked 3208ms @a92f16431042
@@ -25947,8 +25945,7 @@ pass/domains/established_by_domain checked 3622ms @a92f16431042
 pass/domains/executable_domain_membership_expression_exit incomplete 8218ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit checked 7964ms check-target:macos_arm64 @a92f16431042
-pass/domains/explicit_domain_erasure rejected 1893ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1990ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2118ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit checked 2717ms check-target:macos_arm64 @a92f16431042
 pass/domains/indexed_domain_fact rejected 2116ms regressed-from:checked @a92f16431042
@@ -25990,8 +25987,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 8817ms check-targe
 pass/domains/record_predicate_domain_member_exit checked 8789ms check-target:macos_arm64 @a92f16431042
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 1677ms @a92f16431042
 pass/domains/refinement_chain_predicates checked 1475ms @a92f16431042
-pass/domains/refinement_chain_routed_provenance rejected 1243ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1970ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 1588ms @a92f16431042
 pass/domains/routed_record_capture_before_sibling_mutation checked 1370ms @a92f16431042
 pass/domains/routed_selected_copy_exit checked 2012ms check-target:macos_arm64 @a92f16431042

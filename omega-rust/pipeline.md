@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 23637)
+Total output lines: 1359
+
 # Compiler pipeline and ownership
 
 Psi owns source processing and target-neutral judgments through immutable
@@ -595,97 +598,7 @@ Retagging already-typed declarations or replaying Build is not that transition.
 The Build entrance shows request admission, activation preparation, dependency
 settlement, frozen Build outputs, product compilation, required tests, publication
 and outcomes in that order. Its execution loop handles actual dependency requests,
-provider readiness, completed helpers, Build return and failure/cancellation.
-It is not a generic event engine for compiler phases. Dependencies may start
-while Build runs; waiting resumes the same activation without replaying effects.
-Build return joins all requests before product completion. Product bindings are
-inert during Build. Generated source cannot change admitted authored meaning.
-Ordinary Build helpers need Psi execution, not native product compilation.
-
-Demanded Product descriptions pause that same activation while the
-application acquires and settles its issued Product dependencies. The compiler's
-opaque query context shares the captured source prefix, loads authored Product
-declarations through the source-assembly owner and answers under the query
-author's lexical scope. It neither assigns an unfinished root its final package
-identity nor executes Product bodies. Final binding rejoins the selected source
-declaration rather than reusing an old arena handle or looking up its name.
-Query dependencies join the same demanded-source ledger as executed helpers,
-including purpose-qualified workspace-catalog records. Entry, data-schema and
-named-implementation provider descriptions share lexical resolution; role-specific
-inspection authenticates the activation's issued description and returns an
-accounted immutable byte view. It does not reopen source or execute Product code.
-
-Execution preparation and Product completion carry different inputs. Source
-inventories, named inputs, required outputs, resource sponsors and restricted
-grants must join the activation before its effects. A returned Build does not
-discharge a later execution request merely because its source graph matches.
-After return, the coordinator joins final source custody and chooses Product
-targets; it must not discard execution obligations while converting occurrence
-plans into retained Product work. Build's execution profile remains independent
-of those targets.
-
-The compiler's `settle_package_build` consumes the exact returned activation and
-checks its source-request ledger and required outputs before returning opaque
-`CompletedBuild` custody. `prepare_package_product` admits each requested Product
-context from that settled output. Review proposals, accepted semantic bindings
-and compilation purpose belong to that context, not the executed Build. The
-source graph and execution observations remain fixed. Product source is resolved
-and typed under its own admissions; a sibling's typed declarations are never
-retagged. Default Builds retain immutable parsing for changed source-routing
-inputs. The ordinary `complete_package_build` route consumes the same settlement
-and Product-preparation sequence without forking a nonexistent sibling. An
-already prepared `PackageBuild::select_target` remains restricted to equal source
-and semantic inputs; it selects realization, not a new Product judgment.
-
-Ordinary CLI and SDK build/check/run/inspection use this lifecycle; SDK callers
-submit `BuildRequest` rather than preparing a second, statically projected graph.
-Package recovery
-begins before acquisition; one application session executes actual declarations
-and selected dependency requests, retains their source captures and settles each
-Build. Package-owned Product admission preserves source/compiler/lock checks and
-target-specific refusals, but issues no second execution request. Its inert
-execution requirement must match the pre-effect host profile, snapshot, named
-inputs and required-output roster retained with the Build. Discovery runs with
-private snapshot/staging authority only: a restricted request stops before effects;
-neither an accepted Product row nor a discarded late grant can authorize it.
-Matching Product admissions share one prepared source continuation; realization
-still validates each target's own generated bundles and permissions. Named Git
-selection settles the actual workspace catalog and observes member declarations
-from authenticated subtrees. Those observations are not completed Builds or
-Products: only selected members join their dependencies and prepare Products,
-using their original returned activations. Relative Paths stay within registered
-member navigation at the frozen repository resolution. Install/update/resume
-execute their staged candidates through the same discovery loop and retain the
-settled Builds across review passes and targets. Proposal identity, original
-local dependency bases, execution inventories, review decisions and accepted-pair
-publication remain package-owned. Semantic-role discovery and accepted bindings
-remain part of Product judgment reuse, never copied into a bound admission.
-The retired entry-field tolerance mode is absent from compiler requests,
-continuations and review facts; ordinary entry contracts establish actual
-arguments, never provisional fields. Older review-cache formats miss rather
-than importing a provisional verdict. Observational audit uses
-the same executed source roster and retained Product review. Its accepted graph
-admits dependency requests before acquisition, preserves exact Git pins, and
-permits only root-content changes; per-target findings never recover proposals
-or publish acceptance. Source failure remains unavailable findings for every
-requested target. Review has no fresh-execution or sponsor-issuing route.
-Standalone batches, diagnostic checks and named inspection use that same
-application execution owner. The compiler's opaque `PreparedCompilation` and
-`SourceCompilation` keep source continuations and target policy alive; their
-completion accepts the exact returned Build, never an execution callback or a
-checked-tree sidecar. Target-local refusals and post-Build discovery remain in
-their outcomes. Explicit provider readiness retains the suspended activation
-while its named dependency is acquired, settled and compiled to Terminal Psi,
-then installs that exact implementation before resuming. Helper Product
-preparation uses an explicit dependency-first frontier, retaining
-generated bundles by package and purpose without recursive preparation calls.
-Source execution, provider/query dependencies, graph resolution and workspace
-catalogs also use application-owned pending work. Each paused Build retains its
-original invocation, interpreter activation and exact host adapters. Immutable
-Terminal code and source-issued call tables share their existing owners without
-encoding, decoding or rebuilding code. Host issuance and activation start remain
-once-only even when caller handles are cloned or dropped. Checking still retains
-recursive walks; this work does not remove the large compiler stack reservation.
+provider readiness, completed helpers, Build retur…1637 tokens truncated… this work does not remove the large compiler stack reservation.
 The final source join
 also reconciles helper graphs retained with workspace declaration observations;
 unselected members' pending Product requests stay inert. Package locks retain

@@ -1614,8 +1614,7 @@ pass/dependent/zero_gated_record_field_store_exit built 9673ms exit:70 interpret
 pass/dependent/zero_valid_qualified_storage checked 5418ms @5f668826adf3+wt
 pass/dependent/zeroed_record_member_sum_elision built 9157ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/bitwise_live_membership_exit built 3864ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/bodyless_owner_establishment rejected 1976ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1639ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 3370ms @5f668826adf3+wt
 pass/domains/call_requires_domain_intersection_preserved checked 2303ms @5f668826adf3+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1858ms @5f668826adf3+wt
@@ -1631,8 +1630,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit built 2672ms ex
 pass/domains/dependent_coordinate_sum_rational_bound checked 2174ms @5f668826adf3+wt
 pass/domains/dependent_coordinate_sum_upper_bound checked 2122ms @5f668826adf3+wt
 pass/domains/domain_axis_cast checked 2542ms @5f668826adf3+wt
-pass/domains/domain_established_by rejected 2038ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2015ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 3434ms @5f668826adf3+wt
 pass/domains/domain_intersection checked 3386ms @5f668826adf3+wt
 pass/domains/domain_operator_add checked 3423ms @5f668826adf3+wt
@@ -1646,8 +1644,7 @@ pass/domains/established_by_domain checked 4414ms @5f668826adf3+wt
 pass/domains/executable_domain_membership_expression_exit incomplete 15188ms interpreter:unchecked @5f668826adf3+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit built 15912ms exit:241 interpreter-exit:241 interpreter:agrees @5f668826adf3+wt
-pass/domains/explicit_domain_erasure rejected 2803ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1641ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2275ms @5f668826adf3+wt
 pass/domains/inactive_impossible_payload_exit built 2883ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/indexed_domain_fact rejected 1848ms @5f668826adf3+wt
@@ -1688,8 +1685,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 10324ms interprete
 pass/domains/record_predicate_domain_member_exit built 9677ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 2618ms @5f668826adf3+wt
 pass/domains/refinement_chain_predicates checked 2543ms @5f668826adf3+wt
-pass/domains/refinement_chain_routed_provenance rejected 2056ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1626ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 2270ms @5f668826adf3+wt
 pass/domains/routed_record_capture_before_sibling_mutation checked 1666ms @5f668826adf3+wt
 pass/domains/routed_selected_copy_exit built 3685ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

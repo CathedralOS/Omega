@@ -134,6 +134,13 @@ def legacy_record():
 
 
 class Validation(unittest.TestCase):
+    def test_observation_warnings_preserve_unknown_results_without_fake_metrics(self):
+        record = minimal_record()
+        record['observation_warnings'] = ['Another workload timed out during preparation']
+        self.assertEqual(benchmark.validate_record(record, '<test>'), [])
+        record['observation_warnings'] = 'not a list'
+        self.assertTrue(any('observation_warnings' in error for error in benchmark.validate_record(record, '<test>')))
+
     def assert_invalid(self, record):
         problems = benchmark.validate_record(record, "<fixture>")
         self.assertTrue(problems)
@@ -272,11 +279,15 @@ class SelectionIdentity(unittest.TestCase):
                 "        Optimization::CopyPropagation,\n"
                 "    );\n"
                 "    builder.optimizations.enable(Optimization::DeadPureScalarElimination);\n"
+                "    Optimizations::enable(\n"
+                "        &mut builder.optimizations,\n"
+                "        Optimization::ControlFlowCleanup,\n"
+                "    );\n"
                 "}\n"
             )
             self.assertEqual(
                 benchmark.authored_selection(root),
-                ["CopyPropagation", "DeadPureScalarElimination"],
+                ["ControlFlowCleanup", "CopyPropagation", "DeadPureScalarElimination"],
             )
 
     def test_authored_selection_without_build_file(self):
@@ -354,10 +365,11 @@ class HostRowMatrix(unittest.TestCase):
         self.assertIn("default", row)
 
     def test_skipped_runtime_keeps_the_pending_host_row(self):
-        # windows_x86_64 and linux_arm64 carry committed compile rows, but
-        # every runtime leg there was skipped: the named host environment is
-        # still unrun, so its projected pending row must not be suppressed.
-        output = self.matrix()
+        records = copy.deepcopy(benchmark.load_records(RECORDS))
+        for record in records:
+            if record['key']['target'] in ('windows_x86_64', 'linux_arm64'):
+                record['metrics']['runtime_ms']['status'] = 'skipped'
+        output = benchmark.matrix_markdown(records)
         self.assertTrue(any(
             "windows_x86_64" in line
             and "pending Windows x86-64 host" in line
