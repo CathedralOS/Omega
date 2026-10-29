@@ -6,8 +6,8 @@
 use super::coordinate::{Coordinate, CoordinateFamily, CoordinateKind, CoordinateSet};
 use super::fields::{rooted_carrier, unique_literal_field};
 use super::{
-    BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
-    Machine, Polynomial, RankSubjectCoordinate, State, TypeReferenceNode, projections,
+    BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
+    Polynomial, RankSubjectCoordinate, State, TypeReferenceNode, projections,
 };
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;

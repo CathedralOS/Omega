@@ -263,14 +263,6 @@ impl BuildDependencyProjection {
         }
     }
 
-    pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
-        self.dependencies.requests(DependencyPurpose::Build)
-    }
-
-    pub const fn dependency_projections(&self) -> &DependencyProjections {
-        &self.dependencies
-    }
-
     pub fn into_parts(self) -> (BuildDeclaration, DependencyProjections) {
         (self.declaration, self.dependencies)
     }

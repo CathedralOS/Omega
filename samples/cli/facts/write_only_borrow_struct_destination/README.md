@@ -101,3 +101,18 @@ exact arithmetic in machine ... may overflow `u64`: the operands are not provabl
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation realizes the indirect 64-bit store and subsequent frame reload, maintaining disjoint stack activation storage and bounded stack frames without live-across-call spill corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Native image emission links entry symbols and branch displacements into complete PE/ELF/Mach-O binaries that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
 - **Remaining Open**: None for this fact row; all 9 places and 9 reject twins are pinned under `tests/omega/{pass,fail}/facts/` and pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+
+## Build-owned target selection migration
+
+This authored-source migration belongs to `BUILD-OWNED-TARGET-SELECTION`.
+The original fact, domains, write-only operation, result contract and main exit
+oracle remain unchanged. Ordinary X86/ARM implementations supply `SelectedProbe`
+through explicit Build rows; separately selected entry/body checks distinguish
+tags 17/29 so wrong target selection is observable even when the numeric bodies
+are identical. All nine places and root bind five hosted profiles, with matching
+positive/reject pins and unchanged-artifact Terminal installation requests.
+
+Fresh fixed 9eb baseline already passes all 20 authored positives and 18 reject
+controls. This migration does not claim a necessary compiler repair, renew
+historical numeric/loan-row closure claims, establish Windows/Linux native
+execution, or close the parent target/native migration tasks.

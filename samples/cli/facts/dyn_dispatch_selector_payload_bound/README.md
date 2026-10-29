@@ -24,6 +24,27 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Optional cleanup retains dispatch callees
+
+The root, nine places, and pinned positive/reject fixtures explicitly select
+`ControlFlowCleanup`. This covers the callable-retention part of
+**RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**: every executable row of a
+published dynamic table retains its machine and that machine's transitive
+callees, even without a direct call edge from the entry. The tables survive
+cleanup, so their machine identities must remain usable by both Terminal Psi
+and native realization.
+
+The match-join place runs both selector paths with distinct results: the first
+implementation returns 38, and the second calls a helper returning 48. The
+caller checks `88 - result` as 50 and 40 respectively. The invalid twin weakens
+the public bound to 89 and still rejects at exact subtraction.
+
+The [ablation experiment](../../../../wiki/drafts/measurements/pass_ablation_2026_10_28/README.md)
+records the failing original producer, repair, local runtime observations and
+remaining performance uncertainty. This establishes only its recorded host
+observations; the parent task's broader contracts, product parity and other
+native hosts remain separate acceptance.
+
 ## Pinned fixtures
 
 The sample folder and its fixture family do not share a name. Each place is

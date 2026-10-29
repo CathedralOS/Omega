@@ -11,9 +11,9 @@ use super::{
     FoldedCaseMembershipRow, NodeLocation, O, OperationId, PlaceId, PsiOptimizationFunction,
     PsiOptimizationUnit, ScalarType,
 };
-use optimization_unit::{argument_rewrites_place, declared_structural_type, resolved_sole_case};
+use optimization_unit::{declared_structural_type, resolved_sole_case};
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
-use terminal_psi::{StructuralArgument, StructuralPlaceDeclaration};
+use terminal_psi::StructuralPlaceDeclaration;
 
 /// The evidence every membership observing `place` resolves against: the
 /// place's rostered declaration, its declared structural type (when the place

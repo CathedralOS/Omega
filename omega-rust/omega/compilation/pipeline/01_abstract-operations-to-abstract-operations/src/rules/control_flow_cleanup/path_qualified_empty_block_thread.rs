@@ -9,12 +9,11 @@ use optimization_unit::{
     NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
+use optimization_unit_semantics::reconstruct_linear_thread_bindings;
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::control_flow_cleanup::descriptor_telescope_free;
-use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
-    compose_linear_thread_bindings, linear_thread_ownership_is_identity,
-};
+use crate::rules::control_flow_cleanup::empty_block_thread_ownership::linear_thread_ownership_is_identity;
 use crate::rules::control_flow_cleanup::{provenance_realized_at, record_block_effect_drift};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -88,8 +87,12 @@ psi_rule_impl!(PathQualifiedEmptyBlockThreadRule, |unit, analyses| {
                 continue;
             }
             if incoming.iter().any(|(_, _, _, edge)| {
-                compose_linear_thread_bindings(&empty.parameters, &edge.bindings, outgoing_bindings)
-                    .is_none()
+                reconstruct_linear_thread_bindings(
+                    &empty.parameters,
+                    &edge.bindings,
+                    outgoing_bindings,
+                )
+                .is_none()
                     || !linear_thread_ownership_is_identity(
                         unit,
                         function,

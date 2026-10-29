@@ -29,6 +29,13 @@ mod unit_validation;
 
 pub use error::{OperationSite, OptimizationUnitValidationError};
 
+/// The empty-block threads' shared binding composition: substitute the
+/// threaded edge's parameters through its incoming bindings and forward that
+/// replacement into the outgoing bindings. Proposing rules and the replay
+/// checkers below share this predicate; it decides values only, so it grants
+/// neither acceptance nor the provenance accounting a rewrite still owes.
+pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_bindings;
+
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};

@@ -184,7 +184,6 @@ pub(super) fn project_component(
     witnesses: &[RuntimeRankBodyWitness<'_>],
     frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Result<Option<ValidatedRuntimeNaturalComponent>, &'static str> {
-    let dispatched = dispatched_implementations(program);
     let Some(ranks) = component
         .iter()
         .map(|index| RankProjection::resolve(program, &program.machines()[*index]))

@@ -1,0 +1,100 @@
+[
+  {
+    "subject": "length",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\length-A\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "1414381b7272d9b82b543c2049713313562903f5bd90267542462301220f3501"
+  },
+  {
+    "subject": "length",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\length-B\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f"
+  },
+  {
+    "subject": "dispatch",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\dispatch-A\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "d21361b9316ddeee3c61ed018de667c239a2c740159e4a126dc656bb94c401db",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543"
+  },
+  {
+    "subject": "dispatch",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\dispatch-B\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "d21361b9316ddeee3c61ed018de667c239a2c740159e4a126dc656bb94c401db",
+    "build_sha256": "22cb0c6f504a50724d2d5d7a83603529d384af204b81c72a878460a061dcb684"
+  },
+  {
+    "subject": "stack32",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\stack32-A\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "8ad4b8e31ea1d866039d2339b548a3db13354fbba42e2f28d81060f54a413244"
+  },
+  {
+    "subject": "stack32",
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\stack32-B\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005"
+  },
+  {
+    "subject": "control",
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+      "run",
+      "--both",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-ablation\\performance-quality\\control-A\\main.omg"
+    ],
+    "exit": 0,
+    "output": "native exit 0\ninterp exit: 0\n",
+    "main_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f"
+  }
+]

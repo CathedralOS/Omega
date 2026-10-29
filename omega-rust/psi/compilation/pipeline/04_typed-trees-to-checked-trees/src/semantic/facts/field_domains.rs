@@ -38,7 +38,6 @@ use facts::{
     QualificationEvidence,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use validation::field_domains::{

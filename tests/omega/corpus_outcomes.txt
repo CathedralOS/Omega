@@ -10,6 +10,8 @@ fail/arithmetic/affine_difference_unpaired_term rejected 2122ms expected @a92f16
 	cannot prove ensures contract for exit from incomplete at statement 0: embed(first) + embed(third) >= embed(second) + embed(fourth)
 fail/arithmetic/affine_difference_wrong_coefficients rejected 2056ms expected @a92f16431042
 	cannot prove ensures contract for exit from weighted at statement 0: 2 * embed(first) + 3 * embed(third) >= 3 * embed(second) + 2 * embed(fourth)
+fail/arithmetic/anonymous_comparison_imported_zero_divisor rejected 795ms expected @b628a1e8d3ec
+	anonymous division by zero has no exact numeric value
 fail/borrows/nested_array_call_unrestored_field rejected 700ms expected @90c334a2c095
 	cannot prove default-domain field requirement for return from Builder::clear at statement 5: cell.parts[0].storage requires [u8; N]::Ascii
 fail/borrows/nested_parent_forwarding_overlapping_child rejected 798ms expected @90c334a2c095
@@ -151,6 +153,7 @@ pass/facts/nested_machine_joint_rank_structural_view_other_machine_exit checked 
 pass/facts/nested_machine_joint_rank_structural_view_other_state_exit checked 985ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_parameter_exit checked 993ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
 pass/facts/nested_machine_joint_rank_structural_view_target_body_exit checked 977ms check-target:macos_arm64 @e3c13ae2455c62f31486b028dab0fd6705ab6c4e
+run/arithmetic/anonymous_comparison_with_typed_operators checked 4340ms check-target:macos_arm64 @b628a1e8d3ec
 run/calls/indexed_case_successor_exit checked 949ms check-target:macos_arm64 @90c334a2c095
 run/calls/nested_case_terminal_process_exit checked 4351ms check-target:macos_arm64 @90c334a2c095
 run/calls/projected_call_domain_exit checked 943ms check-target:macos_arm64 @90c334a2c095
@@ -8146,8 +8149,8 @@ fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected rejected 1
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected rejected 1032ms expected @a92f16431042
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected rejected 1034ms expected @a92f16431042
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected rejected 806ms expected @c3e8a3559d5e+wt
+	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected rejected 1037ms expected @a92f16431042
 	exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected rejected 1034ms expected @a92f16431042
@@ -27673,7 +27676,7 @@ pass/facts/live_across_eight_calls_preservation_bound_through_match_join_exit ch
 pass/facts/live_across_eight_calls_preservation_bound_through_other_machine_exit checked 2437ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eight_calls_preservation_bound_through_other_state_exit checked 2405ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eight_calls_preservation_bound_through_parameter_exit checked 2387ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_eight_calls_preservation_bound_through_target_body_exit checked 3177ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_eight_calls_preservation_bound_through_target_body_exit checked 1616ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_eighteen_calls_preservation_bound_through_call_result_exit checked 2707ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eighteen_calls_preservation_bound_through_const_name_exit checked 1966ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eighteen_calls_preservation_bound_through_field_exit checked 2656ms check-target:macos_arm64 @a92f16431042
@@ -27682,7 +27685,7 @@ pass/facts/live_across_eighteen_calls_preservation_bound_through_match_join_exit
 pass/facts/live_across_eighteen_calls_preservation_bound_through_other_machine_exit checked 2615ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eighteen_calls_preservation_bound_through_other_state_exit checked 2350ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eighteen_calls_preservation_bound_through_parameter_exit checked 2346ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_eighteen_calls_preservation_bound_through_target_body_exit checked 2748ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_eighteen_calls_preservation_bound_through_target_body_exit checked 1638ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_eleven_calls_preservation_bound_through_call_result_exit checked 2074ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eleven_calls_preservation_bound_through_const_name_exit checked 2135ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eleven_calls_preservation_bound_through_field_exit checked 2179ms check-target:macos_arm64 @a92f16431042
@@ -27691,7 +27694,7 @@ pass/facts/live_across_eleven_calls_preservation_bound_through_match_join_exit c
 pass/facts/live_across_eleven_calls_preservation_bound_through_other_machine_exit checked 2130ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eleven_calls_preservation_bound_through_other_state_exit checked 2103ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_eleven_calls_preservation_bound_through_parameter_exit checked 2058ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_eleven_calls_preservation_bound_through_target_body_exit checked 2312ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_eleven_calls_preservation_bound_through_target_body_exit checked 1960ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_fifteen_calls_preservation_bound_through_call_result_exit checked 2314ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fifteen_calls_preservation_bound_through_const_name_exit checked 2447ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fifteen_calls_preservation_bound_through_field_exit checked 2262ms check-target:macos_arm64 @a92f16431042
@@ -27700,7 +27703,7 @@ pass/facts/live_across_fifteen_calls_preservation_bound_through_match_join_exit 
 pass/facts/live_across_fifteen_calls_preservation_bound_through_other_machine_exit checked 2325ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fifteen_calls_preservation_bound_through_other_state_exit checked 2297ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fifteen_calls_preservation_bound_through_parameter_exit checked 2208ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_fifteen_calls_preservation_bound_through_target_body_exit checked 3194ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_fifteen_calls_preservation_bound_through_target_body_exit checked 1912ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_five_calls_preservation_bound_through_call_result_exit checked 2702ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_five_calls_preservation_bound_through_const_name_exit checked 2890ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_five_calls_preservation_bound_through_field_exit checked 2726ms check-target:macos_arm64 @a92f16431042
@@ -27709,7 +27712,7 @@ pass/facts/live_across_five_calls_preservation_bound_through_match_join_exit che
 pass/facts/live_across_five_calls_preservation_bound_through_other_machine_exit checked 2882ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_five_calls_preservation_bound_through_other_state_exit checked 1890ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_five_calls_preservation_bound_through_parameter_exit checked 2575ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_five_calls_preservation_bound_through_target_body_exit checked 2608ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_five_calls_preservation_bound_through_target_body_exit checked 1710ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_four_calls_preservation_bound_through_call_result_exit checked 2377ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_four_calls_preservation_bound_through_const_name_exit checked 2381ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_four_calls_preservation_bound_through_field_exit checked 2374ms check-target:macos_arm64 @a92f16431042
@@ -27718,7 +27721,7 @@ pass/facts/live_across_four_calls_preservation_bound_through_match_join_exit che
 pass/facts/live_across_four_calls_preservation_bound_through_other_machine_exit checked 1921ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_four_calls_preservation_bound_through_other_state_exit checked 2456ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_four_calls_preservation_bound_through_parameter_exit checked 2459ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_four_calls_preservation_bound_through_target_body_exit checked 2514ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_four_calls_preservation_bound_through_target_body_exit checked 1749ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_fourteen_calls_preservation_bound_through_call_result_exit checked 2552ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fourteen_calls_preservation_bound_through_const_name_exit checked 2487ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fourteen_calls_preservation_bound_through_field_exit checked 2545ms check-target:macos_arm64 @a92f16431042
@@ -27727,7 +27730,7 @@ pass/facts/live_across_fourteen_calls_preservation_bound_through_match_join_exit
 pass/facts/live_across_fourteen_calls_preservation_bound_through_other_machine_exit checked 2967ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fourteen_calls_preservation_bound_through_other_state_exit checked 2810ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_fourteen_calls_preservation_bound_through_parameter_exit checked 2870ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_fourteen_calls_preservation_bound_through_target_body_exit checked 3034ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_fourteen_calls_preservation_bound_through_target_body_exit checked 1717ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_seven_calls_preservation_bound_through_call_result_exit checked 2716ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seven_calls_preservation_bound_through_const_name_exit checked 2598ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seven_calls_preservation_bound_through_field_exit checked 3245ms check-target:macos_arm64 @a92f16431042
@@ -27736,7 +27739,7 @@ pass/facts/live_across_seven_calls_preservation_bound_through_match_join_exit ch
 pass/facts/live_across_seven_calls_preservation_bound_through_other_machine_exit checked 3297ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seven_calls_preservation_bound_through_other_state_exit checked 3218ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seven_calls_preservation_bound_through_parameter_exit checked 3147ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_seven_calls_preservation_bound_through_target_body_exit checked 3573ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_seven_calls_preservation_bound_through_target_body_exit checked 1757ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_seventeen_calls_preservation_bound_through_call_result_exit checked 2852ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seventeen_calls_preservation_bound_through_const_name_exit checked 3386ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seventeen_calls_preservation_bound_through_field_exit checked 3368ms check-target:macos_arm64 @a92f16431042
@@ -27745,7 +27748,7 @@ pass/facts/live_across_seventeen_calls_preservation_bound_through_match_join_exi
 pass/facts/live_across_seventeen_calls_preservation_bound_through_other_machine_exit checked 3217ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seventeen_calls_preservation_bound_through_other_state_exit checked 3397ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_seventeen_calls_preservation_bound_through_parameter_exit checked 3491ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_seventeen_calls_preservation_bound_through_target_body_exit checked 3252ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_seventeen_calls_preservation_bound_through_target_body_exit checked 1708ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_six_calls_preservation_bound_through_call_result_exit checked 2513ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_six_calls_preservation_bound_through_const_name_exit checked 2679ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_six_calls_preservation_bound_through_field_exit checked 2457ms check-target:macos_arm64 @a92f16431042
@@ -27754,7 +27757,7 @@ pass/facts/live_across_six_calls_preservation_bound_through_match_join_exit chec
 pass/facts/live_across_six_calls_preservation_bound_through_other_machine_exit checked 2668ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_six_calls_preservation_bound_through_other_state_exit checked 3056ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_six_calls_preservation_bound_through_parameter_exit checked 3132ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_six_calls_preservation_bound_through_target_body_exit checked 3110ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_six_calls_preservation_bound_through_target_body_exit checked 1578ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_nineteen_calls_preservation_bound_through_call_result_exit checked 3632ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nineteen_calls_preservation_bound_through_const_name_exit checked 3465ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nineteen_calls_preservation_bound_through_field_exit checked 2799ms check-target:macos_arm64 @a92f16431042
@@ -27763,7 +27766,7 @@ pass/facts/live_across_nineteen_calls_preservation_bound_through_match_join_exit
 pass/facts/live_across_nineteen_calls_preservation_bound_through_other_machine_exit checked 3558ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nineteen_calls_preservation_bound_through_other_state_exit checked 3535ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nineteen_calls_preservation_bound_through_parameter_exit checked 3393ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_nineteen_calls_preservation_bound_through_target_body_exit checked 3837ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_nineteen_calls_preservation_bound_through_target_body_exit checked 1862ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_sixteen_calls_preservation_bound_through_call_result_exit checked 3132ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_sixteen_calls_preservation_bound_through_const_name_exit checked 3205ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_sixteen_calls_preservation_bound_through_field_exit checked 3235ms check-target:macos_arm64 @a92f16431042
@@ -27772,7 +27775,7 @@ pass/facts/live_across_sixteen_calls_preservation_bound_through_match_join_exit 
 pass/facts/live_across_sixteen_calls_preservation_bound_through_other_machine_exit checked 3458ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_sixteen_calls_preservation_bound_through_other_state_exit checked 3340ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_sixteen_calls_preservation_bound_through_parameter_exit checked 3392ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_sixteen_calls_preservation_bound_through_target_body_exit checked 3534ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_sixteen_calls_preservation_bound_through_target_body_exit checked 1658ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_thirteen_calls_preservation_bound_through_call_result_exit checked 3345ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirteen_calls_preservation_bound_through_const_name_exit checked 3289ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirteen_calls_preservation_bound_through_field_exit checked 3111ms check-target:macos_arm64 @a92f16431042
@@ -27781,7 +27784,7 @@ pass/facts/live_across_thirteen_calls_preservation_bound_through_match_join_exit
 pass/facts/live_across_thirteen_calls_preservation_bound_through_other_machine_exit checked 2942ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirteen_calls_preservation_bound_through_other_state_exit checked 3037ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirteen_calls_preservation_bound_through_parameter_exit checked 3053ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_thirteen_calls_preservation_bound_through_target_body_exit checked 3112ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_thirteen_calls_preservation_bound_through_target_body_exit checked 1744ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_thirty_calls_preservation_bound_through_call_result_exit checked 3542ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirty_calls_preservation_bound_through_const_name_exit checked 3335ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirty_calls_preservation_bound_through_field_exit checked 4101ms check-target:macos_arm64 @a92f16431042
@@ -27790,7 +27793,7 @@ pass/facts/live_across_thirty_calls_preservation_bound_through_match_join_exit c
 pass/facts/live_across_thirty_calls_preservation_bound_through_other_machine_exit checked 4154ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirty_calls_preservation_bound_through_other_state_exit checked 3891ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_thirty_calls_preservation_bound_through_parameter_exit checked 4102ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_thirty_calls_preservation_bound_through_target_body_exit checked 4821ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_thirty_calls_preservation_bound_through_target_body_exit checked 1898ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_three_calls_preservation_bound_through_call_result_exit checked 2884ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_three_calls_preservation_bound_through_const_name_exit checked 2308ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_three_calls_preservation_bound_through_field_exit checked 2847ms check-target:macos_arm64 @a92f16431042
@@ -27799,7 +27802,7 @@ pass/facts/live_across_three_calls_preservation_bound_through_match_join_exit ch
 pass/facts/live_across_three_calls_preservation_bound_through_other_machine_exit checked 2974ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_three_calls_preservation_bound_through_other_state_exit checked 2891ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_three_calls_preservation_bound_through_parameter_exit checked 3584ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_three_calls_preservation_bound_through_target_body_exit checked 2623ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_three_calls_preservation_bound_through_target_body_exit checked 1867ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twelve_calls_preservation_bound_through_call_result_exit checked 2565ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twelve_calls_preservation_bound_through_const_name_exit checked 3470ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twelve_calls_preservation_bound_through_field_exit checked 2584ms check-target:macos_arm64 @a92f16431042
@@ -27808,7 +27811,7 @@ pass/facts/live_across_twelve_calls_preservation_bound_through_match_join_exit c
 pass/facts/live_across_twelve_calls_preservation_bound_through_other_machine_exit checked 2438ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twelve_calls_preservation_bound_through_other_state_exit checked 2947ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twelve_calls_preservation_bound_through_parameter_exit checked 2386ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twelve_calls_preservation_bound_through_target_body_exit checked 2086ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twelve_calls_preservation_bound_through_target_body_exit checked 1835ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twenty_calls_preservation_bound_through_call_result_exit checked 2593ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twenty_calls_preservation_bound_through_const_name_exit checked 2501ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twenty_calls_preservation_bound_through_field_exit checked 2395ms check-target:macos_arm64 @a92f16431042
@@ -27817,7 +27820,7 @@ pass/facts/live_across_twenty_calls_preservation_bound_through_match_join_exit c
 pass/facts/live_across_twenty_calls_preservation_bound_through_other_machine_exit checked 2395ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twenty_calls_preservation_bound_through_other_state_exit checked 2339ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twenty_calls_preservation_bound_through_parameter_exit checked 2567ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twenty_calls_preservation_bound_through_target_body_exit checked 2575ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twenty_calls_preservation_bound_through_target_body_exit checked 1817ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentyeight_calls_preservation_bound_through_call_result_exit checked 3254ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyeight_calls_preservation_bound_through_const_name_exit checked 3072ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyeight_calls_preservation_bound_through_field_exit checked 2738ms check-target:macos_arm64 @a92f16431042
@@ -27826,7 +27829,7 @@ pass/facts/live_across_twentyeight_calls_preservation_bound_through_match_join_e
 pass/facts/live_across_twentyeight_calls_preservation_bound_through_other_machine_exit checked 3014ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyeight_calls_preservation_bound_through_other_state_exit checked 3099ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyeight_calls_preservation_bound_through_parameter_exit checked 2669ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentyeight_calls_preservation_bound_through_target_body_exit checked 4909ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentyeight_calls_preservation_bound_through_target_body_exit checked 1972ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentyfive_calls_preservation_bound_through_call_result_exit checked 3853ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfive_calls_preservation_bound_through_const_name_exit checked 2662ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfive_calls_preservation_bound_through_field_exit checked 2750ms check-target:macos_arm64 @a92f16431042
@@ -27835,7 +27838,7 @@ pass/facts/live_across_twentyfive_calls_preservation_bound_through_match_join_ex
 pass/facts/live_across_twentyfive_calls_preservation_bound_through_other_machine_exit checked 2796ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfive_calls_preservation_bound_through_other_state_exit checked 2602ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfive_calls_preservation_bound_through_parameter_exit checked 2844ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentyfive_calls_preservation_bound_through_target_body_exit checked 3431ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentyfive_calls_preservation_bound_through_target_body_exit checked 1815ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentyfour_calls_preservation_bound_through_call_result_exit checked 2662ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfour_calls_preservation_bound_through_const_name_exit checked 2570ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfour_calls_preservation_bound_through_field_exit checked 2717ms check-target:macos_arm64 @a92f16431042
@@ -27844,7 +27847,7 @@ pass/facts/live_across_twentyfour_calls_preservation_bound_through_match_join_ex
 pass/facts/live_across_twentyfour_calls_preservation_bound_through_other_machine_exit checked 2620ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfour_calls_preservation_bound_through_other_state_exit checked 2527ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyfour_calls_preservation_bound_through_parameter_exit checked 2657ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentyfour_calls_preservation_bound_through_target_body_exit checked 3376ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentyfour_calls_preservation_bound_through_target_body_exit checked 1714ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentynine_calls_preservation_bound_through_call_result_exit checked 2906ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentynine_calls_preservation_bound_through_const_name_exit checked 3256ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentynine_calls_preservation_bound_through_field_exit checked 3111ms check-target:macos_arm64 @a92f16431042
@@ -27853,7 +27856,7 @@ pass/facts/live_across_twentynine_calls_preservation_bound_through_match_join_ex
 pass/facts/live_across_twentynine_calls_preservation_bound_through_other_machine_exit checked 3367ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentynine_calls_preservation_bound_through_other_state_exit checked 3124ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentynine_calls_preservation_bound_through_parameter_exit checked 3339ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentynine_calls_preservation_bound_through_target_body_exit checked 4794ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentynine_calls_preservation_bound_through_target_body_exit checked 2182ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentyone_calls_preservation_bound_through_call_result_exit checked 2544ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyone_calls_preservation_bound_through_const_name_exit checked 2739ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyone_calls_preservation_bound_through_field_exit checked 2629ms check-target:macos_arm64 @a92f16431042
@@ -27862,7 +27865,7 @@ pass/facts/live_across_twentyone_calls_preservation_bound_through_match_join_exi
 pass/facts/live_across_twentyone_calls_preservation_bound_through_other_machine_exit checked 2308ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyone_calls_preservation_bound_through_other_state_exit checked 2706ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyone_calls_preservation_bound_through_parameter_exit checked 2455ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentyone_calls_preservation_bound_through_target_body_exit checked 4084ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentyone_calls_preservation_bound_through_target_body_exit checked 2014ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentythree_calls_preservation_bound_through_call_result_exit checked 3254ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentythree_calls_preservation_bound_through_const_name_exit checked 3147ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentythree_calls_preservation_bound_through_field_exit checked 3193ms check-target:macos_arm64 @a92f16431042
@@ -27871,7 +27874,7 @@ pass/facts/live_across_twentythree_calls_preservation_bound_through_match_join_e
 pass/facts/live_across_twentythree_calls_preservation_bound_through_other_machine_exit checked 3160ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentythree_calls_preservation_bound_through_other_state_exit checked 3049ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentythree_calls_preservation_bound_through_parameter_exit checked 3317ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentythree_calls_preservation_bound_through_target_body_exit checked 3588ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentythree_calls_preservation_bound_through_target_body_exit checked 2298ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentytwo_calls_preservation_bound_through_call_result_exit checked 2634ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentytwo_calls_preservation_bound_through_const_name_exit checked 3146ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentytwo_calls_preservation_bound_through_field_exit checked 3295ms check-target:macos_arm64 @a92f16431042
@@ -27880,7 +27883,7 @@ pass/facts/live_across_twentytwo_calls_preservation_bound_through_match_join_exi
 pass/facts/live_across_twentytwo_calls_preservation_bound_through_other_machine_exit checked 2235ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentytwo_calls_preservation_bound_through_other_state_exit checked 2377ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentytwo_calls_preservation_bound_through_parameter_exit checked 2418ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentytwo_calls_preservation_bound_through_target_body_exit checked 3665ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentytwo_calls_preservation_bound_through_target_body_exit checked 2242ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentyseven_calls_preservation_bound_through_call_result_exit checked 3757ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyseven_calls_preservation_bound_through_const_name_exit checked 2653ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyseven_calls_preservation_bound_through_field_exit checked 3142ms check-target:macos_arm64 @a92f16431042
@@ -27889,7 +27892,7 @@ pass/facts/live_across_twentyseven_calls_preservation_bound_through_match_join_e
 pass/facts/live_across_twentyseven_calls_preservation_bound_through_other_machine_exit checked 2887ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyseven_calls_preservation_bound_through_other_state_exit checked 2660ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentyseven_calls_preservation_bound_through_parameter_exit checked 2350ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentyseven_calls_preservation_bound_through_target_body_exit checked 3204ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentyseven_calls_preservation_bound_through_target_body_exit checked 1856ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_twentysix_calls_preservation_bound_through_call_result_exit checked 3143ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentysix_calls_preservation_bound_through_const_name_exit checked 3050ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentysix_calls_preservation_bound_through_field_exit checked 3193ms check-target:macos_arm64 @a92f16431042
@@ -27898,7 +27901,7 @@ pass/facts/live_across_twentysix_calls_preservation_bound_through_match_join_exi
 pass/facts/live_across_twentysix_calls_preservation_bound_through_other_machine_exit checked 3140ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentysix_calls_preservation_bound_through_other_state_exit checked 3057ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_twentysix_calls_preservation_bound_through_parameter_exit checked 3168ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_twentysix_calls_preservation_bound_through_target_body_exit checked 4278ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_twentysix_calls_preservation_bound_through_target_body_exit checked 1869ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit checked 2561ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_two_calls_preservation_bound_through_const_name_exit checked 2597ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_two_calls_preservation_bound_through_field_exit checked 2676ms check-target:macos_arm64 @a92f16431042
@@ -27907,7 +27910,7 @@ pass/facts/live_across_two_calls_preservation_bound_through_match_join_exit chec
 pass/facts/live_across_two_calls_preservation_bound_through_other_machine_exit checked 2292ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_two_calls_preservation_bound_through_other_state_exit checked 2260ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_two_calls_preservation_bound_through_parameter_exit checked 2412ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_two_calls_preservation_bound_through_target_body_exit checked 3093ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_two_calls_preservation_bound_through_target_body_exit checked 2014ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_nine_calls_preservation_bound_through_call_result_exit checked 2698ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nine_calls_preservation_bound_through_const_name_exit checked 2686ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nine_calls_preservation_bound_through_field_exit checked 2675ms check-target:macos_arm64 @a92f16431042
@@ -27916,7 +27919,7 @@ pass/facts/live_across_nine_calls_preservation_bound_through_match_join_exit che
 pass/facts/live_across_nine_calls_preservation_bound_through_other_machine_exit checked 2994ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nine_calls_preservation_bound_through_other_state_exit checked 2991ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_nine_calls_preservation_bound_through_parameter_exit checked 2972ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_nine_calls_preservation_bound_through_target_body_exit checked 3007ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_nine_calls_preservation_bound_through_target_body_exit checked 1622ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/live_across_ten_calls_preservation_bound_through_call_result_exit checked 3196ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_ten_calls_preservation_bound_through_const_name_exit checked 3183ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_ten_calls_preservation_bound_through_field_exit checked 3198ms check-target:macos_arm64 @a92f16431042
@@ -27925,7 +27928,7 @@ pass/facts/live_across_ten_calls_preservation_bound_through_match_join_exit chec
 pass/facts/live_across_ten_calls_preservation_bound_through_other_machine_exit checked 3441ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_ten_calls_preservation_bound_through_other_state_exit checked 3040ms check-target:macos_arm64 @a92f16431042
 pass/facts/live_across_ten_calls_preservation_bound_through_parameter_exit checked 3381ms check-target:macos_arm64 @a92f16431042
-pass/facts/live_across_ten_calls_preservation_bound_through_target_body_exit checked 3450ms check-target:macos_arm64 @a92f16431042
+pass/facts/live_across_ten_calls_preservation_bound_through_target_body_exit checked 1587ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @4163cd4dfa95
 pass/facts/loop_branch_relaxation_ranking_through_call_result_exit checked 2764ms check-target:macos_arm64 @a92f16431042
 pass/facts/loop_branch_relaxation_ranking_through_const_name_exit checked 3242ms check-target:macos_arm64 @a92f16431042
 pass/facts/loop_branch_relaxation_ranking_through_field_exit checked 3905ms check-target:macos_arm64 @a92f16431042
@@ -28227,7 +28230,7 @@ pass/facts/narrow_to_wide_signed_8to64_extension_through_match_join_exit checked
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit checked 2265ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit checked 2299ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit checked 2510ms check-target:macos_arm64 @a92f16431042
-pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit checked 2324ms check-target:macos_arm64 @a92f16431042
+pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit checked 1683ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_call_result_exit checked 2285ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_const_name_exit checked 2303ms check-target:macos_arm64 @a92f16431042
 pass/facts/narrow_to_wide_unsigned_16to32_extension_through_field_exit checked 2296ms check-target:macos_arm64 @a92f16431042
@@ -29644,7 +29647,7 @@ pass/facts/signed_16bit_saturating_subtraction_bound_through_match_join_exit che
 pass/facts/signed_16bit_saturating_subtraction_bound_through_other_machine_exit checked 3310ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_saturating_subtraction_bound_through_other_state_exit checked 2664ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_saturating_subtraction_bound_through_parameter_exit checked 2441ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_16bit_saturating_subtraction_bound_through_target_body_exit checked 2382ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_16bit_saturating_subtraction_bound_through_target_body_exit checked 1431ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_16bit_shift_left_bound_through_call_result_exit checked 2333ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_left_bound_through_const_name_exit checked 2886ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_left_bound_through_field_exit checked 2940ms check-target:macos_arm64 @a92f16431042
@@ -29662,7 +29665,7 @@ pass/facts/signed_16bit_shift_right_bound_through_match_join_exit checked 3726ms
 pass/facts/signed_16bit_shift_right_bound_through_other_machine_exit checked 4630ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_right_bound_through_other_state_exit checked 4155ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_shift_right_bound_through_parameter_exit checked 3237ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_16bit_shift_right_bound_through_target_body_exit checked 3773ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_16bit_shift_right_bound_through_target_body_exit checked 1369ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_call_result_exit checked 3754ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_const_name_exit checked 3233ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_field_exit checked 3683ms check-target:macos_arm64 @a92f16431042
@@ -29671,7 +29674,7 @@ pass/facts/signed_16bit_wrapping_arithmetic_bound_through_match_join_exit checke
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_other_machine_exit checked 3253ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_other_state_exit checked 4251ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_arithmetic_bound_through_parameter_exit checked 3314ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_16bit_wrapping_arithmetic_bound_through_target_body_exit checked 3149ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_16bit_wrapping_arithmetic_bound_through_target_body_exit checked 1458ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_call_result_exit checked 4088ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_const_name_exit checked 3939ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_16bit_wrapping_multiplication_bound_through_field_exit checked 3882ms check-target:macos_arm64 @a92f16431042
@@ -29761,7 +29764,7 @@ pass/facts/signed_32bit_exact_subtraction_bound_through_match_join_exit checked 
 pass/facts/signed_32bit_exact_subtraction_bound_through_other_machine_exit checked 2460ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_exact_subtraction_bound_through_other_state_exit checked 2434ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_exact_subtraction_bound_through_parameter_exit checked 2383ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_exact_subtraction_bound_through_target_body_exit checked 2472ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_32bit_exact_subtraction_bound_through_target_body_exit checked 1521ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_32bit_saturating_arithmetic_bound_through_call_result_exit checked 2457ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_saturating_arithmetic_bound_through_const_name_exit checked 2431ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_saturating_arithmetic_bound_through_field_exit checked 2821ms check-target:macos_arm64 @a92f16431042
@@ -29806,7 +29809,7 @@ pass/facts/signed_32bit_shift_left_bound_through_match_join_exit checked 1853ms 
 pass/facts/signed_32bit_shift_left_bound_through_other_machine_exit checked 2433ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_left_bound_through_other_state_exit checked 2427ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_left_bound_through_parameter_exit checked 1934ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_32bit_shift_left_bound_through_target_body_exit checked 1927ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_32bit_shift_left_bound_through_target_body_exit checked 1437ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_32bit_shift_right_bound_through_call_result_exit checked 2836ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_right_bound_through_const_name_exit checked 2341ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_32bit_shift_right_bound_through_field_exit checked 2334ms check-target:macos_arm64 @a92f16431042
@@ -29851,7 +29854,7 @@ pass/facts/signed_64bit_bitwise_or_bound_through_match_join_exit checked 3820ms 
 pass/facts/signed_64bit_bitwise_or_bound_through_other_machine_exit checked 3323ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_or_bound_through_other_state_exit checked 3182ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_or_bound_through_parameter_exit checked 3858ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_64bit_bitwise_or_bound_through_target_body_exit checked 3782ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_64bit_bitwise_or_bound_through_target_body_exit checked 1456ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_64bit_bitwise_xor_bound_through_call_result_exit checked 4725ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_const_name_exit checked 6099ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_field_exit checked 5555ms check-target:macos_arm64 @a92f16431042
@@ -29860,7 +29863,7 @@ pass/facts/signed_64bit_bitwise_xor_bound_through_match_join_exit checked 4052ms
 pass/facts/signed_64bit_bitwise_xor_bound_through_other_machine_exit checked 4184ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_other_state_exit checked 4320ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_bitwise_xor_bound_through_parameter_exit checked 5275ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit checked 3520ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit checked 1503ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_64bit_saturating_multiplication_bound_through_call_result_exit checked 3285ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_const_name_exit checked 3115ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_field_exit checked 3502ms check-target:macos_arm64 @a92f16431042
@@ -29869,7 +29872,7 @@ pass/facts/signed_64bit_saturating_multiplication_bound_through_match_join_exit 
 pass/facts/signed_64bit_saturating_multiplication_bound_through_other_machine_exit checked 2920ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_other_state_exit checked 3451ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_multiplication_bound_through_parameter_exit checked 3955ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_64bit_saturating_multiplication_bound_through_target_body_exit checked 3108ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_64bit_saturating_multiplication_bound_through_target_body_exit checked 1465ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_64bit_saturating_subtraction_bound_through_call_result_exit checked 3681ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_subtraction_bound_through_const_name_exit checked 3419ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_64bit_saturating_subtraction_bound_through_field_exit checked 2679ms check-target:macos_arm64 @a92f16431042
@@ -29932,7 +29935,7 @@ pass/facts/signed_8bit_bitwise_xor_bound_through_match_join_exit checked 5003ms 
 pass/facts/signed_8bit_bitwise_xor_bound_through_other_machine_exit checked 5012ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_bitwise_xor_bound_through_other_state_exit checked 4217ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_bitwise_xor_bound_through_parameter_exit checked 4706ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_bitwise_xor_bound_through_target_body_exit checked 3598ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_bitwise_xor_bound_through_target_body_exit checked 1369ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_division_quotient_bound_through_call_result_exit checked 3698ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_quotient_bound_through_const_name_exit checked 4591ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_quotient_bound_through_field_exit checked 4582ms check-target:macos_arm64 @a92f16431042
@@ -29950,7 +29953,7 @@ pass/facts/signed_8bit_division_remainder_bound_through_match_join_exit checked 
 pass/facts/signed_8bit_division_remainder_bound_through_other_machine_exit checked 3730ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_remainder_bound_through_other_state_exit checked 3699ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_division_remainder_bound_through_parameter_exit checked 2344ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_division_remainder_bound_through_target_body_exit checked 2514ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_division_remainder_bound_through_target_body_exit checked 1427ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_exact_arithmetic_bound_through_call_result_exit checked 2473ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_const_name_exit checked 2435ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_field_exit checked 2441ms check-target:macos_arm64 @a92f16431042
@@ -29959,7 +29962,7 @@ pass/facts/signed_8bit_exact_arithmetic_bound_through_match_join_exit checked 22
 pass/facts/signed_8bit_exact_arithmetic_bound_through_other_machine_exit checked 3954ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_other_state_exit checked 3950ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_arithmetic_bound_through_parameter_exit checked 3973ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_exact_arithmetic_bound_through_target_body_exit checked 4203ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_exact_arithmetic_bound_through_target_body_exit checked 1375ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_exact_multiplication_bound_through_call_result_exit checked 3985ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_const_name_exit checked 4121ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_field_exit checked 4057ms check-target:macos_arm64 @a92f16431042
@@ -29968,7 +29971,7 @@ pass/facts/signed_8bit_exact_multiplication_bound_through_match_join_exit checke
 pass/facts/signed_8bit_exact_multiplication_bound_through_other_machine_exit checked 4335ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_other_state_exit checked 4693ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_multiplication_bound_through_parameter_exit checked 4677ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_exact_multiplication_bound_through_target_body_exit checked 4656ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_exact_multiplication_bound_through_target_body_exit checked 1407ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_exact_subtraction_bound_through_call_result_exit checked 4525ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_subtraction_bound_through_const_name_exit checked 4437ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_exact_subtraction_bound_through_field_exit checked 4433ms check-target:macos_arm64 @a92f16431042
@@ -30040,7 +30043,7 @@ pass/facts/signed_8bit_wrapping_multiplication_bound_through_match_join_exit che
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_other_machine_exit checked 2824ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_other_state_exit checked 3318ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_parameter_exit checked 3361ms check-target:macos_arm64 @a92f16431042
-pass/facts/signed_8bit_wrapping_multiplication_bound_through_target_body_exit checked 2944ms check-target:macos_arm64 @a92f16431042
+pass/facts/signed_8bit_wrapping_multiplication_bound_through_target_body_exit checked 1385ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/signed_8bit_wrapping_subtraction_bound_through_call_result_exit checked 3652ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_subtraction_bound_through_const_name_exit checked 3299ms check-target:macos_arm64 @a92f16431042
 pass/facts/signed_8bit_wrapping_subtraction_bound_through_field_exit checked 4403ms check-target:macos_arm64 @a92f16431042
@@ -30352,7 +30355,7 @@ pass/facts/ten_arg_stack_calling_plan_through_match_join_exit checked 2530ms che
 pass/facts/ten_arg_stack_calling_plan_through_other_machine_exit checked 2401ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_arg_stack_calling_plan_through_other_state_exit checked 2068ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_arg_stack_calling_plan_through_parameter_exit checked 1818ms check-target:macos_arm64 @a92f16431042
-pass/facts/ten_arg_stack_calling_plan_through_target_body_exit checked 2418ms check-target:macos_arm64 @a92f16431042
+pass/facts/ten_arg_stack_calling_plan_through_target_body_exit checked 1423ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/ten_variant_enum_payload_bound_through_call_result_exit checked 2418ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_variant_enum_payload_bound_through_const_name_exit checked 2437ms check-target:macos_arm64 @a92f16431042
 pass/facts/ten_variant_enum_payload_bound_through_field_exit checked 2315ms check-target:macos_arm64 @a92f16431042
@@ -30901,7 +30904,7 @@ pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_match_join_exit che
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_other_machine_exit checked 3390ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_other_state_exit checked 3370ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_parameter_exit checked 3405ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_target_body_exit checked 3391ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_target_body_exit checked 1349ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_exit checked 3043ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_exit checked 3037ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_field_exit checked 2996ms check-target:macos_arm64 @a92f16431042
@@ -30919,7 +30922,7 @@ pass/facts/unsigned_32bit_bitwise_or_bound_through_match_join_exit checked 2550m
 pass/facts/unsigned_32bit_bitwise_or_bound_through_other_machine_exit checked 2545ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_or_bound_through_other_state_exit checked 2526ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_32bit_bitwise_or_bound_through_parameter_exit checked 2479ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_32bit_bitwise_or_bound_through_target_body_exit checked 2445ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_32bit_bitwise_or_bound_through_target_body_exit checked 1402ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_32bit_bitwise_xor_bound_through_call_result_exit checked 1198ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
 pass/facts/unsigned_32bit_bitwise_xor_bound_through_const_name_exit checked 1193ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
 pass/facts/unsigned_32bit_bitwise_xor_bound_through_field_exit checked 1459ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @1746a501acac
@@ -31100,7 +31103,7 @@ pass/facts/unsigned_64bit_saturating_subtraction_bound_through_match_join_exit c
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_machine_exit checked 2929ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_state_exit checked 2895ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_exit checked 2912ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit checked 2855ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit checked 1401ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_64bit_shift_left_bound_through_call_result_exit checked 2967ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_const_name_exit checked 2943ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_field_exit checked 2393ms check-target:macos_arm64 @a92f16431042
@@ -31109,7 +31112,7 @@ pass/facts/unsigned_64bit_shift_left_bound_through_match_join_exit checked 2159m
 pass/facts/unsigned_64bit_shift_left_bound_through_other_machine_exit checked 2088ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_other_state_exit checked 2059ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_shift_left_bound_through_parameter_exit checked 2095ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit checked 2074ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit checked 1364ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_exit checked 2084ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_exit checked 2071ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_field_exit checked 2150ms check-target:macos_arm64 @a92f16431042
@@ -31154,7 +31157,7 @@ pass/facts/unsigned_8bit_bitwise_xor_bound_through_match_join_exit checked 2388m
 pass/facts/unsigned_8bit_bitwise_xor_bound_through_other_machine_exit checked 2556ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_bitwise_xor_bound_through_other_state_exit checked 2550ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_bitwise_xor_bound_through_parameter_exit checked 2608ms check-target:macos_arm64 @a92f16431042
-pass/facts/unsigned_8bit_bitwise_xor_bound_through_target_body_exit checked 2551ms check-target:macos_arm64 @a92f16431042
+pass/facts/unsigned_8bit_bitwise_xor_bound_through_target_body_exit checked 1407ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5b0614dfcd5e
 pass/facts/unsigned_8bit_division_quotient_bound_through_call_result_exit checked 2567ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_division_quotient_bound_through_const_name_exit checked 2536ms check-target:macos_arm64 @a92f16431042
 pass/facts/unsigned_8bit_division_quotient_bound_through_field_exit checked 2721ms check-target:macos_arm64 @a92f16431042
@@ -31363,24 +31366,24 @@ pass/facts/wrapping_integer_arithmetic_through_other_machine_exit checked 2155ms
 pass/facts/wrapping_integer_arithmetic_through_other_state_exit checked 2413ms check-target:macos_arm64 @a92f16431042
 pass/facts/wrapping_integer_arithmetic_through_parameter_exit checked 2467ms check-target:macos_arm64 @a92f16431042
 pass/facts/wrapping_integer_arithmetic_through_target_body_exit checked 2535ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_call_result_exit checked 2492ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_const_name_exit checked 2250ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_field_exit checked 2242ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_local_exit checked 1926ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_match_join_exit checked 1847ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_other_machine_exit checked 2714ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_other_state_exit checked 2151ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_parameter_exit checked 3289ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_initialization_through_target_body_exit checked 3258ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_call_result_exit checked 2155ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_const_name_exit checked 2096ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_field_exit checked 1845ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_local_exit checked 1852ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_match_join_exit checked 2921ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_other_machine_exit checked 2838ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_other_state_exit checked 2889ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_parameter_exit checked 2826ms check-target:macos_arm64 @a92f16431042
-pass/facts/write_only_borrow_struct_destination_through_target_body_exit checked 2889ms check-target:macos_arm64 @a92f16431042
+pass/facts/write_only_borrow_initialization_through_call_result_exit checked 1319ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_const_name_exit checked 1230ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_field_exit checked 1241ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_local_exit checked 1278ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_match_join_exit checked 1260ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_other_machine_exit checked 1240ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_other_state_exit checked 1268ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_parameter_exit checked 1388ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_initialization_through_target_body_exit checked 1275ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_call_result_exit checked 1188ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_const_name_exit checked 1191ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_field_exit checked 1228ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_local_exit checked 1220ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_match_join_exit checked 1240ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_other_machine_exit checked 1197ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_other_state_exit checked 1206ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_parameter_exit checked 1187ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
+pass/facts/write_only_borrow_struct_destination_through_target_body_exit checked 1241ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @10d690f69667
 pass/facts/write_only_checked_adapter_exit checked 2839ms check-target:macos_arm64 @a92f16431042
 pass/facts/write_only_indexed_reborrow_cast_selector_exit checked 2596ms check-target:macos_arm64 @8eca68666797
 pass/facts/write_only_indexed_reborrow_selector_expression_exit checked 2580ms check-target:macos_arm64 @8eca68666797

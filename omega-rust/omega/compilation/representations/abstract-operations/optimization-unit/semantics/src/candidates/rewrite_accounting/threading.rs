@@ -8,7 +8,7 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) fn reconstruct_linear_thread_bindings(
+pub fn reconstruct_linear_thread_bindings(
     parameters: &[ValueDefinition],
     incoming: &[abstract_operations::ValueBinding],
     outgoing: &[abstract_operations::ValueBinding],

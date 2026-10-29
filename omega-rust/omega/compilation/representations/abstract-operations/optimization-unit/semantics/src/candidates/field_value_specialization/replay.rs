@@ -15,15 +15,15 @@
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::{
-    accept_region_rewrite, candidate_block, candidate_function, candidate_node,
-    canonicalize_provenance, land_folded_nodes, retire_node_custody, sweep_output_nodes,
+    accept_region_rewrite, candidate_block, candidate_function, candidate_node, land_folded_nodes,
+    retire_node_custody, sweep_output_nodes,
 };
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     FieldValueResolution, FieldValueRow, FoldedFieldValue, OptimizationNode,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-    ScalarSubstitution, field_evidence, field_value_accounting, field_value_reads,
+    ScalarSubstitution, field_evidence, field_value_reads,
 };
 use semantic_vocabulary::{BlockId, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};

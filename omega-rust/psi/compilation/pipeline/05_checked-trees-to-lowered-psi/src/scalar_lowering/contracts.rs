@@ -6,7 +6,7 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
     LoweringError, Proposition, ScalarTerm, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration, unsupported,
+    StructuralTypeDeclaration, ValueDeclaration, unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -50,9 +50,8 @@ impl ContractStructuralResult<'_> {
 }
 
 /// The structural namespace a closed scalar contract may observe: the
-/// machine's `(source position, declaration)` parameter roster plus the
-/// element-view carriers resolved from it. Scalar-only contexts pass
-/// `ContractViewNamespace::EMPTY`.
+/// machine's `(source position, declaration)` parameter roster. Scalar-only
+/// contexts pass `ContractViewNamespace::EMPTY`.
 #[derive(Clone, Copy)]
 pub(crate) struct ContractViewNamespace<'a> {
     /// Values supplied by this checked product's exact target closure. The
@@ -68,11 +67,7 @@ pub(crate) struct ContractViewNamespace<'a> {
     /// Structural type declarations the parameters' member paths resolve
     /// against; member leaves in contract operands fail closed when absent.
     pub structural_types: &'a [StructuralTypeDeclaration],
-    pub element_views: &'a std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
 }
-
-static EMPTY_ELEMENT_VIEWS: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>> =
-    std::collections::BTreeMap::new();
 
 impl ContractViewNamespace<'static> {
     /// Scalar-only contexts pass `ContractViewNamespace::EMPTY`.
@@ -81,7 +76,6 @@ impl ContractViewNamespace<'static> {
         parameters: &[],
         result: ContractStructuralResult::Absent,
         structural_types: &[],
-        element_views: &EMPTY_ELEMENT_VIEWS,
     };
 }
 

@@ -644,6 +644,10 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 [[package]]
 name = "encoded-scalar-plan"
 version = "0.1.0"
+dependencies = [
+ "register-model",
+ "selected-instructions",
+]
 
 [[package]]
 name = "errno"
@@ -970,6 +974,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -993,6 +998,7 @@ dependencies = [
  "function-identity",
  "layout-plans",
  "legalized-operations",
+ "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
@@ -1349,6 +1355,23 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
+]
+
+[[package]]
+name = "normalized-foreign-call-plan"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "legalized-operations",
+ "optimization-unit",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
 ]
 
 [[package]]

@@ -946,21 +946,6 @@ fn observed_scalar_carrier(
 /// The source checker retained the complete receiving restriction before its
 /// temporary mathematical view expired. Its exact source type identity includes
 /// every qualification; equal primitive layout alone supplies no restriction.
-fn retained_scalar_domain_predicate(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-    primitive: PrimitiveType,
-) -> bool {
-    checked.primitive_type_reference(reference) == Some(primitive)
-        && matches!(
-            retained_scalar_restriction(checked, reference),
-            Some(
-                checked_trees::CheckedUnitStructuralFieldType::RefinedScalar { .. }
-                    | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
-            )
-        )
-}
-
 pub(crate) fn retained_scalar_restriction(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,

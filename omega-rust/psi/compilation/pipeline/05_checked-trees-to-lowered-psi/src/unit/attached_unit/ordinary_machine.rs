@@ -1145,7 +1145,6 @@ pub(super) fn emit(
             parameters: &evaluation.structural_parameters,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types,
-            element_views: &evaluation.element_views,
         },
         &mut next_call_obligation,
     )?;

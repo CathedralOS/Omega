@@ -1,8 +1,6 @@
 //! Evidence establishing which package root was selected from one source.
 
-use super::git::workspace::{
-    GitWorkspaceSelectionError, GitWorkspaceSelectionEvidence, GitWorkspaceSelectionPlan,
-};
+use super::git::workspace::{GitWorkspaceSelectionError, GitWorkspaceSelectionEvidence};
 use std::fmt;
 
 /// Recheckable source-selection evidence retained outside package source bytes.
@@ -19,13 +17,6 @@ impl PackageSourceSelectionEvidence {
         match self {
             Self::Root => &[],
             Self::GitWorkspace(evidence) => evidence.observations(),
-        }
-    }
-
-    pub const fn git_workspace(&self) -> Option<&GitWorkspaceSelectionPlan> {
-        match self {
-            Self::Root => None,
-            Self::GitWorkspace(evidence) => Some(evidence.plan()),
         }
     }
 

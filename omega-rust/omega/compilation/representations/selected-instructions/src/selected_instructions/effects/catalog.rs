@@ -1009,6 +1009,74 @@ pub struct MachineEffectDeclaration {
     pub alternatives: Vec<MachineAlternative>,
 }
 
+impl MachineEffectDeclaration {
+    /// A call over the selected constraint row: the ISA's encoded row states
+    /// the operand custody and the activation-stack work, this declaration
+    /// adds the call barrier and one always-applicable alternative naming the
+    /// semantic at the encoder's exact byte count. `foreign_supervisor_bytes`
+    /// is `Some` when the callee is an import: a kernel import rewrites the
+    /// memory, stack and control contract to the supervisor form at that fixed
+    /// width, and every other import is an external normal-return call. The
+    /// pre-call stack alignment is the calling convention's, so the ISA states
+    /// it.
+    pub fn call(
+        semantic: MachineSemanticKind,
+        constraint: RegisterConstraintKey,
+        pre_call_stack_alignment: u16,
+        byte_count: u16,
+        foreign_supervisor_bytes: Option<u16>,
+        encoded: MachineEncodedEffects,
+    ) -> Self {
+        let mut declaration = Self {
+            semantic,
+            constraint,
+            memory: MachineMemoryEffect::NoneV1,
+            trap: MachineTrapBehavior::NeverV1,
+            barrier: MachineBarrier::Call,
+            call: if semantic == MachineSemanticKind::InvokeNoNormal {
+                MachineCallEffect::InternalNoNormalV1 {
+                    pre_call_stack_alignment,
+                }
+            } else {
+                MachineCallEffect::InternalNormalReturnV1 {
+                    pre_call_stack_alignment,
+                }
+            },
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: semantic.into(),
+                    variant: 0,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(byte_count),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded,
+            }],
+        };
+        match foreign_supervisor_bytes {
+            Some(supervisor_byte_count)
+                if constraint.family == register_model::RegisterConstraintFamily::SystemCall =>
+            {
+                declaration.call = MachineCallEffect::SupervisorNormalReturnV1;
+                for alternative in &mut declaration.alternatives {
+                    alternative.size = MachineSizeKnowledge::ExactBytes(supervisor_byte_count);
+                    alternative.encoded.memory = MachineEncodedMemoryEffect::NoneV1;
+                    alternative.encoded.stack = MachineEncodedStackEffect::UnchangedV1;
+                    alternative.encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
+                }
+            }
+            Some(_) => {
+                declaration.call = MachineCallEffect::ExternalNormalReturnV1 {
+                    pre_call_stack_alignment,
+                };
+            }
+            None => {}
+        }
+        declaration
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffectCatalog {
     pub target: NativeTarget,

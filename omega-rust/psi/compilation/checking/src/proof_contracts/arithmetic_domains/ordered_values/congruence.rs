@@ -56,14 +56,6 @@ impl<'relations> IndexedOrderGraph<'relations> {
 const MAXIMUM_TERMS: usize = 256;
 const MAXIMUM_COMPARISONS: usize = 65_536;
 
-pub(in crate::proof_contracts::arithmetic_domains) fn same_value(
-    relations: &[Relation],
-    left: &Operand,
-    right: &Operand,
-) -> bool {
-    EqualityQuery::new(relations, left, right).same_value(left, right)
-}
-
 /// One immutable relation set owns its exact ordering graph. Direct constructor
 /// comparisons and bounded congruence closure share the lazily prepared rows;
 /// no cache survives a write, join or rebinding of that relation set.

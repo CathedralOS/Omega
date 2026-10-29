@@ -213,42 +213,7 @@ pub(crate) fn anonymous_numeric_value(
     evaluate_anonymous_value::<true>(program, expression, &[], builtin)
 }
 
-/// Absence of a discovered type is not evidence of anonymity. Result joins
-/// inherit a destination only when every leaf is an actual anonymous number;
-/// named values, typed operations and suffixed floats remain conversions.
-pub fn has_anonymous_numeric_results(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
-    fn visit(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        active: &mut Vec<ExpressionHandle>,
-    ) -> bool {
-        if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
-        {
-            return false;
-        }
-        if let Some(dispatch) = program.expression_table.match_node(expression) {
-            active.push(expression);
-            let anonymous = !program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .is_empty()
-                && program
-                    .expression_table
-                    .match_arms_all(dispatch.arms, |_, value| visit(program, value, active));
-            active.pop();
-            anonymous
-        } else {
-            anonymous_numeric_value(program, expression, &mut |expression| {
-                has_anonymous_operator_meaning(program, expression)
-            })
-            .is_some()
-        }
-    }
-    visit(program, expression, &mut Vec::new())
-}
+pub use typed_trees::closed_numeric::has_anonymous_numeric_results;
 
 /// Float landing keeps its existing integer-spelling path separate from
 /// decimal arithmetic, whose ExactFloat evaluator preserves signed-zero rules.

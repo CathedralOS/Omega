@@ -1,0 +1,377 @@
+compiler source record: \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\compiled-review-cache\source-graphs\29f58c897a7b5c5a6f8d2e0ad8857eb12eceafba2c45f803bbf78f673fece27e.rec
+    27.585 ms  prepare: project -> prepared sources
+  1589.111 ms  compile: sources -> requested product
+     3.580 ms  publish: retained product -> published product
+    12.157 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.537 ms  Step: assemble: PreparedSources -> AssembledSyntax
+    18.275 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+    44.627 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   273.201 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  1156.799 ms  Stage 05: TypedTrees -> CheckedTrees
+    61.786 ms  Step: settle: CheckedTrees -> SelectedExecution
+     5.625 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+     5.246 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.218 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.021 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.059 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+  2260.392 ms  total elapsed
+  1156.792 ms         2 x  05
+     5.068 ms         2 x  05.01.a_discover_call_catalog
+     0.069 ms         2 x  05.01.b_admit_bodies
+     0.375 ms         2 x  05.01.c_lower_structural_types
+     1.670 ms         4 x  05.01.d_lower_domains_and_services
+     0.100 ms         2 x  05.01.e_prepare_qualifications
+     0.983 ms         4 x  05.01.f_lower_signatures
+     0.081 ms         3 x  05.01.g1.1_setup
+     2.193 ms         3 x  05.01.g1.2_emit_states
+     0.885 ms         3 x  05.01.g1.3_finish
+     0.006 ms         3 x  05.01.g1.3a_requires
+     0.050 ms         3 x  05.01.g1.3b_places
+     0.005 ms         3 x  05.01.g1.3c_loans
+     0.598 ms         3 x  05.01.g1.3d_continuations
+     0.002 ms        65 x  05.01.g1.3e.1_owned_extractions
+     0.411 ms        65 x  05.01.g1.3e.2_complete_carriers
+     0.015 ms        65 x  05.01.g1.3e.3_projected_transfers
+     0.006 ms        65 x  05.01.g1.3e.4_retire_borrowed
+     0.206 ms         3 x  05.01.g1.3e_affine_cleanup
+     0.002 ms         3 x  05.01.g1.3f_crash_and_ranking
+     3.221 ms         3 x  05.01.g1_emit_composed_body
+     4.178 ms        62 x  05.01.g2_emit_ordinary_body
+     0.001 ms         2 x  05.01.h_provider_conformances
+    16.034 ms         2 x  05.01_lower_selected_machine
+     0.744 ms         2 x  05.02_declarations_retain
+     0.011 ms         2 x  05.03_nominal_cleanup_roles
+     0.005 ms         2 x  05.04_closed_reach_applications
+     0.003 ms         2 x  05.05_reborrow_restored_call_use
+     0.018 ms         2 x  05.06_placed_and_suspension
+     0.018 ms         2 x  05.07_operation_crash_contracts
+     0.029 ms         2 x  05.08_conformance_and_dyn
+     0.002 ms         2 x  05.09_build_providers
+     0.035 ms         2 x  05.10_reconcile_and_residences
+     0.041 ms         2 x  05.11_evidence_artifacts
+     0.003 ms         2 x  05.a.source_completion
+     2.186 ms         2 x  05.b.retained_input_clone
+     0.014 ms         2 x  05.b.retained_match
+     0.007 ms         2 x  05.boundary_applications
+    23.052 ms         2 x  05.c.1.pre_specialization
+    66.765 ms         2 x  05.c.2.specialization_loop
+           2 n  05.c.2.specialization_loop.iterations
+     0.024 ms         2 x  05.c.3.a.assembly_normalize
+     8.161 ms         2 x  05.c.3.b.settle_value_destinations
+     0.015 ms         2 x  05.c.3.c.default_domain_zero
+     2.549 ms         2 x  05.c.3.d.constructed_result_types
+    13.048 ms         2 x  05.c.3.e.data_applications
+     2.024 ms         2 x  05.c.3.f.runtime_index_fields
+     0.460 ms         2 x  05.c.3.g.dynamic_call_targets
+     2.727 ms         2 x  05.c.3.h.dynamic_slots
+    15.343 ms         2 x  05.c.3.i.requirement_applications
+     0.051 ms         2 x  05.c.3.j.elaborate_new_types
+     1.257 ms         2 x  05.c.3.k.assignment_destinations
+     1.240 ms         2 x  05.c.3.l.domain_test_carriers
+     0.004 ms         2 x  05.c.3.m.assembly_admit
+     2.533 ms         2 x  05.c.3.n.mathematical_declarations
+    49.526 ms         2 x  05.c.3.post_specialization
+     0.640 ms         2 x  05.c.placement_lifecycle_plans
+   139.351 ms         2 x  05.c.prepare_typed_trees
+     0.001 ms         2 x  05.callback_applications
+     2.041 ms         2 x  05.d.11_13.a.1.owner_index
+     0.144 ms         2 x  05.d.11_13.a.2.root_bindings
+     1.865 ms         2 x  05.d.11_13.a.3.expression_loop
+     0.015 ms        13 x  05.d.11_13.a.3.member
+     1.480 ms       514 x  05.d.11_13.a.3.operator
+     0.035 ms         2 x  05.d.11_13.a.4.statement_selections
+     0.105 ms         2 x  05.d.11_13.a.5.membership_selections
+     0.151 ms         2 x  05.d.11_13.a.6.proof_view_calls
+     0.417 ms         2 x  05.d.11_13.a.7.apply_resolutions
+     5.159 ms         2 x  05.d.11_13.a.finalize_selections
+     0.240 ms         2 x  05.d.11_13.b.visibility_and_cleanup_selections
+     7.786 ms         2 x  05.d.11_13.c.reference_custody
+    14.251 ms         2 x  05.d.11_13.d.content_classes
+     4.692 ms         2 x  05.d.11_13.e.resolved_types
+     0.043 ms         2 x  05.d.11_13.f.state_locals
+     0.461 ms         2 x  05.d.11_13.g.provider_closed_requirements
+     8.154 ms         2 x  05.d.11_13.h.boundary_and_portable_checks
+    41.941 ms         2 x  05.d.11_13.selections_custody_types_boundaries
+   102.059 ms         2 x  05.d.2.a.1.pre_machine_validators
+     0.070 ms         2 x  05.d.2.a.1a.definition_fact_plan
+     0.021 ms         2 x  05.d.2.a.1a2.proposition_entailment
+    12.049 ms         2 x  05.d.2.a.1a2b.domains_and_signatures
+     3.304 ms         2 x  05.d.2.a.1a3.operational_and_service_reaches
+     3.084 ms         2 x  05.d.2.a.1a4b.data_and_proof_faces
+     3.977 ms         2 x  05.d.2.a.1a5.call_cycles_and_properties
+     0.006 ms         2 x  05.d.2.a.1a5b.1.constants
+     2.868 ms         2 x  05.d.2.a.1a5b.2.struct_literals
+     0.045 ms         2 x  05.d.2.a.1a5b.3.destructure
+     2.922 ms         2 x  05.d.2.a.1a5b.constants_and_literals
+    61.049 ms         2 x  05.d.2.a.1a5c.default_domain_writes
+     1.077 ms         2 x  05.d.2.a.1a5d.recasts_wire_operators
+     5.819 ms         2 x  05.d.2.a.1a6.static_machine_selections
+     0.060 ms         2 x  05.d.2.a.1b.call_frame_resolver
+     1.456 ms         2 x  05.d.2.a.2.dependency_bodies
+   405.304 ms       404 x  05.d.2.a.2.machine.std_or_core
+     5.850 ms         9 x  05.d.2.a.2.machine.user_or_other
+    25.000 ms         2 x  05.d.2.a.2.machine_loop
+         404 n  05.d.2.a.2.machines.std_or_core
+           9 n  05.d.2.a.2.machines.user_or_other
+    31.316 ms       413 x  05.d.2.a.2a.contract_entailment
+         413 n  05.d.2.a.2a.contract_entailment.judged
+     0.109 ms       413 x  05.d.2.a.2b.0a.ref_local_est
+     7.365 ms       413 x  05.d.2.a.2b.0b.value_env_init
+    40.858 ms      1150 x  05.d.2.a.2b.1.transition_values
+    79.521 ms      1150 x  05.d.2.a.2b.2.prepare_numeric_observations
+    29.705 ms      1150 x  05.d.2.a.2b.3.value_call_frames
+    75.775 ms      1148 x  05.d.2.a.2b.4.value_position_calls
+     8.405 ms      1150 x  05.d.2.a.2b.4b.direct_written
+    98.384 ms      1150 x  05.d.2.a.2b.5.validate_statement_node
+   370.031 ms       413 x  05.d.2.a.2b.state_statements
+     3.179 ms         2 x  05.d.2.a.3.post_machine_validators
+   131.747 ms         2 x  05.d.2.a.validate
+     2.302 ms         2 x  05.d.2.b.build_proof_plan
+     0.357 ms         2 x  05.d.2.c.check_proof_plan
+     0.059 ms         2 x  05.d.2.d.bare_boundary_trait_values
+   134.474 ms         2 x  05.d.2.prepare_typed_program
+    71.622 ms         2 x  05.d.3.a.pre_flow_facts
+     9.961 ms         2 x  05.d.3.b.flow.build_state_mutation_summaries
+     0.878 ms       533 x  05.d.3.b.flow.call.1_entry_and_requires
+     3.525 ms       533 x  05.d.3.b.flow.call.2_sources_and_invalidation
+     1.061 ms       533 x  05.d.3.b.flow.call.3_exit_and_carry
+    15.570 ms       533 x  05.d.3.b.flow.call.4_result_and_param_domains
+    14.464 ms       533 x  05.d.3.b.flow.call.5_referent_domains
+     2.216 ms       533 x  05.d.3.b.flow.call.6_inst_and_boundary
+   183.482 ms       533 x  05.d.3.b.flow.expr.invoke
+         413 n  05.d.3.b.flow.groups
+         413 n  05.d.3.b.flow.inner_passes
+    21.082 ms       533 x  05.d.3.b.flow.invoke.1_storage_writes
+    15.047 ms       533 x  05.d.3.b.flow.invoke.1a_mutation_writes
+     0.317 ms       240 x  05.d.3.b.flow.invoke.1b_close_aliases
+     4.062 ms       240 x  05.d.3.b.flow.invoke.1c_entry_origins
+    44.795 ms       533 x  05.d.3.b.flow.invoke.2_build_call
+   111.261 ms       533 x  05.d.3.b.flow.invoke.3_capture_stores
+     1.029 ms       533 x  05.d.3.b.flow.invoke.4_reference_custody
+           2 n  05.d.3.b.flow.max_group_machines
+    12.748 ms      1597 x  05.d.3.b.flow.mutation.1_summary
+     2.252 ms       154 x  05.d.3.b.flow.mutation.2_boundary
+     1.542 ms        92 x  05.d.3.b.flow.mutation.3_ceiling
+   617.040 ms       413 x  05.d.3.b.flow.state_statements
+         413 n  05.d.3.b.flow.states_visited
+   280.569 ms       361 x  05.d.3.b.flow.stmt.1_transition
+   211.295 ms       789 x  05.d.3.b.flow.stmt.2_expression
+    26.902 ms      1150 x  05.d.3.b.flow.stmt.3_writes_and_loans
+    22.599 ms       454 x  05.d.3.b.flow.stmt.4_invalidation
+    57.651 ms      1150 x  05.d.3.b.flow.stmt.5_transfers
+     2.438 ms         2 x  05.d.3.b.flow.summaries.1_direct
+     7.404 ms         2 x  05.d.3.b.flow.summaries.2_propagate
+     0.391 ms         2 x  05.d.3.b.flow.summaries.2a_calls
+     6.210 ms         2 x  05.d.3.b.flow.summaries.2b_loop
+           6 n  05.d.3.b.flow.summaries.2b_rounds
+   362.355 ms         2 x  05.d.3.b.flow_fixed_point
+     1.385 ms         2 x  05.d.3.b.flow_fixed_point.bind_call_spans
+    75.714 ms         2 x  05.d.3.b.flow_fixed_point.build_flow_facts
+     1.592 ms         2 x  05.d.3.b.flow_fixed_point.infer_entry_requirements
+           2 n  05.d.3.b.flow_fixed_point.outer_iterations
+   281.575 ms         2 x  05.d.3.b.flow_fixed_point.prepare_permission_events
+     0.074 ms         2 x  05.d.3.b.flow_fixed_point.retain_selected_receiver_loans
+   275.581 ms         2 x  05.d.3.b.perm.1_state_loop
+     0.031 ms         2 x  05.d.3.b.perm.2_append_borrow
+     0.411 ms         2 x  05.d.3.b.perm.3_reconcile_origins
+     0.498 ms         2 x  05.d.3.b.perm.4_publish_joins
+     0.154 ms         2 x  05.d.3.b.perm.5_derive_maps
+     4.710 ms         2 x  05.d.3.b.perm.6_storage_deaths
+     0.010 ms         2 x  05.d.3.b.perm.7_bind_applications
+   548.907 ms         2 x  05.d.3.build_check_facts
+    61.662 ms         2 x  05.d.3.c.1.scalar_and_index_plans
+     3.674 ms         2 x  05.d.3.c.2.index_compatibility
+     1.535 ms         2 x  05.d.3.c.3.cleanup_effects_and_reaches
+     5.390 ms         2 x  05.d.3.c.4.admit_prepared_program_effects
+    29.840 ms         2 x  05.d.3.c.5.post_admit_facts
+     7.478 ms         2 x  05.d.3.c.5a.termination
+     5.673 ms         2 x  05.d.3.c.5b.mutation_and_integer_writes
+     0.079 ms         2 x  05.d.3.c.5c.1.trapping_index
+     1.587 ms         2 x  05.d.3.c.5c.2.per_machine_plans
+     0.018 ms         2 x  05.d.3.c.5c.3.operator_crashes
+     0.632 ms         2 x  05.d.3.c.5c.4.crash_capsules
+     1.177 ms         2 x  05.d.3.c.5c.5.summary_graph
+     1.708 ms         2 x  05.d.3.c.5c.6.identities
+     5.314 ms         2 x  05.d.3.c.5c.7.attach_crash_calls
+    13.296 ms         2 x  05.d.3.c.5c.contract_plans
+   104.788 ms         2 x  05.d.3.c.post_flow_facts
+     1.790 ms         2 x  05.d.4_6.quotients_borrows_identities
+     0.803 ms         2 x  05.d.7.0.setup_guards_and_entailment
+     0.156 ms         2 x  05.d.7.1.bind_call_evidence_arguments
+    19.472 ms         2 x  05.d.7.2.check_flow_call_borrows
+     0.499 ms         2 x  05.d.7.2b.runtime_indices_case_fences
+     3.203 ms         2 x  05.d.7.3a.content_composition
+     1.502 ms         2 x  05.d.7.3b.0.cleanup_requirements
+     0.067 ms         2 x  05.d.7.3b.0b.assembly_and_refutations
+    57.134 ms       533 x  05.d.7.3b.1.calls
+     0.048 ms        16 x  05.d.7.3b.1.cap.2c_judge_init
+   165.201 ms      3890 x  05.d.7.3b.1.cap.2d.assign
+     4.101 ms        17 x  05.d.7.3b.1.cap.2d.citation
+     2.339 ms       326 x  05.d.7.3b.1.cap.2d.local_init
+    32.457 ms        97 x  05.d.7.3b.1.cap.2d.transitions
+     1.483 ms        16 x  05.d.7.3b.1.cap.2d_recognize
+     1.298 ms        31 x  05.d.7.3b.1.cap.2e_visit
+     0.788 ms       533 x  05.d.7.3b.1a.entry_contexts
+     0.036 ms       533 x  05.d.7.3b.1b.contextual_and_nominal
+     0.426 ms        40 x  05.d.7.3b.1c.membership
+     5.170 ms        26 x  05.d.7.3b.1d.1.call_guarantees
+     1.441 ms        18 x  05.d.7.3b.1d.2.current_values
+    31.833 ms        15 x  05.d.7.3b.1d.3.structural
+     1.126 ms         1 x  05.d.7.3b.1d.4.captured_expr
+     0.011 ms         1 x  05.d.7.3b.1d.5.preserves_captures
+    40.014 ms        40 x  05.d.7.3b.1d.captured_boolean
+     1.814 ms        40 x  05.d.7.3b.1e.proves_core
+     7.031 ms       609 x  05.d.7.3b.2.exits
+     0.068 ms       609 x  05.d.7.3b.2.exits.b.boundary_refutations
+     0.081 ms       609 x  05.d.7.3b.2.exits.c.scalar_result_domains
+     1.181 ms       609 x  05.d.7.3b.2.exits.d.exit_ensures
+     4.967 ms       609 x  05.d.7.3b.2.exits.e.result_field_domains
+     0.240 ms       609 x  05.d.7.3b.2.exits.f.exclusive_referent_field_domains
+     6.554 ms       413 x  05.d.7.3b.3.writes
+    19.782 ms         2 x  05.d.7.3b.check_flow_call_contracts
+     0.251 ms         2 x  05.d.7.4.a.crash_frontiers
+     7.487 ms         2 x  05.d.7.4.b.validate_linear
+     0.003 ms         2 x  05.d.7.4.c.borrowed_windows
+     7.748 ms         2 x  05.d.7.4.check_linear_obligations
+    22.070 ms         2 x  05.d.7.5_8.crashes_content_carry_operators
+     0.398 ms        51 x  05.d.7.9.a.range_call_context
+     0.038 ms        51 x  05.d.7.9.c.loop_invariant_facts
+     1.911 ms         2 x  05.d.7.9.check_indexed_accesses
+     0.207 ms        51 x  05.d.7.9.d.seed_state
+    10.158 ms        51 x  05.d.7.9.e.check_statements
+    76.468 ms         2 x  05.d.7.check_checked_facts
+     0.641 ms         2 x  05.d.8_10.a.1.rank_and_terminal_machines
+     0.012 ms         2 x  05.d.8_10.a.2.structural_control_cleanups
+     1.579 ms         2 x  05.d.8_10.a.3.1.boundary_and_dynamic
+   185.330 ms         2 x  05.d.8_10.a.3.2.candidate_bodies
+    28.047 ms       400 x  05.d.8_10.a.3.2a.body_route
+     6.900 ms       257 x  05.d.8_10.a.3.2b.sequence_body
+     0.810 ms       141 x  05.d.8_10.a.3.2c.1.fused_and_ranks
+     4.941 ms       135 x  05.d.8_10.a.3.2c.2.signatures
+    79.326 ms       140 x  05.d.8_10.a.3.2c.3.sequence
+     1.190 ms       140 x  05.d.8_10.a.3.2c.3a.outer_calls
+    77.643 ms       140 x  05.d.8_10.a.3.2c.3b.statement_sequence
+     0.023 ms       324 x  05.d.8_10.a.3.2c.3b1.scalar_control
+     0.123 ms       324 x  05.d.8_10.a.3.2c.3b2.erased_locals
+    19.714 ms       324 x  05.d.8_10.a.3.2c.3b3.stores
+    20.500 ms       324 x  05.d.8_10.a.3.2c.3b4.statement_loop
+    40.455 ms       324 x  05.d.8_10.a.3.2c.3b5.completion
+    37.556 ms       140 x  05.d.8_10.a.3.2c.4.terminator
+     3.240 ms       124 x  05.d.8_10.a.3.2c.5.result_custody
+    21.006 ms       118 x  05.d.8_10.a.3.2c.6.parameter_custody_and_finish
+   150.089 ms       143 x  05.d.8_10.a.3.2c.graph_body
+     2.072 ms         2 x  05.d.8_10.a.3.3.cleanup_selections
+     1.044 ms         2 x  05.d.8_10.a.3.4.candidate_closure
+   191.502 ms         2 x  05.d.8_10.a.3.unit_effect_plans
+     0.408 ms         2 x  05.d.8_10.a.4.nominal_affine_cleanups
+   197.790 ms         2 x  05.d.8_10.a.finalize_execution
+     2.985 ms         2 x  05.d.8_10.b.semantic_dependencies
+     0.002 ms         2 x  05.d.8_10.c.accepted_template_identities
+   208.646 ms         2 x  05.d.8_10.finalize_execution_identities
+  1014.555 ms         2 x  05.d.lower_typed_trees
+     0.000 ms         2 x  05.debug_map
+     0.194 ms         2 x  05.e.declaration_authority
+     0.001 ms         2 x  05.identities_build
+    16.955 ms         2 x  05.lower_terminal_selection
+     6.031 ms       135 x  05.num.1_scan
+    56.340 ms       132 x  05.num.2_observe_prefixes
+    19.763 ms       159 x  05.num.2a.1_completed_obs
+     0.314 ms         4 x  05.num.2a.2_collect_ordering
+     3.495 ms       159 x  05.num.2a.3_collect_assoc
+    30.700 ms       159 x  05.num.2a_visitor_visit
+          73 n  05.num.2b_active_paths_stepped
+     4.072 ms        72 x  05.num.2b_step_statement
+     0.627 ms       155 x  05.num.assoc.1_reads
+     0.767 ms       155 x  05.num.assoc.2_build_preds
+     1.673 ms        43 x  05.num.assoc.3_prove
+     0.004 ms        43 x  05.num.prove.1_eq_loop
+     1.300 ms        43 x  05.num.prove.2_shared
+     0.119 ms        43 x  05.num.prove.2a_prep
+          98 n  05.num.prove.2a_prep.hit
+         272 n  05.num.prove.2a_prep.miss
+     0.196 ms        55 x  05.num.prove.2b_project
+     1.271 ms       467 x  05.num.visit.1_arm_judge
+    40.181 ms       443 x  05.num.visit.2_contra
+        3576 n  05.ordered_relations.edges
+         595 n  05.ordered_relations.graphs
+         910 n  05.ordered_relations.rows
+        3335 n  05.ordered_relations.vertices
+    45.954 ms       413 x  05.perm.a_setup
+   229.255 ms       400 x  05.perm.b_walk
+     1.594 ms         7 x  05.rf.recognize
+     0.005 ms         2 x  05.validate_runtime_evidence_inputs
+     0.357 ms         1 x  06.0.b_admit_permissions_and_trust
+     0.009 ms         1 x  06.0.c_report_prepare
+     0.154 ms         1 x  06.0.d_finish_terminal_application
+     9.300 ms         1 x  06.0.e_produce_native_product
+     0.010 ms         1 x  06.0.f_settlement_finish_native
+     0.003 ms         1 x  06.1.a_prepare_terminal
+     0.002 ms         1 x  06.1.b_admit_target_layouts
+     0.181 ms         1 x  06.1.c1_prepare_native_execution
+     0.005 ms         1 x  06.1.c2_prepare_native_providers
+     0.060 ms         1 x  06.1.c3_admit_prepared_native_realization
+     0.061 ms         1 x  06.1.c4_admit_executable_entry
+     0.007 ms         1 x  06.1.c5_capture_native_admission
+     1.864 ms         1 x  06.1.d.01_lower_to_target
+     0.678 ms         1 x  06.1.d.04_stage_instruction_selection
+     0.405 ms         1 x  06.1.d.04b_optimize_selected_instructions
+     0.041 ms         7 x  06.1.d.05.j.1_build_domains
+     0.020 ms         7 x  06.1.d.05.j.2_prepared_conflicts
+     0.022 ms         7 x  06.1.d.05.j.3_compute_bitmask
+     0.367 ms         1 x  06.1.d.05_stage_register_allocation
+     2.628 ms         1 x  06.1.d.06.a_post_allocation_machine
+     0.139 ms         1 x  06.1.d.06.b_stage_function_frame
+     0.177 ms         1 x  06.1.d.06.c_selected_form_encoding
+     0.193 ms         1 x  06.1.d.06.d_resolved_selected_form_layout
+     0.001 ms         1 x  06.1.d.06.e_resolved_layout_opt
+     0.224 ms         1 x  06.1.d.06.f_assemble_fixed_frame
+     0.376 ms         1 x  06.1.d.06.g_emit_fragment_object
+     3.816 ms         1 x  06.1.d.06_stage_frame_realization
+     8.743 ms         1 x  06.1.d_emit_realization_object
+     0.172 ms         1 x  06.1.e_emit_admitted_image
+     3.812 ms         4 x  evaluate_or_defer.check_defer
+     0.706 ms         4 x  evaluate_or_defer.check_defer.const_applications
+     0.953 ms         4 x  evaluate_or_defer.check_defer.endpoint_calls
+     1.417 ms         4 x  evaluate_or_defer.check_defer.independent_lengths
+     0.006 ms         4 x  evaluate_or_defer.check_defer.memberships
+     2.415 ms         4 x  evaluate_or_defer.evaluate_work
+     0.678 ms         4 x  evaluate_or_defer.evaluate_work.const_applications
+     0.691 ms         4 x  evaluate_or_defer.evaluate_work.const_array_lengths
+     0.004 ms         4 x  evaluate_or_defer.evaluate_work.domain_facts
+     0.172 ms         4 x  evaluate_or_defer.evaluate_work.dynamic_call_targets
+     0.003 ms         4 x  evaluate_or_defer.evaluate_work.placed_view_plans
+     0.003 ms         4 x  evaluate_or_defer.evaluate_work.plan_laid_layouts
+     0.854 ms         4 x  evaluate_or_defer.evaluate_work.range_endpoints
+     0.004 ms         4 x  evaluate_or_defer.evaluate_work.wire_plans
+     0.059 ms         4 x  evaluate_or_defer.finish
+     0.006 ms         4 x  evaluate_or_defer.finish.settle_target_observations
+     0.051 ms         4 x  evaluate_or_defer.finish.validate_retained_invocations
+     0.068 ms         3 x  pre_resolution.constant_calls
+     1.854 ms         3 x  pre_resolution.constant_expressions
+           0 n  pre_resolution.constant_expressions.data
+           0 n  pre_resolution.constant_expressions.extents
+           0 n  pre_resolution.constant_expressions.machines
+           0 n  pre_resolution.constant_expressions.pending
+     0.234 ms         2 x  pre_resolution.constant_initializers
+     5.060 ms         2 x  pre_resolution.generic_data
+     0.067 ms         2 x  pre_resolution.range_arguments
+    22.317 ms         1 x  psi.source.complete_authored
+    11.030 ms         1 x  psi.source.complete_authored.complete_bodies
+     3.521 ms         1 x  psi.source.complete_authored.complete_machine_bodies
+     5.358 ms         2 x  psi.source.complete_authored.evaluate_or_defer_recorded
+     1.479 ms         1 x  psi.source.finish
+    78.706 ms         2 x  psi.source.prepare
+    27.969 ms         2 x  psi.source.prepare.build_bodies_typed
+    21.264 ms         2 x  psi.source.prepare.resolve_extension
+    63062250 n  source.graph.checks.bytes
+           1 n  source.graph.loaded
+    17045087 n  source.graph.preparation.bytes
+           1 n  source.graph.retained
+     9354565 n  source.graph.sources.bytes
+           5 n  source_activation.candidates
+           1 n  source_activation.miss.lookup_contributors
+           3 n  source_activation.retained_sources
+    18.933 ms        65 x  typed_trees::collect_program_references
+     1.075 ms        28 x  typed_trees::program_scoped_proof_facts
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\checking-simplification\closure-comparison\dispatch-11-B-profile\build\omega-program.exe

@@ -98,3 +98,6 @@ pub fn consumer_captures(
     }
     (!selected.is_empty()).then_some(selected)
 }
+
+#[cfg(test)]
+mod tests;
