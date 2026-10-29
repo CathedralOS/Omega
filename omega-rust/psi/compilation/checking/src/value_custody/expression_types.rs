@@ -239,6 +239,18 @@ fn argument_matches_type_reference_using(
         type_reference,
         required_substitutions,
     );
+    macro_rules! match_argument {
+        ($argument:expr, $type_reference:expr $(,)?) => {
+            argument_matches_type_reference_using(
+                program,
+                scope,
+                $argument,
+                $type_reference,
+                correspondence,
+                required_substitutions,
+            )
+        };
+    }
     if scalar_observations::primitive_delivery_matches(
         program,
         argument,
@@ -258,14 +270,7 @@ fn argument_matches_type_reference_using(
             && program
                 .expression_table
                 .match_arms_all(dispatch.arms, |_, value| {
-                    argument_matches_type_reference_using(
-                        program,
-                        scope,
-                        value,
-                        type_reference,
-                        correspondence,
-                        required_substitutions,
-                    )
+                    match_argument!(value, type_reference)
                 });
     }
     if let Some(inner_expression) = program.expression_table.borrow_expression(argument) {
@@ -344,14 +349,7 @@ fn argument_matches_type_reference_using(
                 )
             };
         }
-        return argument_matches_type_reference_using(
-            program,
-            scope,
-            inner_expression.target,
-            *referee,
-            correspondence,
-            required_substitutions,
-        );
+        return match_argument!(inner_expression.target, *referee);
     }
 
     // A recast states its viewed carrier and access explicitly, whether or not
@@ -520,23 +518,11 @@ fn argument_matches_type_reference_using(
             // temporary lifetime belong to the independent custody checks, not
             // a syntax whitelist that excludes valid construction operands.
             *access == language_semantics::ReferenceAccess::Shared
-                && argument_matches_type_reference_using(
-                    program,
-                    scope,
-                    argument,
-                    *referee,
-                    correspondence,
-                    required_substitutions,
-                )
+                && match_argument!(argument, *referee)
         }
-        TypeReferenceNode::Constrained { base_type, .. } => argument_matches_type_reference_using(
-            program,
-            scope,
-            argument,
-            *base_type,
-            correspondence,
-            required_substitutions,
-        ),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            match_argument!(argument, *base_type)
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length,
@@ -556,16 +542,9 @@ fn argument_matches_type_reference_using(
                 let elements = program.expression_table.expression_handles(*elements);
                 return !matches!(length, typed_trees::types::FixedArrayLength::Literal(length)
                     if *length != elements.len())
-                    && elements.iter().all(|element| {
-                        argument_matches_type_reference_using(
-                            program,
-                            scope,
-                            *element,
-                            *element_type,
-                            correspondence,
-                            required_substitutions,
-                        )
-                    });
+                    && elements
+                        .iter()
+                        .all(|element| match_argument!(*element, *element_type));
             }
             let mut substitutions = Vec::new();
             let Some(actual) =
