@@ -47,22 +47,41 @@ enum ReceiverProvenance {
 /// source checking quadratic even when no capability could propagate.
 struct CapabilityFlows {
     facts: Arena<CapabilityFlowFact>,
-    by_state: symbols::SymbolKeyMap<SymbolHandle, Vec<arena::Handle<CapabilityFlowFact>>>,
+    by_state: Vec<StateCapabilityFacts>,
+}
+
+struct StateCapabilityFacts {
+    state_symbol: SymbolHandle,
+    fact_handles: Vec<arena::Handle<CapabilityFlowFact>>,
 }
 
 impl CapabilityFlows {
     fn with_capacity(capacity: usize) -> Self {
         Self {
             facts: Arena::with_capacity(capacity),
-            by_state: symbols::SymbolKeyMap::default(),
+            by_state: Vec::new(),
         }
     }
 
-    fn capabilities(&self, state: SymbolHandle, kind: CapabilityFlowKind) -> Vec<SymbolHandle> {
-        self.by_state
-            .get(&state)
-            .into_iter()
-            .flatten()
+    fn capabilities(
+        &self,
+        state_symbol: SymbolHandle,
+        kind: CapabilityFlowKind,
+    ) -> Vec<SymbolHandle> {
+        let Ok(state_index) = self.by_state.binary_search_by_key(
+            &(state_symbol.arena_index(), state_symbol.generation()),
+            |row| {
+                (
+                    row.state_symbol.arena_index(),
+                    row.state_symbol.generation(),
+                )
+            },
+        ) else {
+            return Vec::new();
+        };
+        self.by_state[state_index]
+            .fact_handles
+            .iter()
             .map(|handle| self.facts.get(*handle))
             .filter(|fact| fact.kind == kind)
             .map(|fact| fact.capability_symbol)
@@ -372,11 +391,34 @@ fn push_unique(
         via_state_symbol,
     };
 
-    let state = flows.by_state.entry(state_symbol).or_default();
-    let exists = state.iter().any(|handle| flows.facts.get(*handle) == &fact);
+    let state_index = flows
+        .by_state
+        .binary_search_by_key(
+            &(state_symbol.arena_index(), state_symbol.generation()),
+            |row| {
+                (
+                    row.state_symbol.arena_index(),
+                    row.state_symbol.generation(),
+                )
+            },
+        )
+        .unwrap_or_else(|state_index| {
+            flows.by_state.insert(
+                state_index,
+                StateCapabilityFacts {
+                    state_symbol,
+                    fact_handles: Vec::new(),
+                },
+            );
+            state_index
+        });
+    let state_fact_handles = &mut flows.by_state[state_index].fact_handles;
+    let exists = state_fact_handles
+        .iter()
+        .any(|handle| flows.facts.get(*handle) == &fact);
     if !exists {
         let handle = flows.facts.append(fact);
-        state.push(handle);
+        state_fact_handles.push(handle);
     }
     !exists
 }
