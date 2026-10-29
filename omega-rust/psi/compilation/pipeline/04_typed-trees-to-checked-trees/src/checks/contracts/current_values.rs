@@ -132,23 +132,15 @@ pub(crate) fn proves_call(
     if arguments.len() != parameters.len() {
         return false;
     }
-    let target = if let validation::CallSite::TransitionNamed {
-        path, arguments, ..
-    } = &site
-    {
-        let Some(StatementNode::Transition(transition)) = program
-            .statement_table
-            .statement_at(state, call.statement_index)
-        else {
-            return false;
-        };
-        let Some(target) = [transition.target, transition.continuation].into_iter().find(|target| target.is_valid() && matches!(program.statement_table.transition_target(*target),
-            typed_trees::statement::TransitionTargetNode::Named { path: candidate, arguments: actuals, .. }
-                if candidate.symbol == path.symbol && actuals == arguments)) else { return false; };
-        target
-    } else {
-        TransitionTargetHandle::invalid()
-    };
+    let target = validation::transition_call_target(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )
+    .filter(|target| target.is_valid() && site.completes_transition(program, *target))
+    .unwrap_or_else(TransitionTargetHandle::invalid);
     let Some(mut values) = CurrentScalarValues::at(
         program,
         machine,
@@ -159,20 +151,25 @@ pub(crate) fn proves_call(
     ) else {
         return false;
     };
-    if !target.is_valid() {
-        let Some(statement) = program
-            .statement_table
-            .statement_at(state, call.statement_index)
-        else {
-            return false;
-        };
-        // The ordinal identifies a call inside this statement, but its earlier
-        // sibling operands may already have changed storage. Reuse the full
-        // operand frame conservatively until an ordered capture is available.
-        values.invalidate_operand_writes(
-            frames.map(|frames| frames.statement_value_write_frame(machine, statement)),
-        );
-    }
+    let Some(statement) = program
+        .statement_table
+        .statement_at(state, call.statement_index)
+    else {
+        return false;
+    };
+    // Requirements are judged after operand evaluation and before this
+    // invocation executes. The resolved completing occurrence shares the
+    // ranking frontier: guard and nested operand effects remain, while the
+    // callee's future writes cannot erase its own prepared actuals. An inner
+    // call still uses the conservative full statement until ordered captures
+    // supply its frontier; stripping its enclosing call would lose effects.
+    values.invalidate_operand_writes(frames.map(|frames| {
+        if target.is_valid() {
+            frames.transition_operand_write_frame(machine, statement)
+        } else {
+            frames.statement_value_write_frame(machine, statement)
+        }
+    }));
     let Some((callee, callee_state)) = validation::find_state(program, call.target_symbol)
         .or_else(|| validation::find_machine_head(program, call.target_symbol))
     else {

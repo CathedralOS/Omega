@@ -24,3 +24,12 @@ Frozen local baseline3835 refuses the private rank; candidate measurements live
 in `build/descriptor-cycle-ranks/`. Parent acceptance remains on TASKS.md,
 including borrowed/indexed/case projections, custom/dependent measures, other
 normal completion/custody obligations and both product implementations.
+
+[Nested record](nested_record/main.omg), [moved copy](mutated_copy/main.omg) and
+[element write](element_write/main.omg) keep the same seven-increment fact and
+its no-descent twin. [Restored descriptor](../../controls/descriptor_restored_copy/main.omg)
+and [wrong field](../../controls/descriptor_wrong-field/main.omg) reject at the
+cycle proof. Descriptor replacement withdraws current extent associations while
+saved invocation extents stay fixed. Payload writes preserve `.len`. The shared
+completing-call operand frame retains guard/nested operand effects and excludes
+the callee's future writes from its own requires judgment.

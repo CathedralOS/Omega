@@ -123,3 +123,9 @@ descent, arithmetic formation and ordinary call obligations.
 [Projected scalar coordinates](local/projected_value/README.md) carry the same
 private-cycle fact through inline record fields in all nine places, with
 nested-field, moved-copy, entry-reset and wrong-subject controls.
+
+[Descriptor field coordinates](local/descriptor_field/README.md) carry that same
+private-cycle fact through slice descriptors stored in inline records across all
+nine places. Nested records, moved copies and mutable payload stores exercise
+composition; restoring an earlier descriptor or shortening only another field
+still rejects. Call requirements observe prepared operands before callee writes.
