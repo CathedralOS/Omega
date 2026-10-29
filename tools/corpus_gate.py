@@ -128,6 +128,17 @@ additions, so shards can be recorded or diffed on separate sessions/machines.
 The full corpus is scheduled-workload cost, not loop cost — subsets are the
 iteration gate; the unfiltered diff is the baseline/scheduled gate.
 
+`--audit-slice k/N` re-observes one bounded slice of the golden instead of
+accepting its pins: rows are ordered by stamp distance behind HEAD
+(unresolvable stamps first, then oldest), the 0-based k-th of N balanced parts
+is fed through that same `--filter` plumbing, and every golden row outside the
+slice is reported `unverified` rather than `clean`. `--filter` narrows which
+rows of the slice this run re-observes (the slice still owns the accounting).
+The summary prints `N verified / M unverified`; the run exits 1 at most (never
+3) when the only concern is the rows it did not observe, so a daily job can
+audit the stale tail without blocking merges. It never records, and never
+combines with `--record`, `--compare`, `--shard` or `--bisect`.
+
 This is the iteration smoke gate, not the landing gate: validation scopes are
 defined by tools/testing.md. Compiler source behavior stays in corpus fixtures;
 Rust unit tests belong only to the independent pure owners named there.
@@ -175,6 +186,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import tempfile
 import sys
@@ -1129,6 +1141,57 @@ def commits_between(revision):
     return int(count) if count and count.isdigit() else None
 
 
+AUDIT_SLICE = re.compile(r"^([0-9]+)/([0-9]+)$")
+
+
+def parse_audit_slice(value):
+    """`k/N` -> (k, N): the 0-based k-th of N balanced parts of a golden."""
+    match = AUDIT_SLICE.match((value or "").strip())
+    if not match:
+        raise ValueError(f"--audit-slice wants k/N, not {value!r}")
+    index, count = int(match.group(1)), int(match.group(2))
+    if count < 1 or index >= count:
+        raise ValueError(f"--audit-slice {value} names no slice: k must be "
+                         f"0..N-1 for a positive N")
+    return index, count
+
+
+def audit_order(records, distance=None) -> list:
+    """Fixture names to audit, oldest stamp first.
+
+    A stamp that does not resolve (absent, or a revision this shallow clone
+    cannot measure) has no distance, and such a row is the least trustworthy
+    evidence in the golden, so it sorts before any measured distance. Ties fall
+    back to the fixture name, so a slice is reproducible on any host. Distances
+    are cached per revision: a golden holds thousands of rows over a handful of
+    stamps, and one Git process per row would cost more than the audit.
+    """
+    distance = distance or commits_between
+    behind_by_revision = {}
+    ranked = []
+    for record in records:
+        revision = (record.get("recorded_at") or "").split("+", 1)[0]
+        if revision not in behind_by_revision:
+            behind_by_revision[revision] = (distance(revision)
+                                            if revision else None)
+        behind = behind_by_revision[revision]
+        ranked.append((0 if behind is None else 1, -(behind or 0),
+                       record["fixture"]))
+    ranked.sort()
+    return [fixture for _unresolved, _behind, fixture in ranked]
+
+
+def audit_partition(names, index, count) -> list:
+    """Balanced contiguous slice `index` of `count`, oldest first.
+
+    `index * total // count` .. `(index + 1) * total // count`, so every slice
+    of an ordered golden is disjoint, in order, and differs in size by at most
+    one row; slice 0 of 1 is the whole list.
+    """
+    total = len(names)
+    return names[index * total // count:(index + 1) * total // count]
+
+
 def load_average():
     """1-minute load average, or None where the host has none (Windows)."""
     try:
@@ -1604,6 +1667,13 @@ def main() -> int:
     parser.add_argument("--shard",
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
+    parser.add_argument("--audit-slice", metavar="K/N",
+                        help="re-observe only the K-th of N balanced slices of "
+                             "the golden, ordered by stamp distance behind HEAD "
+                             "(unresolvable stamps first, then oldest); every "
+                             "row outside the slice is reported unverified, the "
+                             "summary prints verified/unverified counts, and "
+                             "the run exits 1 (moved) at most")
     parser.add_argument("--list-pinned-regressions", action="store_true",
                         help="read the selected golden and name rows pinned in a "
                              "status their tier contradicts; does not build or run "
@@ -1678,6 +1748,54 @@ def main() -> int:
             options.golden = ROOT / "tests" / "omega" / f"corpus_{name}_{target}.txt"
     if options.list_pinned_regressions:
         return list_pinned_regressions(options.golden)
+    audit = None
+    audit_selected = []
+    if options.audit_slice:
+        # A slice selects its own rows; letting --record or --compare through
+        # would re-pin or measure rows the slice does not cover. Bisect reads
+        # 1..127 as "bad", and an audit exits 1 for rows it never observed.
+        try:
+            audit = parse_audit_slice(options.audit_slice)
+        except ValueError as error:
+            print(f"corpus_gate: {error}", file=sys.stderr)
+            return usage_error
+        incompatible = [flag for flag, value in (
+            ("--record", options.record), ("--compare", options.compare),
+            ("--shard", options.shard), ("--bisect", options.bisect)) if value]
+        if incompatible:
+            print("corpus_gate: --audit-slice selects its own rows and exits "
+                  "moved for the rows it does not observe; it cannot combine "
+                  "with " + ", ".join(incompatible), file=sys.stderr)
+            return usage_error
+        try:
+            audited = corpus_records.read(options.golden)
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"corpus_gate: cannot read golden {options.golden}: "
+                  f"{error}", file=sys.stderr)
+            return usage_error
+        ordered = audit_order(audited)
+        audit_selected = audit_partition(ordered, *audit)
+        if options.filter:
+            # A filter narrows which rows this run can re-observe; it uses the
+            # runner's own contract (trimmed substrings of `tier/group/name`).
+            fragments = [part.strip() for part in options.filter.split(",")
+                         if part.strip()]
+            audit_selected = [fixture for fixture in audit_selected
+                              if any(fragment in fixture
+                                     for fragment in fragments)]
+            if not audit_selected:
+                print(f"corpus_gate: --filter {options.filter!r} selects none "
+                      f"of the rows in --audit-slice "
+                      f"{options.audit_slice}", file=sys.stderr)
+                return usage_error
+        if not audit_selected:
+            print(f"corpus_gate: --audit-slice {options.audit_slice} selects "
+                  f"none of the golden's {len(ordered)} rows", file=sys.stderr)
+            return usage_error
+        # The existing --filter plumbing sets the runner's selection and keeps
+        # the diff subset-scoped; a slice of the whole golden needs no filter.
+        if len(audit_selected) < len(ordered):
+            options.filter = ",".join(audit_selected)
     compare_revision = None
     if options.baseline_runner and not options.compare:
         print("corpus_gate: --baseline-runner requires --compare")
@@ -1970,6 +2088,15 @@ def main() -> int:
     golden_context = corpus_records.read_context(options.golden)
     golden = dict(prior)
     actual = {record["fixture"]: record for record in records}
+    # A slice can only speak for the rows it re-observed. `verified` counts the
+    # slice rows this run actually compared; every other golden row -- another
+    # slice's, or a slice row the runner never produced -- is unverified.
+    audit_verified = audit_unverified = None
+    audit_set = set(audit_selected)
+    if audit is not None:
+        compared = set(actual) & set(golden)
+        audit_verified = len(compared & audit_set)
+        audit_unverified = len(golden) - audit_verified
 
     structural_moves = []
     structured_diffs = []
@@ -1978,6 +2105,14 @@ def main() -> int:
     perf_notes = []
     for fixture, record in actual.items():
         before = golden.get(fixture)
+        if audit is not None and fixture not in audit_set:
+            # Compared only because a filter fragment collided with this row:
+            # it belongs to another slice, so it is not evidence this run may
+            # call clean, and it is not a move this run may report either.
+            classified.append({"fixture": fixture, "verdict": "unverified",
+                               "reasons": ["outside the audited slice"],
+                               "before": before, "after": record})
+            continue
         verdict, reasons = classify(before, record)
         if verdict != "clean":
             classified.append({"fixture": fixture, "verdict": verdict,
@@ -2062,6 +2197,9 @@ def main() -> int:
                f"{len(wrong_reason_fixtures)} rejected without their expected "
                f"fragment, "
                f"{len(not_rejected_fixtures)} fail fixtures did not reject")
+    if audit is not None:
+        summary += (f"; audit slice {audit[0]}/{audit[1]}: "
+                    f"{audit_verified} verified / {audit_unverified} unverified")
     executed = [r for r in records if "exit" in r.get("facts", {})]
     if executed:
         exits = collections.Counter(r["facts"]["exit"] for r in executed)
@@ -2144,7 +2282,12 @@ def main() -> int:
             [], None, golden_provenance, perf_context))
         return code
     if not structural_moves and not perf_moves:
-        print(f"corpus_gate: clean — {summary}")
+        # A slice that did not re-observe the whole golden cannot report clean:
+        # it reports what it verified and exits moved (1). Exit 3 stays for a
+        # real regression among the rows it did observe, so a daily audit never
+        # blocks a merge over rows it never looked at.
+        audited_only = audit is not None and audit_unverified
+        print(f"corpus_gate: {'audited' if audited_only else 'clean'} — {summary}")
         print(provenance)
         print(jobs)
         print_expectation_defects()
@@ -2157,10 +2300,12 @@ def main() -> int:
         # A clean run still rewrites the file, so a reader never mistakes a
         # previous run's moves for this one's.
         write_moves()
+        code = 1 if audited_only else 0
         write_verdict(options, verdict_document(
-            options, leg, target, "clean", 0, records, classified, [], None,
+            options, leg, target, "audited" if audited_only else "clean", code,
+            records, classified, [], None,
             golden_provenance, perf_context))
-        return 0
+        return code
     for line in structural_moves[:60]:
         print(line)
     for line in perf_moves[:60]:
