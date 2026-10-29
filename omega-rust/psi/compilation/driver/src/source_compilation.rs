@@ -81,6 +81,18 @@ pub struct PreparedSource {
     pub typed: typed_trees::TypedTrees,
 }
 
+impl PreparedSource {
+    /// Rejoin executed Build root choices against the completed Product source.
+    /// The result retains exact lexical declarations; it does not choose a
+    /// realized target or settle physical entry calling plans.
+    pub fn admit_root_bindings(
+        &self,
+        executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
+    ) -> Result<Vec<validation::product_entries::RootBinding>, Vec<Diagnostic>> {
+        validation::product_entries::collect_root_bindings(&self.typed, executed)
+    }
+}
+
 impl SourceCompilationRequest {
     pub fn prepare(
         mut self,
@@ -290,15 +302,9 @@ impl SourceContinuation {
         occurrence: source::SourceSpan,
         path: &[u8],
         slot: &[u8],
-        compatibility: &dyn typed_trees::product_operand::ProductEntryCompatibility,
+        slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
     ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
-        validation::product_queries::describe_entry(
-            self.typed(),
-            occurrence,
-            path,
-            slot,
-            compatibility,
-        )
+        validation::product_queries::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
     /// Whether two admitted Build continuations have exactly the same remaining
