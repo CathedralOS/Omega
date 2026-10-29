@@ -149,6 +149,27 @@ impl CurrentScalarValues<'_> {
         interval.high?.to_u64()
     }
 
+    /// The arrival observation remains bound to this formal even if its
+    /// descriptor is subsequently replaced. Current operands use the ordinary
+    /// transfer roster below, so replacement cannot manufacture descent.
+    pub(crate) fn initial_collection_length(
+        &self,
+        parameter: SymbolHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.initial_lengths
+            .iter()
+            .find(|length| length.subject == LengthSubject::Storage(parameter))?
+            .value
+            .clone()
+    }
+
+    pub(crate) fn current_collection_length(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticValue> {
+        self.collection_length(expression, 0)
+    }
+
     pub(super) fn collection_length(
         &self,
         expression: ExpressionHandle,

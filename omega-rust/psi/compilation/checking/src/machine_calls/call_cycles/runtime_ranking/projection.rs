@@ -622,6 +622,7 @@ pub(super) fn natural_component(
                 coordinate,
                 parameter_position: u32::try_from(position).ok()?,
                 primitive_type,
+                observation: crate::RankPremiseObservation::Value,
             });
         }
     }

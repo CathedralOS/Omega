@@ -15,6 +15,7 @@ struct Coordinate {
     parameter: SymbolHandle,
     position: usize,
     primitive: PrimitiveType,
+    observation: validation::RankPremiseObservation,
 }
 
 struct Edge<'program> {
@@ -25,9 +26,10 @@ struct Edge<'program> {
     values: CurrentScalarValues<'program>,
 }
 
-/// Ranged and non-natural views retain their existing measure/endpoint owner.
-/// An unranged natural coordinate is checked directly at every call, including
-/// when a private participant has no authored ranking clause of its own.
+/// Select a natural observation, then judge its exact actual at every call.
+/// An integer and a descriptor extent use the same component/edge owner; only
+/// reading the carrier differs. Ranged and declared views keep their complete
+/// measure/endpoint admission. Private inference supplies no ambient entry facts.
 pub(super) fn select(
     program: &dyn validation::CheckingInput,
     component: &[usize],
@@ -38,7 +40,7 @@ pub(super) fn select(
         .map(|position| &program.machines()[*position])
         .collect::<Vec<_>>();
     let mut candidates = Vec::new();
-    let mut primitive = None;
+    let mut selected_observation = None;
     for machine in &machines {
         // Source declarations have one entry. Legacy multi-state arrival
         // telescopes remain with the ordinary full-coordinate owner.
@@ -55,12 +57,16 @@ pub(super) fn select(
         let subjects = typed_trees::ranking::resolve_machine_witness_subjects(program, machine)?;
         let arguments =
             typed_trees::ranking::resolve_machine_witness_view_arguments(program, machine)?;
-        if !matches!(
-            RankingOrder::resolve_witness(program, entry, witness, &subjects, &arguments),
-            OrderResolution::Resolved(RankingOrder::NatDescending)
-        ) {
-            return None;
-        }
+        let observation =
+            match RankingOrder::resolve_witness(program, entry, witness, &subjects, &arguments) {
+                OrderResolution::Resolved(RankingOrder::NatDescending) => {
+                    validation::RankPremiseObservation::Value
+                }
+                OrderResolution::Resolved(RankingOrder::SliceLength) => {
+                    validation::RankPremiseObservation::Length
+                }
+                _ => return None,
+            };
         let [subject] = subjects.as_slice() else {
             return None;
         };
@@ -79,18 +85,19 @@ pub(super) fn select(
             .iter()
             .enumerate()
             .find(|(_, declaration)| declaration.symbol == parameter)?;
-        let carrier = program.primitive_type_reference(declaration.type_reference)?;
-        if !carrier.is_fixed_integer() || primitive.is_some_and(|previous| previous != carrier) {
+        let carrier = observation_carrier(program, entry, declaration.symbol, observation)?;
+        if selected_observation.is_some_and(|previous| previous != (observation, carrier)) {
             return None;
         }
-        primitive = Some(carrier);
+        selected_observation = Some((observation, carrier));
         candidates.push(vec![Coordinate {
             parameter,
             position,
             primitive: carrier,
+            observation,
         }]);
     }
-    let primitive = primitive?;
+    let (observation, primitive) = selected_observation?;
     for (machine, candidates) in machines.iter().zip(&mut candidates) {
         if !candidates.is_empty() {
             continue;
@@ -105,12 +112,14 @@ pub(super) fn select(
         for (position, parameter) in program.state_parameters(entry).iter().enumerate() {
             if !parameter.relevance.is_erased()
                 && !parameter.is_const
-                && program.primitive_type_reference(parameter.type_reference) == Some(primitive)
+                && observation_carrier(program, entry, parameter.symbol, observation)
+                    == Some(primitive)
             {
                 candidates.push(Coordinate {
                     parameter: parameter.symbol,
                     position,
                     primitive,
+                    observation,
                 });
             }
         }
@@ -195,6 +204,32 @@ pub(super) fn select(
     )
 }
 
+fn observation_carrier(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    parameter: SymbolHandle,
+    observation: validation::RankPremiseObservation,
+) -> Option<PrimitiveType> {
+    match observation {
+        validation::RankPremiseObservation::Value => {
+            let parameter = program.state_parameter_by_symbol(state, parameter)?;
+            let primitive = program.primitive_type_reference(parameter.type_reference)?;
+            primitive.is_fixed_integer().then_some(primitive)
+        }
+        validation::RankPremiseObservation::Length => {
+            validation::ranking_slice_length_observation(
+                program,
+                state,
+                &validation::RankSubjectCoordinate {
+                    parameter,
+                    path: Vec::new(),
+                },
+            )?;
+            Some(PrimitiveType::U64)
+        }
+    }
+}
+
 fn compare(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -202,11 +237,19 @@ fn compare(
     source: &Coordinate,
     destination: &Coordinate,
 ) -> Option<bool> {
-    let initial = edge.values.initial_symbol(source.parameter)?;
-    let next = edge
-        .values
-        .current(*edge.arguments.get(destination.position)?)
-        .map(ScopedArithmeticValue::Term)?;
+    let actual = *edge.arguments.get(destination.position)?;
+    let (initial, next) = match source.observation {
+        validation::RankPremiseObservation::Value => (
+            edge.values.initial_symbol(source.parameter)?,
+            edge.values
+                .current(actual)
+                .map(ScopedArithmeticValue::Term)?,
+        ),
+        validation::RankPremiseObservation::Length => (
+            edge.values.initial_collection_length(source.parameter)?,
+            edge.values.current_collection_length(actual)?,
+        ),
+    };
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left, right| {
         edge.values
@@ -296,6 +339,7 @@ fn search(
                 },
                 parameter_position: u32::try_from(coordinate.position).ok()?,
                 primitive_type: coordinate.primitive,
+                observation: coordinate.observation,
             })
         })
         .collect::<Option<Vec<_>>>();

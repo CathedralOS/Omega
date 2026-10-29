@@ -12,10 +12,10 @@ pub use arrival_correspondence::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
-    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
