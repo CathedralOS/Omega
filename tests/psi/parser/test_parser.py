@@ -1187,23 +1187,6 @@ def root_declaration_cases(program: str) -> None:
     # Boundary requirements pin ceilings even for defaults. An empty row
     # remains a real clause; ordinary requirements and checked realizers may
     # still omit it. Every delimiter belongs to the following grammar owner.
-    for name, source, trait_shape in (
-        ("empty-boundary-ceiling", b"boundary trait Mark { machine read() reaches; }", (1, 1)),
-        ("empty-before-next-clause", b"boundary trait Mark { machine read() reaches terminates; }", (1, 1)),
-        ("empty-before-default-body", b"boundary trait Mark { machine read() reaches {} }", (1, 1)),
-        ("empty-checked-body", b"machine read() reaches {}", None),
-        ("empty-before-result-type", b"machine read() reaches -> u64 { 7 }", None),
-        ("ordinary-requirement-omission", b"trait Mark { machine read(); }", (1, 0)),
-        ("memberless-boundary-identity", b"boundary trait Mark {}", (0, 1)),
-    ):
-        # These authored traits remain present even when their reach is empty.
-        # Supply their exact rows rather than the helper's absent-table default.
-        traits = () if trait_shape is None else (
-            (*span(source, b"Mark"), 0, 0, 0, 0, 0, trait_shape[0], trait_shape[1], 0, *whole(source)),
-        )
-        actual = declaration_accepted(program, name, source, traits=traits)
-        if b"reaches" in source:
-            assert actual.clauses[0][0:3] == (1, 0, 0), actual.clauses
     for name, source in (
         ("empty-boundary-ceiling", b"boundary trait Mark { machine read() reaches; }"),
         ("empty-before-next-clause", b"boundary trait Mark { machine read() reaches terminates; }"),
