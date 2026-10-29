@@ -154,6 +154,23 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
+    macro_rules! install_coordinates {
+        ($coordinates:expr, $subjects:expr $(,)?) => {
+            install_call_coordinates(
+                program,
+                &caller,
+                source,
+                entry,
+                caller_site,
+                at_entry,
+                &mut engine,
+                $coordinates,
+                $subjects,
+                guards,
+                arguments,
+            )
+        };
+    }
     // A slice-length member's rank is its collection's length coordinate:
     // distinct atoms, never the scalar value of the slice parameter itself.
     // Every other measure still owes a `.len` inside a guard, actual,
@@ -211,19 +228,7 @@ pub(crate) fn prove_ranking_range_call(
             at_entry,
         )?;
         let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
-        install_call_coordinates(
-            program,
-            &caller,
-            source,
-            entry,
-            caller_site,
-            at_entry,
-            &mut engine,
-            &mut coordinates,
-            vec![subject],
-            guards,
-            arguments,
-        )?;
+        install_coordinates!(&mut coordinates, vec![subject])?;
         Some(coordinates)
     } else {
         // A member-chain scalar subject produces its rank from projected
@@ -241,19 +246,7 @@ pub(crate) fn prove_ranking_range_call(
             &subjects,
             &mut coordinates,
         )?;
-        install_call_coordinates(
-            program,
-            &caller,
-            source,
-            entry,
-            caller_site,
-            at_entry,
-            &mut engine,
-            &mut coordinates,
-            subjects.clone(),
-            guards,
-            arguments,
-        )?;
+        install_coordinates!(&mut coordinates, subjects.clone())?;
         Some(coordinates)
     };
     // A member-chain slice subject produces its length from the exact
@@ -299,19 +292,7 @@ pub(crate) fn prove_ranking_range_call(
         match resolved {
             Some(coordinate) => {
                 let mut coordinates = lengths::SliceCoordinates::new(coordinate);
-                install_call_coordinates(
-                    program,
-                    &caller,
-                    source,
-                    entry,
-                    caller_site,
-                    at_entry,
-                    &mut engine,
-                    &mut coordinates,
-                    vec![subject],
-                    guards,
-                    arguments,
-                )?;
+                install_coordinates!(&mut coordinates, vec![subject])?;
                 Some(coordinates)
             }
             None => None,
@@ -321,19 +302,7 @@ pub(crate) fn prove_ranking_range_call(
         // measure name the same projected slice coordinates a SliceLength
         // subject does; install them over the caller's whole read surface.
         let mut coordinates = lengths::SliceCoordinates::empty();
-        install_call_coordinates(
-            program,
-            &caller,
-            source,
-            entry,
-            caller_site,
-            at_entry,
-            &mut engine,
-            &mut coordinates,
-            scalar_subjects(&caller, source_measure),
-            guards,
-            arguments,
-        )?;
+        install_coordinates!(&mut coordinates, scalar_subjects(&caller, source_measure),)?;
         Some(coordinates)
     };
     // Saved observations consume the complete caller coordinate roster.
