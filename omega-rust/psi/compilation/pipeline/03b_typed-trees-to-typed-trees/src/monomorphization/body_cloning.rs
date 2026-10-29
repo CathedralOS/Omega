@@ -97,10 +97,11 @@ pub(super) fn clone_single_specialized_machine(
         .map_err(|diagnostic| vec![diagnostic])?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
-    // Boolean constraints and source-probe equations retain pending closure.
-    // Derive it from the actual tuple before declaration-based substitution;
-    // a formal's own where definition cannot justify the supplied argument.
-    let predicates_closed = if source_machine.structural_type_equations_pending {
+    // Preparation can complete an earlier selection before typed overload
+    // resolution chooses this declaration. Its pending flag is not admission
+    // of this actual tuple. Check every retained predicate before body
+    // substitution; a formal's where definition cannot justify its actual.
+    let predicates_closed = {
         let input = source.unwrap_or(program);
         let substitutions = candidate
             .template
@@ -120,7 +121,7 @@ pub(super) fn clone_single_specialized_machine(
         let predicates = input
             .expression_table
             .expression_handles(source_machine.declared_type_predicates);
-        let mut complete = !predicates.is_empty();
+        let mut complete = true;
         for &predicate in predicates {
             match input.applied_static_type_predicate_value(predicate, &substitutions) {
                 Some(true) => {}
@@ -130,9 +131,31 @@ pub(super) fn clone_single_specialized_machine(
                 None => complete = false,
             }
         }
+        // A closed static entry requirement must admit this exact tuple before
+        // it acquires executable storage. Otherwise an impossible application
+        // reaches body checking and produces unrelated postcondition failures.
+        // Unknown/runtime requirements still belong to ordinary call checking;
+        // the shared static judgment forms every operand before deciding.
+        for contract in input.machine_contracts(&source_machine) {
+            if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in input.proof_facts.span_or_empty(contract.facts) {
+                let typed_trees::domain::ProofFact::Expression(predicate) = fact else {
+                    continue;
+                };
+                if input.applied_static_type_predicate_value(*predicate, &substitutions)
+                    == Some(false)
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "machine `{}` requires type predicate does not hold for the supplied arguments",
+                        source_machine.name
+                    ))
+                    .with_source_span(input.expression_table.source_span(*predicate))]);
+                }
+            }
+        }
         complete
-    } else {
-        false
     };
     let source_states = source
         .unwrap_or(program)
@@ -374,7 +397,7 @@ pub(super) fn clone_single_specialized_machine(
     }
 
     let mut cloned = source_machine.clone();
-    cloned.structural_type_equations_pending &= !predicates_closed;
+    cloned.structural_type_equations_pending = !predicates_closed;
     // Published progress premises are declaration-owned identities, like
     // ordinary requires/ensures subjects. The fresh specialization cannot
     // retain its template's entry formals. External field symbols stay exact.

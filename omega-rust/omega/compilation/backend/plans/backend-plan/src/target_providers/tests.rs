@@ -17,6 +17,7 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
     let schema_requirement = schema_identities.intern("Parent::read");
     let selected = TerminalTargetProviderPlan {
         provider_declaration: Some("FirstMap".into()),
+        row_numeric_realizations: vec![None],
         plan: ProviderPlan {
             name: "Child selected".into(),
             provider_type: "First".into(),

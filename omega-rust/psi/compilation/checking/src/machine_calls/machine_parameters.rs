@@ -595,9 +595,22 @@ fn form_call_selection(
             (requirements, generic_types, invocation_type_count)
         } else {
             if !arguments.is_empty() {
+                let source_span = match site {
+                    ValidatedNominalMachineUseSite::Expression(handle) => {
+                        program.expression_table.source_span(handle)
+                    }
+                    ValidatedNominalMachineUseSite::Statement(handle) => {
+                        program
+                            .statement_table
+                            .statement(handle)
+                            .as_call()
+                            .expect("validated call site")
+                            .source_span
+                    }
+                };
                 diagnostics.push(Diagnostic::error(format!(
                     "call `{target_name}` supplies static machine arguments, but its generic callee did not resolve"
-                )));
+                )).with_source_span(source_span));
             }
             return;
         };

@@ -1,0 +1,4 @@
+machine fabricated(choice: bool) -> u32
+ensures result == (match choice { true -> 7u32, false -> 8u32 })
+{ 7u32 }
+machine main() {}

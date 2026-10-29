@@ -80,9 +80,9 @@ pub fn selected_numeric_provider<'a>(
     realization: Option<&str>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-) -> Result<Option<&'a ExternalProviderConformance>, &'static str> {
+) -> Result<Option<&'a ExternalProviderConformance>, String> {
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
-        return Err("numeric provider does not select an external compiler intrinsic");
+        return Err("numeric provider does not select an external compiler intrinsic".into());
     };
     let mut candidates = providers.iter().filter(|candidate| {
         identities.text(candidate.requirement.identity()) == Some(requirement)
@@ -92,10 +92,29 @@ pub fn selected_numeric_provider<'a>(
             && matches_external_selection(candidate, identities, plan, row, machine)
     });
     let candidate = candidates.next();
-    if candidates.next().is_some() {
-        return Err(
-            "selected numeric provider does not rejoin one canonical external satisfaction",
-        );
+    if let (Some(first), Some(second)) = (candidate, candidates.next()) {
+        return Err(format!(
+            "selected numeric provider does not rejoin one canonical external satisfaction: \
+             plan `{}`, target `{}`, requirement `{requirement}`, selected realization {realization:?}; \
+             first realization {:?}, semantic declaration {:?}, target {:?}, provider {:?}, record {first:?}; \
+             second realization {:?}, semantic declaration {:?}, target {:?}, provider {:?}, record {second:?}",
+            plan.name,
+            plan.target,
+            identities.text(first.realization.machine.identity()),
+            identities.text(first.realization.semantic_declaration),
+            first.target,
+            first
+                .provider
+                .as_ref()
+                .and_then(|provider| identities.text(provider.declaration.identity())),
+            identities.text(second.realization.machine.identity()),
+            identities.text(second.realization.semantic_declaration),
+            second.target,
+            second
+                .provider
+                .as_ref()
+                .and_then(|provider| identities.text(provider.declaration.identity())),
+        ));
     }
     if let Some(candidate) = candidate {
         candidate.validate(identities)?;

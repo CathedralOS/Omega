@@ -1,0 +1,2 @@
+cannot prove requires contract for call bounded from unknown
+selected(value) < 1 && value < 9

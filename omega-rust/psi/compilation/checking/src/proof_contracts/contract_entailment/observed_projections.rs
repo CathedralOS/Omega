@@ -110,6 +110,7 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
         StructuralTerm::CollectionMeasure { .. }
         | StructuralTerm::Integer(_)
         | StructuralTerm::Float(_)
+        | StructuralTerm::ScalarRepresentation { .. }
         | StructuralTerm::ScalarBinary { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }

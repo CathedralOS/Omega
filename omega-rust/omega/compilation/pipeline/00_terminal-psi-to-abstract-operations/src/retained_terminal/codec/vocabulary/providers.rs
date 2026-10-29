@@ -299,7 +299,8 @@ record_variants!(effects::TerminalAuthorityClass {
 
 record_fields!(backend_plan::TerminalTargetProviderPlan {
     plan,
-    provider_declaration
+    provider_declaration,
+    row_numeric_realizations
 });
 
 record_fields!(backend_plan::TerminalTargetProviderProposal {

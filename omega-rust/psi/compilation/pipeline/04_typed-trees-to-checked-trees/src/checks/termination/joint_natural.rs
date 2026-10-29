@@ -230,12 +230,14 @@ impl Coordinate {
 
     fn current(
         &self,
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
         values: &CurrentScalarValues<'_>,
         actual: ExpressionHandle,
     ) -> Option<ScopedArithmeticValue> {
         match self.observation {
             validation::RankPremiseObservation::Value => {
-                values.current(actual).map(ScopedArithmeticValue::Term)
+                super::arrival_value(program, machine, values, actual)
             }
             validation::RankPremiseObservation::Length => values.current_collection_length(actual),
         }
@@ -277,7 +279,7 @@ fn compare(
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.position)?;
     let initial = source.initial(&edge.values)?;
-    let next = destination.current(&edge.values, actual)?;
+    let next = destination.current(program, machine, &edge.values, actual)?;
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left, right| {
         edge.values

@@ -16,11 +16,20 @@ pub(super) fn bound_descriptor(
     parameters: &[StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     depth: usize,
 ) -> Option<StructuralTerm> {
     let (reference, value) = descriptor_path(
-        program, expression, scope, parameters, callable, bindings, result, depth,
+        program,
+        expression,
+        scope,
+        parameters,
+        callable,
+        bindings,
+        type_bindings,
+        result,
+        depth,
     )?;
     crate::slice_view_shell(program, reference, &[])?;
     Some(value.into_collection_descriptor())
@@ -33,6 +42,7 @@ fn descriptor_path(
     parameters: &[StateParameter],
     callable: SymbolHandle,
     bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     result: Option<&StructuralTerm>,
     depth: usize,
 ) -> Option<(TypeReferenceHandle, StructuralTerm)> {
@@ -52,6 +62,7 @@ fn descriptor_path(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -80,6 +91,7 @@ fn descriptor_path(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -102,6 +114,7 @@ fn descriptor_path(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;
@@ -122,6 +135,7 @@ fn descriptor_path(
                 parameters,
                 callable,
                 bindings,
+                type_bindings,
                 result,
                 depth + 1,
             )?;

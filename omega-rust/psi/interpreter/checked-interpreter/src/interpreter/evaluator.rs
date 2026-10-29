@@ -92,11 +92,13 @@ use filesystem::preparation::{
 };
 pub(crate) use halts::Halt;
 use halts::{EvalResult, filesystem_sponsor_halt, trap, unsupported};
+use numerics::float_representation::{
+    binary32_from_bits as interpreter_f32_from_bits, binary32_to_bits as interpreter_f32_to_bits,
+};
 use scalar_numerics::{
     apply_arithmetic_domain, big_integer_runtime_value, float_to_integer_trap_message,
-    integer_bounds, integer_primitive_byte_width, interpreter_f32_from_bits,
-    interpreter_f32_to_bits, is_unsigned_integer_primitive, primitive_bit_width,
-    primitive_is_unsigned64, semantic_integer_format, wrap_to_width,
+    integer_bounds, integer_primitive_byte_width, is_unsigned_integer_primitive,
+    primitive_bit_width, primitive_is_unsigned64, semantic_integer_format, wrap_to_width,
 };
 
 pub(super) const STEP_BUDGET: u64 = 10_000_000;

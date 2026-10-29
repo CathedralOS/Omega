@@ -64,24 +64,34 @@ fn project_terminal_boundary_application_realizations(
     // never revisits checked expressions or rederives an intrinsic's meaning.
     let mut selected_rows = Vec::new();
     for (plan, retained) in plans.iter().zip(provenance) {
-        if plan != retained.plan || plan.rows.len() != retained.row_executions.len() {
+        if plan != retained.plan
+            || plan.rows.len() != retained.row_executions.len()
+            || plan.rows.len() != retained.row_numeric_realizations.len()
+        {
             return Err(error(
                 "boundary applications have substituted or incomplete selected rows",
             ));
         }
-        for (row, execution) in plan.rows.iter().zip(retained.row_executions) {
-            selected_rows.push((plan, row, *execution));
+        for ((row, execution), realization) in plan
+            .rows
+            .iter()
+            .zip(retained.row_executions)
+            .zip(retained.row_numeric_realizations)
+        {
+            selected_rows.push((plan, row, *execution, realization.as_deref()));
         }
     }
     let mut rows = Vec::with_capacity(demands.rows().len());
     for demand in demands.rows() {
         let requirement = demand.requirement();
-        let mut matching = selected_rows.iter().filter(|(plan, row, _)| {
+        let mut matching = selected_rows.iter().filter(|(plan, row, _, _)| {
             plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
                 && plan.schema.trait_package_identity == requirement.package()
                 && plan.identities.text(row.requirement_identity) == requirement.overload()
         });
-        let (Some((plan, row, execution)), None) = (matching.next(), matching.next()) else {
+        let (Some((plan, row, execution, external_realization)), None) =
+            (matching.next(), matching.next())
+        else {
             return Err(error(
                 "Terminal boundary application has no unique exact selected row",
             ));
@@ -95,8 +105,9 @@ fn project_terminal_boundary_application_realizations(
                     plan,
                     row,
                     *execution,
+                    *external_realization,
                 )
-                .map_err(error)?;
+                .map_err(|message| vec![Diagnostic::error(message)])?;
                 Realization::ExactCompilerIntrinsic {
                     execution: execution.ok_or_else(|| {
                         error("selected intrinsic has no canonical or admitted execution identity")

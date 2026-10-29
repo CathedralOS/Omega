@@ -27,6 +27,7 @@ use typed_trees::statement::{
 pub(super) struct ValueProbeBody {
     pub(super) reference: SourceSpan,
     pub(super) roots: Vec<ExpressionHandle>,
+    pub(super) value: ExpressionHandle,
 }
 
 pub(super) fn value_probe_body(
@@ -72,5 +73,6 @@ pub(super) fn value_probe_body(
     Ok(ValueProbeBody {
         reference: transition.source_span,
         roots,
+        value: *value,
     })
 }

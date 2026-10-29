@@ -40,10 +40,16 @@ pub(super) fn validate(
     caller_state: &State,
     callee_machine: &Machine,
     callee_state: &State,
+    target: typed_trees::statement::TransitionTargetHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if program.static_transition_type_context_is_unreachable(target) {
+        return;
+    }
+    let expected_reference =
+        program.statically_refined_transition_type_reference(target, caller_state.return_type);
     let (Some(expected), Some(actual)) = (
-        shape(program, caller_state.return_type),
+        shape(program, expected_reference),
         shape(program, callee_state.return_type),
     ) else {
         return;
@@ -51,7 +57,7 @@ pub(super) fn validate(
     if expected == actual {
         return;
     }
-    let expected_spelling = spelling(program, caller_state.return_type);
+    let expected_spelling = spelling(program, expected_reference);
     // Only a primitive pair has a value-arm conversion to suggest.
     let remedy = match (expected, actual) {
         (ResultShape::Primitive(..), ResultShape::Primitive(..)) => format!(
