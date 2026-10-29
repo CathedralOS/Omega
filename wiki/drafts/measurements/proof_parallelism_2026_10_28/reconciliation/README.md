@@ -130,3 +130,5 @@ is claimed. The next useful probe belongs inside payload membership replay,
 especially its remaining 1.56-second portion, rather than the inexpensive place
 and residence passes. Full corpus, other programs, other hosts and gameplay
 routes beyond EOF were not tested.
+
+Follow-up: [payload replay attribution and rejected candidates](../payload_replay/README.md) measures inside that remainder.

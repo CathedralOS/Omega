@@ -1,0 +1,191 @@
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+@@ -39,7 +39,8 @@
+     reference_backing_memberships, terminal_payload_contract,
+ };
+ pub use payload_history::{
+-    PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
++    PayloadMembershipHistory, PayloadMembershipRosters, current_payload_contract,
++    current_selected_payload_contract,
+ };
+ pub(crate) use payload_predicates::terminal_scalar_snapshots;
+ pub use payload_predicates::{
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -138,6 +138,42 @@
+ struct CachedHistory {
+     relevant: super::payload_reachability::Reachability,
+     snapshots: BTreeMap<DescriptorPosition, State>,
++}
++
++/// The membership-only result deliberately exposes no scalar theory channel.
++/// Replay still derives the complete state; consumers request only its rosters.
++pub struct PayloadMembershipRosters {
++    pub carrier: StructuralTypeId,
++    pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
++    pub projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
++}
++
++#[derive(Clone, Copy)]
++enum PayloadObservation {
++    CompleteContract,
++    MembershipRosters,
++}
++
++impl State {
++    fn observed_contract(
++        &self,
++        root: PlaceId,
++        observation: PayloadObservation,
++    ) -> Option<PayloadMembershipContract> {
++        match observation {
++            PayloadObservation::CompleteContract => self.contract(root, None),
++            PayloadObservation::MembershipRosters => {
++                let contract = self.values.get(&root)?;
++                Some(PayloadMembershipContract {
++                    carrier: contract.carrier,
++                    qualifications: contract.qualifications.clone(),
++                    projected_qualifications: contract.projected_qualifications.clone(),
++                    scalar_observations: Vec::new(),
++                    scalar_requirements: Vec::new(),
++                })
++            }
++        }
++    }
+ }
+ 
+ /// Exact declaration data in one current executable representation. Prepared
+@@ -358,6 +394,45 @@
+             &mut self.cached,
+         )
+     }
++
++    /// Read just the established membership rosters at this exact cut. This
++    /// uses the same complete replay and standing source-floor checks as a
++    /// full contract query, without materializing unused scalar output trees.
++    pub fn current_payload_memberships_in(
++        &mut self,
++        analysis: &mut DescriptorAnalysis<'_>,
++        position: DescriptorPosition,
++        root: PlaceId,
++    ) -> Result<PayloadMembershipRosters, &'static str> {
++        let sources = &self.sources;
++        let descriptor = self.descriptor;
++        let incoming = self
++            .incoming
++            .get_or_insert_with(|| {
++                descriptor
++                    .and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
++            })
++            .as_ref();
++        let contract = payload_contract_at_cut(
++            self.types,
++            self.domains,
++            descriptor,
++            incoming,
++            analysis,
++            position,
++            root,
++            &|place| sources.contract(place),
++            self.entry_snapshots.as_deref().unwrap_or(&[]),
++            &mut self.cached,
++            PayloadMembershipCut::BeforeOperation,
++            PayloadObservation::MembershipRosters,
++        )?;
++        Ok(PayloadMembershipRosters {
++            carrier: contract.carrier,
++            qualifications: contract.qualifications,
++            projected_qualifications: contract.projected_qualifications,
++        })
++    }
+     /// Observe a primitive value snapshot, without asserting a predicate about
+     /// it. Unknown entry contents acquire only a typed entry identity; existing
+     /// history transports that identity through actual copies and intersects it
+@@ -514,6 +589,7 @@
+         &[],
+         &mut None,
+         PayloadMembershipCut::NormalCompletion,
++        PayloadObservation::CompleteContract,
+     )
+ }
+ 
+@@ -541,6 +617,7 @@
+         entry_snapshots,
+         cached,
+         PayloadMembershipCut::BeforeOperation,
++        PayloadObservation::CompleteContract,
+     )
+ }
+ 
+@@ -557,6 +634,7 @@
+     entry_snapshots: &[(PlaceId, Vec<super::PayloadScalarObservation>)],
+     cached: &mut Option<CachedHistory>,
+     cut: PayloadMembershipCut,
++    observation: PayloadObservation,
+ ) -> Result<PayloadMembershipContract, &'static str> {
+     let mut failure = "descriptor machine is absent";
+     let result = (|| {
+@@ -1092,8 +1170,10 @@
+                 .as_ref()?
+                 .snapshots
+                 .get(&position)?
+-                .contract(root, None)?,
+-            PayloadMembershipCut::NormalCompletion => completed.as_ref()?.contract(root, None)?,
++                .observed_contract(root, observation)?,
++            PayloadMembershipCut::NormalCompletion => {
++                completed.as_ref()?.observed_contract(root, observation)?
++            }
+         };
+         if cut == PayloadMembershipCut::NormalCompletion {
+             // The completed state already applied writes and closed its actual
+@@ -1500,6 +1580,39 @@
+             ScalarTerm::Boolean(true),
+             ScalarTerm::value(ValueId::new(value).unwrap(), ScalarType::Boolean),
+         )
++    }
++
++    #[test]
++    fn roster_projection_keeps_both_channels_and_preserves_complete_theory() {
++        let root = PlaceId::new(1).unwrap();
++        let mut state = State::default();
++        state.shared_requirements = Arc::new(vec![Arc::new(condition(1))]);
++        state.values.insert(
++            root,
++            PayloadMembershipContract {
++                carrier: StructuralTypeId::new(1).unwrap(),
++                scalar_observations: Vec::new(),
++                scalar_requirements: vec![condition(2)],
++                qualifications: vec![semantic_vocabulary::StructuralDomainId::new(1).unwrap()],
++                projected_qualifications: vec![terminal_psi::StructuralPathQualification {
++                    path: vec![StructuralPathSegment::AllElements],
++                    domain: semantic_vocabulary::StructuralDomainId::new(2).unwrap(),
++                }],
++            },
++        );
++        let complete = state.contract(root, None).unwrap();
++        let rosters = state
++            .observed_contract(root, PayloadObservation::MembershipRosters)
++            .unwrap();
++        assert_eq!(rosters.carrier, complete.carrier);
++        assert_eq!(rosters.qualifications, complete.qualifications);
++        assert_eq!(
++            rosters.projected_qualifications,
++            complete.projected_qualifications
++        );
++        assert!(rosters.scalar_requirements.is_empty());
++        assert_eq!(complete.scalar_requirements.len(), 2);
++        assert_eq!(state.contract(root, None).unwrap(), complete);
+     }
+ 
+     fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipContract) {
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+@@ -160,7 +160,7 @@
+                             _ => None,
+                         };
+                         if let Some((source, path)) = selected_source
+-                            && let Ok(root) = history.current_payload_contract_in(
++                            && let Ok(root) = history.current_payload_memberships_in(
+                                 &mut analysis,
+                                 position,
+                                 source,

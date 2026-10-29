@@ -168,3 +168,5 @@ Next question: split the synchronous reconciliation/residence region by its
 three owners, and attribute the remaining checked-tree flow work before choosing
 any cache or parallelization repair. No full corpus, other host, gameplay route,
 or global serial-fraction qualification was attempted.
+
+Follow-up: [payload replay](payload_replay/README.md) attributes the remaining membership work and records two rejected optimization candidates.
