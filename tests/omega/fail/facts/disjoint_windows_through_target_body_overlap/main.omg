@@ -24,13 +24,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(items: &mut [i32], split: u64) -> bool
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires items.len == 4 && split == 1;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(items: &mut [i32], split: u64) -> bool
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires items.len == 4 && split == 1
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -44,7 +44,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(items: &mut [i32], split: u64) -> bool
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires items.len == 4 && split == 1
     {
         SelectedBodyCheck::require_tag(29u64);

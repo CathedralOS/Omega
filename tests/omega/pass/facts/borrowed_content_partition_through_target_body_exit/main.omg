@@ -25,12 +25,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(select: bool) -> bool
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap;
 }
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(select: bool) -> bool
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
         let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
@@ -42,7 +42,7 @@ ArmProbe satisfies SelectedProbe {
 
 X86Probe satisfies SelectedProbe {
     machine exercise(select: bool) -> bool
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
         let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };

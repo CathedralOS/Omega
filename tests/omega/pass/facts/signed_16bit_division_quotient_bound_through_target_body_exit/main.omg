@@ -33,14 +33,14 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(dividend: i16, divisor: i16) -> i32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires dividend >= 400i16 && dividend <= 400i16
     requires divisor >= 8i16 && divisor <= 8i16;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(dividend: i16, divisor: i16) -> i32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires dividend >= 400i16 && dividend <= 400i16
     requires divisor >= 8i16 && divisor <= 8i16
     {
@@ -52,7 +52,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(dividend: i16, divisor: i16) -> i32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires dividend >= 400i16 && dividend <= 400i16
     requires divisor >= 8i16 && divisor <= 8i16
     {

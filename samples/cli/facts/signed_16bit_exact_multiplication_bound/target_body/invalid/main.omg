@@ -36,13 +36,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(val: i16) -> i32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires val >= 150 && val <= 500;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(val: i16) -> i32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires val >= 150 && val <= 500
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -52,7 +52,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(val: i16) -> i32
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
         requires val >= 150 && val <= 500
     {
         SelectedBodyCheck::require_tag(29u64);
