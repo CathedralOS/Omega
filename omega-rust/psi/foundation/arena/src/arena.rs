@@ -10,7 +10,6 @@
 //! allocated buffers for subsequent reuse. Physical metadata mode is separate
 //! from logical freshness so a failed payload operation keeps its prior contract.
 
-use compiler_storage::Record;
 use std::marker::PhantomData;
 use std::ops::Range;
 

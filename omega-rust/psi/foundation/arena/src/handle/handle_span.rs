@@ -1,4 +1,3 @@
-use compiler_storage::Record;
 use std::fmt;
 use std::marker::PhantomData;
 

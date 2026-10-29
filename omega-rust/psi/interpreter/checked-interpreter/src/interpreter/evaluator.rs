@@ -34,7 +34,7 @@ use crate::{
 };
 use checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use language_semantics::declaration_selection::{
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;

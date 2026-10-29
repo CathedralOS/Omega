@@ -174,15 +174,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     }
 
     pub(super) fn serve_lock_file_ex(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
-        let PreparedFilesystemCall::LockFileEx {
-            handle,
-            flags,
-            reserved: _,
-            length_low: _,
-            length_high: _,
-            overlapped: _,
-        } = call
-        else {
+        let PreparedFilesystemCall::LockFileEx { handle, flags } = call else {
             unreachable!("dispatched serve_lock_file_ex")
         };
         Ok({
@@ -215,14 +207,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     }
 
     pub(super) fn serve_unlock_file(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
-        let PreparedFilesystemCall::UnlockFile {
-            handle,
-            offset_low: _,
-            offset_high: _,
-            length_low: _,
-            length_high: _,
-        } = call
-        else {
+        let PreparedFilesystemCall::UnlockFile { handle } = call else {
             unreachable!("dispatched serve_unlock_file")
         };
         Ok({
@@ -378,7 +363,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             handle,
             buffer,
             capacity,
-            flags: _,
         } = call
         else {
             unreachable!("dispatched serve_final_path_name_by_handle")
@@ -415,8 +399,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     pub(super) fn serve_set_file_time(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
         let PreparedFilesystemCall::SetFileTime {
             handle,
-            creation: _,
-            last_access: _,
             last_write: write_ft,
         } = call
         else {
