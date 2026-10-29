@@ -422,6 +422,13 @@ catalog before returning the product: selecting against all source candidates
 would incorrectly demand unused providers. Native completion attaches the retained
 proposals without reopening source selection. Unavailable target rows remain data
 for receiving admission, not failures of shared portable production.
+Authored provider derivation retains the exact target, defaults and original
+candidate provenance before native Build supplies or compiler-minted plans enter
+the execution inventory. Early settlement and publication consume that same
+inventory; additional publication targets use its source-side producer. Publication
+does not settle defaults or derive the requested target a second time. Portable
+owner closure and actual-demand selection remain later operations, preserving
+rootless checks and deferred refusals for unused candidates and unavailable targets.
 Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.

@@ -540,6 +540,20 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     );
     assert!(!preparation.contains("TerminalArtifactView"));
     assert!(preparation.contains("PreparedSelectionDeclarations::prepare("));
+    assert!(!preparation.contains("derive_satisfies_plans"));
+    assert!(!preparation.contains("settle_provider_defaults"));
+    assert!(!preparation.contains("ProviderSettlement"));
+    assert!(
+        preparation.contains("provider publication target differs from its authored inventory")
+    );
+    let inventory = include_str!(
+        "../../realization/provider-planning/src/target_machines/authored_providers.rs"
+    );
+    assert!(inventory.contains("retained.target == Some(profile)"));
+    assert!(inventory.contains("return Ok(Arc::clone(retained))"));
+    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
+    assert!(settlement.contains("AuthoredTargetProviders::derive("));
+    assert!(!settlement.contains("derive_satisfies_plans"));
     for forbidden in [
         "ProviderPlanningContext",
         ".typed",
