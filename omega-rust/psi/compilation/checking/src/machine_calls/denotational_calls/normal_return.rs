@@ -229,7 +229,20 @@ fn closed_expression(
         ExpressionNode::Borrow(borrow) => {
             borrow.access == language_semantics::ReferenceAccess::Shared && child(borrow.target)
         }
-        ExpressionNode::Cast(cast) if cast.form.is_recast() => child(cast.value),
+        ExpressionNode::Cast(cast) => {
+            // Normal-result identity does not prove conversion formation. An
+            // admitted value-preserving conversion depends only on this exact
+            // completed operand, as does an already checked representation view.
+            let source = crate::expression_result_type_reference(
+                program, machine, state, cast.value,
+            );
+            (cast.form.is_recast()
+                || source.is_some_and(|source| {
+                    crate::proof_contracts::contract_entailment::denotation_preserving_conversion(
+                        program, cast, source,
+                    )
+                })) && child(cast.value)
+        }
         // Broader projections and executable adapters still need their own
         // exact read/meaning custody, not a syntactic claim of purity.
         _ => false,
