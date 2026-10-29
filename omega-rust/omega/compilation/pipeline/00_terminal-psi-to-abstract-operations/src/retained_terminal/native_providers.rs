@@ -35,6 +35,40 @@ pub struct PreparedNativeExecution {
     local_adapters: Vec<crate::SelectedProviderAdapter>,
 }
 
+impl PreparedNativeExecution {
+    /// Lower another callable in this prepared execution namespace. In
+    /// particular, callbacks preserve separately emitted component crossings;
+    /// they cannot restore the proposal's excluded local provider bodies.
+    pub fn lower_callable(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        proposal: &TerminalNativeRealizationProposal,
+        entry: terminal_psi::TargetMachineCallable,
+        scalar_applications: Option<crate::NativeScalarApplications<'_>>,
+    ) -> Result<crate::VerifiedNativeArtifactInput, Vec<Diagnostic>> {
+        let selection = crate::NativeExecutionSelection {
+            scalar_applications,
+            providers: &self.local_adapters,
+            plans: &proposal.providers().selection,
+            callbacks: &proposal.occurrences().callbacks,
+            entry_call: None,
+        };
+        let scope = crate::artifact_admission::NativeScopePreparation::prepare(
+            artifact,
+            proposal.target_profile(),
+            entry,
+            &selection,
+        )
+        .map_err(crate::native_admission::artifact_lowering_error)?;
+        let input = scope
+            .lower(artifact, &[], &selection)
+            .map_err(crate::native_admission::artifact_lowering_error)?;
+        input
+            .bind_selected_provider_coordinates(artifact, &self.selection)
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+}
+
 /// Selected native work and its original proposal, retained across scalar
 /// completion. Lowering consumes this preparation; it does not select again.
 pub struct PreparedNativeWork<'input> {

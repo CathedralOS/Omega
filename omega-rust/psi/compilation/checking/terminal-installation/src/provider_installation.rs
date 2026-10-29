@@ -93,6 +93,25 @@ struct AdmittedProviderSelection {
 }
 
 impl AdmittedProviderSelections {
+    /// A consumer may demand fewer rows than compile-time checking. Every
+    /// retained row still names the same body, selecting declaration, receiving
+    /// application and assumed supply chain; absence never permits replacement.
+    pub fn is_subset_of(&self, complete: &Self) -> bool {
+        self.terminal_psi == complete.terminal_psi
+            && self
+                .providers
+                .iter()
+                .all(|(boundary, selected)| complete.providers.get(boundary) == Some(selected))
+            && self
+                .assumed_bindings
+                .iter()
+                .all(|assumed| complete.assumed_bindings.contains(assumed))
+            && self
+                .folded_constant_target
+                .as_ref()
+                .is_none_or(|target| complete.folded_constant_target.as_ref() == Some(target))
+    }
+
     /// Admit historical realization choices after Omega reconstructs their
     /// normalized plan inputs. Recompute the existing domain-separated SHA-256
     /// commitment here; a copied digest or dependency record cannot seal custody.

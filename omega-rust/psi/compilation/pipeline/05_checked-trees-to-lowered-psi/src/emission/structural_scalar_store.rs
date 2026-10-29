@@ -494,7 +494,9 @@ pub(crate) fn lower_structural_field_steps<'a>(
 
 /// The element one index segment selects below `owner`, and the step that
 /// selects it. A fixed array's literal index is static geometry bounded by its
-/// declared extent. A view's extent is its own stored runtime length, not a
+/// declared extent. A symbolic extent keeps the same element/path; its retained
+/// scalar obligation must complete before executable geometry is realized.
+/// A view's extent is its own stored runtime length, not a
 /// literal in the type, so even a literal selector is a runtime element whose
 /// bound re-proves against that extent when the operation executes. Scalar
 /// stores and restoration windows share this one decision: Terminal has no
@@ -505,11 +507,9 @@ pub(super) fn element_selection(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(ProjectionStep, StructuralTypeId), LoweringError> {
     let (element, view) = match &owner.shape {
-        StructuralTypeShape::FixedArray {
-            element,
-            length: terminal_psi::ArrayExtent::Literal(length),
-        } => {
-            if matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(index) if index >= length)
+        StructuralTypeShape::FixedArray { element, length } => {
+            if let terminal_psi::ArrayExtent::Literal(length) = length
+                && matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(index) if index >= length)
             {
                 return unsupported("structural element index is out of bounds");
             }

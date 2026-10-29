@@ -10,6 +10,7 @@
 //! attaches those retained proposals; it never reopens typed provider selection.
 
 mod behavior_exclusions;
+pub(crate) mod scalar_completion;
 mod terminal_artifact;
 
 pub(crate) use terminal_artifact::{

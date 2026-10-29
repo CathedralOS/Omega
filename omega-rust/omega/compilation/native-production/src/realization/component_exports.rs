@@ -137,16 +137,26 @@ pub fn component_export_slot(
 
 pub fn emit_component_exports<'input>(
     inputs: &ComponentNativeInputs<'input>,
+    works: Vec<terminal_psi_to_abstract_operations::PreparedNativeWork<'input>>,
+    scalars: Option<terminal_psi_to_abstract_operations::NativeScalarApplications<'_>>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
     let artifact = inputs.component().artifact();
     let proposal = inputs.proposal();
     let mut exports = Vec::with_capacity(inputs.exports().len());
-    for export in inputs.exports() {
+    if works.len() != inputs.exports().len() {
+        return Err(vec![Diagnostic::error(
+            "component prepared work and export rosters differ",
+        )]);
+    }
+    for (export, work) in inputs.exports().iter().zip(works) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (input, execution) = proposal
-            .prepare_native_callable_execution(artifact, entry)?
-            .lower(None)?;
+        let (input, execution) = work.lower(scalars.as_ref().map(|scalars| {
+            terminal_psi_to_abstract_operations::NativeScalarApplications {
+                completed: scalars.completed,
+                provider_declarations: scalars.provider_declarations,
+            }
+        }))?;
         let selections = proposal.post_terminal_optimizations().selections();
         let prepared = proposal.prepare_native_providers(
             artifact,

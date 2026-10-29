@@ -156,6 +156,21 @@ impl NativeScopePreparation {
 }
 
 impl VerifiedNativeArtifactInput {
+    pub fn target_machine_selections(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+        self.optimization_input.target_machine_selections.as_ref()
+    }
+
+    /// The exact scalar judgment bound before this input's executable values
+    /// and storage geometry were lowered. Runtime capture borrows this result,
+    /// never a separately supplied replacement judgment.
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.optimization_input.scalar_applications.as_ref()
+    }
+
     /// Select and lower one exact native consumer. Callers that must evaluate
     /// scalar inputs first retain NativeScopePreparation across that work.
     pub fn prepare(

@@ -896,7 +896,7 @@ pub struct TerminalScalarApplicationRequest<'input> {
 }
 
 impl TerminalProgram<'_> {
-    fn admitted_scalar_inputs(
+    pub(crate) fn admitted_scalar_inputs(
         &self,
         admission: &terminal_installation::AdmittedScalarApplications,
         installation: Option<&TerminalRuntimeSupplies>,

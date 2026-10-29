@@ -264,6 +264,10 @@ impl RetainedTerminalArtifact {
         &self.artifact
     }
 
+    pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
+        &self.artifact
+    }
+
     pub const fn native_realization_proposal(&self) -> Option<&TerminalNativeRealizationProposal> {
         self.native_realization_proposal.as_ref()
     }

@@ -1,1 +1,2 @@
-constant predicate is false under the selected target realization
+constant checking: scalar predicate is false
+requires contract for call require_layout

@@ -11,6 +11,35 @@ use terminal_psi::TerminalPsiIdentity;
 
 mod native_adapters;
 
+/// Runtime capture joins the emitted input, not an independently replaceable
+/// scalar receipt. The native installation may omit compile-only suppliers,
+/// but every installed row must preserve the selection used for evaluation.
+fn capture_scalar_applications(
+    input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    identity: TerminalPsiIdentity,
+    target: target::TargetProfile,
+    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+) -> Result<Option<terminal_installation::AdmittedScalarApplications>, &'static str> {
+    if input.plan().psi != identity
+        || input.target_machine_selections().is_none_or(|selected| {
+            selected.terminal_psi() != identity || selected.target() != target.target_name()
+        })
+    {
+        return Err("runtime capture names another native artifact or target");
+    }
+    let Some(completed) = input.scalar_applications() else {
+        return Ok(None);
+    };
+    if completed.terminal() != identity
+        || completed.primary().targets().target() != target.target_name()
+        || installation
+            .is_some_and(|installed| !installed.is_subset_of(completed.primary().providers()))
+    {
+        return Err("runtime scalar capture differs from the emitted provider installation");
+    }
+    Ok(Some(completed.clone()))
+}
+
 /// An exact host operation admitted for the native product. Reference execution
 /// may implement its semantic contract, but cannot substitute another slot or
 /// manufacture authority merely because a realization was selected.
@@ -236,27 +265,33 @@ pub struct TerminalCallableRuntimeProvisions {
     entry: MachineId,
     target: target::TargetProfile,
     host: TerminalRuntimeHostProvisions,
+    scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
 }
 
 impl TerminalCallableRuntimeProvisions {
     pub fn capture_native_admission(
         artifact: terminal_codec::TerminalArtifactView<'_>,
+        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         entry: MachineId,
         target: target::TargetProfile,
         host: TerminalRuntimeHostProvisions,
     ) -> Result<Self, &'static str> {
         if artifact.module().machine(entry).is_none()
+            || input.plan().entry != entry
             || host
                 .installation()
                 .is_some_and(|selection| selection.terminal_psi() != artifact.identity())
         {
             return Err("callable runtime provisions name another artifact or absent entry");
         }
+        let scalar_applications =
+            capture_scalar_applications(input, artifact.identity(), target, host.installation())?;
         Ok(Self {
             identity: artifact.identity(),
             entry,
             target,
             host,
+            scalar_applications,
         })
     }
     pub const fn identity(&self) -> TerminalPsiIdentity {
@@ -270,6 +305,20 @@ impl TerminalCallableRuntimeProvisions {
     }
     pub const fn host_provisions(&self) -> &TerminalRuntimeHostProvisions {
         &self.host
+    }
+
+    pub fn with_borrowed_storage_layouts(
+        mut self,
+        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    ) -> Self {
+        self.host = self.host.with_borrowed_storage_layouts(layouts);
+        self
+    }
+
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.scalar_applications.as_ref()
     }
 }
 
@@ -287,9 +336,16 @@ pub struct TerminalRuntimeProvisions {
     private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
     components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
     component_publications: Vec<crate::NativeComponentPublicationReceipt>,
+    scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
 }
 
 impl TerminalRuntimeProvisions {
+    pub fn scalar_applications(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+        self.scalar_applications.as_ref()
+    }
+
     pub fn record_component_publications(
         &mut self,
         receipts: Vec<crate::NativeComponentPublicationReceipt>,
@@ -495,6 +551,7 @@ impl TerminalRuntimeProvisions {
     /// request. This is not another admission or a runtime authority grant.
     pub fn capture_native_admission(
         checked: &terminal_psi::CheckedProgramEntryTerminalReceipt,
+        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
@@ -503,6 +560,15 @@ impl TerminalRuntimeProvisions {
         target_slot: target::ProgramEntrySlotDeclaration,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
+        if input.plan().entry != checked.terminal_entry() {
+            return Err("runtime provisions name another admitted entry");
+        }
+        let scalar_applications = capture_scalar_applications(
+            input,
+            checked.terminal_psi_identity(),
+            target_slot.owner,
+            installation,
+        )?;
         let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
             installation,
             host,
@@ -515,6 +581,7 @@ impl TerminalRuntimeProvisions {
             private_entry_ram: Vec::new(),
             components: Vec::new(),
             component_publications: Vec::new(),
+            scalar_applications,
             identity: checked.terminal_psi_identity(),
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),

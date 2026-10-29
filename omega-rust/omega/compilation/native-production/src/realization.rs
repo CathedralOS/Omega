@@ -66,6 +66,7 @@ pub(crate) fn realize_native_artifact(
             .map(|checked| {
                 native_artifact::TerminalRuntimeProvisions::capture_native_admission(
                     checked,
+                    &input,
                     providers
                         .installation
                         .as_ref()

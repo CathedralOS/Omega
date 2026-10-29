@@ -94,6 +94,10 @@ impl CompilationOutput {
 pub enum CompilationProductError {
     TrustAdmission(Vec<Diagnostic>),
     Production(Vec<Diagnostic>),
+    ProductionAttempt {
+        diagnostics: Vec<Diagnostic>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
 }
 
 impl From<Vec<Diagnostic>> for CompilationProductError {
@@ -106,6 +110,21 @@ impl CompilationProductError {
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
+            Self::ProductionAttempt { diagnostics, .. } => diagnostics,
+        }
+    }
+
+    pub(crate) fn into_target_outcome(
+        self,
+        target: Option<target::TargetProfile>,
+    ) -> crate::CompileTargetOutcome {
+        match self {
+            Self::ProductionAttempt {
+                diagnostics,
+                accounting,
+            } => crate::CompileTargetOutcome::new(target, Err(diagnostics))
+                .with_failed_source_completion_accounting(accounting),
+            error => crate::CompileTargetOutcome::new(target, Err(error.into_diagnostics())),
         }
     }
 }
@@ -276,7 +295,7 @@ impl RequestedTerminalCompilation {
                     .finish_terminal(terminal, rollback.into_receipt())?
             }
             CheckedProductReport::Native {
-                settlement,
+                mut settlement,
                 request,
                 rollback,
             } => {
@@ -303,9 +322,37 @@ impl RequestedTerminalCompilation {
                         imports: &[],
                         components: &components,
                     };
-                    native_production::compile(terminal, request)
-                        .map_err(|(_, diagnostics)| diagnostics)
-                })?;
+                    let mut prepared = native_production::prepare(&terminal, request)
+                        .map_err(|(_, diagnostics)| diagnostics)?;
+                    for completion in prepared.scalar_completions() {
+                        let completed = crate::terminal::scalar_completion::complete(
+                            completion.artifact(),
+                            completion.target(),
+                            completion.demand(),
+                            completion.provider_proposals(),
+                            settlement.source_completion_accounting_mut(),
+                        )
+                        .map_err(|reason| {
+                            vec![Diagnostic::error(format!("constant checking: {reason}"))]
+                        })?;
+                        completion
+                            .complete(completed)
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    }
+                    native_production::compile(prepared).map_err(|(_, diagnostics)| diagnostics)
+                });
+                let produced = match produced {
+                    Ok(produced) => produced,
+                    Err(diagnostics) => {
+                        return Err(CompilationProductError::ProductionAttempt {
+                            diagnostics,
+                            accounting: std::mem::take(
+                                settlement.source_completion_accounting_mut(),
+                            ),
+                        });
+                    }
+                };
+                let accounting = settlement.source_completion_accounting_mut().clone();
                 phase_profile::scope(
                     "06.0.f_settlement_finish_native",
                     || -> Result<_, CompilationProductError> {
@@ -315,7 +362,11 @@ impl RequestedTerminalCompilation {
                             .with_runtime_provisions(produced.runtime_provisions)
                             .map_err(|message| vec![Diagnostic::error(message)])?)
                     },
-                )?
+                )
+                .map_err(|error| CompilationProductError::ProductionAttempt {
+                    diagnostics: error.into_diagnostics(),
+                    accounting,
+                })?
             }
         };
         Ok(CompilationOutput::Report(report))

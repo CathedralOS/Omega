@@ -549,39 +549,12 @@ pub(crate) fn check_terminal_conditions(
     let target = view
         .selected_target_profile
         .unwrap_or_else(target::TargetProfile::host);
-    build_time_evaluation::complete_scalar_applications(
+    super::scalar_completion::complete(
         &artifact,
         target.target_name(),
         &[],
+        &proposals,
         &mut selection.source_completion_accounting,
-        |scope| {
-            let proposal = proposals
-                .iter()
-                .find(|proposal| proposal.target == scope)
-                .ok_or_else(|| format!("scalar checking has no provider inputs for {scope}"))?;
-            let providers = proposal
-                .selection
-                .as_ref()
-                .map_err(|reasons| reasons.join("; "))?
-                .admit(artifact.view(), scope)?;
-            let profile = target::TargetProfile::from_canonical_target_name(scope)
-                .map_err(|diagnostic| diagnostic.message)?;
-            let model = target::TargetSemantics::close_address_model(profile);
-            let address_model = model.map(|model| terminal_installation::ScalarAddressModel {
-                target: scope.to_owned(),
-                carrier: model.carrier(),
-                semantics_version: model.semantics_version(),
-                commitment: model.commitment(),
-            });
-            Ok(build_time_evaluation::ScalarScopeEvaluation {
-                targets: terminal_installation::admit_target_machine_selections(
-                    artifact.view(),
-                    scope,
-                ),
-                providers,
-                address_model: Ok(address_model),
-            })
-        },
     )
     .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
     Ok(())

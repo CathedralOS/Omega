@@ -109,7 +109,9 @@ pub fn fixed_array_place_shape<'a>(
 
 /// Resolve a primitive leaf projection that may select elements at run time.
 /// Fields step into structural children or end at a plain IEEE scalar. A literal
-/// index stays inside a declared extent. A borrowed descriptor's live extent
+/// index stays inside a literal declared extent. A symbolic extent needs a
+/// separately retained bounds obligation and cannot mint a canonical owned path.
+/// A borrowed descriptor's live extent
 /// is an operation obligation even for literal indices, just as for runtime
 /// indices. Such selections never mint a canonical owned path. `Referent`
 /// steps through a declared reference; a byte carrier's element is the u8 scalar.
@@ -677,7 +679,8 @@ fn walk_primitive_projection<'a>(
 
 /// Record physical storage dependencies without admitting a projection. A
 /// pending extent permits discovery below an index, but does not prove that
-/// index in bounds. Ordinary projection queries keep requiring closed bounds.
+/// index in bounds. Type discovery never supplies a canonical storage identity
+/// across an unresolved extent.
 pub fn projection_storage_dependencies<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -821,12 +824,10 @@ fn walk_primitive_projection_with_policy<'a>(
             (
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
-            ) if length
-                .literal()
-                .map_or(dependencies.is_some(), |length| *index < length) =>
-            {
-                // Unknown bounds grant no canonical storage fact even in this
-                // dependency-only traversal.
+            ) if length.literal().is_none_or(|length| *index < length) => {
+                // The element declaration is known before scalar completion;
+                // its existence at this coordinate is not. Bounds remain a
+                // separate obligation; this path grants no canonical fact.
                 step(
                     length
                         .literal()

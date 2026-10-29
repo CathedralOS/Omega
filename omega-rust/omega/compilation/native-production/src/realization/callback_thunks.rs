@@ -90,7 +90,19 @@ fn lower_callback_thunk(
         entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
         ..request.admission
     };
-    let admitted = terminal_psi_to_abstract_operations::admit_native_realization(
+    let input = request.execution.lower_callable(
+        settlement.artifact,
+        request.proposal,
+        admission.entry,
+        request.scalar_applications.as_ref().map(|scalars| {
+            terminal_psi_to_abstract_operations::NativeScalarApplications {
+                completed: scalars.completed,
+                provider_declarations: scalars.provider_declarations,
+            }
+        }),
+    )?;
+    let admitted = terminal_psi_to_abstract_operations::admit_prepared_native_realization(
+        input,
         settlement.artifact,
         &admission,
     )?;

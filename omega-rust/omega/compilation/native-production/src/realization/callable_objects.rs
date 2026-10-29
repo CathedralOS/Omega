@@ -45,6 +45,14 @@ pub(super) fn emit_callable_object(
         admission.providers.external_binding_rows,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
+    let runtime = native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
+        artifact.view(),
+        &admitted.input,
+        callable_entry,
+        admission.providers.profile,
+        host,
+    )
+    .map_err(|reason| realization_error("callable runtime companions", reason))?;
     let optimized_target = pipeline::lower_to_target(
         admitted.input,
         abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
@@ -61,15 +69,8 @@ pub(super) fn emit_callable_object(
         }
         TargetLoweringError::Target(error) => realization_error("callable target lowering", error),
     })?;
-    let host =
-        host.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
-    let runtime = native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
-        artifact.view(),
-        callable_entry,
-        admission.providers.profile,
-        host,
-    )
-    .map_err(|reason| realization_error("callable runtime companions", reason))?;
+    let runtime =
+        runtime.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
     let projection = pipeline::emit_target(optimized_target).map_err(|error| match error {
         BodyEmissionError::Physical(error) => {
             realization_error("callable physical pipeline", error)
