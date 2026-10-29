@@ -22,68 +22,33 @@ use crate::register_model::physical_model::GPR64;
 use crate::register_model::physical_model::VECTOR128;
 use calling_conventions::MachineRegister;
 use register_model::test_support::{
-    ForeignTemplateRoster, assert_templates_reject_changed_effects,
-    assert_templates_retain_call_effects,
-};
-use register_model::{
-    RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnit, RegisterUnitId,
-    RegisterUnitKind,
+    AggregateFragmentRoster, ForeignTemplateRoster, assert_aggregate_fragments_are_definitions,
+    assert_templates_reject_changed_effects, assert_templates_retain_call_effects, row, row_mut,
 };
 use register_model::{
     RegisterConstraintCatalogValidationError, RegisterModelValidationError,
     validate_physical_register_model,
 };
+use register_model::{
+    RegisterConstraintId, RegisterOperandAccess, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+};
 use target::NativeTarget;
-
-fn row(
-    catalog: &RegisterConstraintCatalog,
-    key: RegisterConstraintKey,
-) -> &RegisterInstructionConstraint {
-    catalog.constraint(key).unwrap()
-}
-
-fn row_mut(
-    catalog: &mut RegisterConstraintCatalog,
-    key: RegisterConstraintKey,
-) -> &mut RegisterInstructionConstraint {
-    register_model::find_register_constraint_mut(&mut catalog.constraints, key).unwrap()
-}
 
 #[test]
 fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
     let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
     let catalog = x86_64_register_constraint_catalog(&model);
-    let second = model.model().view_named("rdx").unwrap();
-    let scratch = model.model().view_named("rcx").unwrap();
-    for (ordinal, key) in x86_64_system_v_aggregate_call_keys()
-        .into_iter()
-        .enumerate()
-    {
-        let fragments = ordinal % 14 / 7 + 1;
-        let call = row(&catalog, key);
-        assert_eq!(
-            call.operands
-                .iter()
-                .filter(|operand| operand.access == RegisterOperandAccess::Def)
-                .count(),
-            fragments
-        );
-        for unit in &second.write_units {
-            assert_eq!(call.clobbers.contains(unit), fragments == 1, "{key:?}");
-        }
-        assert!(
-            scratch
-                .write_units
-                .iter()
-                .all(|unit| call.clobbers.contains(unit))
-        );
-        let mut altered = catalog.clone();
-        row_mut(&mut altered, key)
-            .clobbers
-            .retain(|unit| !scratch.write_units.contains(unit));
-        assert!(validate_x86_64_register_constraint_catalog(altered, &model).is_err());
-    }
+    assert_aggregate_fragments_are_definitions(
+        &model,
+        &catalog,
+        &AggregateFragmentRoster {
+            keys: x86_64_system_v_aggregate_call_keys(),
+            keys_per_group: 7,
+            second_view: "rdx",
+            scratch_view: "rcx",
+        },
+        |catalog, model| validate_x86_64_register_constraint_catalog(catalog, model).is_ok(),
+    );
 }
 
 #[test]
