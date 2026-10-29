@@ -338,18 +338,32 @@ pub(super) fn check_exit_ensures(
                                 ..
                             } => validation::reserved_result_owner(program, value).is_some_and(
                                 |(owner, _)| {
-                                    if owner != state_flow.machine_symbol
-                                        && owner != state_flow.state_symbol
-                                    {
-                                        return false;
-                                    }
                                     program.machine(state_flow.machine_symbol).is_some_and(
                                         |machine| {
-                                            crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                                            match crate::facts::qualification_evidence::machine_domain_establishment_route(
                                                 program,
                                                 machine,
                                                 domain_symbol,
-                                            )
+                                            ) {
+                                                // The requirement's own `result`
+                                                // names this machine's result
+                                                // through the conformance it
+                                                // satisfies: the domain's named
+                                                // route is this exact issuance.
+                                                Some(language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                                                    requirement,
+                                                    ..
+                                                }) => {
+                                                    owner == requirement
+                                                        || owner == state_flow.machine_symbol
+                                                        || owner == state_flow.state_symbol
+                                                }
+                                                Some(_) => {
+                                                    owner == state_flow.machine_symbol
+                                                        || owner == state_flow.state_symbol
+                                                }
+                                                None => false,
+                                            }
                                         },
                                     )
                                 },
