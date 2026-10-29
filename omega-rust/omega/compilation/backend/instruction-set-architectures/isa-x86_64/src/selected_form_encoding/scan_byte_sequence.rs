@@ -84,7 +84,7 @@ enum Instruction<T> {
 /// Every UTF-8 class test is this pair; the label marks the compare when a
 /// later jump enters at that test.
 fn emit_compare_immediate_branch(
-    emit: &mut (impl FnMut(Option<Label>, Instruction) + ?Sized),
+    emit: &mut (impl FnMut(Option<Label>, Instruction<Label>) + ?Sized),
     label: Option<Label>,
     register: u8,
     immediate: u8,
