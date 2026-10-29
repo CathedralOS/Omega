@@ -1,6 +1,7 @@
 //! ABI validation, deferred constraint envelopes and placed coordinates.
 
 use crate::constants::{ELF_HEADER_SIZE, IMAGE_BASE, PROGRAM_HEADER_SIZE};
+use crate::dynamic_executable::checked::checked_sum_u64;
 use crate::dynamic_executable::load_placement::load_layout::candidates::Candidate;
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::checked_align;
 use crate::dynamic_executable::load_placement::load_layout::{
@@ -16,6 +17,12 @@ use crate::dynamic_executable::section_headers::section_header_bytes::ElfSection
 use crate::dynamic_executable::section_headers::section_payload_roster::ElfIndexedProcedureFixupStorage;
 use diagnostics::Diagnostic;
 use target::TargetProfile;
+
+macro_rules! s {
+    ($a:expr => $b:expr => $c:expr => $d:expr) => {
+        checked_sum_u64($a, $b, $c, $d)
+    };
+}
 
 pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
     let expected_kinds = [
@@ -137,12 +144,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         })?;
         crate::dynamic_executable::checked::require(
             placed_address
-                == crate::dynamic_executable::checked::checked_sum_u64(
-                    candidate.image_base,
-                    placed.file_offset,
-                    "section map",
-                    "Elf64_Off",
-                )?
+                == s!(candidate.image_base => placed.file_offset => "section map" => "Elf64_Off")?
                 && placed.file_offset >= load.file_offset
                 && crate::dynamic_executable::checked::checked_sum_u64(
                     placed.file_offset,
@@ -203,28 +205,13 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
             )?
             && candidate.image_memory.text_file_offset >= rx.file_offset
             && text_file_end
-                <= crate::dynamic_executable::checked::checked_sum_u64(
-                    rx.file_offset,
-                    rx.file_size,
-                    "RX file extent",
-                    "Elf64_Off",
-                )?
+                <= s!(rx.file_offset => rx.file_size => "RX file extent" => "Elf64_Off")?
             && candidate.image_memory.text_virtual_address >= rx.virtual_address
             && text_memory_end
-                <= crate::dynamic_executable::checked::checked_sum_u64(
-                    rx.virtual_address,
-                    rx.memory_size,
-                    "RX memory extent",
-                    "Elf64_Off",
-                )?,
+                <= s!(rx.virtual_address => rx.memory_size => "RX memory extent" => "Elf64_Off")?,
         "source text is not mapped exactly inside the executable load",
     )?;
-    let rw_file_end = crate::dynamic_executable::checked::checked_sum_u64(
-        rw.file_offset,
-        rw.file_size,
-        "RW file extent",
-        "Elf64_Off",
-    )?;
+    let rw_file_end = s!(rw.file_offset => rw.file_size => "RW file extent" => "Elf64_Off")?;
     let rw_memory_end = crate::dynamic_executable::checked::checked_sum_u64(
         rw.virtual_address,
         rw.memory_size,
@@ -297,12 +284,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         .iter()
         .filter(|section| section.region == Some(ElfRelativeSectionPayloadRegion::ReadWrite))
         .map(|section| {
-            crate::dynamic_executable::checked::checked_sum_u64(
-                section.file_offset,
-                section.byte_size,
-                "RW section extent",
-                "Elf64_Off",
-            )
+            s!(section.file_offset => section.byte_size => "RW section extent" => "Elf64_Off")
         })
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
@@ -624,21 +606,9 @@ pub(crate) fn placed_coordinates(
     relative_offset: u64,
     allocated: bool,
 ) -> Result<(u64, Option<u64>), Diagnostic> {
-    let file_offset = crate::dynamic_executable::checked::checked_sum_u64(
-        base,
-        relative_offset,
-        "absolute ELF section offset",
-        "Elf64_Off",
-    )?;
+    let file_offset = s!(base => relative_offset => "absolute ELF section offset" => "Elf64_Off")?;
     let virtual_address = allocated
-        .then(|| {
-            crate::dynamic_executable::checked::checked_sum_u64(
-                IMAGE_BASE,
-                file_offset,
-                "absolute ELF section address",
-                "Elf64_Off",
-            )
-        })
+        .then(|| s!(IMAGE_BASE => file_offset => "absolute ELF section address" => "Elf64_Off"))
         .transpose()?;
     Ok((file_offset, virtual_address))
 }
