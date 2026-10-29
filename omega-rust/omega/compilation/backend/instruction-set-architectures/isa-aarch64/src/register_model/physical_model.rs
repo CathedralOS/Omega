@@ -331,42 +331,19 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
             red_zone_bytes: 0,
         },
     ];
+    macro_rules! r {
+        ($a:expr => $b:expr => $c:expr) => {
+            reservation_overlay($a, $b, $c)
+        };
+    }
     let reservations = vec![
-        reservation_overlay(
-            "aarch64.stack-pointer",
-            ReservationReason::StackPointer,
-            vec![sp_unit],
-        ),
-        reservation_overlay(
-            "aarch64.zero-register",
-            ReservationReason::Architectural,
-            vec![zero_unit],
-        ),
-        reservation_overlay(
-            "aarch64.instruction-pointer",
-            ReservationReason::Architectural,
-            vec![pc_unit],
-        ),
-        reservation_overlay(
-            "aarch64.frame-pointer",
-            ReservationReason::FramePointer,
-            vec![named_units["x29"]],
-        ),
-        reservation_overlay(
-            "darwin.aarch64.platform",
-            ReservationReason::Platform,
-            vec![x18],
-        ),
-        reservation_overlay(
-            "omega.aarch64.dispatch",
-            ReservationReason::Dispatch,
-            vec![named_units["x27"]],
-        ),
-        reservation_overlay(
-            "omega.aarch64.metering",
-            ReservationReason::Metering,
-            vec![named_units["x28"]],
-        ),
+        r!("aarch64.stack-pointer" => ReservationReason::StackPointer => vec![sp_unit]),
+        r!("aarch64.zero-register" => ReservationReason::Architectural => vec![zero_unit]),
+        r!("aarch64.instruction-pointer" => ReservationReason::Architectural => vec![pc_unit]),
+        r!("aarch64.frame-pointer" => ReservationReason::FramePointer => vec![named_units["x29"]]),
+        r!("darwin.aarch64.platform" => ReservationReason::Platform => vec![x18]),
+        r!("omega.aarch64.dispatch" => ReservationReason::Dispatch => vec![named_units["x27"]]),
+        r!("omega.aarch64.metering" => ReservationReason::Metering => vec![named_units["x28"]]),
     ];
     PhysicalRegisterModel {
         architecture: Architecture::Aarch64,
