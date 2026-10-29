@@ -1770,6 +1770,10 @@ impl<'program> StructuralJudge<'program> {
                         term = replacement.clone();
                         continue;
                     }
+                    if let Some(normalized) = self.resolved_float_comparison(&resolved, depth + 1) {
+                        term = normalized;
+                        continue;
+                    }
                     if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
                         return folded;
                     }

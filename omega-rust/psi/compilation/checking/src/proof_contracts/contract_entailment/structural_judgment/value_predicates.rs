@@ -307,8 +307,15 @@ impl StructuralJudge<'_> {
             return None;
         }
         let (comparison, left, right) = self.selected_float_comparison(value)?;
-        self.float_comparison_truth(comparison, &left, &right, depth + 1)
-            .map(boolean_term)
+        if let Some(truth) = self.float_comparison_truth(comparison, &left, &right, depth + 1) {
+            return Some(boolean_term(truth));
+        }
+        // Self-inequality denotes the NaN predicate even when its truth is
+        // not known. This is a law of the exact sealed comparison over one
+        // complete meaning, not an equality between runtime float values.
+        (comparison == FloatSemanticComparison::NotEqual && left == right)
+            .then(|| self.nan_predicate(left))
+            .flatten()
     }
 
     /// Read the selected predicate without replacing it by its recorded truth.
