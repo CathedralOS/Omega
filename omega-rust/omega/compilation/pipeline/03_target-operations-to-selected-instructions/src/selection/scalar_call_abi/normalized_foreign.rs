@@ -111,6 +111,7 @@ pub(crate) fn call_key(
     let family = entry_family(call);
     environment
         .selected_keys()
+        .rows
         .call_normalized_foreign
         .into_iter()
         .find(|key| {

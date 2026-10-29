@@ -27,8 +27,20 @@ pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> Machine
 
 #[cfg(test)]
 mod tests {
-    use super::{MachineAlternativeFamily, MachineAlternativeKey};
-    use selected_instructions::{MachineEncodedEffects, SelectedInstructionKind};
+    use crate::selected_form_encoding::ValidatedAarch64SelectedFormEncoding;
+    use selected_instructions::{
+        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, fixture,
+    };
+
+    impl fixture::EncodedWord for ValidatedAarch64SelectedFormEncoding {
+        fn encoded_bytes(&self) -> &[u8] {
+            self.bytes()
+        }
+
+        fn encoded_effects(&self) -> &MachineEncodedEffects {
+            &self.footprint().encoded
+        }
+    }
 
     #[test]
     fn crash_rejects_changed_bytes_operands_and_alternatives() {
@@ -36,92 +48,29 @@ mod tests {
             crate::aarch64_physical_register_model(),
         )
         .unwrap();
-        let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::Crash,
-            variant: 0,
-        };
-        let encode = |physical, alternative, operands| {
-            crate::encode_aarch64_selected_form(
-                physical,
-                SelectedInstructionKind::Crash,
-                alternative,
-                operands,
-            )
-        };
-        let validate = |physical, alternative, operands, bytes| {
-            crate::validate_aarch64_selected_form_encoding(
-                physical,
-                SelectedInstructionKind::Crash,
-                alternative,
-                operands,
-                bytes,
-            )
-        };
-        let encoded = crate::encode_aarch64_selected_form(
-            &physical,
-            SelectedInstructionKind::Crash,
-            alternative,
-            &[],
-        )
-        .unwrap();
-        assert_eq!(encoded.bytes(), &[0x00, 0x00, 0x20, 0xd4]);
-        assert_eq!(
-            encoded.footprint().encoded,
-            MachineEncodedEffects::crash_v1(&physical.model().view_named("pc").unwrap().units)
-        );
-        for bit in 0..32 {
-            let mut bytes = encoded.bytes().to_vec();
-            bytes[bit / 8] ^= 1 << (bit % 8);
-            assert!(
+        fixture::assert_crash_refusals(
+            fixture::CrashWord {
+                physical: &physical,
+                bytes: &[0x00, 0x00, 0x20, 0xd4],
+                program_counter: "pc",
+                foreign_operand: "x0",
+            },
+            MachineAlternativeKey {
+                family: MachineAlternativeFamily::Crash,
+                variant: 0,
+            },
+            |kind, alternative, operands| {
+                crate::encode_aarch64_selected_form(&physical, kind, alternative, operands)
+            },
+            |kind, alternative, operands, bytes| {
                 crate::validate_aarch64_selected_form_encoding(
                     &physical,
-                    SelectedInstructionKind::Crash,
+                    kind,
                     alternative,
-                    &[],
-                    &bytes,
+                    operands,
+                    bytes,
                 )
-                .is_err()
-            );
-        }
-        let mut extended = encoded.bytes().to_vec();
-        extended.push(0);
-        for bytes in [&extended[..], &encoded.bytes()[..3]] {
-            assert!(validate(&physical, alternative, &[], bytes).is_err());
-        }
-        let view = physical.model().view_named("x0").unwrap().id;
-        let unexpected_operands = [view];
-        assert!(encode(&physical, alternative, &unexpected_operands).is_err());
-        assert!(
-            encode(
-                &physical,
-                MachineAlternativeKey {
-                    variant: 1,
-                    ..alternative
-                },
-                &[]
-            )
-            .is_err()
-        );
-        assert!(
-            encode(
-                &physical,
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::ReturnUnit,
-                    variant: 0
-                },
-                &[]
-            )
-            .is_err()
-        );
-        assert!(
-            crate::validate_aarch64_selected_form_encoding(
-                &physical,
-                SelectedInstructionKind::ReturnUnit,
-                alternative,
-                &[],
-                encoded.bytes(),
-            )
-            .is_err()
+            },
         );
     }
 }

@@ -280,8 +280,8 @@ fn every_selected_rule_rejects_catalog_provenance_forgery_on_every_target() {
         // The selection cannot swap two owned rows between their semantics.
         let mut corrupted = catalog.clone();
         std::mem::swap(
-            &mut corrupted.selected_keys.add_i64,
-            &mut corrupted.selected_keys.subtract_i64,
+            &mut corrupted.selected_keys.rows.add_i64,
+            &mut corrupted.selected_keys.rows.subtract_i64,
         );
         assert_eq!(
             validate_effects(case, environment.constraints(), corrupted),

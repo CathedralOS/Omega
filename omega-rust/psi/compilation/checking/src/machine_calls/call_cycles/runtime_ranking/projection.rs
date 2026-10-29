@@ -620,6 +620,7 @@ pub(super) fn natural_component(
                 state: state.symbol,
                 parameter: parameter.symbol,
                 coordinate,
+                entry_indexes: Vec::new(),
                 parameter_position: u32::try_from(position).ok()?,
                 primitive_type,
                 observation: crate::RankPremiseObservation::Value,

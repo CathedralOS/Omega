@@ -1682,6 +1682,7 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 1770ms @a92f16431
 pass/domains/call_requires_domain_intersection_preserved checked 2340ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1727ms @a92f16431042
 pass/domains/captured_predicate_readonly_call_exit built 2365ms exit:0 @a92f16431042
+pass/domains/carried_nested_payload_qualification built 2039ms exit:0 @4f49785bc6c0+wt
 pass/domains/case_payload_call_restore_exit built 5523ms exit:70 @a92f16431042
 pass/domains/case_payload_guarded_domain_exit built 2649ms exit:0 @a92f16431042
 pass/domains/case_payload_predicate_domain_member_exit built 5597ms exit:70 @a92f16431042

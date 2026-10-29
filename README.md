@@ -108,6 +108,44 @@ runtime tail cycles carry values and ownership without growing the call stack.
 [Machines](wiki/language_guide/chapter_3_machines.md)
 [Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
 
+## Data
+The `data` keyword is the only manner by which data is described in Omega.
+
+```omega
+data User {
+    id: u64;
+    active: bool;
+}
+
+data Command {
+    command_id: u64;
+
+    case GetUser(user_id: u64);
+    case CountUsers;
+    case DeleteUser(user_id: u64);
+}
+
+machine targets_one_user(command: &Command) -> bool {
+    let Command { command_id as _, case as operation } = command;
+
+    match operation {
+        Command::GetUser { user_id as _ } -> true
+        Command::CountUsers -> false
+        Command::DeleteUser { user_id as _ } -> true
+    }
+}
+```
+
+`command_id` is present in every case and can be read as `command.command_id`
+without matching first. `user_id` exists only in GetUser and DeleteUser. The
+`let` pattern handles the common fields once and binds a case-only view with
+`case as operation`. This decomposition cannot fail for a valid Command; an
+equivalent one-arm outer match is also allowed. The match patterns name only
+payload fields; `as _` explicitly ignores values this helper does not need.
+All inline cases follow the common fields. See
+[data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
+and [irrefutable bindings](wiki/spec/language/patterns.md#irrefutable-data-bindings).
+
 ## Domains and invariants
 
 The data declaration's `requires` clause keeps every valid player's health between
@@ -163,6 +201,66 @@ separate implementation.
 [Domains](wiki/language_guide/chapter_8_domains.md) ·
 [Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
 [Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
+
+## Advanced Data
+Suppose commands are sent as data. GetUser should produce a User, CountUsers a u64, and DeleteUser a bool indicating whether a user was deleted. A more complex declaration adds common metadata, stable identities for serialization, and GADT (generalized algebraic data type) constraints tying each command to its result type:
+```omega
+data Command<T>
+requires
+    ((self in Command::GetUser) && T == User)
+    || ((self in Command::CountUsers) && T == u64)
+    || ((self in Command::DeleteUser) && T == bool)
+{
+    #1 request_id: u64;
+    #2 requested_at_ms: u64;
+    #3 sequence: u32;
+
+    #10 case GetUser(#1 user_id: u64);
+    #11 case CountUsers;
+    #12 case DeleteUser(#1 user_id: u64);
+}
+
+let accepted: Command<User> = Command::GetUser { user_id: 42 }; // Accepted.
+let rejected: Command<bool> = Command::GetUser { user_id: 42 }; // Rejected: GetUser requires T == User.
+
+machine execute<T>(
+    connection: &mut Database,
+    command: &Command<T>
+) -> Result<T, DatabaseError>
+{
+    let (_, _, _, operation) = command;
+
+    transition operation {
+        Command::GetUser { user_id } -> database::get_user(connection, user_id)
+        Command::CountUsers -> database::count_users(connection)
+        Command::DeleteUser { user_id } -> database::delete_user(connection, user_id)
+    }
+}
+```
+
+The positional binding follows authored order: request_id, requested_at_ms, sequence, then one case-only view. `_` ignores each metadata binding. The transition retains the original Command's domain facts, so selecting a case establishes the corresponding equality for T.
+
+`Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
+
+GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is deliberately invalid because changing only its type argument breaks that relationship. Omitted metadata fields are zero-initialized here. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
+
+The `#N` identities are neither offsets nor runtime tags, and each payload has its own numbering scope. The two Command declarations above are alternative examples, not declarations to combine in one module.
+
+The same semantic data can use different representations. Custom policies use compile-time reflection to choose a layout, subject to compiler validation. The declarations below illustrate storage types, not implicit conversions; assume a protobuf package supplies the named encoded representation:
+
+```omega
+// Instantiate under the standard Omega layout.
+let command: Command<User>;
+
+// Select C layout; the foreign API's actual ABI must still agree.
+let command_c: CLayout<Command<User>>;
+
+// Select a library-authored protobuf representation.
+use protobuf;
+let command_proto: ProtobufLayout<Command<User>>;
+```
+
+Variable-length protobuf encoding needs explicit byte storage and checked encode/decode operations; it is not merely a fixed C-style layout. These representation families, case/type constraints and separate case-view patterns describe the ratified design, with implementation work still tracked in [TASKS.md](TASKS.md), including `DATA-DECOMPOSITION`.
 
 ## Checked Inline Assembly
 

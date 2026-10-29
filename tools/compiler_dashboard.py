@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PLACES = ("local", "field", "parameter", "call_result", "match_join",
           "const_name", "other_state", "other_machine", "target_body")
 TARGETS = ("windows_x86_64", "linux_x86_64", "macos_arm64", "linux_arm64")
+# Same host-specific September 30 goldens used by the original Claude dashboard.
+COHORT_BASELINES = {"windows_x86_64": "5f73e2167f", "linux_x86_64": "03e852fb38",
+                    "macos_arm64": "031f4d0ef6"}
 
 
 def git(repository, *arguments):
@@ -129,11 +132,60 @@ def collect_native(repository, warnings):
                 host["counts"] = native_scoreboard(records, oracle_lookup(repository, golden, None, target))
                 host["stamps"] = dict(Counter(row.get("recorded_at") or "unstamped" for row in records))
                 host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", relative)
+                host["cohort"] = collect_cohort(repository, target, records)
+                if target in COHORT_BASELINES and not host["cohort"]["available"]:
+                    warnings.append(f"Cohort baseline unavailable for {target}: {host['cohort']['error']}")
             except (OSError, ValueError) as error:
                 host.update(available=False, error=str(error))
                 warnings.append(f"Cannot read native golden {target}: {error}")
+        elif target in COHORT_BASELINES:
+            warnings.append(f"Native golden missing for {target}; cohort comparison unavailable")
         hosts.append(host)
     return hosts
+
+
+def cohort_comparison(baseline, current):
+    """Freeze fixture IDs; missing rows stay in the denominator, not in regressions."""
+    def indexed(records):
+        rows = {}
+        for row in records:
+            if row["tier"] not in ("pass", "run"):
+                continue
+            if row["fixture"] in rows:
+                raise ValueError(f"Duplicate cohort fixture: {row['fixture']}")
+            rows[row["fixture"]] = row
+        return rows
+    def ran(row):
+        return row is not None and row["status"] != "unimplemented" and "exit" in row["facts"]
+    old, now = indexed(baseline), indexed(current)
+    if not old:
+        raise ValueError("Baseline has no valid fixture rows")
+    missing = old.keys() - now.keys()
+    added = now.keys() - old.keys()
+    return {
+        "baseline_total": len(old), "baseline_runs": sum(ran(row) for row in old.values()),
+        "same_now_runs": sum(ran(now.get(key)) for key in old),
+        "current_total": len(now), "current_runs": sum(ran(row) for row in now.values()),
+        "recovered": sum(not ran(row) and ran(now.get(key)) for key, row in old.items()),
+        "lost": sum(ran(old[key]) and not ran(now[key]) for key in old.keys() & now.keys()),
+        "missing": len(missing), "missing_previously_running": sum(ran(old[key]) for key in missing),
+        "new_running": sum(ran(now[key]) for key in added), "new_total": len(added),
+    }
+
+
+def collect_cohort(repository, target, current):
+    baseline = COHORT_BASELINES.get(target)
+    if baseline is None:
+        return {"available": False, "error": "No September 30 baseline for this host"}
+    try:
+        revision = git(repository, "rev-parse", baseline + "^{commit}")
+        git(repository, "merge-base", "--is-ancestor", revision, "HEAD")
+        path = f"tests/omega/corpus_native_{target}.txt"
+        rows = corpus_records.parse(git(repository, "show", f"{revision}:{path}"))
+        return dict(cohort_comparison(rows, current), available=True, baseline_revision=revision,
+                    baseline_date=git(repository, "show", "-s", "--format=%cI", revision))
+    except (OSError, ValueError) as error:
+        return {"available": False, "error": str(error)}
 
 
 def native_history(repository, relative, warnings=None):

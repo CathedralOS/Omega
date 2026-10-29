@@ -10,7 +10,7 @@ impl ContractPredicates<'_, '_> {
         expression: ExpressionHandle,
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
-        if self.allow_result || depth >= 64 {
+        if depth >= 64 {
             return None;
         }
         let conditions =
@@ -101,7 +101,7 @@ impl ContractPredicates<'_, '_> {
         read: &validation::PredicateIntegerReadSubject,
         depth: usize,
     ) -> Option<CheckedScalarExpression> {
-        if self.allow_result || depth >= 64 {
+        if depth >= 64 {
             return None;
         }
         let machine = self.program.machine(read.predicate)?;

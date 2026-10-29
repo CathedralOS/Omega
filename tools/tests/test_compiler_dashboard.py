@@ -93,7 +93,7 @@ class DashboardTests(unittest.TestCase):
         host = dashboard.collect_native(self.root, warnings)[3]
         self.assertFalse(host["available"])
         self.assertIn("error", host)
-        self.assertEqual(len(warnings), 1)
+        self.assertEqual(sum("Cannot read native golden linux_arm64" in warning for warning in warnings), 1)
 
     def test_registry_error_is_unknown_not_an_empty_active_list(self):
         with patch.object(dashboard.subprocess, "run", side_effect=OSError("offline")):
@@ -143,6 +143,45 @@ class DashboardTests(unittest.TestCase):
             history = dashboard.native_history(self.root, "golden.txt", warnings)
         self.assertEqual([point["revision"] for point in history], ["new"])
         self.assertIn("old", warnings[0])
+
+    def test_fixed_cohort_does_not_count_new_runs_as_recovered_programs(self):
+        import corpus_records
+        old = corpus_records.parse("pass/g/still built 1ms exit:0\npass/g/fixed checked 1ms\npass/g/lost built 1ms exit:0\n")
+        now = corpus_records.parse("pass/g/still built 1ms exit:0\npass/g/fixed built 1ms exit:0\npass/g/lost checked 1ms\npass/g/new built 1ms exit:0\n")
+        result = dashboard.cohort_comparison(old, now)
+        self.assertEqual((result["baseline_total"], result["baseline_runs"], result["same_now_runs"]), (3, 2, 2))
+        self.assertEqual((result["recovered"], result["lost"], result["new_running"]), (1, 1, 1))
+        self.assertEqual((result["current_total"], result["current_runs"]), (4, 3))
+
+    def test_missing_fixture_stays_in_fixed_denominator_but_is_not_a_measured_regression(self):
+        import corpus_records
+        old = corpus_records.parse("pass/g/removed built 1ms exit:0\npass/g/still checked 1ms\n")
+        now = corpus_records.parse("pass/g/new built 1ms exit:0\n")
+        result = dashboard.cohort_comparison(old, now)
+        self.assertEqual((result["baseline_total"], result["same_now_runs"]), (2, 0))
+        self.assertEqual((result["missing"], result["missing_previously_running"], result["lost"]), (2, 1, 0))
+
+    def test_cohort_rejects_empty_or_duplicate_baselines_and_ignores_fail_tier(self):
+        import corpus_records
+        with self.assertRaises(ValueError):
+            dashboard.cohort_comparison([], [])
+        rows = corpus_records.parse("pass/g/a checked 1ms\npass/g/a built 1ms exit:0\n")
+        with self.assertRaises(ValueError):
+            dashboard.cohort_comparison(rows, [])
+        old = corpus_records.parse("pass/g/a checked 1ms\nfail/g/b rejected 1ms expected\n")
+        now = corpus_records.parse("pass/g/a unimplemented 1ms exit:0\n")
+        self.assertEqual(dashboard.cohort_comparison(old, now)["same_now_runs"], 0)
+
+    def test_unavailable_configured_cohort_is_explained_without_hiding_native_counts(self):
+        corpus=self.root / 'tests/omega'
+        corpus.mkdir(parents=True)
+        (corpus / 'corpus_native_windows_x86_64.txt').write_text('pass/g/a built 1ms exit:0\n')
+        warnings=[]
+        with patch.object(dashboard, 'git', return_value='2026-10-29T00:00:00Z'), patch.object(dashboard, 'collect_cohort', return_value={'available':False,'error':'baseline object missing'}):
+            hosts=dashboard.collect_native(self.root,warnings)
+        self.assertTrue(hosts[0]['available'])
+        self.assertEqual(hosts[0]['counts']['executed'],1)
+        self.assertTrue(any('windows_x86_64' in warning and 'baseline object missing' in warning for warning in warnings))
 
 
 if __name__ == "__main__":

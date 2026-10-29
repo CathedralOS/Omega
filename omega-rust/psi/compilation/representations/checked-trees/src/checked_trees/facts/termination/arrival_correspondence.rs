@@ -29,6 +29,7 @@ pub enum CheckedRankValueDerivation {
 pub struct CheckedRankCoordinate {
     pub parameter: SymbolHandle,
     pub path: HandleSpan<PlaceSegment>,
+    pub entry_indexes: HandleSpan<crate::CheckedEntryIndexBound>,
 }
 
 /// Binding-time provenance for a stable state-local captured value.
@@ -241,6 +242,7 @@ pub struct CheckedRankArrivalPlan {
     pub states: Arena<CheckedStateRankCorrespondence>,
     pub bindings: Arena<CheckedRankCoordinateBinding>,
     pub coordinates: Arena<CheckedRankCoordinate>,
+    pub entry_indexes: Arena<crate::CheckedEntryIndexBound>,
     pub path_segments: Arena<PlaceSegment>,
     pub transports: Arena<CheckedRankCoordinateTransport>,
     pub receiving: Arena<CheckedRankReceivingCoordinate>,

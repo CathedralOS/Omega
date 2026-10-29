@@ -1,4 +1,4 @@
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
     IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -247,8 +247,7 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Some({
-        let mut completed = SelectedConstraintKeys {
-            invoke_no_normal: Vec::new(),
+        let rows = TargetRegisterEnvironmentConstraintKeys {
             port_write: Some(crate::X86_64_PORT_WRITE),
             system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
             system_register_write: Some(crate::X86_64_FLAGS_RESTORE),
@@ -396,6 +395,10 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_float: crate::x86_64_float_scalar_return_keys(microsoft),
             return_i64,
             return_unit,
+        };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
         };
         completed.invoke_no_normal = completed.ordinary_call_constraints();
         completed

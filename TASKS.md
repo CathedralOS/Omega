@@ -157,7 +157,7 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and private helper coordinates for
-    indexed/case projections, further independently captured reference loads, and declared-view or
+    descriptor-indexed/case projections, further independently captured reference loads, and declared-view or
     dependent-distance joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -185,7 +185,9 @@ retired-syntax deletions to completion.
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
     nonliteral and indexed writes, record-field and owned-array predicate
     handback with current storage versions (the indexed-store production is
-    qualified across [nine saved-observation places](samples/cli/facts/saved_observation_snapshot/predicate_handback/README.md)),
+    qualified across [nine saved-observation places](samples/cli/facts/saved_observation_snapshot/predicate_handback/README.md),
+    and whole owned-array field replacement across
+    [nine current/previous handback places](samples/cli/facts/owned_array_field_replacement/README.md)),
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -474,13 +476,17 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Implement pre-execution dependency input assignment and shared-node conflict
-    checks at dependency activation admission without inheriting the root's
-    slots (keeping required-output path byte results refused).
+  - Admit each dependency occurrence under its exact delegated execution context
+    before effects, without inheriting root authority, combining grants or
+    reusing an inapplicable result, under
+    [execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)
+    (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
-    not only pre-admitted package contexts. The old direct-import fixture shape
-    is retired by explicit readiness; shared non-core interface admission before
-    the first Build needs the decision in [Q2](OWNER_QUESTIONS.md#q2-shared-interfaces-known-before-the-first-build-activation).
+    not only pre-admitted package contexts. Use explicit preparation and
+    [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+    to admit shared non-core interfaces before their dependent continuations
+    execute; do not restore pre-known-only import checking or the retired
+    direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
@@ -902,6 +908,49 @@ helper that passes does not close an item.
   value facts and widened storage authority reject. Matching-host C ABI and
   conversion observations meet their authored oracles; unrelated source/data
   names or imports cannot change selections.
+
+- **DATA-DECOMPOSITION.** Implement the ratified
+  [separate data and case decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
+  end to end, including source migration and retirement of flattened case
+  patterns, without a compatibility dialect or altered physical layout.
+  - Enforce common fields followed by consecutive inline cases in both Rust and
+    Omega producers. Implement named outer patterns with `case as binding` and
+    positional outer patterns in authored field order plus one final case-only
+    component, with arbitrary binding names, exact component coverage and
+    explicit rest/ignore forms. Case patterns bind payload fields only; pure
+    sums remain directly matchable. Preserve case-literal construction and
+    schema/member identities without adding a case-group field or discriminator.
+  - Implement named and positional `let Pattern = expression;` with the same
+    pattern semantics and proved irrefutability under the checked input type and
+    live facts. Retain one initializer evaluation, lexical binding scope, normal
+    owned move/copy/cleanup and borrowed-field copy eligibility; case views keep
+    their backing loans. Keep ordinary match/transition forms, and introduce no
+    hidden branch, trap, fallback or special match-as header syntax.
+  - Carry the case view's exact original subject and static arguments, snapshots,
+    mutation invalidation, GADT/default-domain facts, borrowing, access and
+    ownership through nested expression matches and transitions, Terminal Psi,
+    interpretation and native lowering. Keep independent coverage, single subject
+    evaluation, scoped bindings, move/cleanup partitioning and backing lifetimes;
+    no detached view may drop common-field obligations or widen authority.
+  - Migrate maintained documentation, product/library/application sources,
+    samples, corpus and compiler-input literals, source tooling and affected
+    customers. Remove interleaved-declaration and flattened-pattern parser,
+    checker, IR/codec and lowering assumptions rather than retaining source-shape
+    fallbacks. Layout policies still choose physical placement; do not silently
+    change an authored external layout while rearranging source.
+  Acceptance: named and positional decomposition agree through applicable
+  nine-place fact rows and fact-sensitive reject twins under `omega run --both`.
+  Exercise multiple common fields, payload-free and payload-bearing cases,
+  renamed bindings, explicit rests, irrefutable local bindings, nested matches
+  and mixed-data GADT results;
+  observe single evaluation with side effects and exact owned/borrowed cleanup.
+  Reject fields after inline cases, common fields in case patterns, wrong arity,
+  refutable let patterns, implicit moves from borrowed storage,
+  unknown/duplicate component selectors or bindings, missing coverage, stale
+  facts, invalid view escape,
+  duplicated linear custody and abandoned restoration. Existing case-literal
+  construction, matching-host layout/ABI and customer oracles remain unchanged;
+  no retired syntax acceptance path remains.
 
 - **PREFIX-CASE-IDENTITIES.** Implement the ratified
   [identity-before-case syntax](wiki/spec/language/data_and_literals.md#construction-and-case-identity)

@@ -754,10 +754,21 @@ impl ScalarContractTerms<'_> {
         if let CheckedScalarExpression::Boolean(predicate) = expression {
             return self.boolean(identities, predicate);
         }
-        if matches!(
-            expression,
-            CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-        ) {
+        if let CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } = expression {
+            if let ContractStructuralResult::Declared {
+                position,
+                declaration,
+            } = self.views.result
+                && root.parameter() == Some(position)
+            {
+                return crate::proofs::crash_routes::lower_structural_result_indexed_term(
+                    identities,
+                    expression,
+                    declaration,
+                    self.views.structural_types,
+                    &mut |identities, selector| self.scalar(identities, selector),
+                );
+            }
             return crate::proofs::crash_routes::lower_structural_indexed_term(
                 identities,
                 expression,

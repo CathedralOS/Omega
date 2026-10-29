@@ -23,6 +23,8 @@ layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 
 [dev-dependencies]
+selected-instructions = { path = "../../../representations/selected-instructions", features = ["test-support"] }
+register-model = { path = "../../register-model", features = ["test-support"] }
 normalized-foreign-call-plan = { path = "../normalized-foreign-call-plan", features = ["test-support"] }
 encoded-scalar-plan = { path = "../encoded-scalar-plan", features = ["test-support"] }
 function-identity = { path = "../../../../foundation/function-identity" }

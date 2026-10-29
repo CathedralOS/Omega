@@ -1,47 +1,61 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-29T18:43:49Z",
+  "generatedAt": "2026-10-29T19:20:00Z",
   "title": "Design System: Omega Compiler Observatory",
   "extensions": {
-    "shadows": [
-      { "name": "card", "value": "0 3px 12px #16233706", "purpose": "Faint ambient separation for panels and summary cards." },
-      { "name": "selected-segment", "value": "0 1px 3px #00000005", "purpose": "Small elevation for the pressed filter segment." }
-    ],
+    "shadows": [],
     "motion": [
-      { "name": "refresh", "value": "refresh .35s ease-out", "purpose": "Background flash from #fff1df to transparent; disabled under prefers-reduced-motion: reduce." }
+      {
+        "name": "refresh",
+        "value": "refresh .35s ease-out",
+        "purpose": "Tonal flash from #332b20, disabled for reduced motion."
+      }
     ],
     "breakpoints": [
-      { "name": "single-workspace", "value": "1100px" },
-      { "name": "mobile", "value": "700px" },
-      { "name": "wide-top-spacing", "value": "1600px" }
+      {
+        "name": "stack-workspace",
+        "value": "1100px"
+      },
+      {
+        "name": "mobile",
+        "value": "700px"
+      }
     ]
   },
   "components": [
     {
-      "name": "Refresh evidence",
-      "kind": "button",
-      "refersTo": "button-primary",
-      "description": "Dark workspace action; local refresh reads evidence without running compiler gates.",
-      "html": "<button class=\"ds-refresh\"><span aria-hidden=\"true\">↻</span> Refresh evidence</button>",
-      "css": ".ds-refresh{display:inline-flex;gap:9px;align-items:center;padding:9px 14px;border:1px solid var(--ink,#17202b);border-radius:10px;background:var(--ink,#17202b);color:white;font:14px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-refresh:hover{background:#334151}.ds-refresh:focus-visible{outline:3px solid var(--blue,#1765c0);outline-offset:3px}.ds-refresh:disabled{cursor:wait;opacity:.65}"
-    },
-    {
       "name": "Recorded pass cell",
       "kind": "button",
       "refersTo": "cell-pass",
-      "description": "A symbol and accessible label accompany semantic color in the fact grid.",
-      "html": "<button class=\"ds-cell\" aria-label=\"Local: recorded positive pass and reject controls at this clean revision\">✓</button>",
-      "css": ".ds-cell{display:inline-grid;place-items:center;min-height:25px;width:29px;padding:0;border:1px solid var(--line,#e4e8ed);border-radius:6px;background:var(--green-soft,#e6f5ec);color:var(--green,#176b4a);font:600 13px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-cell:hover{filter:brightness(.95)}.ds-cell:focus-visible{outline:3px solid var(--blue,#1765c0);outline-offset:3px}"
+      "description": "A symbol and accessible label accompany semantic color in the dark fact grid.",
+      "html": "<button class=\"ds-cell\" aria-label=\"Local: recorded positive pass and reject controls at this clean revision\">\u2713</button>",
+      "css": ".ds-cell{display:inline-grid;place-items:center;min-height:25px;width:29px;padding:0;border:1px solid transparent;border-radius:5px;background:#1b322b;color:#75d8b0;font:500 13px/1.55 -apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.ds-cell:focus-visible{outline:2px solid #71adff;outline-offset:4px}"
     }
   ],
   "narrative": {
-    "northStar": "Mebius chart-card direction",
-    "overview": "A light evidence workspace with quiet white cards, compact data graphics and readable qualifications. Numbers lead while provenance stays available through inspection. This records the built operating surface; it does not establish compiler acceptance or hosted verification.",
-    "keyCharacteristics": ["Light workspace and white cards", "Dark system typography and tabular numerals", "Orange selection and blue native results", "Symbol-bearing evidence states", "Local scrolling for dense evidence"],
-    "rules": [
-      { "name": "The evidence rule", "body": "Pair status color with symbols, accessible labels and the visible legend.", "section": "colors" }
+    "northStar": "User-supplied Claude host comparison, with Mebius control grouping",
+    "overview": "Charcoal cards keep history, fixed-cohort comparison and growth sources visible together. History leads with direct host labels. Short captions replace explanatory prose.",
+    "keyCharacteristics": [
+      "Three visible charts",
+      "History first with direct labels",
+      "Baseline, same-set-now and full-corpus bars",
+      "Responsive comparison row",
+      "Evidence methods on demand"
     ],
-    "dos": ["Do retain timestamps, revisions, target and unknown states.", "Do preserve readable qualifiers and local table scrolling."],
-    "donts": ["Don't turn source presence or lease ownership into compiler completion.", "Don't introduce marketing artwork or decorative chart noise."]
+    "rules": [
+      {
+        "name": "Evidence colors",
+        "body": "Pair color with symbols and labels; never equate history with current acceptance.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Preserve real dates and per-host cohorts.",
+      "Use teal Windows, blue Linux, orange macOS consistently."
+    ],
+    "donts": [
+      "Do not copy older reference counts.",
+      "Do not manufacture fixed-cohort progress from a growing corpus."
+    ]
   }
 }

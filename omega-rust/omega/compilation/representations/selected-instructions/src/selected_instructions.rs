@@ -44,6 +44,7 @@ pub mod liveness;
 pub mod plan_identity;
 pub mod provenance;
 pub mod structural_case;
+pub mod terminator_encoding;
 pub mod values;
 
 pub use calls::normalized_foreign::SelectedNormalizedForeignCall;

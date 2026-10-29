@@ -111,6 +111,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                         .insert(checked_trees::CheckedRankCoordinate {
                             parameter: destination.parameter,
                             path,
+                            entry_indexes: Default::default(),
                         });
                 CheckedNaturalRankMeasure::SequenceLength { coordinate }
             }
@@ -126,6 +127,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                         .insert(checked_trees::CheckedRankCoordinate {
                             parameter: destination.parameter,
                             path,
+                            entry_indexes: Default::default(),
                         });
                 CheckedNaturalRankMeasure::IntegerValue {
                     coordinate,

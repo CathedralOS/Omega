@@ -1,0 +1,30 @@
+// Replacing the owned array field with [7, 4] establishes its current [7, 4] contents while the earlier owned copy remains [3, 1].
+// Expected exit: 0
+
+data Holder { before: u64; items: [u64; 2]; after: u64; }
+data Packet { current: Holder; previous: [u64; 2]; marker: u64; }
+machine installed(values: &[u64; 2]) -> bool { values[0] == 7 && values[1] == 4 }
+machine install(holder: &mut Holder, incoming: [u64; 2])
+requires holder.items[0] == 3 && holder.items[1] == 1 && installed(&incoming) == true
+ensures installed(&holder.items) == true
+{
+    holder.items = [6, incoming[1]];
+}
+machine consume(packet: &Packet) -> u64
+requires installed(&packet.current.items) == true && packet.previous[0] == 3 && packet.previous[1] == 1
+ensures result == 3
+{ packet.previous[0] }
+const FIRST: u64 = 7;
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { before: 11, items: [3, 1], after: 13 };
+    let previous: [u64; 2] = holder.items;
+    install(&mut holder, [FIRST, 4]);
+    let packet: Packet = Packet { current: holder, previous: previous, marker: 11 };
+    let observed: u64 = consume(&packet);
+    transition observed == 3 && packet.current.items[0] == 7 && packet.current.items[1] == 4 && packet.previous[0] == 3 && packet.previous[1] == 1 && packet.current.before == 11 && packet.current.after == 13 && packet.marker == 11 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

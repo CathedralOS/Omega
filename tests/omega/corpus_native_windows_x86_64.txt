@@ -1634,6 +1634,7 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2059ms @5f668826a
 pass/domains/call_requires_domain_intersection_preserved checked 1922ms @5f668826adf3+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2372ms @5f668826adf3+wt
 pass/domains/captured_predicate_readonly_call_exit built 3243ms exit:0 @5f668826adf3+wt
+pass/domains/carried_nested_payload_qualification built 1961ms exit:0 @4f49785bc6c0+wt
 pass/domains/case_payload_call_restore_exit built 8383ms exit:70 @5f668826adf3+wt
 pass/domains/case_payload_guarded_domain_exit built 3086ms exit:0 @5f668826adf3+wt
 pass/domains/case_payload_predicate_domain_member_exit built 8698ms exit:70 @5f668826adf3+wt

@@ -50,11 +50,11 @@ mod call_contracts;
 mod collections;
 mod conditions;
 mod entry_fields;
-pub(crate) use entry_fields::parameter_field_paths;
+pub(crate) use entry_fields::parameter_projection_paths;
 mod scalar_fields;
 mod scalar_storage;
 use conditions::ConditionBinding;
-use scalar_fields::{ScalarField, scalar_field_occurrence};
+use scalar_fields::{ScalarField, ScalarProjection, scalar_field_occurrence};
 
 #[derive(Clone)]
 struct Binding {
@@ -113,6 +113,10 @@ pub(crate) struct CurrentScalarValues<'program> {
 }
 
 impl<'program> CurrentScalarValues<'program> {
+    pub(crate) fn program(&self) -> &'program dyn ::validation::CheckingInput {
+        self.program
+    }
+
     pub(crate) fn at(
         program: &'program dyn ::validation::CheckingInput,
         machine: &'program Machine,
@@ -121,7 +125,7 @@ impl<'program> CurrentScalarValues<'program> {
         target: TransitionTargetHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
-        Self::at_observing_fields(
+        Self::at_observing_projections(
             program,
             machine,
             state,
@@ -132,14 +136,14 @@ impl<'program> CurrentScalarValues<'program> {
         )
     }
 
-    pub(crate) fn at_observing_fields(
+    pub(crate) fn at_observing_projections(
         program: &'program dyn ::validation::CheckingInput,
         machine: &'program Machine,
         state: &'program State,
         statement_index: usize,
         target: TransitionTargetHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
-        requested: &[Vec<SymbolHandle>],
+        requested: &[Vec<facts::PlaceSegment>],
     ) -> Option<Self> {
         let mut initial = program
             .state_parameters(state)
@@ -262,7 +266,7 @@ impl<'program> CurrentScalarValues<'program> {
             .then(|| validation::CallFrameResolver::new(program))
             .flatten();
         let frames = frames.or(owned_frames.as_ref());
-        let mut field_paths = parameter_field_paths(program, machine, state);
+        let mut field_paths = parameter_projection_paths(program, machine, state);
         for path in requested {
             if !field_paths.contains(path) {
                 field_paths.push(path.clone());
@@ -408,7 +412,8 @@ impl<'program> CurrentScalarValues<'program> {
                     });
                     let stored_value = scalar_store.as_ref().map(|field| field.value.clone());
                     if let Some(field) = scalar_store
-                        && field_storage_path(program, assignment.target)
+                        && values
+                            .scalar_storage_path(assignment.target)
                             .is_some_and(|(_, path)| !path.is_empty())
                     {
                         scalar_fields.push(field);
@@ -499,10 +504,14 @@ impl<'program> CurrentScalarValues<'program> {
                     // A rebound selector can no longer name that home; publishing
                     // through its old spelling would manufacture a current rank.
                     if target_remains_current
+                        && let Some((owner, path)) = values.scalar_storage_path(assignment.target)
+                    {
+                        values.replace_scalar_fields(owner, &path, scalar_fields);
+                    }
+                    if target_remains_current
                         && let Some((owner, path)) = field_storage_path(program, assignment.target)
                     {
                         values.replace_conditions(owner, &path, conditions);
-                        values.replace_scalar_fields(owner, &path, scalar_fields);
                         values.replace_record_fields(owner, &path, fields);
                     }
                     if let Some(value) = stored_value {
@@ -771,6 +780,18 @@ impl<'program> CurrentScalarValues<'program> {
         if depth >= 64 {
             return None;
         }
+        // A completed scalar copy retains the supplying value, including
+        // compiler-introduced selector locals. Wrapping it in a new scoped
+        // Name term would give two reads of one snapshot different identities.
+        if let ExpressionNode::Name(name) = program.expression_table.expression(expression)
+            && name.symbol == name.head_symbol
+            && let Some(binding) = self
+                .current
+                .iter()
+                .find(|binding| binding.symbol == name.symbol)
+        {
+            return binding.value.clone();
+        }
         if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression)
             && let Some(value) = literal.value_i64()
         {
@@ -804,14 +825,17 @@ impl<'program> CurrentScalarValues<'program> {
                 maximum: high.map(numerics::bignum::BigInt::from_i64),
             });
         }
-        if let ExpressionNode::Member(_) = program.expression_table.expression(expression) {
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) {
             if let Some(value) = length_occurrence(program, expression, &self.lengths)
                 .and_then(|length| length.value.clone())
             {
                 return Some(value);
             }
             if let Some(value) =
-                scalar_field_occurrence(program, machine, state, expression, &self.fields)
+                scalar_field_occurrence(self.occurrence(), expression, &self.current, &self.fields)
             {
                 return Some(value);
             }
@@ -1622,9 +1646,9 @@ fn admitted(
             .is_some_and(|(_, argument)| {
                 admitted(occurrence, argument, bindings, fields, depth + 1)
             }),
-        ExpressionNode::Member(_) => {
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             length_occurrence(program, expression, lengths).is_some()
-                || scalar_field_occurrence(program, machine, state, expression, fields).is_some()
+                || scalar_field_occurrence(occurrence, expression, bindings, fields).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
                 || literal_window_length(program, expression).is_some()
         }
@@ -1712,12 +1736,10 @@ fn scoped(
                 let (_, argument) = validation::integer_embedding_argument(program, expression)?;
                 pending.push((argument, depth + 1));
             }
-            ExpressionNode::Member(_) => {
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 let value = length_occurrence(program, expression, lengths)
                     .and_then(|length| length.value.clone())
-                    .or_else(|| {
-                        scalar_field_occurrence(program, machine, state, expression, fields)
-                    })
+                    .or_else(|| scalar_field_occurrence(occurrence, expression, bindings, fields))
                     .or_else(|| field_occurrence(program, machine, state, expression))
                     .or_else(|| literal_window_length(program, expression))?;
                 projections.push(ScopedArithmeticBinding {

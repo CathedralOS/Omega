@@ -5,6 +5,13 @@ only fields; a sum has only cases; a mixed declaration has common fields plus
 one active case and its payload. Machines access values through their explicit
 parameters, not implicitly owned machine fields.
 
+Inline case declarations form a consecutive tail after all common fields.
+A common field after the first inline case is retired. Named and positional
+[data decomposition](patterns.md#data-and-case-decomposition) expose the common
+fields in authored order followed by one case-only view. This source order does
+not constrain a selected layout policy's physical placement or add a case-group
+schema member, number or discriminator.
+
 `data Name<Parameters> = TypeExpression;` instead declares a
 [transparent type alias](generics.md#transparent-type-aliases). It introduces
 no fields, cases, nominal carrier or storage wrapper.
@@ -51,7 +58,9 @@ restoring write prove the owning default-domain clauses.
 
 Case-bearing values use a case literal, not record-only construction. Common
 and payload fields may be named together and evaluate exactly once in authored
-order. Common fields are accessible independently of the active case; payload
+order. This is construction syntax, not flattened case-pattern binding: patterns
+separate common fields from the case view under [dispatch](patterns.md#data-and-case-decomposition).
+Common fields are accessible independently of the active case; payload
 fields require the corresponding case knowledge. Partial construction and
 disposal follow [ownership order](ownership.md#construction-and-disposal-order).
 

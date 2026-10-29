@@ -741,6 +741,50 @@ fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
         .collect()
 }
 
+/// An authored machine nested inside an enclosing machine's scope belongs to
+/// that activation: its declaration-scope parent is a machine lexical scope.
+pub(super) fn lexically_nested_machine(
+    program: &dyn ::validation::CheckingInput,
+    machine: symbols::SymbolHandle,
+) -> bool {
+    let scope = program.declaration_scope_parent(machine);
+    scope.is_valid()
+        && program
+            .machine_declaration_for_lexical_scope(scope)
+            .is_some()
+}
+
+/// The callee's authored lexical scope encloses the caller machine: the
+/// callee's declaring machine is the caller itself or one of its lexical
+/// ancestors, so the invocation replays within the same source activation.
+pub(super) fn lexical_scope_covers_call(
+    program: &dyn ::validation::CheckingInput,
+    caller: symbols::SymbolHandle,
+    callee: symbols::SymbolHandle,
+) -> bool {
+    let scope = program.declaration_scope_parent(callee);
+    let Some(declaring) = scope
+        .is_valid()
+        .then(|| program.machine_declaration_for_lexical_scope(scope))
+        .flatten()
+    else {
+        return false;
+    };
+    if declaring.symbol == caller {
+        return true;
+    }
+    let mut enclosing = program.declaration_scope_parent(caller);
+    while enclosing.is_valid() {
+        if let Some(declaration) = program.machine_declaration_for_lexical_scope(enclosing)
+            && declaration.symbol == declaring.symbol
+        {
+            return true;
+        }
+        enclosing = program.declaration_scope_parent(enclosing);
+    }
+    false
+}
+
 pub(super) fn append_entry_context(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
@@ -748,9 +792,10 @@ pub(super) fn append_entry_context(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
-    // Ordinary entry proof is declaration-owned. Only an authenticated
-    // extracted region receives its exact source activation captures.
+    // Ordinary entry proof is declaration-owned. An extracted or authored
+    // lexical region receives its exact source activation captures instead.
     if machine.lexical_region_origin.is_none()
+        && !lexically_nested_machine(program, machine.symbol)
         && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol)
     {
         return;

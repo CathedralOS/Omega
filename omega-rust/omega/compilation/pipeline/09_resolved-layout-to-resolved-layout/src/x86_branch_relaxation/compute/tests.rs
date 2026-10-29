@@ -334,41 +334,68 @@ fn return_row(
     }
 }
 
-#[test]
-fn eligible_near_branch_shrinks_and_reflow_settles_on_the_short_form() {
+/// A near branch is eligible exactly once it has a rel8 displacement: reflow
+/// must settle the function on the short form, keep the displacement as
+/// evidence, and the next inspection must report the form already short.
+/// Forward and backward branches differ only in the fixture, the block the
+/// branch sits in, the displacement's sign, and the offsets it moves, so the
+/// body states the shared expectation once.
+fn assert_near_branch_relaxes_to_the_short_form(
+    source: ResolvedSelectedFunctionLayout,
+    branch_block: usize,
+    displacement: i64,
+    short_bytes: [u8; 2],
+    offsets: &[(usize, u64)],
+) -> Vec<ResolvedSelectedFunctionLayout> {
     let physical = physical();
-    let source = function(127);
     assert_eq!(
-        inspect_production_branch(&source, 0, 0, &physical).unwrap(),
+        inspect_production_branch(&source, branch_block, 0, &physical).unwrap(),
         (
             X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(127),
+            Some(displacement),
         )
     );
     let short =
-        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127).unwrap();
+        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), displacement)
+            .unwrap();
     let mut produced = vec![source.clone()];
-    produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
+    produced[0].blocks[branch_block].instructions[0].bytes = short.bytes().to_vec();
     reflow_production_functions(&mut produced, &physical).unwrap();
     assert_eq!(source.byte_count - produced[0].byte_count, 4);
-    assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x75, 0x7f]);
-    assert_eq!(produced[0].blocks[1].offset, 2);
-    assert_eq!(produced[0].blocks[2].offset, 129);
     assert_eq!(
-        produced[0].blocks[0].instructions[0]
+        produced[0].blocks[branch_block].instructions[0].bytes,
+        short_bytes
+    );
+    for &(block, offset) in offsets {
+        assert_eq!(produced[0].blocks[block].offset, offset);
+    }
+    assert_eq!(
+        produced[0].blocks[branch_block].instructions[0]
             .branch
             .as_deref()
             .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .unwrap()
             .byte_displacement,
-        127
+        displacement
     );
     assert_eq!(
-        inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
+        inspect_production_branch(&produced[0], branch_block, 0, &physical).unwrap(),
         (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
     );
+    produced
+}
+
+#[test]
+fn eligible_near_branch_shrinks_and_reflow_settles_on_the_short_form() {
+    let mut produced = assert_near_branch_relaxes_to_the_short_form(
+        function(127),
+        0,
+        127,
+        [0x75, 0x7f],
+        &[(1, 2), (2, 129)],
+    );
     let fixed_point = produced.clone();
-    reflow_production_functions(&mut produced, &physical).unwrap();
+    reflow_production_functions(&mut produced, &physical()).unwrap();
     assert_eq!(produced, fixed_point);
 }
 
@@ -567,38 +594,14 @@ fn corrupted_action_changes_the_artifact_identity() {
 
 #[test]
 fn backward_branch_at_the_i8_floor_relaxes_to_the_short_form() {
-    let physical = physical();
     // The taken block covers bytes 0..126, so the branch sits at 126 and the
     // prospective rel8 displacement 0-(126+2) is exactly -128.
-    let source = backward_conditional_function(126);
-    assert_eq!(
-        inspect_production_branch(&source, 1, 0, &physical).unwrap(),
-        (
-            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
-            Some(-128),
-        )
-    );
-    let short =
-        encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), -128).unwrap();
-    let mut produced = vec![source.clone()];
-    produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-    reflow_production_functions(&mut produced, &physical).unwrap();
-    assert_eq!(source.byte_count - produced[0].byte_count, 4);
-    assert_eq!(produced[0].blocks[1].instructions[0].bytes, [0x75, 0x80]);
-    assert_eq!(produced[0].blocks[1].offset, 126);
-    assert_eq!(produced[0].blocks[2].offset, 128);
-    assert_eq!(
-        produced[0].blocks[1].instructions[0]
-            .branch
-            .as_deref()
-            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
-            .unwrap()
-            .byte_displacement,
-        -128
-    );
-    assert_eq!(
-        inspect_production_branch(&produced[0], 1, 0, &physical).unwrap(),
-        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None,)
+    assert_near_branch_relaxes_to_the_short_form(
+        backward_conditional_function(126),
+        1,
+        -128,
+        [0x75, 0x80],
+        &[(1, 126), (2, 128)],
     );
 }
 

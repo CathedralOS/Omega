@@ -36,7 +36,7 @@ The output is one self-contained HTML file: no dependencies, remote fonts, API
 keys or external data requests. Open it directly or serve it on static hosting.
 Its button explains snapshot age; it does not imply a connection to the repo.
 The source revision, tracked-tree dirty state, collection time, row revision
-stamps, native golden update dates and registry revision remain visible.
+stamps, native golden update dates and registry revision remain in Evidence details.
 
 The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
@@ -50,10 +50,23 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 ## Meaning of the views
 
+- **Overview:** history, fixed-cohort comparison and growth sources are all
+  visible. History leads; the two comparisons share a row on wide screens and
+  stack on narrow screens. The cohort chart shows baseline, same-set-now and
+  full-corpus rates together. Facts and Work open separate panels. Evidence
+  details holds provenance, native receipts, warnings and comparison methods.
+- **Fixed cohort:** the pinned September 30 baseline for each host keeps its
+  original fixture-ID denominator. Compare its recorded runs then and now
+  against the current full corpus. Missing old IDs stay in the denominator;
+  retained losses and removed previously running IDs are reported separately.
+  Growth splits recovered old IDs from new IDs running now. New does not mean
+  first-recording success, and source changes mean recovery is not a causal
+  measurement of compiler improvement. An unavailable baseline stays unknown.
 - **Native history chart:** the last recorded golden per UTC day across the
   30 days before the inspected HEAD, at its real commit timestamp. The blue area counts valid programs
-  with recorded exits; the dashed line counts valid golden rows. Cohorts may
-  grow or shrink, so this is not a fixed-cohort success rate. Point selection
+  with recorded exits. All available hosts share count and date axes by default;
+  the target selector can isolate a host. Cohorts may grow or shrink, so this
+  is not a fixed-cohort success rate. Point selection
   exposes the exact count, timestamp and golden revision. No daily points are
   invented between records.
 - **Fact observation chart:** categorical bars aggregate the grid's selected
@@ -84,9 +97,15 @@ dashboard does not close a fact or a capability.
 
 ```text
 python -m unittest discover -s tools/tests -p test_compiler_dashboard.py
+node tools/tests/test_dashboard_charts.cjs
 ```
 
-Visual direction: [Mebius Charts](https://www.mebius.design/freebies/charts),
-inspected 2026-10-29. Metric-first white cards on a quiet gray workspace, compact
-controls and selection accents. The implementation uses original HTML/CSS/JS;
-no Mebius assets or gated source were copied.
+The renderer checks use a Node-compatible JavaScript runtime without packages;
+the dashboard itself still needs only Python and Git.
+
+Visual direction: the user's Claude dashboard screenshot and pasted artifact,
+supplied 2026-10-29, plus [Mebius Charts](https://www.mebius.design/freebies/charts),
+inspected the same day. Charcoal chart cards, direct series labels and short
+captions follow the Claude reference while keeping all three charts visible.
+The implementation uses original HTML/CSS/JS; no Mebius assets or gated source
+were copied. Native exit-oracle results are under **Native result receipts**.
