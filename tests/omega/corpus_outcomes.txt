@@ -3924,6 +3924,10 @@ fail/domains/captured_guard_bound_replaced_by_call rejected 3260ms expected @a92
 	cannot prove default-domain field requirement for return from store at statement 1: buffer.label requires [u8; N]::Utf8
 fail/domains/captured_predicate_write_retires_membership rejected 2382ms expected @a92f16431042
 	cannot prove requires contract for call checked from producer: value.number in u64::Small in state `entry`
+fail/domains/carried_nested_payload_qualification rejected 1852ms expected @4f49785bc6c0+wt
+	cannot prove requires contract for call verify from forward: envelope.choice::Ready.ticket in Ticket::Issued in state `entry`
+fail/domains/carried_nested_payload_qualification_missing_arrival rejected 1752ms expected @4f49785bc6c0+wt
+	cannot prove requires contract for call verify from forward: envelope.choice::Ready.ticket in Ticket::Issued in state `entry`
 fail/domains/case_child_membership_requires_issuance rejected 2775ms expected @a92f16431042
 	cannot prove default-domain field requirement for call observe from forged_common::entry: parameter event.common requires Ticket::Issued
 	construction value is not proven in domain `Ticket::Issued` in forged_common state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
@@ -25800,6 +25804,7 @@ pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2455ms @a92f16431
 pass/domains/call_requires_domain_intersection_preserved checked 2551ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2050ms @a92f16431042
 pass/domains/captured_predicate_readonly_call_exit checked 3554ms check-target:macos_arm64 @a92f16431042
+pass/domains/carried_nested_payload_qualification checked 2606ms check-target:macos_arm64 @4f49785bc6c0+wt
 pass/domains/case_payload_call_restore_exit checked 8513ms check-target:macos_arm64 @a92f16431042
 pass/domains/case_payload_guarded_domain_exit checked 2755ms check-target:macos_arm64 @a92f16431042
 pass/domains/case_payload_predicate_domain_member_exit checked 7469ms check-target:macos_arm64 @a92f16431042
