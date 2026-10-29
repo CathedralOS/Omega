@@ -3,28 +3,12 @@
   "generatedAt": "2026-10-29T19:20:00Z",
   "title": "Design System: Omega Compiler Observatory",
   "extensions": {
-    "shadows": [
-      {
-        "name": "card",
-        "value": "0 6px 24px #00000014",
-        "purpose": "Quiet separation of charcoal evidence panels."
-      }
-    ],
+    "shadows": [],
     "motion": [
       {
         "name": "refresh",
         "value": "refresh .35s ease-out",
         "purpose": "Tonal flash from #332b20, disabled for reduced motion."
-      },
-      {
-        "name": "cohort",
-        "value": "550ms ease",
-        "purpose": "Reveal bar lengths; disabled for reduced motion."
-      },
-      {
-        "name": "tab",
-        "value": "200ms ease",
-        "purpose": "Fade the selected panel; disabled for reduced motion."
       }
     ],
     "breakpoints": [
@@ -50,13 +34,13 @@
   ],
   "narrative": {
     "northStar": "User-supplied Claude host comparison, with Mebius control grouping",
-    "overview": "Chart-first Overview compares the fixed September 30 cohort, current corpus and growth sources. Facts, Work and Evidence details reveal focused information on demand.",
+    "overview": "Warm charcoal workspace with one chart at a time. Hollow baseline points connect to muted sage latest values. Plain navigation reveals Facts, Work and Evidence details.",
     "keyCharacteristics": [
-      "Shared host/date/count axes",
-      "Direct separated endpoint labels",
-      "Dark surfaces with readable qualifiers",
-      "Mobile host labels below the chart",
-      "Compact expandable evidence receipts"
+      "One chart at a time",
+      "Frozen-cohort endpoints on a shared axis",
+      "Warm neutral surfaces",
+      "Plain navigation",
+      "Evidence on demand"
     ],
     "rules": [
       {

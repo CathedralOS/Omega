@@ -30,3 +30,6 @@ separation of counts, cohort sizes and evidence dates.
 The latest request adds Claude's fixed-cohort comparison and reduces default
 reading: show chart values first, use icon tabs for Facts and Work, and keep
 methods and provenance in an accessible Evidence details dialog.
+The user rejected that version as visually painful. The next revision removes
+the competing cards and colored bar groups: one chart at a time, warm neutral
+surfaces, plain navigation and a single muted accent for the fixed cohort.

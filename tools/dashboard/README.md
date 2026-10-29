@@ -50,7 +50,9 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 ## Meaning of the views
 
-- **Overview:** charts first; Facts and Work open separate panels. Evidence
+- **Overview:** one chart at a time, selected with Same set, Growth or History.
+  Same set connects each host's old and latest rates on the frozen denominator;
+  full-corpus totals remain in Evidence details. Facts and Work open separate panels. Evidence
   details holds provenance, native receipts, warnings and comparison methods.
 - **Fixed cohort:** the pinned September 30 baseline for each host keeps its
   original fixture-ID denominator. Compare its recorded runs then and now
@@ -102,7 +104,7 @@ the dashboard itself still needs only Python and Git.
 
 Visual direction: the user's Claude dashboard screenshot and pasted artifact,
 supplied 2026-10-29, plus [Mebius Charts](https://www.mebius.design/freebies/charts),
-inspected the same day. A charcoal workspace centers a shared host comparison,
-with direct line labels, compact controls and quiet secondary evidence views.
+inspected the same day. A warm charcoal workspace uses one muted accent for the
+fixed-cohort comparison, plain navigation and secondary evidence views.
 The implementation uses original HTML/CSS/JS; no Mebius assets or gated source
 were copied. Native exit-oracle results are under **Native result receipts**.
