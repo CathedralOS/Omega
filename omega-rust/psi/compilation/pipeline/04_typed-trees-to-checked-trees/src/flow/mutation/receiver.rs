@@ -118,7 +118,10 @@ fn receiver_place_for_call_site(
         // answer, and a successor's data record is matched to its argument by
         // position in `instantiate_call_relative_places`.
         CallSite::Expression { call, .. } => {
-            if call.receiver.is_valid() {
+            // A declaration qualifier is not storage. The selected call
+            // already records whether this is a runtime receiver; lexical
+            // calls use the exact explicit data actual below.
+            if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
                 return canonical_place_from_expression(program, call.receiver);
             }
             // A machine-target invocation supplies the caller's data record
@@ -168,9 +171,7 @@ pub(crate) fn family_attached_data_symbol(
             return machine.attached_data_symbol;
         }
         let parent = program.symbols.get(scope).parent;
-        if !parent.is_valid()
-            || program.symbols.get(parent).kind != symbols::SymbolKind::Machine
-        {
+        if !parent.is_valid() || program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
             return SymbolHandle::invalid();
         }
         scope = parent;
