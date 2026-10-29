@@ -342,9 +342,65 @@ fn demanded_provider_plans(
     requested: &[ProviderSelection],
 ) -> Vec<crate::DerivedProviderPlan> {
     let uses = demanded_requirement_uses(checked);
+    let coordinates = demanded_requirement_coordinates(checked);
     candidates
         .iter()
         .filter(|candidate| {
+            let native_rows = candidate
+                .provenance
+                .row_realizations
+                .iter()
+                .enumerate()
+                .filter_map(|(index, origin)| match origin {
+                    crate::ProviderRowOrigin::BuildNative {
+                        trait_scope,
+                        closed_requirement,
+                        ..
+                    } => Some((index, *trait_scope, *closed_requirement)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            if !native_rows.is_empty() {
+                return native_rows.iter().any(|(index, scope, closed)| {
+                    let template = candidate.provenance.row_requirements[*index];
+                    coordinates.iter().any(|coordinate| {
+                        let demanded = if let Some(closed) = closed {
+                            coordinate == closed
+                        } else if let Some(application) =
+                            checked.typed.closed_requirement_application(*coordinate)
+                        {
+                            application.template == template
+                                && scope.is_none_or(|scope| {
+                                    scope.scope(&checked.typed).is_some_and(|scope| {
+                                        checked.typed.requirement_application_matches_scope(
+                                            *coordinate,
+                                            &scope,
+                                        )
+                                    })
+                                })
+                        } else {
+                            *coordinate == template
+                        };
+                        if !demanded {
+                            return false;
+                        }
+                        // An owner-selected named map covers only its exact
+                        // receiving applications, including inherited scopes.
+                        // A native family remains for every uncovered demand.
+                        !defaults.iter().chain(requested).any(|selection| {
+                            selection.target.is_none_or(|target| {
+                                target.canonical_name() == candidate.plan.target
+                            }) && crate::service_schema::conformance_covers_requirement_application(
+                                &checked.typed,
+                                selection.provider_type.symbol,
+                                template,
+                                *coordinate,
+                            )
+                        })
+                    })
+                });
+            }
+
             candidate
                 .provenance
                 .row_requirements
@@ -366,6 +422,20 @@ fn demanded_provider_plans(
 fn demanded_requirement_uses(
     checked: &checked_trees::CheckedTrees,
 ) -> std::collections::HashSet<symbols::SymbolHandle> {
+    demanded_requirement_coordinates(checked)
+        .into_iter()
+        .map(|symbol| {
+            checked
+                .typed
+                .closed_requirement_application(symbol)
+                .map_or(symbol, |application| application.template)
+        })
+        .collect()
+}
+
+fn demanded_requirement_coordinates(
+    checked: &checked_trees::CheckedTrees,
+) -> std::collections::HashSet<symbols::SymbolHandle> {
     // Satisfaction declares a candidate, not a request to install it. Use the
     // source owner's callable-use inventory, not all nominal references: a
     // conformance row necessarily mentions its requirement without calling it.
@@ -373,26 +443,14 @@ fn demanded_requirement_uses(
         checked_trees::typed_trees::references::collect_program_references(&checked.typed)
             .callable_uses
             .into_iter()
-            .map(|symbol| {
-                checked
-                    .typed
-                    .closed_requirement_application(symbol)
-                    .map_or(symbol, |application| application.template)
-            })
             .collect::<std::collections::HashSet<_>>();
-    let requirement_template = |symbol| {
-        checked
-            .typed
-            .closed_requirement_application(symbol)
-            .map_or(symbol, |application| application.template)
-    };
     uses.extend(
         checked
             .facts
             .operators
             .boundary_applications
             .iter()
-            .map(|application| requirement_template(application.requirement_symbol)),
+            .map(|application| application.requirement_symbol),
     );
     uses.extend(
         checked
@@ -400,7 +458,7 @@ fn demanded_requirement_uses(
             .operators
             .symbolic_boundary_applications
             .iter()
-            .map(|application| requirement_template(application.requirement_symbol)),
+            .map(|application| application.requirement_symbol),
     );
     // Boundary requirements satisfied by the program's own selections are
     // demands even when no callable names them: stored-descriptor slice
@@ -411,7 +469,7 @@ fn demanded_requirement_uses(
             .facts
             .provider_closed_requirements
             .iter()
-            .map(|row| row.template),
+            .map(|row| row.closed_requirement),
     );
     uses
 }

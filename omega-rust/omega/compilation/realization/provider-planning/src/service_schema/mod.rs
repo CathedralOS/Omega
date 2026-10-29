@@ -8,6 +8,11 @@
 //! even inside one package; replay must use the same projection as derivation.
 
 mod applied_receivers;
+mod requirement_applications;
+pub(crate) use requirement_applications::conformance_covers_requirement_application;
+pub use requirement_applications::{
+    from_typed_requirement_application, requirement_application_for_schema,
+};
 
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -404,61 +409,81 @@ fn collect_service_methods(
         {
             continue;
         }
-        let calling_plan = calling_plans.iter().find(|application| {
-            application.boundary_trait == policy_owner
-                && application.boundary_arguments == boundary_arguments
-                && application.requirement_machine == signature.symbol
-        });
-        methods.push(ServiceMethod {
-            completion:
-                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
-                    program,
-                    signature.symbol,
-                ),
-            name: signature.name.as_str().to_owned(),
-            requirement_owner: program.trait_declaration_path(trait_definition),
-            requirement_owner_package_identity: program
-                .symbols
-                .symbol_package_identity(trait_definition.symbol),
+        methods.push(project_service_method(
+            program,
+            calling_plans,
+            scope,
+            policy_owner,
+            boundary_arguments,
+            signature,
             requirement_identity,
-            parameter_count: program.state_signature_parameters(signature).iter().count(),
-            parameter_type_identities: program
-                .state_signature_parameters(signature)
-                .iter()
-                .map(|parameter| {
-                    identities.intern(
-                        &program
-                            .type_identity_text(
-                                scope.type_identity(program, parameter.type_reference),
-                            )
-                            .unwrap_or_default(),
-                    )
-                })
-                .collect(),
-            entry_claims: service_entry_claims(program, scope, signature, identities),
-            has_result: signature.return_type.is_valid(),
-            result_type_identity: signature
-                .return_type
-                .is_valid()
-                .then(|| {
-                    identities.intern(
-                        &program
-                            .type_identity_text(scope.type_identity(program, signature.return_type))
-                            .unwrap_or_default(),
-                    )
-                })
-                .unwrap_or_default(),
-            result_claims: service_result_claims(program, scope, signature),
-            service_reach: service_reach_names(program, trait_definition, signature),
-            synchronous_invocations: synchronous_invocation_names(program, signature),
-            may_suspend: signature.suspends,
-            may_block: signature.blocks,
-            terminates_guarantee: signature.termination_guarantee.promises_termination(),
-            termination_premises: service_progress_premises(program, signature, identities),
-            calling_plan_report_fingerprint: calling_plan
-                .map(|identity| identity.report_fingerprint),
-            calling_plan_commitment: calling_plan.map(|identity| identity.commitment),
-        });
+            identities,
+        ));
+    }
+}
+
+fn project_service_method(
+    program: &checked_trees::typed_trees::TypedTrees,
+    calling_plans: &[BoundaryCallingPlanRealization],
+    scope: &AppliedTraitScope<'_>,
+    policy_owner: symbols::SymbolHandle,
+    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
+    signature: &checked_trees::typed_trees::signature::StateSignature,
+    requirement_identity: effects::provider_plan::ProviderIdentityId,
+    identities: &mut ProviderIdentityTable,
+) -> ServiceMethod {
+    let trait_definition = scope.declaration;
+    let calling_plan = calling_plans.iter().find(|application| {
+        application.boundary_trait == policy_owner
+            && application.boundary_arguments == boundary_arguments
+            && application.requirement_machine == signature.symbol
+    });
+    ServiceMethod {
+        completion:
+            checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                program,
+                signature.symbol,
+            ),
+        name: signature.name.as_str().to_owned(),
+        requirement_owner: program.trait_declaration_path(trait_definition),
+        requirement_owner_package_identity: program
+            .symbols
+            .symbol_package_identity(trait_definition.symbol),
+        requirement_identity,
+        parameter_count: program.state_signature_parameters(signature).iter().count(),
+        parameter_type_identities: program
+            .state_signature_parameters(signature)
+            .iter()
+            .map(|parameter| {
+                identities.intern(
+                    &program
+                        .type_identity_text(scope.type_identity(program, parameter.type_reference))
+                        .unwrap_or_default(),
+                )
+            })
+            .collect(),
+        entry_claims: service_entry_claims(program, scope, signature, identities),
+        has_result: signature.return_type.is_valid(),
+        result_type_identity: signature
+            .return_type
+            .is_valid()
+            .then(|| {
+                identities.intern(
+                    &program
+                        .type_identity_text(scope.type_identity(program, signature.return_type))
+                        .unwrap_or_default(),
+                )
+            })
+            .unwrap_or_default(),
+        result_claims: service_result_claims(program, scope, signature),
+        service_reach: service_reach_names(program, trait_definition, signature),
+        synchronous_invocations: synchronous_invocation_names(program, signature),
+        may_suspend: signature.suspends,
+        may_block: signature.blocks,
+        terminates_guarantee: signature.termination_guarantee.promises_termination(),
+        termination_premises: service_progress_premises(program, signature, identities),
+        calling_plan_report_fingerprint: calling_plan.map(|identity| identity.report_fingerprint),
+        calling_plan_commitment: calling_plan.map(|identity| identity.commitment),
     }
 }
 

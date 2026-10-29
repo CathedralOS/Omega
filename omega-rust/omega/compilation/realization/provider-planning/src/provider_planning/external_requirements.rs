@@ -42,7 +42,12 @@ pub(super) fn derive(
                     let identity = typed.trait_requirement_callable_identity_text(owner, signature);
                     plan.rows.iter().any(|row| {
                         matches!(row.binding, ProviderBinding::Import { .. })
-                            && plan.identities.text(row.requirement_identity) == identity
+                            && (plan.identities.text(row.requirement_identity) == identity
+                                || plan.identities.text(row.requirement_identity)
+                                    == typed.trait_requirement_callable_identity_text(
+                                        owner,
+                                        application.signature,
+                                    ))
                     })
                 })
         }) {
@@ -66,13 +71,6 @@ pub(super) fn derive(
             let Some((owner, signature)) = typed.trait_machine_signature(template) else {
                 continue;
             };
-            if typed.trait_requirement_callable_identity_text(owner, signature)
-                != plan.identities.text(row.requirement_identity)
-            {
-                return Err(
-                    "selected Import template identity disagrees with its provenance".into(),
-                );
-            }
             let native_scope = match retained.provider.row_realizations[index] {
                 crate::ProviderRowOrigin::BuildNative {
                     trait_scope,
@@ -81,6 +79,21 @@ pub(super) fn derive(
                 } => Some((trait_scope, closed_requirement)),
                 _ => None,
             };
+            let source_signature = match native_scope.and_then(|(_, closed)| closed) {
+                Some(closed) => typed
+                    .closed_requirement_application(closed)
+                    .filter(|application| application.template == template)
+                    .map(|application| application.signature)
+                    .ok_or("selected Import lost its exact closed callable application")?,
+                None => signature,
+            };
+            if typed.trait_requirement_callable_identity_text(owner, source_signature)
+                != plan.identities.text(row.requirement_identity)
+            {
+                return Err(
+                    "selected Import callable identity disagrees with its provenance".into(),
+                );
+            }
             let native = native_scope.is_some();
             let realization = retained.provider.row_realizations[index]
                 .machine()
@@ -158,6 +171,24 @@ pub(super) fn derive(
                             ))
                 })
             {
+                // A family intent supplies only coordinates not already
+                // owned by a selected exact named-map application. Keep the
+                // original family receipt; no additional Build choice exists.
+                if native
+                    && provenance.iter().any(|other| {
+                        other.plan.target == plan.target
+                            && other.provider.provider_type.is_some_and(|map| {
+                                crate::service_schema::conformance_covers_requirement_application(
+                                    typed,
+                                    map,
+                                    template,
+                                    application.signature.symbol,
+                                )
+                            })
+                    })
+                {
+                    continue;
+                }
                 let required = typed.state_signature_type_parameters(signature);
                 let actual =
                     realization.map(|realization| typed.machine_type_parameters(realization));
