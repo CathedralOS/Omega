@@ -361,8 +361,4 @@ failed_display!(
     ExternalDecisionReplayError,
     "external Psi decision replay failed"
 );
-
-impl std::error::Error for ExternalDecisionReplayError {}
 failed_display!(OptimizationRunError, "Psi optimization run failed");
-
-impl std::error::Error for OptimizationRunError {}

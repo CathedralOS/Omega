@@ -25,6 +25,8 @@ macro_rules! failed_display {
                 write!(formatter, concat!($message, ": {:?}"), self)
             }
         }
+
+        impl std::error::Error for $type {}
     };
 }
 

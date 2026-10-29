@@ -333,10 +333,7 @@ pub enum LoopInvariantScalarMotionError {
     InvalidLedger(optimization_unit::InvalidPsiTransformationLedger),
 }
 
-impl std::fmt::Display for LoopInvariantScalarMotionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "loop-invariant scalar motion failure: {self:?}")
-    }
-}
-
-impl std::error::Error for LoopInvariantScalarMotionError {}
+failed_display!(
+    LoopInvariantScalarMotionError,
+    "loop-invariant scalar motion failure"
+);
