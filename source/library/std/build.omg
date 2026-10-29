@@ -708,5 +708,4 @@ machine build(builder: &mut Build) {
         },
     });
 
- Build::bind<WindowsConsoleIo::exit_process>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" } });
 }

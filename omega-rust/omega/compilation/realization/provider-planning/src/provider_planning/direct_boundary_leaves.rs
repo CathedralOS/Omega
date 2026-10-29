@@ -34,7 +34,7 @@ pub(crate) fn derive(
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     opaque: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<DirectBoundaryCandidate>, Vec<Diagnostic>> {
-    let mut leaves = Vec::<DirectBoundaryCandidate>::new();
+    let mut projections = Vec::new();
     for candidate in candidates {
         for (position, row) in candidate.plan.rows.iter().enumerate() {
             if !matches!(
@@ -47,124 +47,133 @@ pub(crate) fn derive(
             ) {
                 continue;
             }
-            let Some(machine) = candidate
+            if let Some(machine) = candidate
                 .provenance
                 .row_realizations
                 .get(position)
                 .and_then(|origin| origin.machine())
                 .and_then(|symbol| typed.machine_by_symbol(symbol))
-            else {
-                continue;
-            };
-            if machine.body_is_present {
-                continue;
+                .filter(|machine| !machine.body_is_present)
+            {
+                projections.push((candidate, position, machine));
             }
-            let Some(identity) = typed.machine_callable_identity_text(machine) else {
-                return Err(vec![Diagnostic::error(
-                    "boundary leaf has no exact callable identity",
-                )]);
-            };
-            let requirement = candidate
+        }
+    }
+    // A sealed semantic declaration can consume explicit foreign backing for
+    // its exact requirement. Project the already-normalized native row, not a
+    // synthetic forwarding machine or another locator/signature evaluation.
+    for machine in typed.machines() {
+        if let Some(backing) =
+            super::native_catalogue_backing::resolve(typed, machine, target, candidates)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            projections.push((backing.candidate, backing.row, machine));
+        }
+    }
+    let mut leaves = Vec::<DirectBoundaryCandidate>::new();
+    for (candidate, position, machine) in projections {
+        let row = &candidate.plan.rows[position];
+        let Some(identity) = typed.machine_callable_identity_text(machine) else {
+            return Err(vec![Diagnostic::error(
+                "boundary leaf has no exact callable identity",
+            )]);
+        };
+        let requirement = candidate
+            .plan
+            .identities
+            .text(row.requirement_identity)
+            .to_owned();
+        let mut original = candidate.clone();
+        original.plan.rows = vec![row.clone()];
+        original.plan.schema.methods.retain(|method| {
+            candidate
                 .plan
-                .identities
-                .text(row.requirement_identity)
-                .to_owned();
-            let mut original = candidate.clone();
-            original.plan.rows = vec![row.clone()];
-            original.plan.schema.methods.retain(|method| {
-                candidate
-                    .plan
-                    .schema
-                    .identity_text(method.requirement_identity)
-                    == requirement
-            });
-            original.provenance.row_requirements =
-                vec![candidate.provenance.row_requirements[position]];
-            original.provenance.row_realizations =
-                vec![crate::ProviderRowOrigin::Machine(machine.symbol)];
-            original.provenance.row_target_machine_origins =
-                vec![candidate.provenance.row_target_machine_origins[position].clone()];
-            original.provenance.row_placed_accessors =
-                vec![candidate.provenance.row_placed_accessors[position].clone()];
-            let mut semantic_plan = original.plan.clone();
-            semantic_plan.schema = candidate.plan.schema.clone();
-            let plan = backend_plan::DirectBoundaryLeaf::project_plan(
-                &semantic_plan,
-                &identity,
-                &identity,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let execution = if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
-                backend_plan::DirectBoundaryExecution::Intrinsic(None)
-            } else {
-                // Only foreign leaves consume ABI extraction. Intrinsics close
-                // against their original semantic schema during admission.
-                let mut external_binding =
-                    super::external_binding_rows::extract_native_external_binding_rows(
-                        target,
-                        native_target,
-                        std::slice::from_ref(&original.plan),
-                        std::slice::from_ref(&original),
-                        calling_plans,
-                        typed,
-                        opaque,
-                    )
-                    .and_then(|mut rows| {
-                        if rows.len() != 1 {
-                            return Err(vec![Diagnostic::error(
-                                "foreign leaf does not retain one normalized external binding",
-                            )]);
-                        }
-                        rows.pop().ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "foreign leaf lost its normalized external binding",
-                            )]
-                        })
-                    });
-                if let Ok(binding) = &mut external_binding {
-                    binding.trait_name = identity.clone();
-                    binding.requirement_identity = identity.clone();
-                    // The physical row belongs to the projected callable plan,
-                    // not the original whole-provider namespace. Original contract
-                    // and ABI provenance remain in the satisfied schema and row.
-                    binding.table_type = plan.provider_type.clone();
-                }
-                backend_plan::DirectBoundaryExecution::Foreign(external_binding)
-            };
-            // A foreign leaf must join the Terminal boundary-machine catalog,
-            // whose physical declaration is published only under an exact
-            // hermetic owner (package digest or toolchain source). An intrinsic
-            // leaf closes from this settlement -- plan, satisfied schema and
-            // row -- and its native projection is optional by construction
-            // (`DirectBoundaryExecution::Intrinsic`), so a declaration authored
-            // in this compilation's own root program keeps its exact
-            // program-local coordinate instead of failing a join the catalog
-            // can never serve.
-            let declaration_identity =
-                match typed.normalized_hermetic_symbol_identity(machine.symbol) {
-                    Ok(identity) => identity,
-                    Err(_) if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) => {
-                        format!(
-                            "program-local::{}",
-                            typed.symbols.display_path(machine.symbol, "::")
-                        )
+                .schema
+                .identity_text(method.requirement_identity)
+                == requirement
+        });
+        original.provenance.row_requirements =
+            vec![candidate.provenance.row_requirements[position]];
+        original.provenance.row_realizations =
+            vec![candidate.provenance.row_realizations[position]];
+        original.provenance.row_target_machine_origins =
+            vec![candidate.provenance.row_target_machine_origins[position].clone()];
+        original.provenance.row_placed_accessors =
+            vec![candidate.provenance.row_placed_accessors[position].clone()];
+        let mut semantic_plan = original.plan.clone();
+        semantic_plan.schema = candidate.plan.schema.clone();
+        let plan =
+            backend_plan::DirectBoundaryLeaf::project_plan(&semantic_plan, &identity, &identity)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let execution = if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
+            backend_plan::DirectBoundaryExecution::Intrinsic(None)
+        } else {
+            // Only foreign leaves consume ABI extraction. Intrinsics close
+            // against their original semantic schema during admission.
+            let mut external_binding =
+                super::external_binding_rows::extract_native_external_binding_rows(
+                    target,
+                    native_target,
+                    std::slice::from_ref(&original.plan),
+                    std::slice::from_ref(&original),
+                    calling_plans,
+                    typed,
+                    opaque,
+                )
+                .and_then(|mut rows| {
+                    if rows.len() != 1 {
+                        return Err(vec![Diagnostic::error(
+                            "foreign leaf does not retain one normalized external binding",
+                        )]);
                     }
-                    Err(reason) => return Err(vec![Diagnostic::error(reason)]),
-                };
-            let leaf = backend_plan::DirectBoundaryLeaf {
-                declaration_identity,
-                callable_identity: identity,
-                semantic_plan,
-                plan,
-                execution,
-            };
-            let retained = DirectBoundaryCandidate {
-                leaf,
-                provenance: original.provenance,
-            };
-            if !leaves.contains(&retained) {
-                leaves.push(retained);
+                    rows.pop().ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "foreign leaf lost its normalized external binding",
+                        )]
+                    })
+                });
+            if let Ok(binding) = &mut external_binding {
+                binding.trait_name = identity.clone();
+                binding.requirement_identity = identity.clone();
+                // The physical row belongs to the projected callable plan,
+                // not the original whole-provider namespace. Original contract
+                // and ABI provenance remain in the satisfied schema and row.
+                binding.table_type = plan.provider_type.clone();
             }
+            backend_plan::DirectBoundaryExecution::Foreign(external_binding)
+        };
+        // A foreign leaf must join the Terminal boundary-machine catalog,
+        // whose physical declaration is published only under an exact
+        // hermetic owner (package digest or toolchain source). An intrinsic
+        // leaf closes from this settlement -- plan, satisfied schema and
+        // row -- and its native projection is optional by construction
+        // (`DirectBoundaryExecution::Intrinsic`), so a declaration authored
+        // in this compilation's own root program keeps its exact
+        // program-local coordinate instead of failing a join the catalog
+        // can never serve.
+        let declaration_identity = match typed.normalized_hermetic_symbol_identity(machine.symbol) {
+            Ok(identity) => identity,
+            Err(_) if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) => {
+                format!(
+                    "program-local::{}",
+                    typed.symbols.display_path(machine.symbol, "::")
+                )
+            }
+            Err(reason) => return Err(vec![Diagnostic::error(reason)]),
+        };
+        let leaf = backend_plan::DirectBoundaryLeaf {
+            declaration_identity,
+            callable_identity: identity,
+            semantic_plan,
+            plan,
+            execution,
+        };
+        let retained = DirectBoundaryCandidate {
+            leaf,
+            provenance: original.provenance,
+        };
+        if !leaves.contains(&retained) {
+            leaves.push(retained);
         }
     }
     Ok(leaves)

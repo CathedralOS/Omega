@@ -21,6 +21,7 @@ mod external_binding_rows;
 mod external_requirements;
 mod independent_components;
 mod installation_reach;
+pub(crate) mod native_catalogue_backing;
 mod native_plan_derivation;
 mod operator_provider_evidence;
 mod provenance_replay;

@@ -1,7 +1,9 @@
 use console;
+use native::hosted;
 
-// Exact windows_x86_64 Console leaves. The named NativeConsole implementation
-// in std/console.omg forwards to these target declarations.
+// Checked Windows Console adapters over the package's explicit DLL bindings.
+// Exit uses the canonical Console semantic leaf and its public requirement's
+// native backing, preserving completion rather than inventing a private promise.
 //
 // Windows has no stable syscall ABI, so every leaf realizes through DLL
 // linkage. Byte I/O uses the MSVCRT descriptor calls, which are unbuffered:
@@ -28,9 +30,6 @@ use omega::language::core::numeric_conversion;
 //   `int _setmode(int fd, int mode)`
 
 
-data WindowsConsoleImports { }
-
-
 // Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
 // -1 is a failed host read. The named trapping conversion rejects that
 // negative status under the published `crashes Trap` contract.
@@ -47,7 +46,6 @@ boundary trait WindowsConsoleIo {
     blocks;
     machine set_mode(descriptor: i32, mode: i32) -> i32
     reaches Console;
-    machine exit_process(return_code: i32) reaches Console;
 }
 
 WindowsConsole satisfies Console {
@@ -100,6 +98,6 @@ WindowsConsole satisfies Console {
     }
 
     machine exit_process(return_code: i32) reaches Console {
-        WindowsConsoleIo::exit_process(return_code);
+        native::hosted::console_exit_process(return_code);
     }
 }
