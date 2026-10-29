@@ -20,6 +20,14 @@ use semantic_vocabulary::IntegerSign;
 /// `x1` into `x3` with scratch `x4`), written as assembly by hand from the
 /// realization design and assembled independently with Apple clang 17; not
 /// derived from this encoder.
+const fn convert_words(
+    source: IntegerSign,
+    carrier: SaturatingCarrier,
+    words: &'static [u32],
+) -> (TrappingOperation, SaturatingCarrier, &'static [u32]) {
+    (TrappingOperation::Convert { source }, carrier, words)
+}
+
 const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72] = [
     (
         TrappingOperation::Add,
@@ -441,115 +449,79 @@ const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72]
         SaturatingCarrier::U64,
         &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::I8,
         &[0xeb21_803f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::I16,
         &[0xeb21_a03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::I32,
         &[0xeb21_c03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
-        SaturatingCarrier::I64,
-        &[0xaa01_03e3],
-    ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(IntegerSign::Signed, SaturatingCarrier::I64, &[0xaa01_03e3]),
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::U8,
         &[0xf278_dc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::U16,
         &[0xf270_bc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::U32,
         &[0xf260_7c3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Signed,
-        },
+    convert_words(
+        IntegerSign::Signed,
         SaturatingCarrier::U64,
         &[0xf241_003f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::I8,
         &[0xf279_e03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::I16,
         &[0xf271_c03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::I32,
         &[0xf261_803f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::I64,
         &[0xf241_003f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::U8,
         &[0xf278_dc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::U16,
         &[0xf270_bc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::U32,
         &[0xf260_7c3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
     ),
-    (
-        TrappingOperation::Convert {
-            source: IntegerSign::Unsigned,
-        },
+    convert_words(
+        IntegerSign::Unsigned,
         SaturatingCarrier::U64,
         &[0xaa01_03e3],
     ),
