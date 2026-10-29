@@ -1,0 +1,6 @@
+{
+  "decisions": 389,
+  "review_before_sha256": "faa6eeb241c22693f277ab1bb1a9c721283e0eacc38f813383be06e00cf37913",
+  "review_after_sha256": "91c67f8e20e35296b65a9c0c68f1bf555c5f34a37373fe3afc4433e0c99f7594",
+  "scope": "Fixed local Dungeon and repository standard library; console EOF execution; acceptance records project permission, not a full source audit"
+}

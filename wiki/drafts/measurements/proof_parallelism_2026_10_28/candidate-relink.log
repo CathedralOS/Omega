@@ -1,0 +1,2630 @@
+build_slot: waiting for one of 2 slot(s); held by ['slot-0', 'slot-1']
+build_slot: acquired slot 1 after 233s
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\arena.rs:13:5
+   |
+13 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\handle\handle_span.rs:1:5
+  |
+1 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\paged_arena_set\mod.rs:7:5
+  |
+7 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\paged_arena_set\page.rs:10:5
+   |
+10 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\handle\mod.rs:8:5
+  |
+8 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+  --> omega-rust\psi\foundation\arena\src\hierarchy_arena\mod.rs:11:5
+   |
+11 | use compiler_storage::Record;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `compiler_storage::Record`
+ --> omega-rust\psi\foundation\arena\src\ordered_root_arena\mod.rs:1:5
+  |
+1 | use compiler_storage::Record;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `is_consistent` is never used
+  --> omega-rust\omega\foundation\optimization-core\src\optimization_core\rollback\receipt.rs:55:19
+   |
+20 | impl OptimizationRollbackReceipt {
+   | -------------------------------- method in this implementation
+...
+55 |     pub(crate) fn is_consistent(&self) -> bool {
+   |                   ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `arena` (lib) generated 7 warnings
+warning: `optimization-core` (lib) generated 1 warning
+warning: `optimization-core` (lib) generated 1 warning (1 duplicate)
+   Compiling compiler v0.1.0 (P:\omega-rust\omega\compilation\driver)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:172:13
+    |
+172 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\foundation\diagnostics\src\diagnostic.rs:183:13
+    |
+183 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `verify_macos_cache_ancestor_acl_custody`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tree.rs:8:50
+  |
+8 |     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
+  |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `verify_macos_cache_ancestor_acl_custody` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\custody\platform.rs:358:15
+    |
+358 | pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `resolve_git_source` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\mod.rs:65:15
+   |
+65 | pub(crate) fn resolve_git_source(
+   |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_git_workspace_member` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\workspace_member.rs:29:15
+   |
+29 | pub(crate) fn resolve_git_workspace_member<Planner>(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_local_source_snapshot` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\local\operations.rs:175:15
+    |
+175 | pub(crate) fn resolve_local_source_snapshot(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `custody_identity` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\local\resolution_observations.rs:58:19
+   |
+49 | impl LocalSourceResolutionObservation {
+   | ------------------------------------- method in this implementation
+...
+58 |     pub(crate) fn custody_identity(&self) -> &str {
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: associated function `for_hardened_base` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\source_resolver.rs:54:19
+   |
+39 | impl SourceResolver {
+   | ------------------- associated function in this implementation
+...
+54 |     pub(crate) fn for_hardened_base(
+   |                   ^^^^^^^^^^^^^^^^^
+
+warning: `diagnostics` (lib) generated 2 warnings
+warning: `package-source` (lib) generated 7 warnings (run `cargo fix --lib -p package-source` to apply 1 suggestion)
+warning: method `matches_exact_uefi_x64_entry_stack_application` is never used
+  --> omega-rust\omega\compilation\backend\target\src\target_semantics\mod.rs:88:19
+   |
+60 | impl SymbolicTargetObservationApplication {
+   | ----------------------------------------- method in this implementation
+...
+88 |     pub(crate) fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `matches_exact_uefi_x64_entry_stack_guarantee` is never used
+   --> omega-rust\omega\compilation\backend\target\src\target_semantics\mod.rs:147:19
+    |
+109 | impl TargetEntryStackGuarantee {
+    | ------------------------------ method in this implementation
+...
+147 |     pub(crate) fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_retained_tree` is never used
+  --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:68:15
+   |
+68 | pub(crate) fn validate_retained_tree(
+   |               ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `retained_symlink_target` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:216:4
+    |
+216 | fn retained_symlink_target(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `reserve_materialization_path_bytes` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:225:4
+    |
+225 | fn reserve_materialization_path_bytes(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_retained_executable_mode` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:260:4
+    |
+260 | fn validate_retained_executable_mode(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_retained_symlink_materialization` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:299:4
+    |
+299 | fn validate_retained_symlink_materialization() -> Result<(), BuildStagedOutputMaterializationError>
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `canonical_symlink_target` is never used
+  --> omega-rust\omega\packages\build-output\src\portable_paths\mod.rs:51:15
+   |
+51 | pub(crate) fn canonical_symlink_target(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `OutputTreeEntry` is never used
+  --> omega-rust\omega\packages\build-output\src\tree_from_entries.rs:19:17
+   |
+19 | pub(crate) enum OutputTreeEntry<'entry> {
+   |                 ^^^^^^^^^^^^^^^
+
+warning: associated items `directory`, `regular_file`, `symbolic_link`, and `relative_path` are never used
+  --> omega-rust\omega\packages\build-output\src\tree_from_entries.rs:35:18
+   |
+34 | impl<'entry> OutputTreeEntry<'entry> {
+   | ------------------------------------ associated items in this implementation
+35 |     pub const fn directory(relative_path: &'entry [u8]) -> Self {
+   |                  ^^^^^^^^^
+...
+39 |     pub const fn regular_file(
+   |                  ^^^^^^^^^^^^
+...
+51 |     pub const fn symbolic_link(relative_path: &'entry [u8], target: &'entry [u8]) -> Self {
+   |                  ^^^^^^^^^^^^^
+...
+58 |     const fn relative_path(self) -> &'entry [u8] {
+   |              ^^^^^^^^^^^^^
+
+warning: enum `NamespaceEntryKind` is never used
+  --> omega-rust\omega\packages\build-output\src\tree_from_entries.rs:68:6
+   |
+68 | enum NamespaceEntryKind {
+   |      ^^^^^^^^^^^^^^^^^^
+
+warning: function `from_entries` is never used
+  --> omega-rust\omega\packages\build-output\src\tree_from_entries.rs:82:15
+   |
+82 | pub(crate) fn from_entries(
+   |               ^^^^^^^^^^^^
+
+warning: `target` (lib) generated 2 warnings
+warning: `build-output` (lib) generated 10 warnings
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\representations\terminal-psi\src\terminal_module\identity\table.rs:296:13
+    |
+296 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\representations\terminal-psi\src\terminal_module\identity\table.rs:305:13
+    |
+305 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `into_model` is never used
+  --> omega-rust\omega\compilation\backend\register-model\src\register_model.rs:98:19
+   |
+89 | impl ValidatedPhysicalRegisterModel {
+   | ----------------------------------- method in this implementation
+...
+98 |     pub(crate) fn into_model(self) -> PhysicalRegisterModel {
+   |                   ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `terminal-psi` (lib) generated 2 warnings
+warning: `register-model` (lib) generated 1 warning
+warning: function `canonicalize_data_const_expression` is never used
+    --> omega-rust\psi\compilation\pipeline\02_syntax-trees-to-symbol-resolved-trees\src\preparation\generic_data\const_evaluation\values.rs:1506:45
+     |
+1506 | pub(in crate::preparation::generic_data) fn canonicalize_data_const_expression(
+     |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `syntax-trees-to-symbol-resolved-trees` (lib) generated 1 warning
+warning: unused doc comment
+   --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\facts\contract_plans.rs:231:1
+    |
+231 | / /// Domain-separated commitment to one machine's complete canonical public
+232 | | /// contract, declared through `typed_trees`'s shared digest carrier.
+    | |_--------------------------------------------------------------------^
+    |   |
+    |   rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused doc comment
+  --> omega-rust\psi\compilation\representations\checked-trees\src\checked_trees\operators.rs:30:1
+   |
+30 | / /// Collision-resistant commitment to the exact selected ProviderPlan.
+31 | | ///
+32 | | /// Psi owns this opaque byte carrier so checked operator evidence can retain
+33 | | /// Omega's plan digest without introducing an upward dependency on
+34 | | /// `effects`. The provider-planning boundary is responsible for copying
+35 | | /// the digest from the exact selected plan.
+   | |_-------------------------------------------^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: `checked-trees` (lib) generated 2 warnings
+   Compiling validation v0.1.0 (P:\omega-rust\psi\compilation\checking)
+warning: method `execution_scope` is never used
+    --> omega-rust\omega\compilation\backend\plans\provider-evidence\src\provider_evidence.rs:1316:8
+     |
+1304 | impl SelectedProviderClosureDigestEncoder {
+     | ----------------------------------------- method in this implementation
+...
+1316 |     fn execution_scope(&mut self, scope: crate::ExecutionScope) {
+     |        ^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `endpoint_field`
+    --> omega-rust\psi\interpreter\terminal-interpreter\src\structural_operations.rs:1648:28
+     |
+1648 |         let (leaf, source, endpoint_field, copy_path) = match &operation.kind {
+     |                            ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_endpoint_field`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `whole_scalar_array_frame` is never used
+   --> omega-rust\psi\interpreter\terminal-interpreter\src\element_views.rs:387:19
+    |
+ 88 | impl ElementView {
+    | ---------------- method in this implementation
+...
+387 |     pub(crate) fn whole_scalar_array_frame(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `get_mut` is never used
+  --> omega-rust\psi\interpreter\terminal-interpreter\src\scalar_array\bindings.rs:49:19
+   |
+23 | impl ScalarArrayBindings {
+   | ------------------------ method in this implementation
+...
+49 |     pub(crate) fn get_mut(&mut self, place: &PlaceId) -> Option<&mut TerminalScalarArrayValue> {
+   |                   ^^^^^^^
+
+warning: `effects` (lib) generated 1 warning
+warning: `terminal-interpreter` (lib) generated 3 warnings (run `cargo fix --lib -p terminal-interpreter` to apply 1 suggestion)
+warning: unused import: `canonicalize_provenance`
+  --> omega-rust\omega\compilation\representations\abstract-operations\optimization-unit\semantics\src\candidates\field_value_specialization\replay.rs:19:5
+   |
+19 |     canonicalize_provenance, land_folded_nodes, retire_node_custody, sweep_output_nodes,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `field_value_accounting`
+  --> omega-rust\omega\compilation\representations\abstract-operations\optimization-unit\semantics\src\candidates\field_value_specialization\replay.rs:26:41
+   |
+26 |     ScalarSubstitution, field_evidence, field_value_accounting, field_value_reads,
+   |                                         ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `optimization-unit-semantics` (lib) generated 2 warnings (run `cargo fix --lib -p optimization-unit-semantics` to apply 2 suggestions)
+warning: unused import: `register_model::RegisterOperandAccess`
+  --> omega-rust\omega\compilation\representations\selected-instructions\src\selected_instructions\plan_identity.rs:16:5
+   |
+16 | use register_model::RegisterOperandAccess;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `selected-instructions` (lib) generated 1 warning (run `cargo fix --lib -p selected-instructions` to apply 1 suggestion)
+warning: unused import: `X86_64_ORDINARY_REGISTER_CONSTRAINTS`
+   --> omega-rust\omega\compilation\backend\instruction-set-architectures\isa-x86_64\src\register_model.rs:141:63
+    |
+141 |     X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, X86_64_ORDINARY_REGISTER_CONSTRAINTS,
+    |                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> omega-rust\omega\compilation\backend\instruction-set-architectures\isa-x86_64\src\semantic_unit_wrapper_encoding.rs:308:9
+    |
+308 |     let mut decoded_bindings = bindings;
+    |         ----^^^^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `request`
+   --> omega-rust\omega\compilation\backend\instruction-set-architectures\isa-x86_64\src\semantic_unit_wrapper_encoding.rs:432:33
+    |
+432 | fn expected_function_byte_count(request: X86_64SemanticUnitWrapperEncodingRequest) -> usize {
+    |                                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_request`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `request`
+   --> omega-rust\omega\compilation\backend\instruction-set-architectures\isa-x86_64\src\semantic_unit_wrapper_encoding.rs:475:5
+    |
+475 |     request: X86_64SemanticUnitWrapperEncodingRequest,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_request`
+
+warning: `isa-x86_64` (lib) generated 4 warnings (run `cargo fix --lib -p isa-x86_64` to apply 4 suggestions)
+warning: method `scalar_call_constraint` is never used
+   --> omega-rust\omega\compilation\backend\register-environment\src\lib.rs:171:19
+    |
+106 | impl ValidatedTargetRegisterEnvironment {
+    | --------------------------------------- method in this implementation
+...
+171 |     pub(crate) fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `scalar_call_constraint_key` is never used
+   --> omega-rust\omega\compilation\backend\register-environment\src\catalog.rs:207:21
+    |
+207 | pub(super) const fn scalar_call_constraint_key(
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `register-environment` (lib) generated 2 warnings
+warning: unused import: `argument_rewrites_place`
+  --> omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations\src\representation_specialization\admission.rs:14:25
+   |
+14 | use optimization_unit::{argument_rewrites_place, declared_structural_type, resolved_sole_case};
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `StructuralArgument`
+  --> omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations\src\representation_specialization\admission.rs:16:20
+   |
+16 | use terminal_psi::{StructuralArgument, StructuralPlaceDeclaration};
+   |                    ^^^^^^^^^^^^^^^^^^
+
+warning: method `snapshot` is never used
+  --> omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations\src\validation\context\ranked_cycles\mod.rs:62:18
+   |
+46 | impl ValidatedOptimizerCycleComponents {
+   | -------------------------------------- method in this implementation
+...
+62 |     pub const fn snapshot(&self) -> &OptimizerCycleComponentSnapshot {
+   |                  ^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `abstract-operations-to-abstract-operations` (lib) generated 3 warnings (run `cargo fix --lib -p abstract-operations-to-abstract-operations` to apply 2 suggestions)
+warning: unused import: `LiveDefinitions`
+ --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:7:13
+  |
+7 | use super::{LiveDefinitions, RowSite};
+  |             ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::lowering::structural_type_lookup::StructuralTypeLookup`
+ --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:9:5
+  |
+9 | use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `AbstractFunction`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:10:48
+   |
+10 | use abstract_operations::{AbstractAtomicEvent, AbstractFunction};
+   |                                                ^^^^^^^^^^^^^^^^
+
+warning: unused import: `TerminalPsiProvenance`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\control_flow\atomic_access.rs:12:46
+   |
+12 | use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+   |                                              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `semantic_vocabulary::IeeeFloatFormat`
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\structural_layout.rs:27:5
+   |
+27 | use semantic_vocabulary::IeeeFloatFormat;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `pure_byte_qualifications` is never used
+  --> omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations\src\lowering\structural_type_lookup.rs:52:19
+   |
+16 | impl<'a> StructuralTypeLookup<'a> {
+   | --------------------------------- method in this implementation
+...
+52 |     pub(super) fn pure_byte_qualifications(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `abstract-operations-to-target-operations` (lib) generated 6 warnings (run `cargo fix --lib -p abstract-operations-to-target-operations` to apply 5 suggestions)
+warning: unused import: `StructuralPlaceKind`
+ --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\selection\byte_concatenation_input.rs:7:36
+  |
+7 | use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+  |                                    ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `semantic_vocabulary::StructuralPlaceKind`
+  --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\selection\byte_owner_input.rs:13:5
+   |
+13 | use semantic_vocabulary::StructuralPlaceKind;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `StructuralPlaceKind`
+  --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\selection\owned_block_home_input.rs:14:36
+   |
+14 | use semantic_vocabulary::{BlockId, StructuralPlaceKind};
+   |                                    ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `StructuralPlaceKind`
+  --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\selection\primitive_local_input.rs:15:61
+   |
+15 | use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralPlaceKind};
+   |                                                             ^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around `if` condition
+   --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\selection\storage_origin_input.rs:556:42
+    |
+556 |                     let known_width = if (coordinate.path.is_empty()
+    |                                          ^
+557 |                         || coordinate.path == [terminal_psi::StructuralPathSegment::Referent])
+    |                                                                                              ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+556 ~                     let known_width = if coordinate.path.is_empty()
+557 ~                         || coordinate.path == [terminal_psi::StructuralPathSegment::Referent]
+    |
+
+warning: unused variable: `native`
+  --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\legalization\source\scalar_graph\instruction\call_instructions.rs:20:5
+   |
+20 |     native: &'a TargetOperationPlan,
+   |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_native`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `plan`
+  --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\legalization\source\scalar_graph\instruction\call_instructions.rs:21:5
+   |
+21 |     plan: &'a AbstractOperationPlan,
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_plan`
+
+warning: function `view_argument` is never used
+  --> omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions\src\selection\byte_owner_input.rs:17:15
+   |
+17 | pub(super) fn view_argument(
+   |               ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `target-operations-to-selected-instructions` (lib) generated 8 warnings (run `cargo fix --lib -p target-operations-to-selected-instructions` to apply 7 suggestions)
+warning: unused imports: `AllocatorAvailabilityValidationReceipt`, `RecoveryClassificationValidationReceipt`, and `SpillChoiceValidationReceipt`
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\lib.rs:265:5
+    |
+265 |     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+266 |     FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementValidationReceipt,
+267 |     LiveRangeValidationReceipt, LivenessValidationReceipt, RecoveryClassificationValidationReceipt,
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+268 |     SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PairOperandShape`
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\lib.rs:294:24
+    |
+294 |     LiteralFoldPolicy, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    |                        ^^^^^^^^^^^^^^^^
+
+warning: field `target` is never read
+  --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\rewrites\pre_allocation\catalog.rs:21:5
+   |
+20 | pub(crate) struct PreAllocationRuleCatalogPayload {
+   |                   ------------------------------- field in this struct
+21 |     target: RegisterAllocationRuleTargetApplicability,
+   |     ^^^^^^
+   |
+   = note: `PreAllocationRuleCatalogPayload` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `has_loads` is never read
+   --> omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions\src\rewrites\runtime_spill\slot.rs:194:5
+    |
+186 | struct CandidateAccesses {
+    |        ----------------- field in this struct
+...
+194 |     has_loads: Vec<bool>,
+    |     ^^^^^^^^^
+
+warning: `selected-instructions-to-selected-instructions` (lib) generated 4 warnings (run `cargo fix --lib -p selected-instructions-to-selected-instructions` to apply 2 suggestions)
+warning: unused imports: `assign_source`, `recover_after_pre_allocation`, `recover_after_selected_lowering`, and `recover`
+  --> omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes\src\assignment\runtime_spill\mod.rs:11:5
+   |
+11 |     assign_source, assign_source_reusing, recover,
+   |     ^^^^^^^^^^^^^                         ^^^^^^^
+12 |     recover_after_active_resident_rematerialization, recover_after_declined_fixed_view_probe,
+13 |     recover_after_fixed_view_copies, recover_after_pre_allocation,
+   |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 |     recover_after_pre_allocation_with_reuse, recover_after_selected_lowering,
+   |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `assign_register_homes`
+ --> omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes\src\assignment\transformed\construction.rs:2:56
+  |
+2 | use crate::{RegisterHomeError, ValidatedRegisterHomes, assign_register_homes};
+  |                                                        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `members` is never used
+  --> omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes\src\assignment\home_assignment\compute\domain.rs:27:19
+   |
+20 | impl<'a> AllocationDomain<'a> {
+   | ----------------------------- method in this implementation
+...
+27 |     pub(super) fn members(
+   |                   ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `conflicts_between` is never used
+   --> omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes\src\assignment\home_assignment\compute\prepared_conflicts.rs:609:19
+    |
+ 66 | impl PreparedConflicts {
+    | ---------------------- method in this implementation
+...
+609 |     pub(super) fn conflicts_between(
+    |                   ^^^^^^^^^^^^^^^^^
+
+warning: method `relief` is never used
+   --> omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes\src\assignment\runtime_spill\recovery.rs:590:19
+    |
+426 | impl<'ranges> FailedDomain<'ranges> {
+    | ----------------------------------- method in this implementation
+...
+590 |     pub(super) fn relief(&self, function: usize, register: VirtualRegisterId) -> usize {
+    |                   ^^^^^^
+
+warning: `selected-instructions-to-register-homes` (lib) generated 5 warnings (run `cargo fix --lib -p selected-instructions-to-register-homes` to apply 2 suggestions)
+warning: function `symbol_section_name` is never used
+   --> omega-rust\omega\compilation\backend\object\object-file\src\names\mod.rs:146:15
+    |
+146 | pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `object-file` (lib) generated 1 warning
+warning: method `needed_row_count` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\dynamic_table\dynamic_tags.rs:61:19
+   |
+48 | impl ValidatedElfDynamicTagPlan {
+   | ------------------------------- method in this implementation
+...
+61 |     pub(crate) fn needed_row_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: methods `ordinal`, `kind`, `file_offset`, and `byte_count` are never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\file_assembly\assembled_dynamic_file.rs:57:18
+   |
+56 | impl ElfDynamicFileFragmentPlacement {
+   | ------------------------------------ methods in this implementation
+57 |     pub const fn ordinal(&self) -> u32 {
+   |                  ^^^^^^^
+...
+61 |     pub const fn kind(&self) -> ElfDynamicFileFragmentKind {
+   |                  ^^^^
+...
+65 |     pub const fn file_offset(&self) -> u64 {
+   |                  ^^^^^^^^^^^
+...
+69 |     pub const fn byte_count(&self) -> u64 {
+   |                  ^^^^^^^^^^
+
+warning: method `fragment_placements` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\file_assembly\assembled_dynamic_file.rs:92:19
+   |
+83 | impl ValidatedElfAssembledDynamicFile {
+   | ------------------------------------- method in this implementation
+...
+92 |     pub(crate) fn fragment_placements(&self) -> &[ElfDynamicFileFragmentPlacement] {
+   |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: methods `ordinal`, `byte_offset`, `kind`, and `encoded_field` are never used
+   --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\file_assembly\resolved_procedure_linkage\linkage_fixups.rs:73:18
+    |
+ 72 | impl ElfAppliedProcedureLinkageFixup {
+    | ------------------------------------ methods in this implementation
+ 73 |     pub const fn ordinal(&self) -> u32 {
+    |                  ^^^^^^^
+...
+ 81 |     pub const fn byte_offset(&self) -> usize {
+    |                  ^^^^^^^^^^^
+...
+ 89 |     pub const fn kind(&self) -> ElfAppliedProcedureLinkageKind {
+    |                  ^^^^
+...
+101 |     pub const fn encoded_field(&self) -> u64 {
+    |                  ^^^^^^^^^^^^^
+
+warning: methods `dynamic_symbol_byte_count`, `system_v_hash_byte_count`, `gnu_hash_byte_count`, `symbol_version_byte_count`, and `version_requirement_byte_count` are never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\import_sections\dynamic_section_bytes.rs:58:19
+   |
+45 | impl ValidatedElfDynamicSectionPayloads {
+   | --------------------------------------- methods in this implementation
+...
+58 |     pub(crate) fn dynamic_symbol_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+62 |     pub(crate) fn system_v_hash_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+66 |     pub(crate) fn gnu_hash_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^
+...
+70 |     pub(crate) fn symbol_version_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+74 |     pub(crate) fn version_requirement_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `section_name_seed_byte_count` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\import_sections\dynamic_section_descriptors.rs:76:19
+   |
+67 | impl ValidatedElfDynamicSectionDescriptorPlan {
+   | --------------------------------------------- method in this implementation
+...
+76 |     pub(crate) fn section_name_seed_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `needed_object_count` and `required_version_count` are never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\import_sections\dynamic_sections.rs:55:19
+   |
+50 | impl ValidatedElfDynamicSectionPlan {
+   | ----------------------------------- methods in this implementation
+...
+55 |     pub(crate) fn needed_object_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^
+...
+79 |     pub(crate) fn required_version_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `section_header_table_byte_size` and `dynamic_section` are never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\load_placement\load_layout\validated_layout.rs:81:19
+   |
+28 | impl ValidatedElfDynamicLoadLayout {
+   | ---------------------------------- methods in this implementation
+...
+81 |     pub(crate) fn section_header_table_byte_size(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+85 |     pub(crate) fn dynamic_section(&self) -> &ElfPlacedDynamicSection {
+   |                   ^^^^^^^^^^^^^^^
+
+warning: method `applied_placements` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\load_placement\placed_section_headers.rs:60:19
+   |
+51 | impl ValidatedElfPlacedSectionHeaderTable {
+   | ----------------------------------------- method in this implementation
+...
+60 |     pub(crate) fn applied_placements(&self) -> &[ElfAppliedSectionHeaderPlacement] {
+   |                   ^^^^^^^^^^^^^^^^^^
+
+warning: enum `ElfDynamicAddressApplicationKind` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\load_placement\resolved_dynamic_table.rs:60:17
+   |
+60 | pub(crate) enum ElfDynamicAddressApplicationKind {
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\load_placement\resolved_dynamic_table.rs:95:18
+    |
+ 94 | impl ElfAppliedDynamicAddress {
+    | ----------------------------- methods in this implementation
+ 95 |     pub const fn row_ordinal(&self) -> u32 {
+    |                  ^^^^^^^^^^^
+...
+ 99 |     pub const fn storage_section_index(&self) -> u32 {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+103 |     pub const fn byte_offset(&self) -> usize {
+    |                  ^^^^^^^^^^^
+...
+107 |     pub const fn byte_width(&self) -> u8 {
+    |                  ^^^^^^^^^^
+...
+111 |     pub const fn kind(&self) -> ElfDynamicAddressApplicationKind {
+    |                  ^^^^
+...
+115 |     pub const fn target(&self) -> ElfDynamicAddressApplicationTarget {
+    |                  ^^^^^^
+...
+119 |     pub const fn target_section_index(&self) -> u32 {
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+123 |     pub const fn target_section_kind(&self) -> ElfPlacedDynamicSectionKind {
+    |                  ^^^^^^^^^^^^^^^^^^^
+...
+127 |     pub const fn value(&self) -> u64 {
+    |                  ^^^^^
+
+warning: method `applied_addresses` is never used
+   --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\load_placement\resolved_dynamic_table.rs:155:19
+    |
+146 | impl ValidatedElfResolvedDynamicTable {
+    | ------------------------------------- method in this implementation
+...
+155 |     pub(crate) fn applied_addresses(&self) -> &[ElfAppliedDynamicAddress] {
+    |                   ^^^^^^^^^^^^^^^^^
+
+warning: methods `logical_slot_count` and `direct_call_site_count` are never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\procedure_linkage\dynamic_import_relocations.rs:54:19
+   |
+49 | impl ValidatedElfProcedureLinkageRelocationPlan {
+   | ----------------------------------------------- methods in this implementation
+...
+54 |     pub(crate) fn logical_slot_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^
+...
+62 |     pub(crate) fn direct_call_site_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `appended_descriptor_count` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\procedure_linkage\dynamic_linkage_descriptors.rs:60:19
+   |
+51 | impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
+   | ------------------------------------------------------ method in this implementation
+...
+60 |     pub(crate) fn appended_descriptor_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `procedure_linkage_byte_count`, `procedure_got_byte_count`, `fixup_count`, and `placement_constraint_count` are never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\procedure_linkage\dynamic_linkage_templates\template_plans.rs:27:19
+   |
+22 | impl ValidatedElfProcedureLinkageTemplatePlan {
+   | --------------------------------------------- methods in this implementation
+...
+27 |     pub(crate) fn procedure_linkage_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+31 |     pub(crate) fn procedure_got_byte_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+43 |     pub(crate) fn fixup_count(&self) -> usize {
+   |                   ^^^^^^^^^^^
+...
+47 |     pub(crate) fn placement_constraint_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `placement_fixup_count` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\section_headers\section_header_bytes.rs:57:19
+   |
+44 | impl ValidatedElfSectionHeaderTableTemplate {
+   | ------------------------------------------- method in this implementation
+...
+57 |     pub(crate) fn placement_fixup_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `dynamic_fixup_count` is never used
+  --> omega-rust\omega\compilation\backend\images\image-elf\src\dynamic_executable\section_headers\section_payload_roster.rs:47:19
+   |
+39 | impl ValidatedElfIndexedSectionPayloadPlan {
+   | ------------------------------------------ method in this implementation
+...
+47 |     pub(crate) fn dynamic_fixup_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^^^^^^
+
+warning: `image-elf` (lib) generated 17 warnings
+warning: unused import: `std::collections::BTreeSet`
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact.rs:10:5
+   |
+10 | use std::collections::BTreeSet;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated function `from_validated_fragment_publication` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact.rs:612:19
+    |
+607 | impl NativePhysicalEvidenceScope {
+    | -------------------------------- associated function in this implementation
+...
+612 |     pub(crate) fn from_validated_fragment_publication(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `validated_optimized_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1114:4
+     |
+1114 | fn validated_optimized_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_fragment_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1131:4
+     |
+1131 | fn validated_fragment_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `identity` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:45:25
+   |
+35 | impl FragmentPublicationBinding {
+   | ------------------------------- method in this implementation
+...
+45 |     pub(super) const fn identity(&self) -> &[u8; 32] {
+   |                         ^^^^^^^^
+
+warning: function `derive_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:67:15
+   |
+67 | pub(crate) fn derive_scope(
+   |               ^^^^^^^^^^^^
+
+warning: function `validate_final_plan` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:145:4
+    |
+145 | fn validate_final_plan(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `OPTIMIZED_SCOPE_IDENTITY_DOMAIN` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:19:7
+   |
+19 | const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ValidatedProjectionCoordinates` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:23:8
+   |
+23 | struct ValidatedProjectionCoordinates {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `D29ReferenceCoordinate` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:30:8
+   |
+30 | struct D29ReferenceCoordinate {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_validated_optimization_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:35:15
+   |
+35 | pub(crate) fn derive_validated_optimization_scope(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_optimized_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:66:4
+   |
+66 | fn derive_optimized_scope(
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_projection_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:193:4
+    |
+193 | fn optimized_projection_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_scope_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:214:4
+    |
+214 | fn optimized_scope_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_operator_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:227:4
+    |
+227 | fn optimized_operator_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_boundary_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:243:4
+    |
+243 | fn optimized_boundary_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_authority_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:261:4
+    |
+261 | fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `terminal_identity_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:269:4
+    |
+269 | fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `native-artifact` (lib) generated 18 warnings (run `cargo fix --lib -p native-artifact` to apply 1 suggestion)
+warning: variable does not need to be mutable
+   --> omega-rust\omega\application\native-provider-runtime\src\native_provider_runtime.rs:109:13
+    |
+109 |         let mut builder = std::fs::DirBuilder::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `native-provider-runtime` (lib) generated 1 warning (run `cargo fix --lib -p native-provider-runtime` to apply 1 suggestion)
+warning: unused import: `AppliedTraitScope`
+ --> omega-rust\psi\compilation\checking\src\declarations\traits\conformance\bounds.rs:9:37
+  |
+9 | use typed_trees::trait_definition::{AppliedTraitScope, TraitDefinition};
+  |                                     ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `symbols::SymbolHandle`
+ --> omega-rust\psi\compilation\checking\src\declarations\traits\conformance\signature_matching\region_application.rs:8:5
+  |
+8 | use symbols::SymbolHandle;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::BTreeSet`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\call_cycles.rs:14:5
+   |
+14 | use std::collections::BTreeSet;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `diagnostics::Diagnostic`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\call_cycles\rank_components.rs:13:5
+   |
+13 | use diagnostics::Diagnostic;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MachineSymbols`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\parameter_relative_origins.rs:6:36
+  |
+6 | use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+  |                                    ^^^^^^^^^^^^^^
+
+warning: unused import: `symbols::SymbolHandle`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\place_paths\scalar_coordinates.rs:11:5
+   |
+11 | use symbols::SymbolHandle;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MachineSymbols`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\reference_subjects.rs:5:32
+  |
+5 |     FrameSourcePlace, Machine, MachineSymbols, State, StateParameter, StatementNode,
+  |                                ^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_calls\slot_relations.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_calls\instantiation.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::super as frames`
+ --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_calls\transfers.rs:4:5
+  |
+4 | use super::super as frames;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `captured_reference_projection_sources`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\stored_origins.rs:60:44
+   |
+60 |     captured_reference_projection_origins, captured_reference_projection_sources,
+   |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `InvocationReferenceSubject`
+  --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames.rs:77:66
+   |
+77 | pub(crate) use demand::{CallFrameCaches, InvocationEntrySubject, InvocationReferenceSubject};
+   |                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `immutable_runtime_parameter`
+   --> omega-rust\psi\compilation\checking\src\machine_calls\calls.rs:920:5
+    |
+920 |     immutable_runtime_parameter,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+   --> omega-rust\psi\compilation\checking\src\machine_calls\static_bindings.rs:651:16
+    |
+651 |         && let (TypeParameterKind::Const {
+    |                ^
+...
+656 |         }) = parameter.kind
+    |          ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+651 ~         && let TypeParameterKind::Const {
+652 |             type_reference: expected,
+...
+655 |             type_reference: expected,
+656 ~         } = parameter.kind
+    |
+
+warning: unused import: `same_value`
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:32:46
+   |
+32 | pub(super) use congruence::{ValueComparison, same_value};
+   |                                              ^^^^^^^^^^
+
+warning: unused import: `BTreeMap`
+ --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\ranking_range\lengths.rs:9:5
+  |
+9 |     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
+  |     ^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment.rs:2551:28
+     |
+2551 |                     && let (typed_trees::data::TypeParameterKind::Const { type_reference }
+     |                            ^
+2552 |                     | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+     |                                                                                     ^
+     |
+help: remove these parentheses
+     |
+2551 ~                     && let typed_trees::data::TypeParameterKind::Const { type_reference }
+2552 ~                     | typed_trees::data::TypeParameterKind::Value { type_reference } =
+     |
+
+warning: unused imports: `ContentBackingAddressGoal`, `ContentConservationImplication`, `completed_value_content_conservation_dependencies`, `completed_value_has_content_conservation_candidate`, `completed_value_preserves_entry_projection`, `completed_value_proves_backing_addresses`, and `completed_value_proves_content_conservation`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:135:34
+    |
+135 |     ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+136 |     ContentConservationImplication, completed_value_content_conservation_dependencies,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+137 |     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+138 |     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CapturedIntegerOperation`, `CapturedNumericObservations`, `CapturedScalarAssociation`, `CapturedScalarObservation`, `NumericObservationDemand`, and `captured_numeric_observations`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:142:5
+    |
+142 |     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarAssociation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^
+143 |     CapturedScalarObservation, NumericObservationDemand, captured_numeric_observations,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `anonymous_integer_math_literal`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:150:5
+    |
+150 |     anonymous_integer_math_literal, anonymous_integer_value, proof_integer_expression,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `is_citation_statement`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment.rs:189:64
+    |
+189 |     collect_citation_equations, instantiated_fact_established, is_citation_statement,
+    |                                                                ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around pattern
+  --> omega-rust\psi\compilation\checking\src\value_custody\const_expressions.rs:89:16
+   |
+89 |         if let (TypeParameterKind::Const {
+   |                ^
+...
+94 |         }) = parameter.kind
+   |          ^
+   |
+help: remove these parentheses
+   |
+89 ~         if let TypeParameterKind::Const {
+90 |             type_reference: expected,
+...
+93 |             type_reference: expected,
+94 ~         } = parameter.kind
+   |
+
+warning: unused variable: `dispatched`
+   --> omega-rust\psi\compilation\checking\src\machine_calls\call_cycles\runtime_ranking.rs:187:9
+    |
+187 |     let dispatched = dispatched_implementations(program);
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_dispatched`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+mbx[progress]: 15s elapsed; 0 hits, 0 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: unreachable pattern
+   --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\type_capabilities.rs:222:11
+    |
+212 |         | TypeReferenceNode::DynamicTrait { .. } => false,
+    |           -------------------------------------- matches all the relevant values
+...
+222 |         | TypeReferenceNode::DynamicTrait { .. } => {
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `symbols`
+  --> omega-rust\psi\compilation\checking\src\program_validation\statements\transition_statements.rs:22:55
+   |
+22 |     let (program, machine, state_name, current_state, symbols, writable_roots) = scope.reads();
+   |                                                       ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_symbols`
+
+warning: unused variable: `machine_symbols`
+  --> omega-rust\psi\compilation\checking\src\program_validation\statements\transition_statements.rs:23:9
+   |
+23 |     let machine_symbols = scope.machine_symbols;
+   |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_machine_symbols`
+
+warning: variable does not need to be mutable
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\normal_returns.rs:1552:13
+     |
+1552 |         let mut outcomes: Vec<NormalReturnPath<'program>> = contexts
+     |             ----^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result_presentation`
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\normal_returns.rs:2765:38
+     |
+2765 |         if let (Some(captured), Some(result_presentation)) = (&captured, &result_presentation)
+     |                                      ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_presentation`
+
+warning: type `ReturnedFieldTrace` is more private than the item `structural_judgment::StructuralJudge::returned_field_trace`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment.rs:461:5
+    |
+461 | /     pub(super) returned_field_trace:
+462 | |         Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
+    | |__________________________________________________________________________^ field `structural_judgment::StructuralJudge::returned_field_trace` is reachable at visibility `pub(in crate::proof_contracts::contract_entailment)`
+    |
+note: but type `ReturnedFieldTrace` is only usable at visibility `pub(in crate::proof_contracts::contract_entailment::structural_judgment)`
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\returned_fields.rs:31:1
+    |
+ 31 | pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct ReturnedFieldTrace {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: fields `aliases`, `divergent`, and `stored` are never read
+   --> omega-rust\psi\compilation\checking\src\machine_calls\calls\write_frames\caller_aliases.rs:266:5
+    |
+264 | struct AssignmentEvidence {
+    |        ------------------ fields in this struct
+265 |     target: AssignmentWriteTarget,
+266 |     aliases: Vec<(String, FramePlaceOrigin)>,
+    |     ^^^^^^^
+267 |     divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
+    |     ^^^^^^^^^
+268 |     stored: Vec<StoredLocalOrigins>,
+    |     ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `paths_overlap` is never used
+    --> omega-rust\psi\compilation\checking\src\machine_calls\reference_result_custody\captured_returns.rs:1196:15
+     |
+1196 | pub(super) fn paths_overlap(left: &[facts::PlaceSegment], right: &[facts::PlaceSegment]) -> bool {
+     |               ^^^^^^^^^^^^^
+
+warning: variant `CompletedCall` is never constructed
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:65:5
+   |
+43 | pub(crate) enum Operand {
+   |                 ------- variant in this enum
+...
+65 |     CompletedCall {
+   |     ^^^^^^^^^^^^^
+   |
+   = note: `Operand` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `literal_comparisons` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values.rs:376:8
+    |
+373 | impl Relation {
+    | ------------- method in this implementation
+...
+376 |     fn literal_comparisons(
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `same_value` is never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\arithmetic_domains\ordered_values\congruence.rs:59:55
+   |
+59 | pub(in crate::proof_contracts::arithmetic_domains) fn same_value(
+   |                                                       ^^^^^^^^^^
+
+warning: methods `prove_base_lower_bound` and `prove_scaled_lower_bound` are never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\arithmetic_judgment\difference_matrix.rs:45:19
+   |
+11 | impl<'program> Engine<'program> {
+   | ------------------------------- methods in this implementation
+...
+45 |     pub(super) fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^
+...
+49 |     pub(super) fn prove_scaled_lower_bound(
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `stored_bound` is never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\arithmetic_judgment\difference_matrix\bounds.rs:52:19
+   |
+17 | impl DifferenceBounds {
+   | --------------------- method in this implementation
+...
+52 |     pub(super) fn stored_bound(&self, from: &str, to: &str) -> Option<&BigInt> {
+   |                   ^^^^^^^^^^^^
+
+warning: function `is_empty_body_statement_call` is never used
+  --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\content_conservation.rs:61:15
+   |
+61 | pub(super) fn is_empty_body_statement_call(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `application_is_independent` is never used
+    --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment.rs:1146:19
+     |
+ 564 | impl<'program> StructuralJudge<'program> {
+     | ---------------------------------------- method in this implementation
+...
+1146 |     pub(super) fn application_is_independent(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `for_goal` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\integer_predicates.rs:134:8
+    |
+133 | impl<'program> PreparedIntegerPremises<'program> {
+    | ------------------------------------------------ method in this implementation
+134 |     fn for_goal(&self) -> IntegerObservations<'program> {
+    |        ^^^^^^^^
+
+warning: method `reset_for_goal` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\integer_predicates.rs:195:8
+    |
+194 | impl<'program> IntegerObservations<'program> {
+    | -------------------------------------------- method in this implementation
+195 |     fn reset_for_goal(&mut self, prepared: &PreparedIntegerPremises<'program>) {
+    |        ^^^^^^^^^^^^^^
+
+warning: methods `has_potential_integer_premises`, `potential_integer_premises_len`, and `rewrites_ptr` are never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\integer_predicates.rs:399:60
+    |
+398 | impl<'program> StructuralJudge<'program> {
+    | ---------------------------------------- methods in this implementation
+399 |     pub(in crate::proof_contracts::contract_entailment) fn has_potential_integer_premises(
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+405 |     pub(in crate::proof_contracts::contract_entailment) fn potential_integer_premises_len(
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+920 |     pub(in crate::proof_contracts::contract_entailment) fn rewrites_ptr(&self) -> usize {
+    |                                                            ^^^^^^^^^^^^
+
+warning: method `observe_storage_writes` is never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\storage_effects.rs:323:60
+    |
+216 | impl StructuralJudge<'_> {
+    | ------------------------ method in this implementation
+...
+323 |     pub(in crate::proof_contracts::contract_entailment) fn observe_storage_writes(
+    |                                                            ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `recorded_float_comparison` and `recorded_float_nan_classification` are never used
+   --> omega-rust\psi\compilation\checking\src\proof_contracts\contract_entailment\structural_judgment\value_predicates.rs:642:8
+    |
+ 34 | impl StructuralJudge<'_> {
+    | ------------------------ methods in this implementation
+...
+642 |     fn recorded_float_comparison(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+720 |     fn recorded_float_nan_classification(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+mbx[progress]: 30s elapsed; 0 hits, 0 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling proof v0.1.0 (P:\omega-rust\psi\compilation\proof)
+   Compiling checked-trees-to-lowered-psi v0.1.0 (P:\omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi)
+   Compiling lowered-psi-to-terminal-psi v0.1.0 (P:\omega-rust\psi\compilation\pipeline\07_lowered-psi-to-terminal-psi)
+   Compiling checked-interpreter v0.1.0 (P:\omega-rust\psi\interpreter\checked-interpreter)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (P:\omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees)
+   Compiling representation-planning v0.1.0 (P:\omega-rust\psi\compilation\checking\representation-planning)
+warning: unused import: `is_proposition_call_target`
+ --> omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees\src\declarations\proposition.rs:8:39
+  |
+8 | use crate::expressions::proposition::{is_proposition_call_target, lower_proposition_application};
+  |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ExecutedRootBinding`
+  --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator.rs:37:78
+   |
+37 |     DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+   |                                                                              ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `TypeReferenceNode`
+ --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\execution\states_and_transitions.rs:7:5
+  |
+7 |     TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `STEP_BUDGET`
+  --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter.rs:15:58
+   |
+15 | use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
+   |                                                          ^^^^^^^^^^^
+
+warning: unused import: `Operation`
+  --> omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi\src\emission\mod.rs:16:5
+   |
+16 |     Operation, OperationKind, OperationResult, StructuralAccess, StructuralFieldType,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ClaimTransfer`
+  --> omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi\src\unit\attached_unit.rs:40:37
+   |
+40 |     CheckedUnitEffectOperationPlan, ClaimTransfer, LoweredPsi, LoweringError, MachineContract,
+   |                                     ^^^^^^^^^^^^^
+
+warning: unused import: `CheckedUnitLocalBindingPlan`
+ --> omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi\src\activation_storage.rs:6:59
+  |
+6 |     CheckedUnitCallRoute, CheckedUnitEffectOperationPlan, CheckedUnitLocalBindingPlan,
+  |                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_equality_operands` is never used
+  --> omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees\src\expressions\equality.rs:28:15
+   |
+28 | pub(crate) fn validate_equality_operands(program: &SymbolResolvedTrees) -> Result<(), Diagnostic> {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `validate_equatable_conformances` is never used
+   --> omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees\src\expressions\equatable.rs:342:15
+    |
+342 | pub(crate) fn validate_equatable_conformances(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_case_dispatch_exhaustiveness` is never used
+  --> omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees\src\expressions\exhaustiveness.rs:44:15
+   |
+44 | pub(crate) fn validate_case_dispatch_exhaustiveness(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `mode` is never read
+  --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:66:9
+   |
+64 |     Create {
+   |     ------ field in this variant
+65 |         path: PreparedFilesystemPath,
+66 |         mode: i32,
+   |         ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `mode` is never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:110:9
+    |
+108 |     CreateDir {
+    |     --------- field in this variant
+109 |         path: PreparedFilesystemPath,
+110 |         mode: i32,
+    |         ^^^^
+
+warning: field `mode` is never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:117:9
+    |
+115 |     CreateDirName {
+    |     ------------- field in this variant
+116 |         name: PreparedFilesystemPath,
+117 |         mode: i32,
+    |         ^^^^
+
+warning: field `security_attributes` is never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:178:9
+    |
+175 |     CreateHardLink {
+    |     -------------- field in this variant
+...
+178 |         security_attributes: i64,
+    |         ^^^^^^^^^^^^^^^^^^^
+
+warning: fields `desired_access`, `share_mode`, `security_attributes`, `creation_disposition`, and `flags_and_attributes` are never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:182:9
+    |
+180 |     OpenPathHandle {
+    |     -------------- fields in this variant
+181 |         path: PreparedFilesystemPath,
+182 |         desired_access: u32,
+    |         ^^^^^^^^^^^^^^
+183 |         share_mode: u32,
+    |         ^^^^^^^^^^
+184 |         security_attributes: i64,
+    |         ^^^^^^^^^^^^^^^^^^^
+185 |         creation_disposition: u32,
+    |         ^^^^^^^^^^^^^^^^^^^^
+186 |         flags_and_attributes: u32,
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+warning: field `flags` is never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:199:9
+    |
+195 |     FinalPathNameByHandle {
+    |     --------------------- field in this variant
+...
+199 |         flags: u32,
+    |         ^^^^^
+
+warning: fields `creation` and `last_access` are never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:203:9
+    |
+201 |     SetFileTime {
+    |     ----------- fields in this variant
+202 |         handle: i64,
+203 |         creation: i64,
+    |         ^^^^^^^^
+204 |         last_access: Vec<u8>,
+    |         ^^^^^^^^^^^
+
+warning: fields `reserved`, `length_low`, `length_high`, and `overlapped` are never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:210:9
+    |
+207 |     LockFileEx {
+    |     ---------- fields in this variant
+...
+210 |         reserved: u32,
+    |         ^^^^^^^^
+211 |         length_low: u32,
+    |         ^^^^^^^^^^
+212 |         length_high: u32,
+    |         ^^^^^^^^^^^
+213 |         overlapped: PreparedMutableByteInput,
+    |         ^^^^^^^^^^
+
+warning: fields `offset_low`, `offset_high`, `length_low`, and `length_high` are never read
+   --> omega-rust\psi\interpreter\checked-interpreter\src\interpreter\evaluator\filesystem\preparation\prepared_calls.rs:217:9
+    |
+215 |     UnlockFile {
+    |     ---------- fields in this variant
+216 |         handle: i64,
+217 |         offset_low: u32,
+    |         ^^^^^^^^^^
+218 |         offset_high: u32,
+    |         ^^^^^^^^^^^
+219 |         length_low: u32,
+    |         ^^^^^^^^^^
+220 |         length_high: u32,
+    |         ^^^^^^^^^^^
+
+   Compiling typed-trees-to-typed-trees v0.1.0 (P:\omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees)
+warning: unused import: `TypeReferenceHandle`
+ --> omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees\src\monomorphization\domain_applications.rs:7:46
+  |
+7 | use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+  |                                              ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `inferred_method_arguments` is never used
+  --> omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees\src\monomorphization\requirement_applications\calls.rs:60:4
+   |
+60 | fn inferred_method_arguments(
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `receiver_scope` is never used
+   --> omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees\src\monomorphization\requirement_applications\calls.rs:176:4
+    |
+176 | fn receiver_scope<'p>(
+    |    ^^^^^^^^^^^^^^
+
+warning: function `prepared_occurrence` is never used
+   --> omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees\src\monomorphization\requirement_applications\calls.rs:444:4
+    |
+444 | fn prepared_occurrence(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+mbx[progress]: 45s elapsed; 0 hits, 2 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: `symbol-resolved-trees-to-typed-trees` (lib) generated 4 warnings (run `cargo fix --lib -p symbol-resolved-trees-to-typed-trees` to apply 1 suggestion)
+   Compiling typed-trees-to-checked-trees v0.1.0 (P:\omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees)
+warning: unused import: `borrow_access_place`
+ --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\borrow\loans\call_views.rs:5:36
+  |
+5 | use super::super::accesses::{self, borrow_access_place};
+  |                                    ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `CanonicalPlace`
+ --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\checks\contracts\calls\state_preservation.rs:8:18
+  |
+8 | use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+  |                  ^^^^^^^^^^^^^^
+
+warning: unused import: `ScalarRead`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\checks\contracts\prover\captured_values.rs:11:5
+   |
+11 |     ScalarRead, retain_reads, scalar_preserved_at_values,
+   |     ^^^^^^^^^^
+
+warning: unused import: `machine_adjacency`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\checks\termination.rs:28:24
+   |
+28 | pub(crate) use graph::{machine_adjacency, strongly_connected_components};
+   |                        ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `CheckedUnitStructuralPathSegment`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\scalar_computations\dispatch.rs:12:46
+   |
+12 |     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+   |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `PermissionProvenance`
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\mod.rs:138:49
+    |
+138 |     PermissionEventKind, PermissionEventSource, PermissionProvenance, SemanticDomainId,
+    |                                                 ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `StatementNode`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\atomic_operations.rs:29:54
+   |
+29 |     CheckedUnitStructuralPathSegment, PrimitiveType, StatementNode,
+   |                                                      ^^^^^^^^^^^^^
+
+warning: unused import: `MachineSupplyMode`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\control\mod.rs:37:5
+   |
+37 |     MachineSupplyMode, Multiplicity, PermissionEventSource, StatementNode, SymbolHandle,
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `CheckedScalarDispatchPattern`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\storage_transfers\computations.rs:10:49
+   |
+10 |     CheckedScalarComputationStructuralArgument, CheckedScalarDispatchPattern,
+   |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around block return value
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\types\parameters.rs:159:13
+    |
+159 |             (proof_only.contract_term_carrier(program, parameter.type_reference)
+    |             ^
+...
+163 |                 ))
+    |                  ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+159 ~             proof_only.contract_term_carrier(program, parameter.type_reference)
+160 |                 || validation::mathematical_applications::is_source_evidence_carrier(
+161 |                     program,
+162 |                     parameter.type_reference,
+163 ~                 )
+    |
+
+warning: unused import: `declared_parameter_names`
+ --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\facts\contract_plan_facts.rs:5:64
+  |
+5 |     build_crash_contract_capsules, build_published_crash_plan, declared_parameter_names,
+  |                                                                ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `TypeReferenceNode`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\state_values\qualifications.rs:18:47
+   |
+18 | use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+   |                                               ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `operand_values::captured_reference_places`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\mod.rs:67:16
+   |
+67 | pub(crate) use operand_values::captured_reference_places;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `captured_operand_child_at_path`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\mod.rs:71:5
+   |
+71 |     captured_operand_child_at_path, captured_operand_handle_at_path, captured_operand_values,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `super::local_origins::rebase_storage_region`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\mutation\summary.rs:25:5
+   |
+25 | use super::local_origins::rebase_storage_region;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `family_attached_data_symbol`
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\mod.rs:177:5
+    |
+177 |     family_attached_data_symbol, family_data_binding_parameter, frame_storage_writes,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `typed_trees::expression::ExpressionNode`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\semantic\facts\field_domains.rs:41:5
+   |
+41 | use typed_trees::expression::ExpressionNode;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unnecessary parentheses around `if` condition
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\values\scalar\call_lowering.rs:194:27
+    |
+194 |                 } else if (proof_only.contract_term_carrier(program, target.type_reference)
+    |                           ^
+...
+198 |                     ))
+    |                      ^
+    |
+help: remove these parentheses
+    |
+194 ~                 } else if proof_only.contract_term_carrier(program, target.type_reference)
+195 |                     || validation::mathematical_applications::is_source_evidence_carrier(
+196 |                         program,
+197 |                         target.type_reference,
+198 ~                     )
+    |
+
+warning: unused imports: `scalar_parameter_roster` and `scalar_position_count`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\values\mod.rs:84:29
+   |
+84 |     scalar_expression_type, scalar_parameter_roster, scalar_position_count, structural_data,
+   |                             ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retained_scalar_domain_predicate` is never used
+   --> omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi\src\expression_preparation\qualifications.rs:949:4
+    |
+949 | fn retained_scalar_domain_predicate(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `element_views` is never read
+  --> omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi\src\scalar_lowering\contracts.rs:71:9
+   |
+57 | pub(crate) struct ContractViewNamespace<'a> {
+   |                   --------------------- field in this struct
+...
+71 |     pub element_views: &'a std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
+   |         ^^^^^^^^^^^^^
+   |
+   = note: `ContractViewNamespace` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: function `indexed_element_type` is never used
+  --> omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi\src\proofs\crash_routes\structural_members.rs:14:4
+   |
+14 | fn indexed_element_type(
+   |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: `checked-interpreter` (lib) generated 12 warnings (run `cargo fix --lib -p checked-interpreter` to apply 3 suggestions)
+warning: `typed-trees-to-typed-trees` (lib) generated 4 warnings (run `cargo fix --lib -p typed-trees-to-typed-trees` to apply 1 suggestion)
+mbx[progress]: 1m elapsed; 0 hits, 6 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: a method with this name may be added to the standard library in the future
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\statements.rs:945:18
+    |
+945 |         if range.is_empty() {
+    |                  ^^^^^^^^
+    |
+    = help: call with fully qualified syntax `std::ops::Range::<Idx>::is_empty(...)` to keep using the current method
+    = warning: once this associated item is added to the standard library, the ambiguity may cause an error or change in behavior!
+    = note: for more information, see issue #48919 <https://github.com/rust-lang/rust/issues/48919>
+    = note: `#[warn(unstable_name_collisions)]` (part of `#[warn(future_incompatible)]`) on by default
+help: add `#![feature(exact_size_is_empty)]` to the crate attributes to enable `std::iter::ExactSizeIterator::is_empty`
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\lib.rs:14:1
+    |
+ 14 + #![feature(exact_size_is_empty)]
+    |
+
+   Compiling psi-terminal-production v0.1.0 (P:\omega-rust\psi\compilation\driver\terminal-production)
+mbx[progress]: 1m 15s elapsed; 0 hits, 6 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+mbx[progress]: 1m 30s elapsed; 0 hits, 7 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: unused variable: `machine`
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\state_values\fields.rs:588:5
+    |
+588 |     machine: &typed_trees::machine::Machine,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_machine`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `semantic`
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\observations\captured_subject.rs:464:5
+    |
+464 |     semantic: &facts::FactPlan,
+    |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_semantic`
+
+warning: `validation` (lib) generated 43 warnings (run `cargo fix --lib -p validation` to apply 27 suggestions)
+warning: type `destination::Destination<'destination>` is more private than the item `Site::destination`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\structural_scalar_store\mod.rs:86:5
+   |
+86 |     pub(super) destination: &'a Destination<'destination>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `Site::destination` is reachable at visibility `pub(in crate::execution::terminal_unit)`
+   |
+note: but type `destination::Destination<'destination>` is only usable at visibility `pub(in crate::execution::terminal_unit::structural_scalar_store)`
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\execution\terminal_unit\structural_scalar_store\destination.rs:60:1
+   |
+60 | pub(super) struct Destination<'a> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: `#[warn(private_interfaces)]` on by default
+
+warning: function `value_proves_domain` is never used
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\checks\contracts\writes\domain_implications.rs:183:15
+    |
+183 | pub(super) fn value_proves_domain(
+    |               ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `statement_index` is never read
+    --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\checks\current_scalar_values.rs:1399:5
+     |
+1395 | struct ScopedOccurrence<'roster, 'tree> {
+     |        ---------------- field in this struct
+...
+1399 |     statement_index: usize,
+     |     ^^^^^^^^^^^^^^^
+     |
+     = note: `ScopedOccurrence` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `application_value` is never used
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\checks\current_scalar_values\application_values.rs:96:19
+   |
+13 | impl CurrentScalarValues<'_> {
+   | ---------------------------- method in this implementation
+...
+96 |     pub(crate) fn application_value(
+   |                   ^^^^^^^^^^^^^^^^^
+
+warning: method `integer_bounds` is never used
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\assignment_observations.rs:108:8
+    |
+ 38 | impl AssignmentObservations {
+    | --------------------------- method in this implementation
+...
+108 |     fn integer_bounds(
+    |        ^^^^^^^^^^^^^^
+
+warning: method `integer_bounds_at_place` is never used
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\assignment_observations.rs:139:19
+    |
+123 | impl FlowBuildContext<'_> {
+    | ------------------------- method in this implementation
+...
+139 |     pub(super) fn integer_bounds_at_place(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `retention` is never read
+  --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\expression\view_referents.rs:14:9
+   |
+12 |     Captured {
+   |     -------- field in this variant
+13 |         referents: HandleSpan<FlowOperandReferent>,
+14 |         retention: Handle<checked_trees::FlowOperandRetention>,
+   |         ^^^^^^^^^
+
+warning: function `case_origin_is_stable` is never used
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\operand_contexts.rs:321:15
+    |
+321 | pub(super) fn case_origin_is_stable(
+    |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `captured_reference_places` is never used
+   --> omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees\src\flow\operand_values\reference_places.rs:216:15
+    |
+216 | pub(crate) fn captured_reference_places(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+mbx[progress]: 1m 45s elapsed; 0 hits, 8 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: `checked-trees-to-lowered-psi` (lib) generated 6 warnings (run `cargo fix --lib -p checked-trees-to-lowered-psi` to apply 3 suggestions)
+mbx[progress]: 2m elapsed; 0 hits, 9 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+   Compiling build-time-evaluation v0.1.0 (P:\omega-rust\psi\compilation\compile-time)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\psi\compilation\compile-time\src\build_time_evaluation.rs:879:13
+    |
+879 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling psi-compiler v0.1.0 (P:\omega-rust\psi\compilation\driver)
+   Compiling build-declarations v0.1.0 (P:\omega-rust\omega\packages\build-declarations)
+   Compiling package-compilation v0.1.0 (P:\omega-rust\omega\packages\compilation-inputs)
+warning: constant `CANONICAL_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:31:18
+   |
+31 | pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
+   |                  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `CANONICAL_EXECUTABLE_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:32:18
+   |
+32 | pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling provider-planning v0.1.0 (P:\omega-rust\omega\compilation\realization\provider-planning)
+warning: `build-time-evaluation` (lib) generated 1 warning
+warning: `package-compilation` (lib) generated 2 warnings
+   Compiling selected-dispatch v0.1.0 (P:\omega-rust\omega\compilation\realization\selected-dispatch)
+   Compiling compilation-products v0.1.0 (P:\omega-rust\omega\compilation\products)
+   Compiling package-evidence v0.1.0 (P:\omega-rust\omega\packages\review-evidence)
+   Compiling build-evaluation v0.1.0 (P:\omega-rust\omega\compilation\build-evaluation)
+mbx[progress]: 3m elapsed; 0 hits, 14 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: `typed-trees-to-checked-trees` (lib) generated 31 warnings (run `cargo fix --lib -p typed-trees-to-checked-trees` to apply 21 suggestions)
+warning: unused import: `compiler_storage::Record`
+   --> omega-rust\omega\compilation\driver\src\checked\compilation_session.rs:434:13
+    |
+434 |         use compiler_storage::Record;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling package-manager v0.1.0 (P:\omega-rust\omega\packages\package-manager)
+warning: type `PackageName` is more private than the item `PackageSelection::Named::0`
+  --> omega-rust\omega\packages\package-manager\src\declarations\dependencies\read\mod.rs:37:11
+   |
+37 |     Named(PackageName),
+   |           ^^^^^^^^^^^ field `PackageSelection::Named::0` is reachable at visibility `pub`
+   |
+note: but type `PackageName` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:6:1
+   |
+ 6 | pub(crate) struct PackageName(String);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `PackageKey` is more private than the item `PrepareLocalProjectError::NestedBuildActivationRequired::package`
+   --> omega-rust\omega\packages\package-manager\src\operations\prepare_project.rs:111:9
+    |
+111 |         package: crate::declarations::PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `PrepareLocalProjectError::NestedBuildActivationRequired::package` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::MissingRoot::root`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:288:9
+    |
+288 |         root: PackageKey,
+    |         ^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::MissingRoot::root` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::DuplicatePackage::key`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:291:9
+    |
+291 |         key: PackageKey,
+    |         ^^^^^^^^^^^^^^^ field `PackageClosureValidationError::DuplicatePackage::key` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::ConflictingResolution::key`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:294:9
+    |
+294 |         key: PackageKey,
+    |         ^^^^^^^^^^^^^^^ field `PackageClosureValidationError::ConflictingResolution::key` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::DuplicateAlias::requester`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:299:9
+    |
+299 |         requester: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::DuplicateAlias::requester` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `AliasName` is more private than the item `PackageClosureValidationError::DuplicateAlias::alias`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:301:9
+    |
+301 |         alias: AliasName,
+    |         ^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::DuplicateAlias::alias` is reachable at visibility `pub`
+    |
+note: but type `AliasName` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:31:1
+    |
+ 31 | pub(crate) struct AliasName(String);
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::MissingDependencyTarget::requester`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:304:9
+    |
+304 |         requester: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::MissingDependencyTarget::requester` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `AliasName` is more private than the item `PackageClosureValidationError::MissingDependencyTarget::alias`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:306:9
+    |
+306 |         alias: AliasName,
+    |         ^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::MissingDependencyTarget::alias` is reachable at visibility `pub`
+    |
+note: but type `AliasName` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:31:1
+    |
+ 31 | pub(crate) struct AliasName(String);
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::MissingDependencyTarget::target`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:307:9
+    |
+307 |         target: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::MissingDependencyTarget::target` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::UnreachablePackage::key`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:310:9
+    |
+310 |         key: PackageKey,
+    |         ^^^^^^^^^^^^^^^ field `PackageClosureValidationError::UnreachablePackage::key` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `PackageClosureValidationError::DependencyCycle::cycle`
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\mod.rs:314:9
+    |
+314 |         cycle: Vec<PackageKey>,
+    |         ^^^^^^^^^^^^^^^^^^^^^^ field `PackageClosureValidationError::DependencyCycle::cycle` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::UnsupportedBuildActivation::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:24:9
+   |
+24 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::UnsupportedBuildActivation::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SourceCustody::compiling_package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:41:9
+   |
+41 |         compiling_package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceCustody::compiling_package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SourceCustody::source_package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:42:9
+   |
+42 |         source_package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceCustody::source_package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageSourceVerificationPhase` is more private than the item `CompileResolvedPackageReviewsError::SourceCustody::phase`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:43:9
+    |
+ 43 |         phase: PackageSourceVerificationPhase,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceCustody::phase` is reachable at visibility `pub`
+    |
+note: but type `PackageSourceVerificationPhase` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\review_set.rs:145:1
+    |
+145 | pub(crate) enum PackageSourceVerificationPhase {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SourceSelectionCustody::compiling_package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:47:9
+   |
+47 |         compiling_package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceSelectionCustody::compiling_package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SourceSelectionCustody::source_package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:48:9
+   |
+48 |         source_package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceSelectionCustody::source_package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageSourceVerificationPhase` is more private than the item `CompileResolvedPackageReviewsError::SourceSelectionCustody::phase`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:49:9
+    |
+ 49 |         phase: PackageSourceVerificationPhase,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceSelectionCustody::phase` is reachable at visibility `pub`
+    |
+note: but type `PackageSourceVerificationPhase` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\review_set.rs:145:1
+    |
+145 | pub(crate) enum PackageSourceVerificationPhase {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageSourceSelectionEvidenceError` is more private than the item `CompileResolvedPackageReviewsError::SourceSelectionCustody::error`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:50:9
+   |
+50 |         error: PackageSourceSelectionEvidenceError,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceSelectionCustody::error` is reachable at visibility `pub`
+   |
+note: but type `PackageSourceSelectionEvidenceError` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\resolution\source\selection.rs:41:1
+   |
+41 | pub(crate) enum PackageSourceSelectionEvidenceError {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent::consumer`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:53:9
+   |
+53 |         consumer: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent::consumer` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SemanticBindingContextMismatch::consumer`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:57:9
+   |
+57 |         consumer: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SemanticBindingContextMismatch::consumer` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole::consumer`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:61:9
+   |
+61 |         consumer: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole::consumer` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding::consumer`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:65:9
+   |
+65 |         consumer: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding::consumer` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding::consumer`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:70:9
+   |
+70 |         consumer: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding::consumer` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::CompilationInputs::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:74:9
+   |
+74 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::CompilationInputs::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::Compilation::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:78:9
+   |
+78 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::Compilation::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::BuildConsentRequired::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:82:9
+   |
+82 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::BuildConsentRequired::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `UngrantedRestrictedBuildRequest` is more private than the item `CompileResolvedPackageReviewsError::BuildConsentRequired::requests`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:83:9
+   |
+83 |         requests: Vec<UngrantedRestrictedBuildRequest>,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::BuildConsentRequired::requests` is reachable at visibility `pub`
+   |
+note: but type `UngrantedRestrictedBuildRequest` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\review\restricted_build_grants.rs:35:1
+   |
+35 | pub(crate) struct UngrantedRestrictedBuildRequest {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::Projection::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:86:9
+   |
+86 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::Projection::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::Encoding::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:90:9
+   |
+90 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::Encoding::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SourceConsumptionMissing::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:94:9
+   |
+94 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceConsumptionMissing::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::SourceConsumptionDrift::package`
+  --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:97:9
+   |
+97 |         package: PackageKey,
+   |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::SourceConsumptionDrift::package` is reachable at visibility `pub`
+   |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+  --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+   |
+56 | pub(crate) struct PackageKey {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::IdentityMismatch::package`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:101:9
+    |
+101 |         package: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::IdentityMismatch::package` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::InvalidProductionRootRole::package`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:104:9
+    |
+104 |         package: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::InvalidProductionRootRole::package` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget::package`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:108:9
+    |
+108 |         package: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget::package` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `PackageKey` is more private than the item `CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained::package`
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\error.rs:116:9
+    |
+116 |         package: PackageKey,
+    |         ^^^^^^^^^^^^^^^^^^^ field `CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained::package` is reachable at visibility `pub`
+    |
+note: but type `PackageKey` is only usable at visibility `pub(crate)`
+   --> omega-rust\omega\packages\package-manager\src\declarations\identity.rs:56:1
+    |
+ 56 | pub(crate) struct PackageKey {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `expected_sha256` and `current_statement` are never used
+   --> omega-rust\omega\packages\package-manager\src\declarations\dependencies\edit\mod.rs:96:12
+    |
+ 79 | impl BuildDependencyManualPatch {
+    | ------------------------------- methods in this implementation
+...
+ 96 |     pub fn expected_sha256(&self) -> &[u8; 32] {
+    |            ^^^^^^^^^^^^^^^
+...
+106 |     pub(crate) fn current_statement(&self) -> Option<&str> {
+    |                   ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variants `ReadBuildFile` and `InvalidBuildFileEncoding` are never constructed
+   --> omega-rust\omega\packages\package-manager\src\declarations\dependencies\edit\mod.rs:162:5
+    |
+161 | pub(crate) enum BuildDependencyEditError {
+    |                 ------------------------ variants in this enum
+162 |     ReadBuildFile { path: PathBuf, message: String },
+    |     ^^^^^^^^^^^^^
+163 |     InvalidBuildFileEncoding { path: PathBuf },
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `BuildDependencyEditError` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `build_dependencies` and `dependency_projections` are never used
+   --> omega-rust\omega\packages\package-manager\src\declarations\dependencies\read\mod.rs:266:12
+    |
+258 | impl BuildDependencyProjection {
+    | ------------------------------ methods in this implementation
+...
+266 |     pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+270 |     pub const fn dependency_projections(&self) -> &DependencyProjections {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `decisions` is never used
+   --> omega-rust\omega\packages\package-manager\src\lock\mod.rs:111:12
+    |
+ 48 | impl PackageLockTarget {
+    | ---------------------- method in this implementation
+...
+111 |     pub fn decisions(&self) -> &HistoricalPackagePolicyDecisions {
+    |            ^^^^^^^^^
+
+warning: method `disposition` is never used
+  --> omega-rust\omega\packages\package-manager\src\lock\decisions\mod.rs:51:18
+   |
+30 | impl HistoricalPackagePolicyDecision {
+   | ------------------------------------ method in this implementation
+...
+51 |     pub const fn disposition(&self) -> ReviewOnlyRootPolicyDisposition {
+   |                  ^^^^^^^^^^^
+
+warning: method `baseline_source_subject` is never used
+  --> omega-rust\omega\packages\package-manager\src\lock\decisions\mod.rs:81:18
+   |
+70 | impl HistoricalPackagePolicyDecisions {
+   | ------------------------------------- method in this implementation
+...
+81 |     pub const fn baseline_source_subject(&self) -> Option<[u8; 32]> {
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `request` is never read
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\reconcile\mod.rs:116:9
+    |
+112 |     Adapter {
+    |     ------- field in this variant
+...
+116 |         request: DependencySourceRequest,
+    |         ^^^^^^^
+    |
+    = note: `PackageSourceClosureResolutionError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: variant `WorkspaceMember` is never constructed
+  --> omega-rust\omega\packages\package-manager\src\resolution\graph\root_request.rs:12:5
+   |
+10 | pub(crate) enum PackageRootSourceRequest {
+   |                 ------------------------ variant in this enum
+11 |     Git(GitPackageSourceRequest),
+12 |     WorkspaceMember {
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `PackageRootSourceRequest` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `matches_resolved` is never used
+   --> omega-rust\omega\packages\package-manager\src\resolution\graph\subject\construction.rs:124:19
+    |
+ 17 | impl CanonicalSourceClosureSubject {
+    | ---------------------------------- method in this implementation
+...
+124 |     pub(crate) fn matches_resolved(
+    |                   ^^^^^^^^^^^^^^^^
+
+warning: variants `WorkspacePath`, `WorkspaceMemberEscapesRoot`, and `WorkspaceMemberIsRoot` are never constructed
+  --> omega-rust\omega\packages\package-manager\src\resolution\source\error.rs:16:5
+   |
+11 | pub(crate) enum ResolvePackageSourceError {
+   |                 ------------------------- variants in this enum
+...
+16 |     WorkspacePath {
+   |     ^^^^^^^^^^^^^
+...
+20 |     WorkspaceMemberEscapesRoot {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+24 |     WorkspaceMemberIsRoot {
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `ResolvePackageSourceError` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `byte_count` and `commitment` are never used
+   --> omega-rust\omega\packages\package-manager\src\resolution\source\git\workspace\mod.rs:110:18
+    |
+101 | impl BuildDeclarationEvidence {
+    | ----------------------------- methods in this implementation
+...
+110 |     pub const fn byte_count(&self) -> usize {
+    |                  ^^^^^^^^^^
+...
+114 |     pub const fn commitment(&self) -> &BuildDeclarationCommitment {
+    |                  ^^^^^^^^^^
+
+warning: method `declaration` is never used
+   --> omega-rust\omega\packages\package-manager\src\resolution\source\git\workspace\mod.rs:151:18
+    |
+128 | impl GitWorkspaceMemberPlan {
+    | --------------------------- method in this implementation
+...
+151 |     pub const fn declaration(&self) -> &BuildDeclarationEvidence {
+    |                  ^^^^^^^^^^^
+
+warning: method `select_declared_member` is never used
+   --> omega-rust\omega\packages\package-manager\src\resolution\source\git\workspace\mod.rs:179:19
+    |
+164 | impl GitWorkspaceEvidence {
+    | ------------------------- method in this implementation
+...
+179 |     pub(crate) fn select_declared_member(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `workspace_evidence` is never used
+   --> omega-rust\omega\packages\package-manager\src\resolution\source\git\workspace\mod.rs:224:18
+    |
+200 | impl GitWorkspaceSelectionPlan {
+    | ------------------------------ method in this implementation
+...
+224 |     pub const fn workspace_evidence(&self) -> &GitWorkspaceEvidence {
+    |                  ^^^^^^^^^^^^^^^^^^
+
+warning: method `byte_count` is never used
+  --> omega-rust\omega\packages\package-manager\src\resolution\source\materialization.rs:30:18
+   |
+17 | impl PackageSourceMaterialization {
+   | --------------------------------- method in this implementation
+...
+30 |     pub const fn byte_count(&self) -> u64 {
+   |                  ^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> omega-rust\omega\packages\package-manager\src\resolution\source\mod.rs:86:16
+    |
+ 86 |         pub fn key(&self) -> &PackageKey {
+    |                ^^^
+...
+ 90 |         pub const fn role(&self) -> BuildDeclarationKind {
+    |                      ^^^^
+...
+ 94 |         pub fn resolution(&self) -> &ImmutableSourceResolution {
+    |                ^^^^^^^^^^
+...
+ 98 |         pub const fn materialization(&self) -> &PackageSourceMaterialization {
+    |                      ^^^^^^^^^^^^^^^
+...
+102 |         pub fn snapshot_root(&self) -> &std::path::Path {
+    |                ^^^^^^^^^^^^^
+...
+106 |         pub const fn navigation(&self) -> &PackageSourceNavigation {
+    |                      ^^^^^^^^^^
+...
+110 |         pub const fn selection_evidence(&self) -> &PackageSourceSelectionEvidence {
+    |                      ^^^^^^^^^^^^^^^^^^
+...
+114 |         pub fn source_limits(&self) -> LocalSourceLimits {
+    |                ^^^^^^^^^^^^^
+...
+119 |         pub fn dependency_requests(
+    |                ^^^^^^^^^^^^^^^^^^^
+...
+126 |         pub const fn dependency_projections(&self) -> &DependencyProjections {
+    |                      ^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: omega-rust\omega\packages\package-manager\src\resolution\source\resolved.rs:34:1
+    |
+ 34 | impl<S> ResolvedPackageSource<S> {
+    | -------------------------------- methods in this implementation
+...
+ 64 |     crate::resolution::source::package_source_surface_accessors!();
+    |     -------------------------------------------------------------- in this macro invocation
+ 65 |
+ 66 |     pub fn source(&self) -> &S {
+    |            ^^^^^^
+    |
+    = note: this warning originates in the macro `crate::resolution::source::package_source_surface_accessors` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: method `git_workspace` is never used
+  --> omega-rust\omega\packages\package-manager\src\resolution\source\selection.rs:25:18
+   |
+17 | impl PackageSourceSelectionEvidence {
+   | ----------------------------------- method in this implementation
+...
+25 |     pub const fn git_workspace(&self) -> Option<&GitWorkspaceSelectionPlan> {
+   |                  ^^^^^^^^^^^^^
+
+warning: variant `BeforeCompilation` is never constructed
+   --> omega-rust\omega\packages\package-manager\src\review\candidate\review_set.rs:146:5
+    |
+145 | pub(crate) enum PackageSourceVerificationPhase {
+    |                 ------------------------------ variant in this enum
+146 |     BeforeCompilation,
+    |     ^^^^^^^^^^^^^^^^^
+    |
+    = note: `PackageSourceVerificationPhase` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `purpose` is never used
+   --> omega-rust\omega\packages\package-manager\src\review\compare\policy.rs:204:18
+    |
+203 | impl PackagePolicyDependencyPathStep {
+    | ------------------------------------ method in this implementation
+204 |     pub const fn purpose(&self) -> DependencyPurpose {
+    |                  ^^^^^^^
+
+warning: method `source_subject_changed` is never used
+   --> omega-rust\omega\packages\package-manager\src\review\compare\policy.rs:323:18
+    |
+311 | impl PackagePolicyChangeSet {
+    | --------------------------- method in this implementation
+...
+323 |     pub const fn source_subject_changed(&self) -> bool {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `context`, `purpose`, and `request_path` are never used
+  --> omega-rust\omega\packages\package-manager\src\review\restricted_build_grants.rs:70:18
+   |
+42 | impl UngrantedRestrictedBuildRequest {
+   | ------------------------------------ methods in this implementation
+...
+70 |     pub const fn context(&self) -> PackageCheckedContext {
+   |                  ^^^^^^^
+...
+75 |     pub const fn purpose(&self) -> DependencyPurpose {
+   |                  ^^^^^^^
+...
+89 |     pub fn request_path(&self) -> Option<&DependencyRequestPath> {
+   |            ^^^^^^^^^^^^
+
+   Compiling omega-build v0.1.0 (P:\omega-rust\omega\application\build)
+   Compiling omega v0.1.0 (P:\omega-rust\omega\application\cli)
+mbx[progress]: 4m elapsed; 0 hits, 19 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: `package-manager` (lib) generated 58 warnings
+mbx[progress]: 5m elapsed; 0 hits, 22 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+warning: `compiler` (lib) generated 1 warning
+mbx[progress]: 6m elapsed; 0 hits, 23 misses, 0 bypassed, 0 not looked up; ~0s compiler work saved
+    Finished `dev` profile [optimized] target(s) in 6m 12s
+mbx[cache]: 0 hits, 24 misses; 0 B downloaded, 0 B uploaded, 725.5 MiB stored locally
+mbx[gc]: evicted 28 objects and 7 action results (1.7 GiB logical); 369.8 GiB logical remain
+mbx[savings]: 891.9 GiB logical of abandoned target directories removed
