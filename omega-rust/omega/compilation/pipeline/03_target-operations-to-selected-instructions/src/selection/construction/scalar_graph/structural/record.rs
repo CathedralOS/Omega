@@ -61,6 +61,12 @@ pub(super) fn initialize_storage(
     if shape.byte_size == 0 {
         return Ok(pointer);
     }
+    // The exact byte extent, including padding, has the same effect as the
+    // small chunk sequence without one instruction/address per large chunk.
+    if shape.byte_size > super::zero_fill::INLINE_HOME_MAX_BYTES {
+        super::zero_fill::whole_home(builder, row, destination, pointer, shape.byte_size)?;
+        return Ok(pointer);
+    }
     // Initialize padding too: a later whole-value copy may transport every byte.
     let zero = transport_register(builder, destination, 0)?;
     builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
