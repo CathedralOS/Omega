@@ -46,6 +46,47 @@ impl MutableRecordRepresentation {
     }
 }
 
+/// Observation protocols belong to semantic fields even when this retained
+/// application has no physical target. Policy evidence and layout offsets do
+/// not create or remove an atomic leaf.
+pub(super) fn type_has_atomic_storage(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = HashSet::new();
+    while let Some(reference) = pending.pop() {
+        if !visited.insert(program.normalized_type_identity(reference)) {
+            continue;
+        }
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            pending.push(storage.semantic_type);
+            continue;
+        }
+        if super::representation_types::scalar_is_atomic(program, reference) == Some(true) {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::FixedArray {
+                element_type: base_type,
+                ..
+            } => pending.push(*base_type),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                if let Some(data) = program.closed_data_definition(reference) {
+                    pending.extend(
+                        program
+                            .live_data_fields(program.data_members(data))
+                            .map(|field| field.type_reference),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 #[derive(Debug, Clone)]
 struct MutableRecordLeaf {
     offset: usize,

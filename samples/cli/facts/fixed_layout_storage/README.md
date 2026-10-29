@@ -43,3 +43,24 @@ now also requests four installations of one unchanged Terminal artifact. Its
 foreign installations explicitly refuse the primary folded-constant closure,
 so portable query values remain open. Neither those refusals nor earlier
 compile-only runs count as runtime acceptance.
+
+Producer34 advances this checkpoint: helper and callback underflow controls now
+reject for the intended Windows arithmetic obligation, and the same three host
+programs again report native exit 0 and interpreter exit 0. Provider defaults
+no longer root unused implementations. The four affected rows have 36 of 37
+positives executing in Terminal and all 37 intended twins rejecting. The
+remaining geometry target-body positive fails lowering because an explicitly
+nominated other provider retains an unclosed layout query. Standard-library
+recasts involving unused target-dependent descriptors also remain open. These
+results supersede the frontier description above without changing historical
+producer32 observations; this checkpoint is not feature acceptance.
+
+Producer35 separates recast formation from physical applicability. The valid
+unapplied record-view description now checks and executes with native exit 0
+and interpreter exit 0. Its bool twin rejects because raw bytes cannot
+establish constrained representation facts, and its access twin still rejects
+mutable-source escalation. The existing target-dependent byte-offset program
+also reports native exit 0 and interpreter exit 0. These are two actual host
+pairs, not a fresh whole-row qualification. The legacy SDK import remains red
+with 59 diagnostics; the displayed frontier is target-family contracts. The
+portable entry-query control still refuses lowering an unclosed query.

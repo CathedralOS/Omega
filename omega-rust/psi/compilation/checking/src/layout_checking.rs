@@ -158,7 +158,7 @@ fn discover_layout_checking_targets(
 ) -> Result<Vec<Option<&str>>, ()> {
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut visited = Vec::new();
-    let mut targets = Vec::new();
+    let mut targets: Option<Vec<Option<&str>>> = None;
     while let Some(reference) = pending.pop() {
         if !reference.is_valid() || visited.contains(&reference) {
             continue;
@@ -185,9 +185,18 @@ fn discover_layout_checking_targets(
                     if !layout_family_is_complete(program, layout) {
                         return Err(());
                     }
-                    for row in layout.target_layouts(program.typed_program()) {
-                        if !targets.contains(&Some(row.target.as_str())) {
-                            targets.push(Some(row.target.as_str()));
+                    if matches!(layout.realizations, PlanLaidRealizations::TargetInputs(_)) {
+                        let alternatives = layout
+                            .target_layouts(program.typed_program())
+                            .iter()
+                            .map(|row| Some(row.target.as_str()))
+                            .collect::<Vec<_>>();
+                        // One physical judgment needs a common application of
+                        // every participating representation. An empty roster
+                        // describes retained, unapplied storage, not packing.
+                        match &mut targets {
+                            Some(targets) => targets.retain(|target| alternatives.contains(target)),
+                            None => targets = Some(alternatives),
                         }
                     }
                 }
@@ -200,10 +209,7 @@ fn discover_layout_checking_targets(
             }
         }
     }
-    if targets.is_empty() {
-        targets.push(None);
-    }
-    Ok(targets)
+    Ok(targets.unwrap_or_else(|| vec![None]))
 }
 
 /// The normalized constructor occurrence is the pending obligation. Walk exact

@@ -47,6 +47,17 @@ fn indexed_byte_region(
         })
 }
 
+/// Classify the actual byte source without asking for a provisional target
+/// footprint. Formation uses this only for semantic fact/access obligations.
+pub(super) fn is_indexed_byte_region(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    source: ExpressionHandle,
+) -> bool {
+    indexed_byte_region(program, machine, state, source).is_some()
+}
+
 /// An arbitrary write through a raw view must leave every original byte valid.
 /// Source domains are not erased merely because the element carrier is u8.
 pub(super) fn byte_region_allows_arbitrary_writes(
