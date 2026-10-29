@@ -10,6 +10,8 @@ colors:
   cohort-baseline: "#898b87"
   cohort-current: "#63a5ed"
   cohort-all: "#e2ae78"
+  fact-pass: "#8dd9b5"
+  fact-pass-soft: "#20372d"
   orange: "#f2a16b"
   orange-soft: "#35271e"
   blue: "#71adff"
@@ -48,8 +50,8 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.card}"
   cell-pass:
-    backgroundColor: "{colors.green-soft}"
-    textColor: "{colors.green}"
+    backgroundColor: "{colors.fact-pass-soft}"
+    textColor: "{colors.fact-pass}"
     rounded: "{rounded.cell}"
 ---
 
@@ -81,7 +83,10 @@ remain at least 12px, and provenance uses monospace. Names and notes wrap.
 The workspace caps at 1280px with 32px desktop gutters. Plain tabs show one view
 at a time. Overview leads with full-width history, then the fixed-cohort and
 growth charts side by side. All three remain visible without a chart selector.
-Facts contains the grid and observation chart; Work contains claims. Evidence
+Facts places a full-width horizontal result chart above the full-width grid.
+Work uses a two-column card list, with active and unresolved lease counts above.
+Cards stack on narrow screens; the fact names stay fixed during horizontal
+grid scrolling. Evidence
 details opens a native dialog for methods, receipts and provenance. At 900px
 the comparisons stack; at 700px the page uses 14px gutters. The nine-place
 table scrolls locally.
@@ -112,7 +117,10 @@ Avoid extra decorative badges or artwork around the data.
 - Native receipts expand to expose exit oracles, row revisions and host freshness.
 - The fact grid keeps source coverage separate from measured acceptance; its
   inspector is revealed and focused, with focus restored to the cell on close.
-- Claims expose owner notes and leases as reported coordination, not completion.
+  A compact Source column shows positive/reject coverage out of nine. Readable
+  names and original identifiers both work in search.
+- Work cards directly expose owner, full note, scope and expiry. Only exact
+  identifiers live under Details. Expired leases remain unresolved, never complete.
 
 ## Do's and Don'ts
 

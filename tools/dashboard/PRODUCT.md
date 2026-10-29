@@ -32,3 +32,6 @@ and repeated labels rather than hiding information behind a chart selector.
 Follow the Claude reference's charcoal cards and directly labeled host lines.
 The fixed-cohort chart compares the baseline, same set now and full corpus now.
 Facts, Work and the evidence-method dialog remain accessible separately.
+Facts and Work use the same charcoal cards and concise labels. Keep fact result
+counts, the nine-place grid, per-row source coverage, claim owners, full notes,
+scope and lease expiry visible. Exact identifiers and provenance remain inspectable.

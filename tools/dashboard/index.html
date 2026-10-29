@@ -130,7 +130,6 @@ tr:hover td {background:#242c38}
 tr.selected td:first-child {box-shadow:inset 3px 0 var(--orange)}
 .fact-name {border:0;background:transparent;text-align:left;padding:0;font-size:12px;line-height:1.4;overflow-wrap:anywhere;color:#dce3ed;border-radius:3px}
 .fact-name:hover {color:var(--orange);background:transparent}
-.fact-sub {font-size:12px;color:#99a5b6;margin-top:4px}
 .cell {display:inline-grid;place-items:center;min-height:25px;width:100%;max-width:29px;padding:0;border-radius:5px;font-size:13px;font-weight:500;border-color:transparent}
 .cell:hover {filter:brightness(1.25)}
 .cell.missing {border:1px dashed #687487}
@@ -162,20 +161,6 @@ tr.selected td:first-child {box-shadow:inset 3px 0 var(--orange)}
 .stamp {display:flex;justify-content:space-between;gap:8px;padding:3px 0}
 .stamp code {font-size:12px}
 .host small {font-size:12px;color:var(--muted)}
-.claims-panel {margin-top:var(--gap)}
-.claim-tools .search {max-width:400px}
-.claims-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px;padding:0 22px 12px;max-height:560px;overflow:auto;scrollbar-color:#48566a #161b22;scrollbar-width:thin}
-.claim {padding:17px 0;border-top:1px solid var(--line);min-width:0}
-.claim-top {display:flex;justify-content:space-between;align-items:start;gap:12px}
-.claim h3 {font-size:12px;overflow-wrap:anywhere}
-.lease {font-size:12px;color:var(--green);background:var(--green-soft);padding:2px 7px;border-radius:5px;white-space:nowrap}
-.lease.expired {color:var(--orange);background:var(--orange-soft)}
-.claim-owner {font-size:12px;margin:7px 0 9px;color:var(--muted);overflow-wrap:anywhere}
-.claim details {font-size:12px}
-.claim summary {cursor:pointer;color:var(--blue)}
-.claim-note {white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px;color:#b1bdce;font-size:12px;max-width:70ch}
-.claim-paths {font-size:12px;color:var(--muted);margin-top:8px;overflow-wrap:anywhere}
-.claim-bottom {font-size:12px;color:var(--muted);margin-top:10px}
 .empty {padding:34px 22px;text-align:center;color:var(--muted);font-size:13px;grid-column:1/-1}
 .notice {margin:0 0 16px;padding:0;border:0;background:transparent;color:#c0a583;font-size:12px}
 .notice summary {cursor:pointer}
@@ -253,6 +238,21 @@ footer{font-size:12px;margin-top:20px;padding-top:14px}
  .short-readout{font-size:12px}.growth-values strong{font-size:16px}#growth-plot{gap:26px}
  dialog{padding:18px}footer #footer-time{display:none}
 }
+
+.stats{gap:18px}.stat{background:var(--card);padding:20px 24px}.stat-label{font-size:13px}.stat-value{font-size:32px;font-weight:550;margin:9px 0 5px}.stat-note{font-size:12px}
+.workspace{display:grid;grid-template-columns:1fr;gap:22px}.fact-results{padding:24px 28px}.fact-results h2,.panel-title h2{font-size:21px;font-weight:550}.fact-results .chart-kicker{margin-top:5px}
+#outcome-plot{display:grid;gap:9px;margin-top:22px}.result-row{display:grid;grid-template-columns:100px minmax(0,1fr) 65px;align-items:center;gap:20px;padding:10px 0;border:0;background:transparent;text-align:left;font-size:14px;color:var(--muted)}.result-row:hover{background:transparent;color:var(--ink)}.result-row strong{text-align:right;font-size:18px;font-weight:500;color:var(--ink)}
+.result-track{height:15px;background:#292b28;border-radius:4px;overflow:hidden}.result-fill{height:100%;display:block;border-radius:4px}.result-fill.good{background:#72c8a7}.result-fill.retained{background:#63a5ed}.result-fill.failed{background:#e09999}.result-fill.unmeasured{background:#838984}.result-fill.selected{filter:brightness(1.12)}
+.panel-head{padding:24px 24px 17px}.panel-head p{font-size:13px;margin-top:5px}.count{background:transparent;border:0;color:var(--muted);padding:0;font-size:13px}
+.toolbar,.claim-tools{padding:0 24px 18px;gap:12px}.search input,select{background:#22231f;border-color:#41423c;color:var(--ink);font-size:13px}.search input{padding:10px 12px}.search input::placeholder{color:#aaa9a2}.segments{background:#121310}.segments button{font-size:13px;padding:7px 10px}.segments button[aria-pressed=true]{background:#343630;border-color:#4c4f45;color:var(--ink)}
+.legend{font-size:12px;padding:0 24px 18px;gap:16px}.grid-scroll{max-height:720px;scrollbar-color:#62675d #20211e}.grid-scroll table{min-width:850px;font-size:13px}.grid-scroll thead{background:#24251f}.grid-scroll th{font-size:12px;color:#b9bdb4;padding:12px 4px}.grid-scroll th:first-child{width:34%;padding-left:24px}.grid-scroll .source-column{width:70px}.grid-scroll td{padding:12px 4px;border-bottom-color:#30312b}.grid-scroll td:first-child{padding-left:24px;padding-right:18px;background:var(--card)}.fact-name{font-size:14px;color:var(--ink);line-height:1.5}.source-count>span:first-child{font-size:14px;color:var(--ink)}.source-count small{font-size:12px;color:var(--muted);margin-left:2px}.source-track{display:block;width:42px;height:3px;margin:5px auto 0;background:#363a32;border-radius:2px;overflow:hidden}.source-track i{display:block;height:100%;background:#a0b3a3}
+.grid-scroll tr:hover td{background:#292b24}.grid-scroll tr.selected td{background:#302d25}.cell{max-width:31px;min-height:29px}.good{background:#20372d;color:#8dd9b5}.retained{background:#223345;color:#9ec6f3}.failed{background:#3b2828;color:#efaaaa}.unmeasured{background:#30332d;color:#b3b9ad}.missing{color:#a8afa0;border-color:#6d7765}.detail{background:#24251f;border-top-color:#665d48}.panel-foot{font-size:12px;padding:13px 24px}
+.work-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.work-stats .stat-value{margin-bottom:0}.claims-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:0 24px 24px;max-height:none;overflow:visible;align-items:start}.claim{min-width:0;border:1px solid #3b3d35;border-radius:12px;padding:20px;background:#20211d}.claim h3{font-size:16px;font-weight:550;line-height:1.4;overflow-wrap:anywhere}.claim h3::first-letter{text-transform:uppercase}.claim-top{display:flex;justify-content:space-between;align-items:start;gap:16px}.lease{white-space:nowrap;font-size:12px;padding:3px 8px;border-radius:5px;background:#22382c;color:#9ed4b3}.lease.expired{background:#3c3021;color:#e6bf8a}.claim-owner{font-size:13px;margin:8px 0 15px;color:var(--muted);overflow-wrap:anywhere}.claim-note{overflow-wrap:anywhere;font-size:14px;color:#d4d7cd;line-height:1.6;max-width:70ch;margin-top:0;white-space:pre-wrap}.claim-paths{display:flex;flex-wrap:wrap;gap:5px;margin-top:16px}.claim-paths code{font-size:12px;line-height:1.5;background:#2d3028;color:#c4cbb9;border-radius:4px;padding:3px 6px;max-width:100%;overflow-wrap:anywhere}.claim-bottom{display:flex;align-items:start;justify-content:space-between;gap:14px;font-size:12px;margin-top:18px;padding-top:13px;border-top:1px solid #373a31}.claim-bottom details{font-size:12px;text-align:right;min-width:0}.claim-bottom summary{color:#b8c4ac;cursor:pointer}.claim-bottom details[open]{max-width:55%}.claim-bottom details>div{margin-top:8px;overflow-wrap:anywhere}
+@media(max-width:800px){.claims-list{grid-template-columns:1fr}.stats{gap:10px}.stat{padding:17px 18px}.stat-value{font-size:28px}}
+@media(max-width:700px){.stats{grid-template-columns:1fr}.stat{display:grid;grid-template-columns:1fr auto;gap:4px 12px}.stat-value{grid-column:2;grid-row:1/3;margin:0}.stat-note{max-width:none}.fact-results{padding:21px 18px}.fact-results h2,.panel-title h2{font-size:20px}.result-row{grid-template-columns:76px minmax(0,1fr) 48px;gap:10px;font-size:13px}.result-row strong{font-size:16px}.result-track{height:13px}.panel-head{padding:21px 18px 16px}.toolbar,.claim-tools{padding:0 18px 18px}.toolbar .search{flex-basis:100%}.legend{padding:0 18px 16px;gap:12px}.grid-scroll th:first-child{width:170px}.grid-scroll th:first-child,.grid-scroll td:first-child{position:sticky;left:0;z-index:1;padding-left:18px}.grid-scroll th:first-child{z-index:3;background:#24251f}.grid-scroll td{padding-top:13px;padding-bottom:13px}.fact-name{font-size:13px}.work-stats{grid-template-columns:1fr 1fr}.work-stats .stat{display:block;padding:16px}.work-stats .stat-label{font-size:12px}.work-stats .stat-value{margin-top:9px}.claims-list{padding:0 18px 18px;gap:14px}.claim{padding:18px}.claim h3{font-size:16px}.claim-top{flex-wrap:nowrap}.claim-bottom{flex-wrap:wrap}.panel-foot{padding:13px 18px}}
+
+.view-anchor{display:block;height:0;scroll-margin-top:180px}.view-anchor:focus{outline:none}.legend .unmeasured{background:#838984}
+.claims-panel{background:transparent;border:0;overflow:visible}.claims-panel .panel-head{padding:4px 0 18px}.claims-panel .claim-tools{padding:0 0 22px}.claims-panel .claims-list{padding:0}.claims-panel .claim{background:var(--card)}
 </style>
 </head>
 <body>
@@ -271,19 +271,18 @@ footer{font-size:12px;margin-top:20px;padding-top:14px}
 <section class="panel chart-card" id="chart-growth" aria-labelledby="growth-heading"><div class="chart-top"><div><h2 id="growth-heading">Where new runs came from</h2><p class="chart-kicker">Since Sep 30</p></div></div><div class="compact-legend"><span><i class="legend-dot recovered"></i>Recovered</span><span><i class="legend-dot new"></i>New programs</span></div><div id="growth-plot"></div></section>
 </div>
 </section>
-<section class="view-panel" id="view-facts" data-view-panel="facts" role="tabpanel" aria-labelledby="tab-facts" hidden><div class="stats" id="stats"></div>
+<section class="view-panel" id="view-facts" data-view-panel="facts" role="tabpanel" aria-labelledby="tab-facts" hidden><span class="view-anchor" id="facts" tabindex="-1"></span><div class="stats" id="stats"></div>
 
-<div class="workspace">
-<section class="panel" id="facts" aria-labelledby="facts-heading"><div class="panel-head"><div class="panel-title"><h2 id="facts-heading">Fact coverage</h2><span class="count" id="fact-count"></span></div><p>Select a cell for evidence.</p></div>
+<div class="workspace"><section class="panel chart-card fact-results" aria-labelledby="outcome-heading"><div class="chart-top"><h2 id="outcome-heading">Fact results</h2><label><span class="sr-only">Fact chart target</span><select id="chart-target"></select></label></div><p class="chart-kicker">Recorded by place</p><div class="sr-only" id="outcome-metric"></div><div class="sr-only" id="outcome-readout" aria-live="polite"></div><div id="outcome-plot"></div><p class="chart-caption"></p></section><section class="panel" id="fact-grid" aria-labelledby="facts-heading"><div class="panel-head"><div class="panel-title"><h2 id="facts-heading">Fact coverage</h2><span class="count" id="fact-count"></span></div><p>Source + rejects · results by target</p></div>
 <div class="toolbar"><label class="search"><span class="sr-only">Find a fact</span><input id="fact-search" type="search" placeholder="Find a fact…" autocomplete="off"></label><label><span class="sr-only">Fact evidence target</span><select id="target"></select></label><div class="segments" aria-label="Fact coverage filter"><button data-filter="all" aria-pressed="true">All facts</button><button data-filter="gaps" aria-pressed="false">Missing places</button></div></div>
-<div class="legend"><span><i class="swatch good"></i>Recorded pass</span><span><i class="swatch retained"></i>Historical</span><span><i class="swatch failed"></i>Recorded failure</span><span><i class="swatch unmeasured"></i>Unmeasured</span><span><i class="swatch missing"></i>Missing</span></div>
+<div class="legend"><span><i class="swatch good"></i>Pass</span><span><i class="swatch retained"></i>Qualified</span><span><i class="swatch failed"></i>Failure</span><span><i class="swatch unmeasured"></i>No record</span><span><i class="swatch missing"></i>Missing</span></div>
 <div class="grid-scroll" role="region" aria-label="Fact coverage table, scroll horizontally on narrow screens" tabindex="0"><table><caption class="sr-only">Fact coverage by transport place for the selected target</caption><thead id="fact-head"></thead><tbody id="fact-body"></tbody></table></div>
 <div class="panel-foot"><span id="fact-shown"></span><span>Source coverage</span></div><div class="detail" id="detail" role="region" aria-label="Selected fact evidence" tabindex="-1" hidden></div>
 </section>
-<aside class="side"><section class="panel chart-card" aria-labelledby="outcome-heading"><div class="chart-top"><h2 id="outcome-heading">Fact observations</h2><label><span class="sr-only">Fact chart target</span><select id="chart-target"></select></label></div><p class="chart-kicker"></p><div class="chart-metric" id="outcome-metric"></div><div class="chart-readout bar-readout" id="outcome-readout" aria-live="polite"></div><div id="outcome-plot"></div><p class="chart-caption"></p></section></aside>
+
 </div>
 </section>
-<section class="view-panel" id="view-work" data-view-panel="work" role="tabpanel" aria-labelledby="tab-work" hidden><section class="panel claims-panel" id="claims" aria-labelledby="claims-heading"><div class="panel-head"><div class="panel-title"><h2 id="claims-heading">Work in flight</h2><span class="count" id="claims-count"></span></div><p></p></div><div class="claim-tools"><label class="search"><span class="sr-only">Find an outcome or owner</span><input id="claim-search" type="search" placeholder="Find an outcome or owner…" autocomplete="off"></label><div class="segments" aria-label="Claim lease filter"><button data-claims="active" aria-pressed="true">Active</button><button data-claims="expired" aria-pressed="false">Expired / unresolved</button></div></div><div class="claims-list" id="claim-list"></div><div class="panel-foot"><span id="claim-shown"></span><span id="registry"></span></div></section>
+<section class="view-panel" id="view-work" data-view-panel="work" role="tabpanel" aria-labelledby="tab-work" hidden><span class="view-anchor" id="claims" tabindex="-1"></span><div class="stats work-stats" id="work-stats"></div><section class="panel claims-panel" id="claims-panel" aria-labelledby="claims-heading"><div class="panel-head"><div class="panel-title"><h2 id="claims-heading">Claimed work</h2><span class="count" id="claims-count"></span></div><p>Owner-reported · lease state</p></div><div class="claim-tools"><label class="search"><span class="sr-only">Find an outcome or owner</span><input id="claim-search" type="search" placeholder="Find an outcome or owner…" autocomplete="off"></label><div class="segments" aria-label="Claim lease filter"><button data-claims="active" aria-pressed="true">Active</button><button data-claims="expired" aria-pressed="false">Expired / unresolved</button></div></div><div class="claims-list" id="claim-list"></div><div class="panel-foot"><span id="claim-shown"></span><span id="registry"></span></div></section>
 </section>
 <footer><span>Omega</span><span id="footer-time"></span><a href="https://www.mebius.design/freebies/charts" target="_blank" rel="noreferrer">Design ↗</a></footer>
 <dialog id="evidence-dialog" aria-labelledby="evidence-title"><div class="dialog-head"><h2 id="evidence-title">Evidence</h2><button id="close-evidence" aria-label="Close evidence">×</button></div>
@@ -301,6 +300,7 @@ const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':
 const number = value => Number(value || 0).toLocaleString();
 const date = value => value ? new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}) : 'Not dated';
 const short = value => String(value || 'unknown').slice(0,11);
+const readableName = value => String(value).replace(/[_-]+/g,' ');
 const names = {local:'Local',field:'Field',parameter:'Parameter',call_result:'Call result',match_join:'Match join',const_name:'Const name',other_state:'Nested machine',other_machine:'Other machine',target_body:'Other target'};
 const hosts = {windows_x86_64:['Windows','x86_64'],linux_x86_64:['Linux','x86_64'],macos_arm64:['macOS','arm64'],linux_arm64:['Linux','arm64']};
 let filter = 'all', claimFilter = 'active', selection = null, historySelection = null, outcomeSelection = 'retained';
@@ -379,10 +379,9 @@ function renderHistory() {
 function renderOutcomes(){
  const counts={good:0,retained:0,failed:0,unmeasured:0};
  for(const fact of data.facts)for(const place of fact.places){const state=cellState(place)[0];counts[state==='missing'?'unmeasured':state]++;}
- const categories=[['good','Pass','Recorded pass + rejects'],['retained','Historical','Historical pass'],['failed','Failure','Recorded failure'],['unmeasured','No record','Unmeasured / source absent']];
- const narrow=matchMedia('(max-width:700px)').matches,W=narrow?350:440,H=narrow?255:270,L=42,R=W-10,T=18,B=H-38,ceiling=Math.max(10,Math.ceil(Math.max(...Object.values(counts))/1000)*1000),step=(R-L)/4,barWidth=step*.56;
- const y=n=>B-n/ceiling*(B-T);
- $('outcome-plot').innerHTML=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Fact place observation counts for ${escapeHTML($('target').value)}"><defs><linearGradient id="orange-bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffad6b"/><stop offset="1" stop-color="#f36b13"/></linearGradient></defs>${Array.from({length:5},(_,i)=>ceiling*i/4).map(n=>`<line class="grid-line" x1="${L}" x2="${R}" y1="${y(n)}" y2="${y(n)}"/><text x="${L-9}" y="${y(n)+5}" text-anchor="end">${n>=1000?(n/1000)+'k':n}</text>`).join('')}${categories.map(([key,label,full],i)=>{const x=L+step*(i+.5),top=y(counts[key]);return `<rect id="bar-${key}" class="outcome-bar" x="${x-barWidth/2}" y="${top}" width="${barWidth}" height="${Math.max(1,B-top)}" rx="7"/><text class="value-label" x="${x}" y="${Math.max(T+12,top-10)}" text-anchor="middle">${number(counts[key])}</text><text id="bar-label-${key}" x="${x}" y="${H-8}" text-anchor="middle">${label}</text><rect class="bar-hit" data-outcome="${key}" x="${x-step/2+3}" y="${T}" width="${step-6}" height="${B-T+32}" tabindex="0" role="button" aria-label="${escapeHTML(full+': '+number(counts[key])+' fact places')}"/>`;}).join('')}</svg>`;
+ const categories=[['good','Pass','Recorded pass + rejects'],['retained','Qualified','Historical or qualified pass'],['failed','Failure','Recorded failure'],['unmeasured','No record','Unmeasured / source absent']];
+ const total=data.facts.length*9;
+ $('outcome-plot').innerHTML=categories.map(([key,label,full])=>`<button class="result-row" data-outcome="${key}" aria-label="${escapeHTML(full+': '+number(counts[key])+' of '+number(total)+' fact places')}"><span id="bar-label-${key}">${label}</span><span class="result-track"><span id="bar-${key}" class="result-fill ${key}" style="width:${total?counts[key]/total*100:0}%"></span></span><strong>${number(counts[key])}</strong></button>`).join('');
  const select=key=>{outcomeSelection=key;const category=categories.find(c=>c[0]===key);$('outcome-metric').innerHTML=number(counts[key])+'<small>of '+number(data.facts.length*9)+' places</small>';$('outcome-readout').textContent=category[2]+' · '+hosts[$('target').value].join(' / ');for(const [k]of categories){$('bar-'+k).classList.toggle('selected',k===key);$('bar-label-'+k).classList.toggle('selected-label',k===key);}};
  $('outcome-plot').querySelectorAll('[data-outcome]').forEach(hit=>{hit.onpointerenter=()=>select(hit.dataset.outcome);hit.onfocus=()=>select(hit.dataset.outcome);hit.onclick=()=>select(hit.dataset.outcome);hit.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(hit.dataset.outcome);}};});select(outcomeSelection);
 }
@@ -420,11 +419,11 @@ function selectView(name,focus=false){
 }
 
 function renderFacts(){
- const query=$('fact-search').value.toLowerCase();
- const facts=data.facts.filter(f=>f.name.toLowerCase().includes(query)&&(filter!=='gaps'||f.places.some(p=>!p.program||!p.twins.length)));
- $('fact-head').innerHTML='<tr><th scope="col">Fact</th>'+data.places.map(p=>`<th scope="col">${escapeHTML(names[p])}</th>`).join('')+'</tr>';
- $('fact-body').innerHTML=facts.length?facts.map(f=>`<tr class="${selection?.[0]===f.name?'selected':''}"><td><button class="fact-name" data-fact="${escapeHTML(f.name)}">${escapeHTML(f.name.replaceAll('_',' '))}</button><div class="fact-sub">${f.places.filter(p=>p.program&&p.twins.length).length}/9 source places</div></td>${f.places.map(p=>{const s=cellState(p);return `<td><button class="cell ${s[0]}" data-fact="${escapeHTML(f.name)}" data-place="${p.name}" title="${escapeHTML(s[2])}" aria-label="${escapeHTML(f.name+', '+names[p.name]+': '+s[2])}">${s[1]}</button></td>`;}).join('')}</tr>`).join(''):'<tr><td colspan="10"><div class="empty">No facts match this search.</div></td></tr>';
- $('fact-shown').textContent=`${number(facts.length)} of ${number(data.facts.length)} facts shown`;
+ const query=readableName($('fact-search').value).toLowerCase();
+ const facts=data.facts.filter(f=>readableName(f.name).toLowerCase().includes(query)&&(filter!=='gaps'||f.places.some(p=>!p.program||!p.twins.length)));
+ $('fact-head').innerHTML='<tr><th scope="col">Fact</th><th scope="col" class="source-column" title="Positive source plus reject twin, out of nine places">Source</th>'+data.places.map(p=>`<th scope="col">${escapeHTML(names[p])}</th>`).join('')+'</tr>';
+ $('fact-body').innerHTML=facts.length?facts.map(f=>`<tr class="${selection?.[0]===f.name?'selected':''}"><td><button class="fact-name" data-fact="${escapeHTML(f.name)}">${escapeHTML(readableName(f.name))}</button></td><td class="source-count"><span>${f.places.filter(p=>p.program&&p.twins.length).length}<small>/9</small></span><span class="source-track" aria-hidden="true"><i style="width:${f.places.filter(p=>p.program&&p.twins.length).length/9*100}%"></i></span></td>${f.places.map(p=>{const s=cellState(p);return `<td><button class="cell ${s[0]}" data-fact="${escapeHTML(f.name)}" data-place="${p.name}" title="${escapeHTML(s[2])}" aria-label="${escapeHTML(f.name+', '+names[p.name]+': '+s[2])}">${s[1]}</button></td>`;}).join('')}</tr>`).join(''):'<tr><td colspan="11"><div class="empty">No facts match this search.</div></td></tr>';
+ $('fact-shown').textContent=`${number(facts.length)} of ${number(data.facts.length)} shown`;
  $('fact-body').querySelectorAll('[data-fact]').forEach(button=>button.onclick=()=>{const f=data.facts.find(f=>f.name===button.dataset.fact);showDetail(f,f.places.find(p=>p.name===button.dataset.place)||f.places[0]);});
 }
 function renderNative(){
@@ -442,9 +441,12 @@ function claimRows(){
  const now=Date.now();return all.filter(c=>claimFilter==='active'?Date.parse(c.expires_utc)>now:Date.parse(c.expires_utc)<=now);
 }
 function renderClaims(){
- const query=$('claim-search').value.toLowerCase();const all=claimRows();
- const rows=all.filter(c=>(c.item+' '+c.owner+' '+(c.note||'')).toLowerCase().includes(query));
- $('claim-list').innerHTML=!data.claims.available?`<div class="empty">${escapeHTML(data.claims.error)}</div>`:!rows.length?`<div class="empty">${query?'No claims match this search.':claimFilter==='active'?'No unexpired claims in this snapshot.':'No expired unresolved claims in this snapshot.'}</div>`:rows.map(c=>`<article class="claim"><div class="claim-top"><h3>${escapeHTML(c.item)}</h3><span class="lease ${claimFilter==='expired'?'expired':''}">${claimFilter==='active'?'Lease active':'Unresolved'}</span></div><div class="claim-owner">${escapeHTML(c.owner)}</div><details><summary>Details</summary><p class="claim-note">${escapeHTML(c.note||'No note recorded.')}</p><div class="claim-paths">${escapeHTML((c.paths||[]).join(' · '))}</div><div class="claim-bottom">Ticket <code>${escapeHTML(c.ticket)}</code></div></details><div class="claim-bottom">${claimFilter==='active'?'Lease until':'Lease expired'} ${escapeHTML(date(c.expires_utc))}</div></article>`).join('');
+ const query=readableName($('claim-search').value).toLowerCase();const all=claimRows();
+ const rows=all.filter(c=>readableName(c.item+' '+c.owner+' '+(c.note||'')).toLowerCase().includes(query));
+ const leases=data.claims.available?[...data.claims.active,...data.claims.expired]:[];
+ const active=leases.filter(c=>Date.parse(c.expires_utc)>Date.now()).length;
+ $('work-stats').innerHTML=[['Active leases',active],['Unresolved leases',leases.length-active]].map(([label,count])=>`<article class="stat"><div class="stat-label">${label}</div><div class="stat-value">${data.claims.available?number(count):'—'}</div></article>`).join('');
+ $('claim-list').innerHTML=!data.claims.available?`<div class="empty">${escapeHTML(data.claims.error)}</div>`:!rows.length?`<div class="empty">${query?'No claims match this search.':claimFilter==='active'?'No unexpired claims in this snapshot.':'No expired unresolved claims in this snapshot.'}</div>`:rows.map(c=>`<article class="claim"><div class="claim-top"><h3 title="${escapeHTML(c.item)}">${escapeHTML(readableName(c.item).toLowerCase())}</h3><span class="lease ${claimFilter==='expired'?'expired':''}">${claimFilter==='active'?'Active':'Unresolved'}</span></div><div class="claim-owner" aria-label="Owner">${escapeHTML(c.owner)}</div><p class="claim-note">${escapeHTML(c.note||'No progress note recorded.')}</p>${(c.paths||[]).length?`<div class="claim-paths" aria-label="Claim scope">${c.paths.map(path=>`<code>${escapeHTML(path)}</code>`).join('')}</div>`:''}<div class="claim-bottom"><span>${claimFilter==='active'?'Until':'Expired'} ${escapeHTML(date(c.expires_utc))}</span><details><summary>Details</summary><div>Claim <code>${escapeHTML(c.item)}</code></div><div>Ticket <code>${escapeHTML(c.ticket)}</code></div></details></div></article>`).join('');
  $('claim-shown').textContent=data.claims.available?`${number(rows.length)} of ${number(all.length)} ${claimFilter==='active'?'active':'unresolved'} claims shown`:'Registry state unknown';
  $('registry').textContent=data.claims.available?'Registry '+short(data.claims.version):'Refresh to retry';
 }
@@ -457,7 +459,7 @@ function render(){
  const covered=data.facts.filter(f=>f.places.every(p=>p.program&&p.twins.length)).length;
  const observed=data.facts.reduce((n,f)=>n+f.places.filter(p=>p.observations[$('target').value]?.positive).length,0);
  const active=data.claims.available?[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length:null;
- $('stats').innerHTML=`<article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">▦</span>Source rows</div><div class="stat-value">${number(covered)} <span>/ ${number(data.facts.length)}</span></div><div class="stat-note">Source + rejects · not acceptance</div></article><article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">↗</span>Recorded places</div><div class="stat-value">${number(observed)} <span>/ ${number(data.facts.length*9)}</span></div><div class="stat-note">Selected target · includes history</div></article><article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">⌁</span>Active claims</div><div class="stat-value">${active===null?'—':number(active)}</div><div class="stat-note">${active===null?'Registry unavailable · work state unknown':'Owner-reported leases'}</div></article>`;
+ $('stats').innerHTML=`<article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">▦</span>Source rows</div><div class="stat-value">${number(covered)} <span>/ ${number(data.facts.length)}</span></div><div class="stat-note">9 places + rejects</div></article><article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">↗</span>Recorded places</div><div class="stat-value">${number(observed)} <span>/ ${number(data.facts.length*9)}</span></div><div class="stat-note">Includes qualified records</div></article><article class="stat"><div class="stat-label"><span class="stat-icon" aria-hidden="true">⌁</span>Active claims</div><div class="stat-value" id="active-claims-value">${active===null?'—':number(active)}</div><div class="stat-note">${active===null?'Registry unavailable · work state unknown':'Owner-reported leases'}</div></article>`;
  $('fact-count').textContent=number(data.facts.length)+' facts';$('claims-count').textContent=active===null?'Unknown':number(active)+' active';
  if(data.source_base)$('method-link').href=data.source_base.split('/blob/')[0]+'/blob/main/tools/dashboard/README.md';
  $('warning-count').hidden=!(data.warnings||[]).length;$('warning-count').textContent=(data.warnings||[]).length;
@@ -489,6 +491,6 @@ viewTabs.forEach((tab,i)=>{tab.onclick=()=>selectView(tab.dataset.view);tab.onke
 addEventListener('hashchange',()=>selectView(location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview'));
 
 let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{renderHistory();renderOutcomes();renderCohort();},150);});
-render();selectView(location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview');setInterval(()=>{renderClaims();if(data.claims.available){const active=[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length;document.querySelectorAll('.stat-value')[2].textContent=number(active);$('claims-count').textContent=number(active)+' active';}},60000);
+render();selectView(location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview');setInterval(()=>{renderClaims();if(data.claims.available){const active=[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length;$('active-claims-value').textContent=number(active);$('claims-count').textContent=number(active)+' active';}},60000);
 </script>
 </body></html>
