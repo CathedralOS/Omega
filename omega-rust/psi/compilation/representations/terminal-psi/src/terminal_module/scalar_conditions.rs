@@ -5,9 +5,10 @@
 //! entry. Target admission supplies those observations and the address model;
 //! absence, an unexecuted occurrence, or a final return value cannot substitute.
 
-use arena::{Arena, HandleSpan};
+use arena::{Arena, Handle, HandleSpan};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
+use numerics::scalar_predicates::{PredicateNode, PredicateValueKind, ScalarValue, evaluate_nodes};
 use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, StructuralTypeId, ValueId};
 
 use super::ProofDeclarationId;
@@ -61,11 +62,129 @@ pub enum ScalarRangeCondition {
 pub struct ScalarConditions {
     ranges: Arena<ScalarRangeCondition>,
     steps: Arena<IntegerBoundStep<ScalarRangeObservation>>,
+    predicates: Arena<ScalarPredicateCondition>,
+}
+
+/// A checked Boolean graph. Leaves retain exact scalar observations; the graph
+/// grants no formation premise for computing those observations.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ScalarPredicateNode(
+    pub PredicateNode<Handle<ScalarPredicateNode>, ScalarRangeObservation>,
+);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarPredicateCondition {
+    pub subject: ScalarConditionSubject,
+    pub description: String,
+    nodes: Arena<ScalarPredicateNode>,
+    root: Handle<ScalarPredicateNode>,
+}
+
+impl Default for ScalarPredicateCondition {
+    fn default() -> Self {
+        Self {
+            subject: ScalarConditionSubject::Module,
+            description: String::new(),
+            nodes: Arena::new(),
+            root: Handle::invalid(),
+        }
+    }
+}
+
+impl ScalarPredicateCondition {
+    pub fn nodes(&self) -> &Arena<ScalarPredicateNode> {
+        &self.nodes
+    }
+    pub fn root(&self) -> Handle<ScalarPredicateNode> {
+        self.root
+    }
+
+    /// The caller supplies independently admitted observations. An absent
+    /// observation stays unknown, including after another computation succeeds.
+    pub fn evaluate(
+        &self,
+        observe: &mut impl FnMut(ScalarRangeObservation) -> Option<ScalarValue>,
+    ) -> Option<ScalarValue> {
+        evaluate_nodes(
+            self.root,
+            &mut |reference| {
+                self.nodes
+                    .is_valid(reference)
+                    .then(|| self.nodes.get(reference).0.clone())
+            },
+            &mut |observation| match observation {
+                ScalarRangeObservation::Missing => None,
+                ScalarRangeObservation::Literal(value) => Some(ScalarValue::Integer(value)),
+                observed => match observe(observed)? {
+                    ScalarValue::Integer(value) => Some(ScalarValue::Integer(value)),
+                    _ => None,
+                },
+            },
+            &|_, _| true,
+        )
+    }
 }
 
 impl ScalarConditions {
     pub fn ranges(&self) -> &[ScalarRangeCondition] {
         self.ranges.storage_slice()
+    }
+
+    pub fn predicates(&self) -> &[ScalarPredicateCondition] {
+        self.predicates.storage_slice()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty() && self.predicates.is_empty()
+    }
+
+    pub fn retain_predicate(
+        &mut self,
+        subject: ScalarConditionSubject,
+        description: String,
+        nodes: Arena<ScalarPredicateNode>,
+        root: Handle<ScalarPredicateNode>,
+    ) -> Result<(), &'static str> {
+        let mut preceding = Vec::new();
+        for (reference, node) in nodes.iter() {
+            if matches!(
+                node.0,
+                PredicateNode::Missing
+                    | PredicateNode::Value(ScalarValue::Unknown)
+                    | PredicateNode::Leaf(ScalarRangeObservation::Missing)
+            ) {
+                return Err("scalar predicate contains an absent node or observation");
+            }
+            let kind = node.0.value_kind(
+                &mut |child| {
+                    preceding
+                        .iter()
+                        .find(|(reference, _)| *reference == child)
+                        .map(|(_, kind)| *kind)
+                        .ok_or("scalar predicate lost a preceding child")
+                },
+                &mut |_| Ok(PredicateValueKind::Integer),
+            )?;
+            preceding.push((reference, kind));
+        }
+        if !nodes.is_valid(root) {
+            return Err("scalar predicate lost its root");
+        }
+        if preceding
+            .iter()
+            .find(|(reference, _)| *reference == root)
+            .map(|(_, kind)| *kind)
+            != Some(PredicateValueKind::Boolean)
+        {
+            return Err("scalar predicate root is not Boolean");
+        }
+        self.predicates.insert(ScalarPredicateCondition {
+            subject,
+            description,
+            nodes,
+            root,
+        });
+        Ok(())
     }
 
     /// References retained by all conditions, including values with no
@@ -78,6 +197,21 @@ impl ScalarConditions {
                 IntegerBoundStep::Observation(observation) => Some(observation),
                 _ => None,
             })
+            .chain(
+                self.predicates
+                    .storage_slice()
+                    .iter()
+                    .flat_map(|condition| {
+                        condition
+                            .nodes
+                            .storage_slice()
+                            .iter()
+                            .filter_map(|node| match &node.0 {
+                                PredicateNode::Leaf(observation) => Some(observation),
+                                _ => None,
+                            })
+                    }),
+            )
     }
 
     pub fn steps(
@@ -143,5 +277,94 @@ impl ScalarConditions {
             steps,
         });
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerics::scalar_predicates::PredicateOperator;
+
+    #[test]
+    fn scalar_predicate_formation_checks_root_and_all_operator_kinds() {
+        for operator in [
+            PredicateOperator::And,
+            PredicateOperator::Or,
+            PredicateOperator::Less,
+            PredicateOperator::GreaterOrEqual,
+        ] {
+            let mut nodes = Arena::new();
+            let integer = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+                ScalarValue::Integer(BigInt::from_u64(1)),
+            )));
+            let boolean = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+                ScalarValue::Boolean(true),
+            )));
+            let root = nodes.insert(ScalarPredicateNode(PredicateNode::Binary {
+                operator,
+                left: integer,
+                right: boolean,
+            }));
+            assert_eq!(
+                ScalarConditions::default().retain_predicate(
+                    ScalarConditionSubject::Module,
+                    "bad kinds".into(),
+                    nodes,
+                    root
+                ),
+                Err("scalar predicate operator has incompatible operand kinds")
+            );
+        }
+        let mut nodes = Arena::new();
+        let root = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+            ScalarValue::Integer(BigInt::from_u64(1)),
+        )));
+        assert_eq!(
+            ScalarConditions::default().retain_predicate(
+                ScalarConditionSubject::Module,
+                "integer root".into(),
+                nodes,
+                root
+            ),
+            Err("scalar predicate root is not Boolean")
+        );
+    }
+
+    #[test]
+    fn scalar_predicate_observations_cannot_change_declared_kind_or_literal() {
+        let mut nodes = Arena::new();
+        let left = nodes.insert(ScalarPredicateNode(PredicateNode::Leaf(
+            ScalarRangeObservation::Application(ScalarApplicationId::new(1).unwrap()),
+        )));
+        let right = nodes.insert(ScalarPredicateNode(PredicateNode::Leaf(
+            ScalarRangeObservation::Literal(BigInt::from_u64(24)),
+        )));
+        let root = nodes.insert(ScalarPredicateNode(PredicateNode::Binary {
+            operator: PredicateOperator::Equal,
+            left,
+            right,
+        }));
+        let mut conditions = ScalarConditions::default();
+        conditions
+            .retain_predicate(
+                ScalarConditionSubject::Module,
+                "exact integer observations".into(),
+                nodes,
+                root,
+            )
+            .unwrap();
+        assert_eq!(
+            conditions.predicates()[0].evaluate(&mut |_| Some(ScalarValue::Boolean(true))),
+            None
+        );
+        let mut observations = 0;
+        assert_eq!(
+            conditions.predicates()[0].evaluate(&mut |_| {
+                observations += 1;
+                Some(ScalarValue::Integer(BigInt::from_u64(24)))
+            }),
+            Some(ScalarValue::Boolean(true))
+        );
+        assert_eq!(observations, 1);
     }
 }

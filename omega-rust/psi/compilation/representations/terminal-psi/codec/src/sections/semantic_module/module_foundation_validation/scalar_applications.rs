@@ -2,7 +2,6 @@
 //! These establish a well-formed computation, not its value or admission.
 
 use crate::codec_error::{CodecError, malformed};
-use numerics::integer_bounds::IntegerBoundStep;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use terminal_psi::{
     LayoutMeasurement, ScalarApplication, ScalarConditionSubject, ScalarRangeCondition,
@@ -85,78 +84,87 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         let ScalarRangeCondition::Range { subject, .. } = condition else {
             return malformed("scalar condition is absent");
         };
-        let has_subject = match subject {
-            ScalarConditionSubject::Module => true,
-            ScalarConditionSubject::Declaration(declaration) => module
-                .scalar_applications
-                .proof_scope
-                .declaration(*declaration)
-                .is_some(),
-            ScalarConditionSubject::StructuralType(subject) => {
-                module.structural_type(*subject).is_some()
-            }
-            ScalarConditionSubject::Application(application) => module
-                .scalar_applications
-                .declaration(*application)
-                .is_some(),
-        };
-        if !has_subject {
-            return malformed("scalar condition lost its exact subject");
-        }
-        for step in conditions
+        validate_subject(module, subject)?;
+        conditions
             .steps(condition)
-            .map_err(CodecError::MalformedStructuralFoundation)?
-        {
-            let IntegerBoundStep::Observation(observation) = step else {
-                continue;
-            };
-            match observation {
-                ScalarRangeObservation::Missing => {
-                    return malformed("scalar condition contains an absent observation");
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+    }
+    for condition in conditions.predicates() {
+        validate_subject(module, &condition.subject)?;
+    }
+    for observation in conditions.observations() {
+        match observation {
+            ScalarRangeObservation::Missing => {
+                return malformed("scalar condition contains an absent observation");
+            }
+            ScalarRangeObservation::Literal(_) => {}
+            ScalarRangeObservation::Application(application) => {
+                if !module
+                    .scalar_applications
+                    .declaration(*application)
+                    .and_then(|application| application.scalar_type())
+                    .is_some_and(|scalar_type| scalar_type.as_integer().is_some())
+                {
+                    return malformed("scalar bound observation has no integer application");
                 }
-                ScalarRangeObservation::Literal(_) => {}
-                ScalarRangeObservation::Application(application) => {
-                    if !module
-                        .scalar_applications
-                        .declaration(*application)
-                        .and_then(|application| application.scalar_type())
-                        .is_some_and(|scalar_type| scalar_type.as_integer().is_some())
-                    {
-                        return malformed("scalar bound observation has no integer application");
-                    }
+            }
+            ScalarRangeObservation::EntryResult {
+                application,
+                machine,
+                result,
+                scalar_type,
+            } => {
+                let Some(ScalarApplication::Evaluate {
+                    entry: TargetMachineCallable::Machine(entry),
+                    ..
+                }) = module.scalar_applications.declaration(*application)
+                else {
+                    return malformed("scalar bound result has no ordinary evaluation entry");
+                };
+                if entry != machine || scalar_type.as_integer().is_none() {
+                    return malformed(
+                        "scalar bound result differs from its exact entry or carrier",
+                    );
                 }
-                ScalarRangeObservation::EntryResult {
-                    application,
-                    machine,
-                    result,
-                    scalar_type,
-                } => {
-                    let Some(ScalarApplication::Evaluate {
-                        entry: TargetMachineCallable::Machine(entry),
-                        ..
-                    }) = module.scalar_applications.declaration(*application)
-                    else {
-                        return malformed("scalar bound result has no ordinary evaluation entry");
-                    };
-                    if entry != machine || scalar_type.as_integer().is_none() {
-                        return malformed(
-                            "scalar bound result differs from its exact entry or carrier",
-                        );
-                    }
-                    let found = module.machine(*machine).and_then(|machine| {
-                        machine
-                            .operations()
-                            .filter_map(|operation| operation.result.as_scalar())
-                            .find(|value| value.id == *result)
-                    });
-                    if !found.is_some_and(|value| value.scalar_type == *scalar_type) {
-                        return malformed(
-                            "scalar bound result has no exact integer-producing occurrence",
-                        );
-                    }
+                let found = module.machine(*machine).and_then(|machine| {
+                    machine
+                        .operations()
+                        .filter_map(|operation| operation.result.as_scalar())
+                        .find(|value| value.id == *result)
+                });
+                if !found.is_some_and(|value| value.scalar_type == *scalar_type) {
+                    return malformed(
+                        "scalar bound result has no exact integer-producing occurrence",
+                    );
                 }
             }
         }
     }
+    Ok(())
+}
+
+fn validate_subject(
+    module: &TerminalModule,
+    subject: &ScalarConditionSubject,
+) -> Result<(), CodecError> {
+    let has_subject = match subject {
+        ScalarConditionSubject::Module => true,
+        ScalarConditionSubject::Declaration(declaration) => module
+            .scalar_applications
+            .proof_scope
+            .declaration(*declaration)
+            .is_some(),
+        ScalarConditionSubject::StructuralType(subject) => {
+            module.structural_type(*subject).is_some()
+        }
+        ScalarConditionSubject::Application(application) => module
+            .scalar_applications
+            .declaration(*application)
+            .is_some(),
+    };
+    if !has_subject {
+        return malformed("scalar condition lost its exact subject");
+    }
+
     Ok(())
 }

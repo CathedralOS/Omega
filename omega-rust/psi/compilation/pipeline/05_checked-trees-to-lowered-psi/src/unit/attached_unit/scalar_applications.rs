@@ -22,7 +22,7 @@ pub(crate) struct SourceScalarApplications {
     rows: Vec<Application>,
     expressions: Vec<(ExpressionHandle, ScalarApplicationId)>,
     recipes: Vec<(ConstantRecipeHandle, ScalarApplicationId)>,
-    conditions: Vec<conditions::Range>,
+    conditions: Vec<conditions::Condition>,
 }
 
 struct Application {
@@ -72,22 +72,7 @@ impl SourceScalarApplications {
             if !retained {
                 continue;
             }
-            let application = match declaration.position {
-                RetainedConstantPosition::ArrayLength(reference) => {
-                    applications.retain_array_length(checked, reference)?
-                }
-                RetainedConstantPosition::RangeEndpoint(expression)
-                | RetainedConstantPosition::ContractExpression(expression)
-                | RetainedConstantPosition::ConstApplication {
-                    root: expression, ..
-                } => applications.retain_expression(checked, expression)?,
-                RetainedConstantPosition::None => {
-                    return Err(LoweringError::Unsupported(
-                        "pending constant catalog contains an absent source position",
-                    ));
-                }
-            };
-            applications.recipes.push((recipe, application));
+            applications.retain_recipe(checked, recipe)?;
         }
         for (_, computation) in checked.facts.values.scalar_computations.nodes.iter() {
             if let CheckedScalarComputationKind::RetainedConstant { expression } = computation.kind
@@ -99,6 +84,39 @@ impl SourceScalarApplications {
         }
         applications.conditions = conditions::prepare(checked, &mut applications)?;
         Ok(applications)
+    }
+
+    fn retain_recipe(
+        &mut self,
+        checked: &CheckedTrees,
+        recipe: ConstantRecipeHandle,
+    ) -> Result<ScalarApplicationId, LoweringError> {
+        if let Some(application) = self.recipe(recipe) {
+            return Ok(application);
+        }
+        if !checked.typed.constant_recipes.is_valid(recipe) {
+            return Err(LoweringError::Unsupported(
+                "scalar condition lost its exact recipe",
+            ));
+        }
+        let declaration = checked.typed.constant_recipes.get(recipe);
+        let application = match declaration.position {
+            RetainedConstantPosition::ArrayLength(reference) => {
+                self.retain_array_length(checked, reference)?
+            }
+            RetainedConstantPosition::RangeEndpoint(expression)
+            | RetainedConstantPosition::ContractExpression(expression)
+            | RetainedConstantPosition::ConstApplication {
+                root: expression, ..
+            } => self.retain_expression(checked, expression)?,
+            RetainedConstantPosition::None => {
+                return Err(LoweringError::Unsupported(
+                    "pending constant catalog contains an absent source position",
+                ));
+            }
+        };
+        self.recipes.push((recipe, application));
+        Ok(application)
     }
 
     fn retain_array_length(
@@ -328,7 +346,7 @@ impl SourceScalarApplications {
             .chain(
                 self.conditions
                     .iter()
-                    .filter_map(conditions::Range::type_root),
+                    .filter_map(conditions::Condition::type_root),
             )
     }
 

@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 207 even when every table
+order below. This layout uses semantic format marker 208 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -140,10 +140,29 @@ completion instead. Erasure retains the existing strict subset rule.
 ### Retained scalar conditions and application scope
 
 The reference compiler's target-closure migration retains scalar applications,
-captured integer conditions, and their declaration scope before the folded
+captured integer and Boolean conditions, and their declaration scope before the folded
 constant table. These rows are outstanding requirements, not successful proof
 or execution authority. The migration's unresolved-execution fences remain
 until a receiving target can discharge the complete requirements.
+
+The condition section encodes counted integer-range rows followed by counted
+predicate rows. A predicate row contains its subject, diagnostic description,
+counted graph nodes and root coordinate. Node tags are integer literal (1),
+Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
+binary operator (6). Binary operators are `and`, `or`, equality, inequality,
+less, less-or-equal, greater, greater-or-equal (tags 1 through 8). Child and
+root coordinates are zero-based positions in that row's node list, not arena
+handles; every child precedes its parent. Integer payloads use the canonical
+sign/magnitude encoding also used by bound steps.
+
+Ingress checks every operand's kind and requires a Boolean root, including
+operands that selective evaluation may skip. Observations currently denote
+integers; Boolean constants and combinations retain their selected builtin
+meaning. Evaluation shares the ordinary scalar-predicate evaluator and cannot
+establish formation by short-circuiting. Recipe equality retains both independent
+application operands; success of one application does not discharge the other.
+An explicitly unscoped recipe requirement retains a module-wide subject; a
+failed lookup for an authored owner never becomes module authority.
 
 A condition subject is tagged as module-wide (1), a `u32` proof-declaration
 coordinate (2), a structural type (3), or a scalar application (4). Declaration

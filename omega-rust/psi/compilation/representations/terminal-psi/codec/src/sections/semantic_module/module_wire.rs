@@ -34,6 +34,7 @@ mod proof_scope_wire;
 mod scalar_application_wire;
 mod scalar_block_invariant_wire;
 mod scalar_condition_wire;
+mod scalar_predicate_wire;
 mod target_family_wire;
 mod target_layout_wire;
 mod task_activation_wire;

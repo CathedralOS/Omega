@@ -985,7 +985,10 @@ mod tests {
                 scalar_restriction: None,
                 id: array,
                 identity: crate::TerminalIdentityIndex(5),
-                shape: StructuralTypeShape::FixedArray { element, length: 0 },
+                shape: StructuralTypeShape::FixedArray {
+                    element,
+                    length: crate::ArrayExtent::Literal(0),
+                },
             },
         ];
         assert!(structural_type_contains_reference(&types, reference));

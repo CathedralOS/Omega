@@ -12,6 +12,7 @@ use checked_trees::{CheckedTrees, NominalMachineUseSite};
 use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
+use numerics::scalar_predicates::{PredicateNode, PredicateOperator};
 use semantic_vocabulary::{MachineId, ScalarApplicationId, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
@@ -21,15 +22,27 @@ use terminal_psi::{
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::type_identity::TypeIdentityId;
 
-pub(super) struct Range {
+pub(super) struct Condition {
     owner: SymbolHandle,
     expression: ExpressionHandle,
     subject: Subject,
-    requirement: ScalarRangeRequirement,
-    steps: Vec<IntegerBoundStep<Observation>>,
+    requirement: Requirement,
+}
+
+enum Requirement {
+    Range {
+        requirement: ScalarRangeRequirement,
+        steps: Vec<IntegerBoundStep<Observation>>,
+    },
+    Predicate {
+        description: String,
+        nodes: Vec<PredicateNode<usize, Observation>>,
+        root: usize,
+    },
 }
 
 enum Subject {
+    Module,
     Callable(SymbolHandle),
     StructuralType(TypeIdentityId),
     Application(ScalarApplicationId),
@@ -47,7 +60,7 @@ enum Observation {
     },
 }
 
-impl Range {
+impl Condition {
     pub(super) fn type_root(&self) -> Option<TypeIdentityId> {
         match self.subject {
             Subject::StructuralType(subject) => Some(subject),
@@ -67,7 +80,7 @@ impl Range {
 pub(super) fn prepare(
     checked: &CheckedTrees,
     applications: &mut SourceScalarApplications,
-) -> Result<Vec<Range>, LoweringError> {
+) -> Result<Vec<Condition>, LoweringError> {
     let mut ranges = Vec::new();
     for obligation in &checked.facts.integer_range_obligations {
         if !obligation.is_pending() {
@@ -93,15 +106,120 @@ pub(super) fn prepare(
             },
             None => ScalarRangeRequirement::AddressModel,
         };
-        ranges.push(Range {
+        ranges.push(Condition {
             owner,
             expression,
             subject,
-            requirement,
-            steps,
+            requirement: Requirement::Range { requirement, steps },
+        });
+    }
+    for obligation in &checked.facts.constant_predicate_obligations {
+        if !obligation.is_pending() {
+            continue;
+        }
+        let owner = obligation.caller();
+        let expression = ExpressionHandle::invalid();
+        let failure = |reason| LoweringError::UnpublishedScalarCondition {
+            owner,
+            expression,
+            reason,
+        };
+        let subject = subject(checked, applications, owner).map_err(&failure)?;
+        let mut nodes = Vec::new();
+        let root = obligation
+            .map_nodes(
+                &mut |expression, owner| observation(checked, applications, expression, owner),
+                &mut |node| {
+                    let ordinal = nodes.len();
+                    nodes.push(node);
+                    Ok(ordinal)
+                },
+            )
+            .map_err(failure)?;
+        ranges.push(Condition {
+            owner,
+            expression,
+            subject,
+            requirement: Requirement::Predicate {
+                description: obligation.description().to_owned(),
+                nodes,
+                root,
+            },
+        });
+    }
+    for obligation in &checked.facts.constant_recipe_obligations {
+        if !obligation.is_pending() {
+            continue;
+        }
+        let owner = obligation.owner();
+        let expression = ExpressionHandle::invalid();
+        let failure = |reason| LoweringError::UnpublishedScalarCondition {
+            owner,
+            expression,
+            reason,
+        };
+        // This producer explicitly records unscoped recipe formation. Missing
+        // lookup for any valid owner is still an error, never module authority.
+        let subject = if owner.is_valid() {
+            subject(checked, applications, owner).map_err(&failure)?
+        } else {
+            Subject::Module
+        };
+        let left =
+            recipe_observation(checked, applications, obligation.recipe()).map_err(&failure)?;
+        use checked_trees::ConstantRecipeRequirement;
+        let (operator, right) = match obligation.requirement() {
+            ConstantRecipeRequirement::ExceedsBound(bound) => (
+                PredicateOperator::Greater,
+                Observation::Literal(bound.clone()),
+            ),
+            ConstantRecipeRequirement::AtLeast(bound) => (
+                PredicateOperator::GreaterOrEqual,
+                Observation::Literal(bound.clone()),
+            ),
+            ConstantRecipeRequirement::AtMost(bound) => (
+                PredicateOperator::LessOrEqual,
+                Observation::Literal(bound.clone()),
+            ),
+            ConstantRecipeRequirement::EqualRecipe(other) => (
+                PredicateOperator::Equal,
+                recipe_observation(checked, applications, *other).map_err(failure)?,
+            ),
+        };
+        ranges.push(Condition {
+            owner,
+            expression,
+            subject,
+            requirement: Requirement::Predicate {
+                description: obligation.description().to_owned(),
+                nodes: vec![
+                    PredicateNode::Leaf(left),
+                    PredicateNode::Leaf(right),
+                    PredicateNode::Binary {
+                        operator,
+                        left: 0,
+                        right: 1,
+                    },
+                ],
+                root: 2,
+            },
         });
     }
     Ok(ranges)
+}
+
+fn recipe_observation(
+    checked: &CheckedTrees,
+    applications: &mut SourceScalarApplications,
+    recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
+) -> Result<Observation, String> {
+    if let Some(value) = checked.typed.closed_constant_recipe_value(recipe) {
+        return Ok(Observation::Literal(value.clone()));
+    }
+    applications
+        .retain_recipe(checked, recipe)
+        .map(Observation::Application)
+        .map_err(|error| error.to_string())
 }
 
 fn subject(
@@ -193,7 +311,7 @@ pub(crate) struct EmittedScalars<'a> {
 }
 
 pub(super) fn publish(
-    ranges: &[Range],
+    ranges: &[Condition],
     types: &[(TypeIdentityId, StructuralTypeId)],
     machines: &[(SymbolHandle, MachineId)],
     boundaries: &[BoundaryParameters],
@@ -203,6 +321,7 @@ pub(super) fn publish(
     let mut result = ScalarConditions::default();
     for range in ranges {
         let subject = match range.subject {
+            Subject::Module => ScalarConditionSubject::Module,
             Subject::Callable(source) => ScalarConditionSubject::Declaration(
                 declarations
                     .iter()
@@ -219,19 +338,52 @@ pub(super) fn publish(
             }
             Subject::Application(application) => ScalarConditionSubject::Application(application),
         };
-        let steps = range
-            .steps
-            .iter()
-            .map(|step| {
-                step.map_observation(&mut |observation| {
-                    publish_observation(observation, machines, boundaries, &emitted)
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|reason| range.error(reason))?;
-        result
-            .retain_range(subject, range.requirement.clone(), steps)
-            .map_err(|reason| range.error(reason.to_owned()))?;
+        match &range.requirement {
+            Requirement::Range { requirement, steps } => {
+                let steps = steps
+                    .iter()
+                    .map(|step| {
+                        step.map_observation(&mut |observation| {
+                            publish_observation(observation, machines, boundaries, &emitted)
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|reason| range.error(reason))?;
+                result
+                    .retain_range(subject, requirement.clone(), steps)
+                    .map_err(|reason| range.error(reason.to_owned()))?;
+            }
+            Requirement::Predicate {
+                description,
+                nodes,
+                root,
+            } => {
+                let mut published = arena::Arena::new();
+                let mut coordinates = Vec::new();
+                for node in nodes {
+                    let mapped = node
+                        .try_map(
+                            &mut |reference| {
+                                coordinates.get(reference).copied().ok_or_else(|| {
+                                    "scalar predicate lost a preceding node".to_owned()
+                                })
+                            },
+                            &mut |observation| {
+                                publish_observation(observation, machines, boundaries, &emitted)
+                            },
+                        )
+                        .map_err(|reason| range.error(reason))?;
+                    coordinates.push(published.insert(terminal_psi::ScalarPredicateNode(mapped)));
+                }
+                let root = coordinates
+                    .get(*root)
+                    .copied()
+                    .ok_or_else(|| range.error("scalar predicate lost its root".to_owned()))?;
+                result
+                    .retain_predicate(subject, description.clone(), published, root)
+                    .map_err(|reason| range.error(reason.to_owned()))?;
+            }
+        }
     }
     Ok(result)
 }
@@ -303,4 +455,106 @@ fn publish_observation(
         result: value.id,
         scalar_type: value.scalar_type,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use checked_trees::{CheckFacts, ConstantRecipeObligation, ConstantRecipeRequirement};
+    use numerics::scalar_predicates::ScalarValue;
+    use typed_trees::constant_recipes::RetainedConstantRecipe;
+
+    #[test]
+    fn scalar_condition_publication_retains_recipe_relations_and_explicit_module_scope() {
+        let mut typed = typed_trees::TypedTrees::default();
+        let first = typed
+            .constant_recipes
+            .insert(RetainedConstantRecipe::default());
+        let second = typed
+            .constant_recipes
+            .insert(RetainedConstantRecipe::default());
+        let first_application = ScalarApplicationId::new(1).unwrap();
+        let second_application = ScalarApplicationId::new(2).unwrap();
+        let mut facts = CheckFacts::default();
+        for requirement in [
+            ConstantRecipeRequirement::EqualRecipe(second),
+            ConstantRecipeRequirement::ExceedsBound(BigInt::from_u64(23)),
+            ConstantRecipeRequirement::AtLeast(BigInt::from_u64(24)),
+            ConstantRecipeRequirement::AtMost(BigInt::from_u64(24)),
+        ] {
+            facts
+                .constant_recipe_obligations
+                .push(ConstantRecipeObligation::retain(
+                    SymbolHandle::invalid(),
+                    first,
+                    requirement,
+                    source::SourceSpan::default(),
+                    "test formation".into(),
+                ));
+        }
+        let checked = CheckedTrees::with_roots(typed, facts);
+        let mut applications = SourceScalarApplications::default();
+        applications
+            .recipes
+            .extend([(first, first_application), (second, second_application)]);
+        let prepared = prepare(&checked, &mut applications).unwrap();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let conditions = publish(
+            &prepared,
+            &[],
+            &[],
+            &[],
+            &[],
+            EmittedScalars {
+                checked: &checked,
+                identities: &mut identities,
+                sources: &[],
+                calls: &[],
+                machines: &[],
+            },
+        )
+        .unwrap();
+        assert_eq!(conditions.predicates().len(), 4);
+        for condition in conditions.predicates() {
+            assert_eq!(condition.subject, ScalarConditionSubject::Module);
+        }
+        for (value, expected) in [
+            (23, [true, false, false, true]),
+            (24, [true, true, true, true]),
+            (25, [true, true, true, false]),
+        ] {
+            for (condition, expected) in conditions.predicates().iter().zip(expected) {
+                let result = condition.evaluate(&mut |observation| match observation {
+                    ScalarRangeObservation::Application(_) => {
+                        Some(ScalarValue::Integer(BigInt::from_u64(value)))
+                    }
+                    _ => panic!("literals retain their own value"),
+                });
+                assert_eq!(result, Some(ScalarValue::Boolean(expected)));
+            }
+        }
+        for (second_value, expected) in [
+            (Some(24), Some(true)),
+            (Some(16), Some(false)),
+            (None, None),
+        ] {
+            let mut observed = Vec::new();
+            let value = conditions.predicates()[0].evaluate(&mut |observation| {
+                let ScalarRangeObservation::Application(application) = observation else {
+                    panic!("expected application");
+                };
+                observed.push(application);
+                let value = if application == first_application {
+                    Some(24)
+                } else {
+                    second_value
+                }?;
+                Some(ScalarValue::Integer(BigInt::from_u64(value)))
+            });
+            assert_eq!(observed, vec![first_application, second_application]);
+            assert_eq!(value, expected.map(ScalarValue::Boolean));
+        }
+        assert!(subject(&checked, &mut applications, SymbolHandle::from_parts(99, 1)).is_err());
+        assert!(subject(&checked, &mut applications, SymbolHandle::invalid()).is_err());
+    }
 }

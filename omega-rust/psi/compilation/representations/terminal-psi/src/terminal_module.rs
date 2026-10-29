@@ -25,8 +25,8 @@ pub use scalar_applications::{
     ArrayExtent, LayoutMeasurement, ScalarApplication, ScalarApplications,
 };
 pub use scalar_conditions::{
-    ScalarConditionSubject, ScalarConditions, ScalarRangeCondition, ScalarRangeObservation,
-    ScalarRangeRequirement,
+    ScalarConditionSubject, ScalarConditions, ScalarPredicateCondition, ScalarPredicateNode,
+    ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement,
 };
 pub mod control_flow;
 pub use control_flow::{

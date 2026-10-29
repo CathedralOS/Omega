@@ -123,6 +123,6 @@ impl ScalarApplications {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.declarations.is_empty() && self.conditions.ranges().is_empty()
+        self.declarations.is_empty() && self.conditions.is_empty()
     }
 }

@@ -64,6 +64,15 @@ impl ConstantRecipeObligation {
         &self.description
     }
 
+    /// Both sides remain authored requirements. Publication cannot replace an
+    /// equality by a comparison against only the first observed operand.
+    pub fn recipe(&self) -> ConstantRecipeHandle {
+        self.recipe
+    }
+    pub fn requirement(&self) -> &ConstantRecipeRequirement {
+        &self.requirement
+    }
+
     pub fn is_pending(&self) -> bool {
         !self.discharged
     }

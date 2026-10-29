@@ -10,7 +10,7 @@ use terminal_psi::{
     ScalarRangeRequirement,
 };
 
-fn encode_integer(writer: &mut Writer, value: &BigInt) -> Result<(), CodecError> {
+pub(super) fn encode_integer(writer: &mut Writer, value: &BigInt) -> Result<(), CodecError> {
     writer.boolean(value.is_negative());
     writer.len("bound magnitude words", value.magnitude_words().len())?;
     for word in value.magnitude_words() {
@@ -19,7 +19,7 @@ fn encode_integer(writer: &mut Writer, value: &BigInt) -> Result<(), CodecError>
     Ok(())
 }
 
-fn decode_integer(reader: &mut Reader<'_>) -> Result<BigInt, CodecError> {
+pub(super) fn decode_integer(reader: &mut Reader<'_>) -> Result<BigInt, CodecError> {
     let negative = reader.boolean()?;
     let count = reader.count()?;
     let mut words = Vec::new();
@@ -42,21 +42,7 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
                 "scalar condition is absent",
             ));
         };
-        match subject {
-            ScalarConditionSubject::Module => writer.u8(1),
-            ScalarConditionSubject::Declaration(declaration) => {
-                writer.u8(2);
-                writer.u32(declaration.0);
-            }
-            ScalarConditionSubject::StructuralType(subject) => {
-                writer.u8(3);
-                writer.id(*subject);
-            }
-            ScalarConditionSubject::Application(application) => {
-                writer.u8(4);
-                writer.id(*application);
-            }
-        }
+        encode_subject(writer, *subject);
         match requirement {
             ScalarRangeRequirement::Fixed { minimum, maximum } => {
                 writer.u8(1);
@@ -83,33 +69,7 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
                 }
                 IntegerBoundStep::Observation(observation) => {
                     writer.u8(2);
-                    match observation {
-                        ScalarRangeObservation::Missing => {
-                            return Err(CodecError::MalformedStructuralFoundation(
-                                "scalar condition contains an absent observation",
-                            ));
-                        }
-                        ScalarRangeObservation::Literal(value) => {
-                            writer.u8(1);
-                            encode_integer(writer, value)?;
-                        }
-                        ScalarRangeObservation::Application(application) => {
-                            writer.u8(2);
-                            writer.id(*application);
-                        }
-                        ScalarRangeObservation::EntryResult {
-                            application,
-                            machine,
-                            result,
-                            scalar_type,
-                        } => {
-                            writer.u8(3);
-                            writer.id(*application);
-                            writer.id(*machine);
-                            writer.id(*result);
-                            encode_scalar_type(writer, *scalar_type);
-                        }
-                    }
+                    encode_observation(writer, observation)?;
                 }
                 IntegerBoundStep::Add => writer.u8(3),
                 IntegerBoundStep::Subtract => writer.u8(4),
@@ -120,22 +80,14 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
             }
         }
     }
-    Ok(())
+    super::scalar_predicate_wire::encode(writer, conditions)
 }
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecError> {
     let count = reader.count()?;
     let mut conditions = ScalarConditions::default();
     for _ in 0..count {
-        let subject = match reader.u8()? {
-            1 => ScalarConditionSubject::Module,
-            2 => {
-                ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(reader.u32()?))
-            }
-            3 => ScalarConditionSubject::StructuralType(reader.id("StructuralTypeId")?),
-            4 => ScalarConditionSubject::Application(reader.id("ScalarApplicationId")?),
-            tag => return Err(CodecError::InvalidTag("ScalarConditionSubject", tag)),
-        };
+        let subject = decode_subject(reader)?;
         let requirement = match reader.u8()? {
             1 => ScalarRangeRequirement::Fixed {
                 minimum: decode_integer(reader)?,
@@ -152,17 +104,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
                     low: decode_integer(reader)?,
                     high: decode_integer(reader)?,
                 },
-                2 => IntegerBoundStep::Observation(match reader.u8()? {
-                    1 => ScalarRangeObservation::Literal(decode_integer(reader)?),
-                    2 => ScalarRangeObservation::Application(reader.id("ScalarApplicationId")?),
-                    3 => ScalarRangeObservation::EntryResult {
-                        application: reader.id("ScalarApplicationId")?,
-                        machine: reader.id("MachineId")?,
-                        result: reader.id("ValueId")?,
-                        scalar_type: decode_scalar_type(reader)?,
-                    },
-                    tag => return Err(CodecError::InvalidTag("ScalarRangeObservation", tag)),
-                }),
+                2 => IntegerBoundStep::Observation(decode_observation(reader)?),
                 3 => IntegerBoundStep::Add,
                 4 => IntegerBoundStep::Subtract,
                 5 => IntegerBoundStep::Multiply,
@@ -177,7 +119,88 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
             .retain_range(subject, requirement, steps)
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
+    super::scalar_predicate_wire::decode(reader, &mut conditions)?;
     Ok(conditions)
+}
+
+pub(super) fn encode_subject(writer: &mut Writer, subject: ScalarConditionSubject) {
+    match subject {
+        ScalarConditionSubject::Module => writer.u8(1),
+        ScalarConditionSubject::Declaration(declaration) => {
+            writer.u8(2);
+            writer.u32(declaration.0);
+        }
+        ScalarConditionSubject::StructuralType(subject) => {
+            writer.u8(3);
+            writer.id(subject);
+        }
+        ScalarConditionSubject::Application(application) => {
+            writer.u8(4);
+            writer.id(application);
+        }
+    }
+}
+
+pub(super) fn decode_subject(
+    reader: &mut Reader<'_>,
+) -> Result<ScalarConditionSubject, CodecError> {
+    Ok(match reader.u8()? {
+        1 => ScalarConditionSubject::Module,
+        2 => ScalarConditionSubject::Declaration(terminal_psi::ProofDeclarationId(reader.u32()?)),
+        3 => ScalarConditionSubject::StructuralType(reader.id("StructuralTypeId")?),
+        4 => ScalarConditionSubject::Application(reader.id("ScalarApplicationId")?),
+        tag => return Err(CodecError::InvalidTag("ScalarConditionSubject", tag)),
+    })
+}
+
+pub(super) fn encode_observation(
+    writer: &mut Writer,
+    observation: &ScalarRangeObservation,
+) -> Result<(), CodecError> {
+    match observation {
+        ScalarRangeObservation::Missing => {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "scalar condition contains an absent observation",
+            ));
+        }
+        ScalarRangeObservation::Literal(value) => {
+            writer.u8(1);
+            encode_integer(writer, value)?;
+        }
+        ScalarRangeObservation::Application(application) => {
+            writer.u8(2);
+            writer.id(*application);
+        }
+        ScalarRangeObservation::EntryResult {
+            application,
+            machine,
+            result,
+            scalar_type,
+        } => {
+            writer.u8(3);
+            writer.id(*application);
+            writer.id(*machine);
+            writer.id(*result);
+            encode_scalar_type(writer, *scalar_type);
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn decode_observation(
+    reader: &mut Reader<'_>,
+) -> Result<ScalarRangeObservation, CodecError> {
+    Ok(match reader.u8()? {
+        1 => ScalarRangeObservation::Literal(decode_integer(reader)?),
+        2 => ScalarRangeObservation::Application(reader.id("ScalarApplicationId")?),
+        3 => ScalarRangeObservation::EntryResult {
+            application: reader.id("ScalarApplicationId")?,
+            machine: reader.id("MachineId")?,
+            result: reader.id("ValueId")?,
+            scalar_type: decode_scalar_type(reader)?,
+        },
+        tag => return Err(CodecError::InvalidTag("ScalarRangeObservation", tag)),
+    })
 }
 
 #[cfg(test)]

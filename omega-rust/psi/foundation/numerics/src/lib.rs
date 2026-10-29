@@ -16,3 +16,4 @@ pub mod float_semantics_catalog;
 pub mod integer_bounds;
 pub mod integer_policy;
 pub mod literals;
+pub mod scalar_predicates;

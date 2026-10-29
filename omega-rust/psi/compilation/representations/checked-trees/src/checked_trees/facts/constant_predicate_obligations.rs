@@ -109,6 +109,42 @@ impl ConstantPredicateObligation {
         self.caller
     }
 
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Publish the checked graph, not a predicate reconstructed from source.
+    /// Children precede parents; the receiving representation owns their new
+    /// coordinates. Mapping visits both sides even when evaluation skips one.
+    pub fn map_nodes<Reference: Copy, Leaf>(
+        &self,
+        observe: &mut impl FnMut(ExpressionHandle, symbols::SymbolHandle) -> Result<Leaf, String>,
+        publish: &mut impl FnMut(PredicateNode<Reference, Leaf>) -> Result<Reference, String>,
+    ) -> Result<Reference, String> {
+        let mut coordinates = Vec::new();
+        for (source, captured) in self.nodes.iter() {
+            if matches!(captured.0, PredicateNode::Missing) {
+                return Err("retained predicate contains an absent node".into());
+            }
+            let node = captured.0.try_map(
+                &mut |child| {
+                    coordinates
+                        .iter()
+                        .find(|(original, _)| *original == child)
+                        .map(|(_, mapped)| *mapped)
+                        .ok_or_else(|| "retained predicate lost a preceding child".to_owned())
+                },
+                &mut |leaf| observe(*leaf, self.owner),
+            )?;
+            coordinates.push((source, publish(node)?));
+        }
+        coordinates
+            .iter()
+            .find(|(source, _)| *source == self.root)
+            .map(|(_, mapped)| *mapped)
+            .ok_or_else(|| "retained predicate lost its root".to_owned())
+    }
+
     /// Consume the target's already closed observations. Unknown and false
     /// both refuse; the diagnostic distinguishes them from a proven predicate.
     pub fn discharge_all<'obligation>(
@@ -211,22 +247,14 @@ fn capture_predicate(
                         .find(|(source, _)| *source == expression)
                         .map(|(_, handle)| *handle)
                 };
-                let node = match node {
-                    PredicateNode::Missing => return None,
-                    PredicateNode::Value(value) => PredicateNode::Value(value),
-                    PredicateNode::Leaf(leaf) => PredicateNode::Leaf(leaf),
-                    PredicateNode::Forward(reference) => PredicateNode::Forward(child(reference)?),
-                    PredicateNode::Not(reference) => PredicateNode::Not(child(reference)?),
-                    PredicateNode::Binary {
-                        operator,
-                        left,
-                        right,
-                    } => PredicateNode::Binary {
-                        operator,
-                        left: child(left)?,
-                        right: child(right)?,
-                    },
-                };
+                if matches!(node, PredicateNode::Missing) {
+                    return None;
+                }
+                let node = node
+                    .try_map(&mut |reference| child(reference).ok_or(()), &mut |leaf| {
+                        Ok(*leaf)
+                    })
+                    .ok()?;
                 captured.push((expression, nodes.insert(CapturedPredicateNode(node))));
                 if active.pop() != Some(expression) {
                     return None;
@@ -236,4 +264,64 @@ fn capture_predicate(
     }
     let root = captured.iter().find(|(source, _)| *source == root)?.1;
     Some((nodes, root))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use numerics::scalar_predicates::PredicateOperator;
+
+    #[test]
+    fn retained_predicate_publication_preserves_leaf_owner_and_caller_scope() {
+        let mut nodes = Arena::new();
+        let first = ExpressionHandle::from_parts(17, 1);
+        let second = ExpressionHandle::from_parts(23, 1);
+        let left = nodes.insert(CapturedPredicateNode(PredicateNode::Leaf(first)));
+        let right = nodes.insert(CapturedPredicateNode(PredicateNode::Leaf(second)));
+        let root = nodes.insert(CapturedPredicateNode(PredicateNode::Binary {
+            operator: PredicateOperator::Equal,
+            left,
+            right,
+        }));
+        let owner = symbols::SymbolHandle::from_parts(31, 1);
+        let caller = symbols::SymbolHandle::from_parts(37, 1);
+        let obligation = ConstantPredicateObligation {
+            nodes,
+            root,
+            owner,
+            caller,
+            source_span: source::SourceSpan::default(),
+            description: "captured equality".into(),
+            discharged_target: None,
+        };
+        let mut mapped = Vec::new();
+        let mut observations = Vec::new();
+        let root = obligation
+            .map_nodes(
+                &mut |expression, actual_owner| {
+                    observations.push((expression, actual_owner));
+                    Ok(if expression == first { 41u32 } else { 43 })
+                },
+                &mut |node| {
+                    let ordinal = mapped.len();
+                    mapped.push(node);
+                    Ok(ordinal)
+                },
+            )
+            .unwrap();
+        assert_eq!(obligation.caller(), caller);
+        assert_eq!(observations, vec![(first, owner), (second, owner)]);
+        drop(obligation);
+        assert_eq!(
+            scalar_predicates::evaluate_nodes(
+                root,
+                &mut |reference| mapped.get(reference).cloned(),
+                &mut |leaf| Some(ScalarValue::Integer(numerics::bignum::BigInt::from_u64(
+                    leaf as u64
+                ))),
+                &|_, _| true
+            ),
+            Some(ScalarValue::Boolean(false))
+        );
+    }
 }
