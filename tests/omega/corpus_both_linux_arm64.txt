@@ -22,8 +22,7 @@ pass/facts/as_slice_views_generic_offset_selector_exit built 4123ms exit:0 inter
 pass/facts/as_slice_views_generic_root_exit built 4009ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_shadowed_extent_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_stored_reference_selectors_exit built 3689ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
-pass/facts/as_slice_views_generic_through_call_result_exit incomplete 3969ms interpreter:unchecked @4235516305e1
-	`extent` calls `borrow`; `borrow` has no executable body: this compiler does not lower a state of it yet (statement sequence: reference result); in state `borrow::entry`
+pass/facts/as_slice_views_generic_through_call_result_exit built 1958ms exit:0 interpreter-exit:0 interpreter:agrees @fa7049fdc068
 pass/facts/as_slice_views_generic_through_const_name_exit built 3712ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_through_field_exit built 4048ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
 pass/facts/as_slice_views_generic_through_local_exit built 4045ms exit:0 interpreter-exit:0 interpreter:agrees @4235516305e1
