@@ -161,3 +161,38 @@ This next bounded experiment is complete: retain the small memory reduction,
 without advertising another compiler-speed win. The next measured opportunity
 is graph decoding (about 175–220 ms here), which must preserve complete arena
 and shared-object lineage rather than split coupled records opportunistically.
+
+## PR #757 conflict resolution and fresh validation
+
+The owner subsequently authorized publication through
+[PR #757](https://github.com/CathedralOS/Omega/pull/757). GitHub reported a real
+conflict: the warm worktree still included the ancestry already squash-landed
+through PR #755. Replaying the three new commits after `9ebe45062d8` onto fixed
+main `cf0881cf9aa0e7a1c98e6d7eabe41f1010223ca6` resolved it without manual
+source edits. The original qualified head remains reachable locally at
+`refs/experiments/retained-graph-qualified-20261029`.
+
+The resulting source `9866d0273701b71e239bea275fcb25f6adb39835` was freshly
+built in release opt-level 3 with checksum freshness. Its frozen producer SHA-256
+is `994af2870444891333948915cbcfd080bfdd24a4706878b2ce477ee3ad6673bf`.
+The integrated compiler/library inputs differ from the historical trial, so
+those performance observations remain historical; they are not runs of this
+producer. The retained graph reader and compiler-storage codec preserve the
+measured capacity mechanism, read ceiling, format, budgets and freshness rules.
+
+[integration.py](integration.py) ran the affected checks afresh: nine explicit
+native/Terminal agreements, nine invalid twins matching their authored
+`rejection_contains` fragments, six native seed/warm compiles, and four
+damaged-record controls (eight additional native seed/recovery images). All
+observed native exits were 0, all source rejects returned 1, and every damaged
+record was refused before fresh source compilation produced the original
+image. The three benchmark native hashes still exactly match the earlier
+qualified products. Scoped `compiler`/`omega-build` release Clippy and
+touched-file formatting passed, with inherited warnings.
+
+[integration.json.gz](integration.json.gz) preserves these new producer/build
+receipts, source hashes, diagnostics and raw logs. This is focused integration
+validation, without another full-corpus sweep or relabeling old measurements.
+Subsequent result-record edits do not change the qualified compiler/library
+input closure. Publication is separately confirmed through the PR's exact
+submitted head, published commit, CI and main ancestry.
