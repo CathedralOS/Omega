@@ -47,6 +47,30 @@ impl TypedTrees {
         rows.next().is_none().then_some((implementation, row))
     }
 
+    /// Nominal authority of one exact owned map member. The selected row,
+    /// declaring trait, overload and authored entry must all agree; callable
+    /// shape or another map referencing the same body grants no membership.
+    /// The complete inherited scope stays borrowed until the caller composes
+    /// its independently retained provider and demand application frames.
+    pub fn owned_conformance_requirement_scope(
+        &self,
+        realization: symbols::SymbolHandle,
+        declaring_trait: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+    ) -> Option<crate::trait_definition::AppliedTraitScope<'_>> {
+        let (implementation, row) = self.owned_conformance_realization(realization)?;
+        if row.declaring_trait != declaring_trait || row.requirement != requirement {
+            return None;
+        }
+        let machine = self.machine_by_symbol(realization)?;
+        let entry = self.machine_states(machine).first()?;
+        if entry.symbol != row.realization_state {
+            return None;
+        }
+        crate::trait_definition::AppliedTraitScope::from_conformance(self, implementation)?
+            .declaring_scope(self, declaring_trait)
+    }
+
     /// Authored applications still joined to retained source calls. Arena rows
     /// survive projection and therefore cannot define checking obligations.
     /// Uncalled authored bodies remain in the full Source machine roster.

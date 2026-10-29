@@ -113,6 +113,9 @@ pub(super) fn validate_nominal_machine_selection(
     let mut operand_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
                                actual_owner: SymbolHandle,
+                               owned_scope: Option<
+        &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    >,
                                bindings: &mut Vec<TypeBinding>| {
         if actual.len() != required_arguments.len() {
             return false;
@@ -230,11 +233,13 @@ pub(super) fn validate_nominal_machine_selection(
                 .all(|((actual, required), parameter)| {
                     let (actual, required) = if parameter.kind.is_const_or_value() {
                         (
-                            applied_index_identity(
+                            nominal_actual_identity(
                                 program,
-                                IndexIdentityArgument::TypeReference(*actual),
+                                *actual,
+                                parameter,
                                 actual_owner,
                                 &provider_scopes,
+                                owned_scope,
                             ),
                             applied_index_identity(
                                 program,
@@ -245,7 +250,14 @@ pub(super) fn validate_nominal_machine_selection(
                         )
                     } else {
                         (
-                            applied_type_identity(program, *actual, actual_owner, &provider_scopes),
+                            nominal_actual_identity(
+                                program,
+                                *actual,
+                                parameter,
+                                actual_owner,
+                                &provider_scopes,
+                                owned_scope,
+                            ),
                             applied_type_identity(program, *required, caller_owner, &[scope]),
                         )
                     };
@@ -320,11 +332,13 @@ pub(super) fn validate_nominal_machine_selection(
                 |((actual, required), parameter)| {
                     let (actual, required) = if parameter.kind.is_const_or_value() {
                         (
-                            applied_index_identity(
+                            nominal_actual_identity(
                                 program,
-                                IndexIdentityArgument::TypeReference(*actual),
+                                *actual,
+                                parameter,
                                 provider.lexical_owner,
                                 &[provider_scope],
+                                owned_scope,
                             ),
                             applied_index_identity(
                                 program,
@@ -335,11 +349,13 @@ pub(super) fn validate_nominal_machine_selection(
                         )
                     } else {
                         (
-                            applied_type_identity(
+                            nominal_actual_identity(
                                 program,
                                 *actual,
+                                parameter,
                                 provider.lexical_owner,
                                 &[provider_scope],
+                                owned_scope,
                             ),
                             applied_type_identity(
                                 program,
@@ -385,6 +401,7 @@ pub(super) fn validate_nominal_machine_selection(
                 program.lifetime_declaration_owner(
                     program.declaration_scope_parent(selected_parameter.symbol),
                 ),
+                None,
                 &mut scratch,
             ) {
                 *bindings = scratch;
@@ -472,10 +489,33 @@ pub(super) fn validate_nominal_machine_selection(
                 .type_reference_table
                 .type_reference_handles(conformance.arguments),
             selected_machine.symbol,
+            None,
             &mut scratch,
         ) {
             matching_rows += 1;
             admitted_bindings = Some(scratch);
+        }
+    }
+    if let Some(scope) = program.owned_conformance_requirement_scope(
+        satisfaction_owner.symbol,
+        *required_trait,
+        *required_requirement,
+    ) {
+        let actual = program
+            .trait_type_parameters(scope.declaration)
+            .iter()
+            .map(|parameter| {
+                scope
+                    .parameter_application(parameter.symbol)
+                    .map(|(reference, _)| reference)
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(actual) = actual {
+            let mut scratch = bindings.clone();
+            if arguments_match(&actual, scope.argument_owner, Some(&scope), &mut scratch) {
+                matching_rows += 1;
+                admitted_bindings = Some(scratch);
+            }
         }
     }
     if matching_rows == 1
@@ -539,4 +579,51 @@ pub(super) fn validate_nominal_machine_selection(
         canonical_requirement_overload: program
             .trait_requirement_callable_identity_text(trait_definition, requirement),
     }))
+}
+
+/// Compare an authored argument in the complete map/inheritance prefix that
+/// supplied it. A compound reference never loses its simultaneous scope or
+/// captures another declaration's equally spelled regions. Provider actuals
+/// and caller actuals remain independent owners.
+fn nominal_actual_identity(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    parameter: &TypeParameter,
+    argument_owner: SymbolHandle,
+    provider_scopes: &[typed_trees::type_identity::AppliedTypeIdentityScope<'_>],
+    owned: Option<&typed_trees::trait_definition::AppliedTraitScope<'_>>,
+) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+    use typed_trees::type_identity::{
+        IndexIdentityArgument, applied_index_identity, applied_type_identity_in_scope,
+    };
+    let normalize = |scopes: &[typed_trees::type_identity::AppliedTypeIdentityScope<'_>]| {
+        if parameter.kind.is_const_or_value() {
+            applied_index_identity(
+                program,
+                IndexIdentityArgument::TypeReference(reference),
+                argument_owner,
+                scopes,
+            )
+        } else {
+            applied_type_identity_in_scope(
+                program,
+                reference,
+                owned.map_or(argument_owner, |scope| scope.argument_owner),
+                argument_owner,
+                scopes,
+            )
+        }
+    };
+    match owned {
+        None => normalize(provider_scopes),
+        Some(owned) => owned.with_identity_scopes(program.typed_program(), |frames| {
+            let (_, visible) = owned.parameter_application(parameter.symbol)?;
+            let scopes = provider_scopes
+                .iter()
+                .copied()
+                .chain(frames.get(..visible)?.iter().copied())
+                .collect::<Vec<_>>();
+            normalize(&scopes)
+        }),
+    }
 }
