@@ -139,6 +139,26 @@ Quality acceptance passed on this exact candidate producer:
   `git diff --check` passed. Clippy warnings were inherited; no full-corpus or
   whole-workspace sweep was run.
 
-The new speed candidate is retained locally for a subsequent publication
-instruction. The prior memory optimization's publication is independent of
-this local producer and recorded in [prior_publication.json](prior_publication.json).
+The owner subsequently authorized [PR #762](https://github.com/CathedralOS/Omega/pull/762).
+GitHub reported an actual ancestry conflict with squash-landed PR #757. Replaying
+only the two new commits onto that published commit (`0add3ad35224`) resolved it
+without manual source changes. The original head remains locally reachable at
+`refs/experiments/root-graph-qualified-20261029`.
+
+Fresh release opt-level 3 validation used source
+`70b0286cfe02b38a07e6367918dc9633cfdec47c`, producer SHA-256
+`6016bd3a734b415c79be3b86a8b4c32217aa7b164129497d37ca027a0b00bf1e`.
+Nine explicit native/Terminal agreements, nine authored rejects, four malformed
+record controls, five root lookup/source change/pruning controls and scoped
+release Clippy passed again. The benchmark-subject native images matched the
+original qualified images. [landing_validation.json.gz](landing_validation.json.gz)
+retains these producer/build receipts, scripts and raw observations. It also
+preserves an interrupted first build attempt that produced no compiler or
+completed validation record; that attempt is not counted as a pass.
+
+The native/cache change is unchanged; the integrated base includes other source
+changes, so the original timing samples remain tied to their original producer.
+Fresh behavior validation does not relabel those measurements as runs of the
+integrated compiler. The preceding memory optimization's publication is recorded
+in [prior_publication.json](prior_publication.json); its post-merge smoke has
+since completed successfully.

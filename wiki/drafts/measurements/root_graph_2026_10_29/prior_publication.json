@@ -13,9 +13,9 @@
     "conclusion": "success"
   },
   "post_merge_smoke": {
-    "conclusion": "",
+    "conclusion": "success",
     "headSha": "0add3ad35224b3b037f3952d652453236310673c",
-    "status": "in_progress",
+    "status": "completed",
     "url": "https://github.com/CathedralOS/Omega/actions/runs/40839864464"
   },
   "boundary": "Windows qualification remains bound to original producer994af/source9866. Postlanding verification is read-only; the local next candidate is not a run of main."
