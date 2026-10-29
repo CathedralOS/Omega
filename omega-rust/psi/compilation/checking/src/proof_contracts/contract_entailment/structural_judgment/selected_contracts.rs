@@ -243,6 +243,40 @@ impl StructuralJudge<'_> {
         None
     }
 
+    /// Read only authored result equations from one admitted specification
+    /// application. Declaration refinement may use these public guarantees,
+    /// but cannot infer a result by inspecting the selected body.
+    pub(in crate::proof_contracts::contract_entailment) fn published_contract_normal_form(
+        &self,
+        value: &StructuralTerm,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        let SelectedApplicationCarrier {
+            owner, parameters, ..
+        } = self.selected_application_carrier(value, depth)?;
+        let StructuralTerm::Application { arguments, .. } = value else {
+            return None;
+        };
+        let bindings = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, value)| (parameter.symbol, value.clone()))
+            .collect::<Vec<_>>();
+        for (left, right) in
+            self.declared_contract_equations(&owner, &bindings, &bindings, Some(value), depth)?
+        {
+            for (pattern, replacement) in [(&left, &right), (&right, &left)] {
+                if pattern == value
+                    && replacement != value
+                    && !super::super::structural_terms::term_contains(replacement, value)
+                {
+                    return Some(replacement.clone());
+                }
+            }
+        }
+        None
+    }
+
     fn selected_application_carrier(
         &self,
         application: &StructuralTerm,
@@ -561,14 +595,14 @@ impl StructuralJudge<'_> {
         self.declared_guarantees(owner, entry_bindings, bindings, result, depth)
     }
 
-    fn declared_guarantees(
+    fn declared_contract_equations(
         &self,
         owner: &SelectedCallContract<'_>,
         entry_bindings: &[(SymbolHandle, StructuralTerm)],
         bindings: &[(SymbolHandle, StructuralTerm)],
         result: Option<&StructuralTerm>,
         depth: usize,
-    ) -> Option<SelectedGuarantees> {
+    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
         if depth >= 32 {
             return None;
         }
@@ -605,7 +639,7 @@ impl StructuralJudge<'_> {
                             "STRUCT normal-guarantee requires owner={callable:?} fact={fact:?} judgment={judgment:?} entry_bindings={entry_bindings:?}"
                         );
                     }
-                    return self.unconditional_boolean_result(owner, result?, depth);
+                    return None;
                 }
             }
         }
@@ -629,6 +663,32 @@ impl StructuralJudge<'_> {
                 }
             }
         }
+        Some(equations)
+    }
+
+    fn declared_guarantees(
+        &self,
+        owner: &SelectedCallContract<'_>,
+        entry_bindings: &[(SymbolHandle, StructuralTerm)],
+        bindings: &[(SymbolHandle, StructuralTerm)],
+        result: Option<&StructuralTerm>,
+        depth: usize,
+    ) -> Option<SelectedGuarantees> {
+        if depth >= 32 {
+            return None;
+        }
+        let mut equations = match self.declared_contract_equations(
+            owner,
+            entry_bindings,
+            bindings,
+            result,
+            depth,
+        ) {
+            Some(equations) => equations,
+            None => return self.unconditional_boolean_result(owner, result?, depth),
+        };
+        let program = self.program;
+        let parameters = owner_parameters(program, owner);
         // A body-wide constant records its literal on the result. Both a
         // match and a direct use read this equation; an authored `ensures`
         // is not required for a result every normal exit already supplies.
