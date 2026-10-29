@@ -253,11 +253,16 @@ footer{font-size:12px;margin-top:20px;padding-top:14px}
 
 .view-anchor{display:block;height:0;scroll-margin-top:180px}.view-anchor:focus{outline:none}.legend .unmeasured{background:#838984}
 .claims-panel{background:transparent;border:0;overflow:visible}.claims-panel .panel-head{padding:4px 0 18px}.claims-panel .claim-tools{padding:0 0 22px}.claims-panel .claims-list{padding:0}.claims-panel .claim{background:var(--card)}
+.performance-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:22px}.performance-heading h2{font-size:24px;font-weight:550}.performance-heading p{font-size:13px;margin-top:5px}.performance-heading select{max-width:530px}.performance-cost-card{padding:24px 28px 16px;margin-bottom:22px}.performance-pair{margin-bottom:22px}.performance-pair h2,.performance-cost-card h2{font-size:21px;font-weight:550}.performance-key{display:flex;flex-wrap:wrap;gap:9px 16px;font-size:12px;color:var(--muted)}.performance-key span{display:flex;align-items:center;gap:6px}.performance-key i{width:7px;height:7px;border-radius:50%}
+#performance-runtime{display:grid;gap:23px;padding:27px 0 15px}.performance-run>div:first-child,.performance-run-meta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:14px}.performance-run strong{font-size:19px;font-weight:500;white-space:nowrap}.performance-run strong small{font-size:12px;color:var(--muted)}.performance-variant{display:block;color:var(--muted);font-size:12px;margin-top:3px}.runtime-track{height:10px;background:#30322d;border-radius:3px;margin:10px 0}.runtime-track span{display:block;height:100%;border-radius:3px}.performance-run-meta{font-size:12px;color:var(--muted)}.performance-footprint-card{margin-bottom:22px}.performance-table{overflow:auto}.performance-table table{table-layout:auto;min-width:980px}.performance-table thead{background:#24251f}.performance-table tr:hover td{background:#292b24}.performance-table th{text-align:right}.performance-table th:first-child{text-align:left;width:auto}.performance-table td{border-color:#30312b;font-size:13px;padding:14px 20px;text-align:right;white-space:nowrap}.performance-table td:first-child{white-space:normal;min-width:210px;text-align:left}.performance-table small{display:block;color:var(--muted);font-size:12px;margin-top:4px}.performance-evidence>summary{padding:17px 24px;cursor:pointer;font-size:14px}.performance-evidence>div{padding:0 24px 24px}.performance-evidence p{font-size:13px;max-width:75ch;margin:12px 0}.performance-evidence details{border-top:1px solid var(--line);padding:14px 0}.performance-evidence details summary{cursor:pointer;font-size:13px}.performance-evidence dl{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 16px;font-size:12px}.performance-evidence dt{color:var(--muted)}.performance-evidence dd{margin:0;overflow-wrap:anywhere}.performance-evidence code{overflow-wrap:anywhere}.performance-evidence a{font-size:13px}
+@media(max-width:800px){.performance-heading{align-items:start;flex-direction:column;gap:16px}.performance-heading label,.performance-heading select{width:100%;max-width:100%}}
+@media(max-width:700px){.view-tabs{gap:20px}.view-tab{font-size:14px}.performance-cost-card{padding:21px 18px 14px;margin-bottom:16px}.performance-cost-card h2,.performance-pair h2{font-size:19px}.performance-pair{margin-bottom:16px}.performance-run>div:first-child{font-size:13px}.performance-run strong{font-size:17px}.performance-run-meta{font-size:12px}.performance-evidence>summary{padding:17px 18px}.performance-evidence>div{padding:0 18px 18px}.performance-evidence dl{grid-template-columns:1fr;gap:4px}.performance-evidence dd{margin-bottom:9px}}
+
 </style>
 </head>
 <body>
 <a class="skip" href="#facts">Skip to fact coverage</a>
-<header class="topbar"><div class="topbar-inner"><a class="brand" href="#"><span class="mark" aria-hidden="true">Ω</span>omega</a><nav class="view-tabs" role="tablist" aria-label="Dashboard views"><button class="view-tab" id="tab-overview" role="tab" aria-controls="view-overview" aria-selected="true" data-view="overview">Overview</button><button class="view-tab" id="tab-facts" role="tab" aria-controls="view-facts" aria-selected="false" data-view="facts">Facts</button><button class="view-tab" id="tab-work" role="tab" aria-controls="view-work" aria-selected="false" data-view="work">Work</button></nav><button class="refresh" id="refresh"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/></svg><span id="refresh-label">Refresh evidence</span></button><small id="refresh-help" hidden></small><span class="mode" id="mode" hidden>Snapshot</span><button class="evidence-button" id="open-evidence" aria-label="Evidence details"><span>Details</span><span id="warning-count" hidden></span></button></div></header>
+<header class="topbar"><div class="topbar-inner"><a class="brand" href="#"><span class="mark" aria-hidden="true">Ω</span>omega</a><nav class="view-tabs" role="tablist" aria-label="Dashboard views"><button class="view-tab" id="tab-overview" role="tab" aria-controls="view-overview" aria-selected="true" data-view="overview">Overview</button><button class="view-tab" id="tab-performance" role="tab" aria-controls="view-performance" aria-selected="false" data-view="performance">Performance</button><button class="view-tab" id="tab-facts" role="tab" aria-controls="view-facts" aria-selected="false" data-view="facts">Facts</button><button class="view-tab" id="tab-work" role="tab" aria-controls="view-work" aria-selected="false" data-view="work">Work</button></nav><button class="refresh" id="refresh"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 2M18 18A8 8 0 0 1 5 16"/></svg><span id="refresh-label">Refresh evidence</span></button><small id="refresh-help" hidden></small><span class="mode" id="mode" hidden>Snapshot</span><button class="evidence-button" id="open-evidence" aria-label="Evidence details"><span>Details</span><span id="warning-count" hidden></span></button></div></header>
 <main>
 <h1 class="sr-only">Omega compiler progress</h1>
 <div id="toast" role="status" aria-live="polite" hidden></div>
@@ -270,6 +275,15 @@ footer{font-size:12px;margin-top:20px;padding-top:14px}
 <section class="panel chart-card" id="chart-cohort" aria-labelledby="cohort-heading"><div class="chart-top"><div><h2 id="cohort-heading">Same programs vs. all programs</h2><p class="chart-kicker">Sep 30 set held fixed</p></div></div><div class="compact-legend"><span><i class="legend-dot then"></i>Sep 30</span><span><i class="legend-dot same"></i>Same set now</span><span><i class="legend-dot all"></i>All now</span></div><div id="cohort-plot"></div><div id="cohort-readout" class="short-readout" aria-live="polite"></div></section>
 <section class="panel chart-card" id="chart-growth" aria-labelledby="growth-heading"><div class="chart-top"><div><h2 id="growth-heading">Where new runs came from</h2><p class="chart-kicker">Since Sep 30</p></div></div><div class="compact-legend"><span><i class="legend-dot recovered"></i>Recovered</span><span><i class="legend-dot new"></i>New programs</span></div><div id="growth-plot"></div></section>
 </div>
+</section>
+<section class="view-panel" id="view-performance" data-view-panel="performance" role="tabpanel" aria-labelledby="tab-performance" hidden><span id="performance" class="view-anchor" tabindex="-1"></span>
+<div class="performance-heading"><div><h2>Performance</h2><p id="performance-age"></p><p id="performance-quality"></p></div><label><span class="sr-only">Benchmark host and producer context</span><select id="performance-host"></select></label></div>
+<div class="stats" id="performance-stats"></div>
+<section class="panel chart-card performance-cost-card"><h2>Recorded compile cost</h2><p class="chart-kicker">ms / project KLOC · log scale · project files only</p><div id="performance-cost"></div><div id="performance-readout" class="short-readout" aria-live="polite"></div></section>
+<div class="comparison-row performance-pair"><section class="panel chart-card"><h2>Compilation scaling</h2><p class="chart-kicker">Project LOC → compile seconds · log axes</p><div id="performance-scaling"></div></section>
+<section class="panel chart-card"><h2>Native runtime</h2><p class="chart-kicker">Whole process · includes startup</p><div id="performance-runtime"></div><p id="performance-pairs" class="chart-caption"></p></section></div>
+<section class="panel performance-footprint-card"><div class="panel-head"><h2>Recorded measurements</h2><p>Latest recorded row per workload / selection</p></div><div class="performance-table" id="performance-footprint"></div></section>
+<details class="panel performance-evidence"><summary>Benchmark evidence &amp; measurement limits</summary><div id="performance-evidence"></div></details>
 </section>
 <section class="view-panel" id="view-facts" data-view-panel="facts" role="tabpanel" aria-labelledby="tab-facts" hidden><span class="view-anchor" id="facts" tabindex="-1"></span><div class="stats" id="stats"></div>
 
@@ -394,6 +408,62 @@ function showDetail(fact,place){
  $('close-detail').onclick=()=>{detail.hidden=true;selection=null;renderFacts();const cell=[...$('fact-body').querySelectorAll('[data-place]')].find(b=>b.dataset.fact===fact.name&&b.dataset.place===place.name);if(cell){cell.focus({preventScroll:true});cell.scrollIntoView({block:'nearest'});}};
  detail.focus({preventScroll:true});detail.scrollIntoView({block:'nearest'});
 }
+function renderPerformance(){
+ const all=data.performance?.records||[],contexts=[...new Map(all.map(r=>[r.context_id,r.context])).entries()];
+ const current=$('performance-host').value;
+ const preferred=[...all].reverse().find(r=>r.runtime_oracle)||[...all].reverse().find(r=>r.compile)||all.at(-1);
+ const selected=contexts.some(([id])=>id===current)?current:preferred?.context_id;
+ $('performance-host').innerHTML=contexts.map(([id,c])=>`<option value="${id}">${escapeHTML((hosts[c.target]?.join(' ')||c.target)+' · '+(c.cpu||'Unknown CPU')+' · '+(c.omega_profile||'unknown profile')+(c.effective_profile?' opt '+c.effective_profile.opt_level:'')+(c.machine_id?' · host '+c.machine_id.slice(0,6):''))}</option>`).join('');
+ $('performance-host').disabled=!contexts.length;if(selected)$('performance-host').value=selected;
+ const rows=all.filter(r=>r.context_id===selected),pretty=n=>Number(n).toLocaleString(undefined,{maximumSignificantDigits:4}),stamp=t=>new Date(t).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+ $('performance-quality').textContent=rows.length&&rows.some(r=>!r.measurement?.compiler_profile)?'Effective producer optimization unrecorded':'';
+ $('performance-age').textContent=rows.length?'Historical observations · '+stamp(rows[0].recorded)+' – '+stamp(rows.at(-1).recorded):'No benchmark records';
+ $('performance-stats').innerHTML=[['Observations',rows.length],['Project LOC known',rows.filter(r=>r.project?.sloc>0).length],['Exit-verified records',rows.filter(r=>r.runtime_oracle).length]].map(([label,n])=>`<article class="stat"><div class="stat-label">${label}</div><div class="stat-value">${number(n)}</div></article>`).join('');
+ const subjects=[...new Set(all.map(r=>r.subject.name))].sort(),palette=['#63a5ed','#ea9b6b','#72c8a7','#c4a3e6','#d9c07e'];
+ const color=r=>palette[subjects.indexOf(r.subject.name)%palette.length],name=r=>readableName(r.subject.name),variant=r=>(r.selection.enabled.length+' enabled / '+r.selection.disabled.length+' disabled');
+ const narrow=matchMedia('(max-width:700px)').matches;
+ const compact=n=>n>=1e6?pretty(n/1e6)+'M':n>=1e3?pretty(n/1e3)+'k':pretty(n);
+ function logAxis(values,lo,hi){
+  const a=Math.floor(Math.log10(Math.min(...values))),b=Math.max(a+1,Math.ceil(Math.log10(Math.max(...values))));
+  const ticks=Array.from({length:b-a+1},(_,i)=>10**(a+i));
+  return {at:n=>lo+(Math.log10(n)-a)/(b-a)*(hi-lo),ticks:ticks.filter((_,i)=>ticks.length<7||i%Math.ceil(ticks.length/6)===0)};
+ }
+ const cost=rows.filter(r=>r.compile_ms_kloc>0);
+ if(!cost.length){$('performance-cost').innerHTML='<div class="chart-empty">No source-bound compile timings</div>';$('performance-scaling').innerHTML='<div class="chart-empty">Project LOC unavailable</div>';}
+ else{
+  const W=narrow?350:1050,H=narrow?300:340,L=narrow?48:65,R=W-(narrow?16:240),T=20,B=H-38;
+  const y=logAxis(cost.map(r=>r.compile_ms_kloc),B,T),times=cost.map(r=>Date.parse(r.recorded)),first=Math.min(...times),last=Math.max(...times),span=last-first;
+  const x=r=>span?L+(Date.parse(r.recorded)-first)/span*(R-L):(L+R)/2;
+  const latest=[...new Map(cost.map(r=>[r.subject.name,r])).values()].map(r=>({r,y:y.at(r.compile_ms_kloc)})).sort((a,b)=>a.y-b.y);
+  latest.forEach((v,i)=>v.label=Math.max(v.y,i?latest[i-1].label+25:T+12));
+  const excess=latest.at(-1).label-(B-5);if(excess>0)latest.forEach(v=>v.label-=excess);
+  $('performance-cost').innerHTML=`<svg class="plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Historical compile milliseconds per authored project KLOC, logarithmic vertical axis">
+  ${y.ticks.map(n=>`<line class="grid-line" x1="${L}" x2="${R}" y1="${y.at(n)}" y2="${y.at(n)}"/><text x="${L-9}" y="${y.at(n)+5}" text-anchor="end">${compact(n)}</text>`).join('')}
+  ${cost.map(r=>`<circle fill="${color(r)}" cx="${x(r)}" cy="${y.at(r.compile_ms_kloc)}" r="4"/><circle class="point-hit" data-performance="${r.id}" cx="${x(r)}" cy="${y.at(r.compile_ms_kloc)}" r="10" tabindex="0" role="button" aria-label="${escapeHTML(name(r)+', '+stamp(r.recorded)+': '+pretty(r.compile_ms_kloc)+' ms per project KLOC; '+variant(r))}"/>`).join('')}
+  ${!narrow?latest.map(({r,label})=>`<path class="series-leader" stroke="${color(r)}" d="M${x(r)+6},${y.at(r.compile_ms_kloc)} L${R+10},${label} H${R+17}"/><text class="series-end" style="fill:${color(r)}" x="${R+23}" y="${label+5}">${escapeHTML(name(r))}</text>`).join(''):''}
+  ${Array.from({length:3},(_,i)=>first+span*i/2).map((t,i)=>`<text x="${span?L+(t-first)/span*(R-L):(L+R)/2}" y="${H-7}" text-anchor="${i===0?'start':i===2?'end':'middle'}">${escapeHTML(new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</text>`).join('')}</svg>
+  ${narrow?`<div class="performance-key">${latest.map(({r})=>`<span><i style="background:${color(r)}"></i>${escapeHTML(name(r))}</span>`).join('')}</div>`:''}`;
+  const SW=narrow?350:500,SH=300,SL=52,SR=SW-20,SB=SH-43;
+  const sx=logAxis(cost.map(r=>r.project.sloc),SL,SR),sy=logAxis(cost.map(r=>r.compile.median/1000),SB,18);
+  $('performance-scaling').innerHTML=`<svg class="plot" viewBox="0 0 ${SW} ${SH}" role="group" aria-label="Project source lines against compile seconds, both axes logarithmic">
+  ${sy.ticks.map(n=>`<line class="grid-line" x1="${SL}" x2="${SR}" y1="${sy.at(n)}" y2="${sy.at(n)}"/><text x="${SL-8}" y="${sy.at(n)+5}" text-anchor="end">${compact(n)}</text>`).join('')}
+  ${sx.ticks.map(n=>`<text x="${sx.at(n)}" y="${SH-17}" text-anchor="middle">${compact(n)}</text>`).join('')}
+  ${cost.map(r=>`<circle fill="${color(r)}" fill-opacity=".7" cx="${sx.at(r.project.sloc)}" cy="${sy.at(r.compile.median/1000)}" r="5"/><circle class="point-hit" data-performance="${r.id}" cx="${sx.at(r.project.sloc)}" cy="${sy.at(r.compile.median/1000)}" r="11" tabindex="0" role="button" aria-label="${escapeHTML(name(r)+': '+r.project.sloc+' project source lines; '+pretty(r.compile.median/1000)+' compile seconds')}"/>`).join('')}</svg>`;
+ }
+ const latest=new Map();rows.forEach(r=>latest.set(r.path,r));
+ const runtime=[...latest.values()].filter(r=>r.runtime_oracle),maximum=Math.max(1,...runtime.map(r=>r.runtime.median));
+ $('performance-runtime').innerHTML=runtime.length?runtime.map(r=>`<div class="performance-run"><div><span>${escapeHTML(name(r))}${r.selection.enabled.length||r.selection.disabled.length||runtime.filter(other=>other.subject.name===r.subject.name).length>1?`<small class="performance-variant" title="${escapeHTML(variant(r))}">${r.selection.enabled.length||r.selection.disabled.length?r.selection.enabled.length+' on · '+r.selection.disabled.length+' off':'Default'}</small>`:''}</span><strong>${pretty(r.runtime.median)} <small>ms</small></strong></div><div class="runtime-track"><span style="width:${r.runtime.median/maximum*100}%;background:${color(r)}"></span></div><div class="performance-run-meta"><span>${r.runtime.samples.length} runs · ${pretty(r.runtime.min)}–${pretty(r.runtime.max)} ms</span><span>${r.baseline_ratio!==null?pretty(r.baseline_ratio)+'× observed':r.baseline_id?'Baseline only':'Unpaired'}</span></div>${r.measurement?.work_units?`<div class="performance-run-meta">${pretty(r.runtime.median*1e6/r.measurement.work_units)} ns / declared work unit</div>`:''}</div>`).join(''):'<div class="chart-empty">No exit-verified runtime observations on this host</div>';
+ const pairs=runtime.filter(r=>r.baseline_ratio!==null).length;
+ $('performance-pairs').textContent=pairs?pairs+' matched median comparisons':'Speedup unavailable · no matched baseline';
+ const mb=n=>n===null?'—':pretty(n/1048576),kb=n=>n===null?'—':pretty(n/1024);
+ $('performance-footprint').innerHTML=`<table><thead><tr><th>Workload / selection</th><th>Project LOC</th><th>Compile s</th><th>Runtime ms</th><th>Compile MiB</th><th>Runtime MiB</th><th>Image KiB</th><th>Recorded</th></tr></thead><tbody>${[...latest.values()].map(r=>`<tr><td><span>${escapeHTML(name(r))}</span><small>${escapeHTML(variant(r))}${r.applicability?' · unavailable':''}</small></td><td>${r.project.sloc??'—'}</td><td>${r.compile?pretty(r.compile.median/1000):'—'}</td><td>${r.runtime?pretty(r.runtime.median)+(!r.runtime_oracle?'<small>Unverified exit</small>':''):'—'}</td><td>${mb(r.compile_memory)}</td><td>${mb(r.run_memory)}</td><td>${kb(r.code_bytes)}${r.code_stable===false?' *':''}</td><td>${escapeHTML(stamp(r.recorded))}</td></tr>`).join('')||'<tr><td colspan="8">No observations</td></tr>'}</tbody></table>`;
+ const base=data.source_base.split('/blob/')[0];
+ $('performance-evidence').innerHTML=`<p>Project KLOC counts nonblank, non-comment lines in tracked .omg files below the benchmark directory at the recorded source revision. Sources outside that directory, including external dependencies, are excluded; unused tracked project files can be included. Full compiled-source throughput is unavailable. No current checkout LOC is substituted.</p><p>Timings include process startup. Each point keeps its samples and host context. Variants and changed project inputs are separate observations; dots do not imply a fixed-workload improvement. Speedup is a ratio of medians only when source revision, recorded input, dependency lock, recorded machine ID, target, toolchain, effective profile and protocol match. Source cleanliness is required. Other external inputs, file-cache/load effects and stdout correctness are not established by an exit check.</p>${rows.map(r=>`<details><summary>${escapeHTML(name(r))} · ${escapeHTML(stamp(r.recorded))} · ${escapeHTML(variant(r))}</summary><dl><dt>Compile</dt><dd>${r.compile?pretty(r.compile.median)+' ms median · '+pretty(r.compile.min)+'–'+pretty(r.compile.max)+' ms · '+r.compile.samples.length+' samples':escapeHTML(r.compile_reason||'Unavailable')}</dd><dt>Runtime</dt><dd>${r.runtime?pretty(r.runtime.median)+' ms · '+(r.runtime_oracle?'exit verified':'exit oracle unavailable'):escapeHTML(r.runtime_reason||r.runtime_status)}</dd><dt>Project source</dt><dd>${r.project.sloc??'Unknown'} lines · ${r.project.files?.length??'Unknown'} files · ${escapeHTML(r.project.error||r.project.sha256||'')}</dd><dt>Rules</dt><dd>Enabled: ${escapeHTML(r.selection.enabled.join(', ')||'none')} · disabled: ${escapeHTML(r.selection.disabled.join(', ')||'none')}</dd><dt>Source revision</dt><dd><code>${escapeHTML(r.subject.source_revision)}</code></dd><dt>Producer</dt><dd><code>${escapeHTML(r.host.omega_binary_sha256||'Digest unrecorded')}</code>${escapeHTML(r.host.omega_version||' · version unrecorded')}</dd><dt>Effective profile</dt><dd>${escapeHTML(r.measurement?.compiler_profile?.opt_level||'Unrecorded; profile name alone does not establish optimization')}</dd><dt>Compile samples</dt><dd>${r.compile?r.compile.samples.map(pretty).join(' · '):'—'}</dd><dt>Run samples</dt><dd>${r.runtime?r.runtime.samples.map(pretty).join(' · '):'—'}</dd></dl>${r.baseline_id?`<p>Baseline <code>${escapeHTML(r.baseline_id)}</code></p>`:''}<p>${escapeHTML((r.notes||[]).join('\n'))}</p>${base&&r.record_revision?`<a href="${escapeHTML(base+'/blob/'+r.record_revision+'/'+r.path)}" target="_blank" rel="noreferrer">Recorded JSON ↗</a>`:`<code>${r.record_revision?'Record: ':'Working-tree record: '}${escapeHTML(r.path)}${r.record_revision?' @ '+escapeHTML(r.record_revision):''}</code>`}</details>`).join('')}${(data.performance?.errors||[]).map(e=>`<p>${escapeHTML(e)}</p>`).join('')}`;
+ const select=id=>{const r=rows.find(r=>r.id===id);$('performance-readout').textContent=name(r)+' · '+stamp(r.recorded)+' · '+pretty(r.compile.median)+' ms median ('+pretty(r.compile.min)+'–'+pretty(r.compile.max)+') · '+r.project.sloc+' project lines · '+variant(r);};
+ for(const container of ['performance-cost','performance-scaling'])$(container).querySelectorAll('[data-performance]').forEach(hit=>{hit.onpointerenter=()=>select(hit.dataset.performance);hit.onfocus=()=>select(hit.dataset.performance);hit.onclick=()=>select(hit.dataset.performance);hit.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select(hit.dataset.performance);}};});
+}
+
+
 function renderCohort(){
  const rows=data.native.filter(host=>host.cohort?.available);
  const percent=(n,d)=>d?Math.round(n/d*100):null;
@@ -410,12 +480,12 @@ function renderCohort(){
 }
 
 function selectView(name,focus=false){
- if(!['overview','facts','work'].includes(name))name='overview';
+ if(!['overview','performance','facts','work'].includes(name))name='overview';
  document.querySelectorAll('[data-view-panel]').forEach(panel=>panel.hidden=panel.dataset.viewPanel!==name);
  const tabs=[...document.querySelectorAll('[data-view]')];
  tabs.forEach(tab=>{const selected=tab.dataset.view===name;tab.setAttribute('aria-selected',selected);tab.tabIndex=selected?0:-1;if(selected&&focus)tab.focus();});
  if(name==='overview'){renderHistory();renderCohort();}
- if(name==='facts')renderOutcomes();
+ if(name==='facts')renderOutcomes();if(name==='performance')renderPerformance();
 }
 
 function renderFacts(){
@@ -464,10 +534,11 @@ function render(){
  if(data.source_base)$('method-link').href=data.source_base.split('/blob/')[0]+'/blob/main/tools/dashboard/README.md';
  $('warning-count').hidden=!(data.warnings||[]).length;$('warning-count').textContent=(data.warnings||[]).length;
  const warnings=data.warnings||[];$('status').innerHTML=warnings.length?`<details class="notice"><summary>${number(warnings.length)} evidence input warning(s)</summary>${warnings.map(w=>`<p>${escapeHTML(w)}</p>`).join('')}</details>`:'';
- renderFacts();renderNative();renderClaims();renderHistory();renderOutcomes();renderCohort();
+ renderFacts();renderNative();renderClaims();renderHistory();renderOutcomes();renderCohort();renderPerformance();
 }
 $('target').innerHTML=data.targets.map(t=>`<option value="${t}">${hosts[t].join(' · ')}</option>`).join('');
 $('history-target').innerHTML='<option value="all">All hosts</option>'+$('target').innerHTML;$('chart-target').innerHTML=$('target').innerHTML;
+$('performance-host').onchange=()=>{$('performance-readout').textContent='';renderPerformance();};
 $('history-target').onchange=()=>{historySelection=null;renderHistory();};
 $('chart-target').onchange=()=>{$('target').value=$('chart-target').value;$('target').onchange();};
 $('fact-search').oninput=renderFacts;$('claim-search').oninput=renderClaims;
@@ -488,9 +559,9 @@ $('open-evidence').onclick=openEvidence;$('close-evidence').onclick=()=>{$('evid
 document.querySelectorAll('[data-evidence]').forEach(button=>button.onclick=openEvidence);
 const viewTabs=[...document.querySelectorAll('[data-view]')];
 viewTabs.forEach((tab,i)=>{tab.onclick=()=>selectView(tab.dataset.view);tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();selectView(viewTabs[(i+(event.key==='ArrowLeft'?-1:1)+viewTabs.length)%viewTabs.length].dataset.view,true);}};});
-addEventListener('hashchange',()=>selectView(location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview'));
+addEventListener('hashchange',()=>selectView(location.hash==='#performance'?'performance':location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview'));
 
-let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{renderHistory();renderOutcomes();renderCohort();},150);});
-render();selectView(location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview');setInterval(()=>{renderClaims();if(data.claims.available){const active=[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length;$('active-claims-value').textContent=number(active);$('claims-count').textContent=number(active)+' active';}},60000);
+let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{renderHistory();renderOutcomes();renderCohort();if(!$('view-performance').hidden)renderPerformance();},150);});
+render();selectView(location.hash==='#performance'?'performance':location.hash==='#facts'?'facts':location.hash==='#claims'?'work':'overview');setInterval(()=>{renderClaims();if(data.claims.available){const active=[...data.claims.active,...data.claims.expired].filter(c=>Date.parse(c.expires_utc)>Date.now()).length;$('active-claims-value').textContent=number(active);$('claims-count').textContent=number(active)+' active';}},60000);
 </script>
 </body></html>
