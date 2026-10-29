@@ -22,6 +22,10 @@ fail/arithmetic/anonymous_large_literal_requires_representable_destination rejec
 	anonymous integer value `18446744073709551615` does not fit destination `u32` in array literal element of type `u32`
 fail/arithmetic/anonymous_remainder_rejected rejected 724ms expected @a92f16431042
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
+fail/borrows/captured_state_shared_reborrow_write rejected 3222ms expected @230151eef4fe
+	machine `next` state `entry` assignment cannot write `words` because it is not mutable in this state (if `words` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/copied_scalar_field_without_restriction rejected 3373ms expected @230151eef4fe
+	argument `value` for state `entry` expects `&u64[0..=5]`, got `member access`
 fail/borrows/nested_machine_unit_output_live_old_descendant_rejected rejected 5141ms expected @1e18830ea024+wt
 	statement 5 mutates `old.value` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/borrows/nested_machine_unit_output_local_escape_rejected rejected 3651ms expected @1e18830ea024+wt
@@ -163,6 +167,8 @@ fail/machines/private_trapping_reversed_prior_guard rejected 714ms expected @e12
 	call from `locate` to `payload` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/machines/private_trapping_signed_pair_missing rejected 652ms expected @e12c034a9fc8
 	call from `divide` to `quotient` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+pass/borrows/captured_state_shared_reborrow checked 5573ms check-target:macos_arm64 @230151eef4fe
+pass/borrows/copied_scalar_field_with_restricted_peer checked 4838ms check-target:macos_arm64 @230151eef4fe
 pass/borrows/nested_machine_unit_output_completed_operand_exit checked 5718ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_local_destination_exit checked 5669ms check-target:macos_arm64 @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit checked 4135ms check-target:macos_arm64 @1e18830ea024+wt
@@ -172,6 +178,7 @@ pass/build/provider_nested_type_application_exit checked 2654ms check-target:mac
 pass/build/provider_structural_type_application_exit checked 3111ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @b86bab8d85ef
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 1128ms check-target:macos_arm64 @e12c034a9fc8
 pass/calls/static_machine_required_input_crash_refinement_exit checked 1140ms check-target:macos_arm64 @e12c034a9fc8
+pass/components/independent_same_spelling_packages checked 9944ms check-target:macos_arm64 @230151eef4fe
 pass/domains/semicolon_predicate_presence_exit checked 950ms check-target:macos_arm64 @4599cdf306fb
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result checked 956ms check-target:macos_arm64 @e12c034a9fc8
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name checked 1007ms check-target:macos_arm64 @e12c034a9fc8
