@@ -22,6 +22,9 @@ macro_rules! s {
     ($a:expr => $b:expr => $c:expr => $d:expr) => {
         checked_sum_u64($a, $b, $c, $d)
     };
+    ($a:expr => $b:expr => $c:expr) => {
+        checked_sum_u64($a, $b, $c, "Elf64_Off")
+    };
 }
 
 pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
@@ -151,24 +154,14 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                     placed.byte_size,
                     "section file extent",
                     "Elf64_Off",
-                )? <= crate::dynamic_executable::checked::checked_sum_u64(
-                    load.file_offset,
-                    load.file_size,
-                    "load file extent",
-                    "Elf64_Off",
-                )?
+                )? <= s!(load.file_offset => load.file_size => "load file extent")?
                 && placed_address >= load.virtual_address
                 && crate::dynamic_executable::checked::checked_sum_u64(
                     placed_address,
                     placed.byte_size,
                     "section memory extent",
                     "Elf64_Off",
-                )? <= crate::dynamic_executable::checked::checked_sum_u64(
-                    load.virtual_address,
-                    load.memory_size,
-                    "load memory extent",
-                    "Elf64_Off",
-                )?,
+                )? <= s!(load.virtual_address => load.memory_size => "load memory extent")?,
             "allocated dynamic ELF section is not mapped exactly by its permission load",
         )?;
     }
@@ -212,12 +205,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         "source text is not mapped exactly inside the executable load",
     )?;
     let rw_file_end = s!(rw.file_offset => rw.file_size => "RW file extent" => "Elf64_Off")?;
-    let rw_memory_end = crate::dynamic_executable::checked::checked_sum_u64(
-        rw.virtual_address,
-        rw.memory_size,
-        "RW memory extent",
-        "Elf64_Off",
-    )?;
+    let rw_memory_end = s!(rw.virtual_address => rw.memory_size => "RW memory extent")?;
     let data_file_end = crate::dynamic_executable::checked::checked_sum_u64(
         candidate.image_memory.data_file_offset,
         candidate.image_memory.data_size,
@@ -298,12 +286,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
     crate::dynamic_executable::checked::require(
         shstrtab.file_offset >= rw_file_end
             && candidate.section_header_table_file_offset
-                >= crate::dynamic_executable::checked::checked_sum_u64(
-                    shstrtab.file_offset,
-                    shstrtab.byte_size,
-                    "`.shstrtab` extent",
-                    "Elf64_Off",
-                )?,
+                >= s!(shstrtab.file_offset => shstrtab.byte_size => "`.shstrtab` extent")?,
         "file-only metadata overlaps an allocated load",
     )?;
     crate::dynamic_executable::checked::require(
@@ -426,12 +409,7 @@ fn range_contains(
             inner_size,
             context,
             "Elf64_Off",
-        )? <= crate::dynamic_executable::checked::checked_sum_u64(
-            outer_start,
-            outer_size,
-            context,
-            "Elf64_Off",
-        )?)
+        )? <= s!(outer_start => outer_size => context)?)
 }
 
 pub(crate) fn validate_deferred_constraint_envelope(
@@ -459,12 +437,7 @@ pub(crate) fn validate_deferred_constraint_envelope(
                     Diagnostic::error("procedure fixup storage has no allocated placement")
                 })?,
         };
-        let source = crate::dynamic_executable::checked::checked_sum_u64(
-            source_base,
-            fixup.byte_offset as u64,
-            "procedure fixup site",
-            "Elf64_Off",
-        )?;
+        let source = s!(source_base => fixup.byte_offset as u64 => "procedure fixup site")?;
         let target = candidate
             .sections
             .get(fixup.target_section_index as usize)
@@ -477,12 +450,7 @@ pub(crate) fn validate_deferred_constraint_envelope(
             target.byte_size != 0,
             "procedure fixup target section has no bytes",
         )?;
-        let target_last = crate::dynamic_executable::checked::checked_sum_u64(
-            target_start,
-            target.byte_size - 1,
-            "procedure target last byte",
-            "Elf64_Off",
-        )?;
+        let target_last = s!(target_start => target.byte_size - 1 => "procedure target last byte")?;
         let span = source
             .abs_diff(target_start)
             .max(source.abs_diff(target_last));
@@ -524,12 +492,7 @@ pub(crate) fn aarch64_page_delta_covers_extent(
     if target_size == 0 {
         return Ok(false);
     }
-    let target_last = crate::dynamic_executable::checked::checked_sum_u64(
-        target_start,
-        target_size - 1,
-        "AArch64 ADRP target last byte",
-        "Elf64_Off",
-    )?;
+    let target_last = s!(target_start => target_size - 1 => "AArch64 ADRP target last byte")?;
     let page_number = |address: u64| address / AARCH64_RELOCATION_PAGE_SIZE;
     let source_page = i128::from(page_number(source));
     let minimum_delta = -(1_i128 << 20);
